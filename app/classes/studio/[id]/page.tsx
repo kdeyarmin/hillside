@@ -44,6 +44,7 @@ export default async function OnlineClassStudio({
         where: {
           id: access.registrationId,
           classEventId: event.id,
+          joinTokenHash: access.tokenHash,
           status: 'PAID'
         }
       })
@@ -56,8 +57,8 @@ export default async function OnlineClassStudio({
           <LockKeyhole size={36} />
           <h1>Use your private class link.</h1>
           <p>
-            For privacy, this classroom opens only through the secure link in your registration
-            confirmation email.
+            For privacy, this classroom opens only through the secure link in your most recent
+            registration confirmation email.
           </p>
           <Link className="btn" href="/classes">Return to classes</Link>
         </div>
