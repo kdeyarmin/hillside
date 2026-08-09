@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Users, Video } from 'lucide-react';
+import { Mail, Users, Video } from 'lucide-react';
 import TelnyxClassroom from '@/components/TelnyxClassroom';
 import { isAdmin } from '@/lib/admin';
 import { classFormatLabel, isOnlineClass } from '@/lib/class-access';
 import { db } from '@/lib/db';
+import { resendClassConfirmation } from '../../../actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Class Host Studio', robots: { index: false, follow: false } };
@@ -72,18 +73,25 @@ export default async function HostClassStudio({
 
         <div className="admin-card classroom-roster">
           <h2>Registered guests</h2>
+          <p className="muted">Resending creates a new private classroom link and invalidates the previous emailed link.</p>
           {event.registrations.length ? (
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Name</th><th>Email</th><th>Seats</th><th>Confirmation</th><th>Last joined</th></tr></thead>
+                <thead><tr><th>Name</th><th>Email</th><th>Seats</th><th>Confirmation</th><th>Last joined</th><th>Actions</th></tr></thead>
                 <tbody>
                   {event.registrations.map((registration) => (
                     <tr key={registration.id}>
                       <td>{registration.name}</td>
                       <td><a href={`mailto:${registration.email}`}>{registration.email}</a></td>
                       <td>{registration.seats}</td>
-                      <td>{registration.confirmationEmailSentAt ? 'Sent' : 'Not sent'}</td>
+                      <td>{registration.confirmationEmailSentAt ? `Sent ${registration.confirmationEmailSentAt.toLocaleString()}` : 'Not sent'}</td>
                       <td>{registration.lastJoinedAt ? registration.lastJoinedAt.toLocaleString() : 'Not yet'}</td>
+                      <td>
+                        <form action={resendClassConfirmation}>
+                          <input type="hidden" name="id" value={registration.id} />
+                          <button className="btn outline small" type="submit"><Mail size={15} /> Resend link</button>
+                        </form>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
