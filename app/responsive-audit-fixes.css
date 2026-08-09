@@ -1,0 +1,28 @@
+/* Final corrections discovered by the automated 320px–1920px browser audit. */
+@media (max-width: 900px) {
+  .editorial-hero {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .editorial-hero-copy {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .editorial-hero-copy > *,
+  .editorial-hero-copy .actions > * {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .editorial-hero-copy h1,
+  .editorial-hero-copy p,
+  .editorial-hero-copy .eyebrow {
+    overflow-wrap: anywhere;
+  }
+}

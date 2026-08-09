@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Menu, Minus, Plus, Search, ShoppingBag, Trash2, X } from 'lucide-react';
 import NewsletterForm from '@/components/NewsletterForm';
+import ResilientImage from '@/components/ResilientImage';
 import { useCart } from '@/components/CartProvider';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
 
@@ -18,6 +19,24 @@ const navigation = [
   ['Tammy’s Picks', '/amazon']
 ] as const;
 
+const focusableSelector = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])'
+].join(',');
+
+function focusableElements(container: HTMLElement | null) {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll<HTMLElement>(focusableSelector)).filter((element) => {
+    const style = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+  });
+}
+
 function CartDrawer() {
   const {
     items,
@@ -29,37 +48,83 @@ function CartDrawer() {
     removeItem,
     checkout
   } = useCart();
-
-  useEffect(() => {
-    document.body.style.overflow = drawerOpen ? 'hidden' : '';
-    return () => {
-      document.body.style.overflow = '';
-    };
-  }, [drawerOpen]);
+  const dialogRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!drawerOpen) return;
 
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeCart();
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const focusTimer = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeCart();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+      const focusables = focusableElements(dialogRef.current);
+      if (!focusables.length) {
+        event.preventDefault();
+        closeButtonRef.current?.focus();
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && (active === first || !dialogRef.current?.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
 
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusTimer);
+      window.removeEventListener('keydown', handleKeyDown);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
+    };
   }, [closeCart, drawerOpen]);
 
   if (!drawerOpen) return null;
 
   return (
-    <div className="drawer-layer" role="dialog" aria-modal="true" aria-label="Shopping cart">
-      <button className="drawer-backdrop" type="button" onClick={closeCart} aria-label="Close cart" />
-      <aside className="cart-drawer">
+    <div className="drawer-layer">
+      <button
+        className="drawer-backdrop"
+        type="button"
+        onClick={closeCart}
+        aria-label="Close cart"
+        tabIndex={-1}
+      />
+      <aside
+        className="cart-drawer"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="cart-drawer-title"
+      >
         <div className="drawer-heading">
           <div>
             <span className="eyebrow">Your basket</span>
-            <h2>Shopping cart</h2>
+            <h2 id="cart-drawer-title">Shopping cart</h2>
           </div>
-          <button className="icon-button" type="button" onClick={closeCart} aria-label="Close cart">
+          <button
+            className="icon-button"
+            ref={closeButtonRef}
+            type="button"
+            onClick={closeCart}
+            aria-label="Close cart"
+          >
             <X />
           </button>
         </div>
@@ -78,27 +143,39 @@ function CartDrawer() {
             <div className="cart-lines">
               {items.map((item) => (
                 <div className="cart-line" key={item.slug}>
-                  <img src={item.imageUrl || FALLBACK_PRODUCT_IMAGE} alt={item.name} />
+                  <ResilientImage
+                    src={item.imageUrl || FALLBACK_PRODUCT_IMAGE}
+                    fallbackSrc="/images/botanical-placeholder.svg"
+                    alt={item.name}
+                    width={80}
+                    height={80}
+                    loading="lazy"
+                    decoding="async"
+                  />
                   <div className="cart-line-copy">
                     <Link href={`/shop/${item.slug}`} onClick={closeCart}>
                       <b>{item.name}</b>
                     </Link>
                     <span>{formatMoney(item.priceCents)}</span>
                     <div className="cart-line-actions">
-                      <div className="quantity-picker small" aria-label={`Quantity for ${item.name}`}>
+                      <div
+                        className="quantity-picker small"
+                        role="group"
+                        aria-label={`Quantity for ${item.name}`}
+                      >
                         <button
                           type="button"
                           onClick={() => setQuantity(item.slug, item.quantity - 1)}
-                          aria-label="Decrease quantity"
+                          aria-label={`Decrease ${item.name} quantity`}
                         >
                           <Minus size={14} />
                         </button>
-                        <span>{item.quantity}</span>
+                        <span aria-live="polite">{item.quantity}</span>
                         <button
                           type="button"
                           onClick={() => setQuantity(item.slug, item.quantity + 1)}
                           disabled={item.quantity >= item.inventory}
-                          aria-label="Increase quantity"
+                          aria-label={`Increase ${item.name} quantity`}
                         >
                           <Plus size={14} />
                         </button>
@@ -122,7 +199,13 @@ function CartDrawer() {
                 <strong>{formatMoney(subtotalCents)}</strong>
               </div>
               <p>Shipping and any applicable tax are calculated securely in Stripe Checkout.</p>
-              <button className="btn full" type="button" onClick={checkout} disabled={checkoutLoading}>
+              <button
+                className="btn full"
+                type="button"
+                onClick={checkout}
+                disabled={checkoutLoading}
+                aria-busy={checkoutLoading}
+              >
                 {checkoutLoading ? 'Opening secure checkout…' : 'Secure checkout'}
               </button>
               <Link className="text-link centered" href="/cart" onClick={closeCart}>
@@ -139,24 +222,80 @@ function CartDrawer() {
 export function SiteHeader() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { count, openCart } = useCart();
+  const { count, drawerOpen, openCart } = useCart();
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
   useEffect(() => {
-    if (!mobileOpen) return;
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMobileOpen(false);
+    const media = window.matchMedia('(min-width: 901px)');
+    const closeForDesktop = (event: MediaQueryListEvent | MediaQueryList) => {
+      if (event.matches) setMobileOpen(false);
     };
 
-    window.addEventListener('keydown', closeOnEscape);
+    closeForDesktop(media);
+    media.addEventListener?.('change', closeForDesktop);
+    return () => media.removeEventListener?.('change', closeForDesktop);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileOpen && !drawerOpen) return;
+
+    const body = document.body;
+    const previousOverflow = body.style.overflow;
+    const previousPaddingRight = body.style.paddingRight;
+    const scrollbarWidth = Math.max(0, window.innerWidth - document.documentElement.clientWidth);
+
+    body.classList.add('is-scroll-locked');
+    body.style.overflow = 'hidden';
+    if (scrollbarWidth > 0) body.style.paddingRight = `${scrollbarWidth}px`;
+
     return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', closeOnEscape);
+      body.classList.remove('is-scroll-locked');
+      body.style.overflow = previousOverflow;
+      body.style.paddingRight = previousPaddingRight;
+    };
+  }, [drawerOpen, mobileOpen]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const focusTimer = window.requestAnimationFrame(() => {
+      focusableElements(mobileMenuRef.current)[0]?.focus();
+    });
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setMobileOpen(false);
+        menuButtonRef.current?.focus();
+        return;
+      }
+
+      if (event.key !== 'Tab') return;
+      const menuLinks = focusableElements(mobileMenuRef.current);
+      const focusables = [menuButtonRef.current, ...menuLinks].filter(
+        (element): element is HTMLElement => Boolean(element)
+      );
+      if (!focusables.length) return;
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusTimer);
+      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [mobileOpen]);
 
@@ -214,6 +353,7 @@ export function SiteHeader() {
             </button>
             <button
               className="icon-button mobile-menu-button"
+              ref={menuButtonRef}
               type="button"
               onClick={() => setMobileOpen((value) => !value)}
               aria-expanded={mobileOpen}
@@ -228,30 +368,45 @@ export function SiteHeader() {
         <nav className="editorial-nav" aria-label="Primary navigation">
           <div className="container editorial-nav-inner">
             {navigation.map(([label, href]) => (
-              <Link className={isActive(href) ? 'active' : ''} href={href} key={href}>
+              <Link
+                className={isActive(href) ? 'active' : ''}
+                href={href}
+                key={href}
+                aria-current={isActive(href) ? 'page' : undefined}
+              >
                 {label}
               </Link>
             ))}
-            <Link className="sale-link" href="/shop">
+            <Link className="sale-link" href="/shop" aria-current={pathname === '/shop' ? 'page' : undefined}>
               New Arrivals
             </Link>
           </div>
 
           {mobileOpen && (
-            <div className="mobile-menu container" id="mobile-primary-menu">
+            <div className="mobile-menu container" id="mobile-primary-menu" ref={mobileMenuRef}>
               {navigation.map(([label, href]) => (
-                <Link href={href} key={href}>
+                <Link href={href} key={href} aria-current={isActive(href) ? 'page' : undefined}>
                   {label}
                 </Link>
               ))}
-              <Link href="/shop">New Arrivals</Link>
-              <Link href="/order-status">Order Status</Link>
-              <Link href="/about">About Us</Link>
-              <Link href="/contact">Contact</Link>
+              <Link href="/shop" aria-current={pathname === '/shop' ? 'page' : undefined}>New Arrivals</Link>
+              <Link href="/order-status" aria-current={pathname === '/order-status' ? 'page' : undefined}>Order Status</Link>
+              <Link href="/about" aria-current={pathname === '/about' ? 'page' : undefined}>About Us</Link>
+              <Link href="/contact" aria-current={pathname === '/contact' ? 'page' : undefined}>Contact</Link>
             </div>
           )}
         </nav>
       </header>
+
+      {mobileOpen && (
+        <button
+          className="mobile-menu-page-backdrop"
+          type="button"
+          aria-label="Close navigation menu"
+          onClick={() => setMobileOpen(false)}
+          tabIndex={-1}
+        />
+      )}
 
       <CartDrawer />
     </>

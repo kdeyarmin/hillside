@@ -19,6 +19,7 @@ import {
   Wrench
 } from 'lucide-react';
 import PrintButton from '@/components/PrintButton';
+import ResilientImage from '@/components/ResilientImage';
 import { db } from '@/lib/db';
 import { absoluteUrl, FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
 
@@ -152,10 +153,16 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
 
         <article>
           <div className="care-guide-hero">
-            <img
+            <ResilientImage
               className="care-hero-image"
               src={sheet.imageUrl || FALLBACK_PRODUCT_IMAGE}
+              fallbackSrc="/images/botanical-placeholder.svg"
               alt={sheet.plantName}
+              width={1200}
+              height={900}
+              loading="eager"
+              fetchPriority="high"
+              decoding="async"
             />
             <div>
               <div className="care-guide-type"><HeroIcon size={16} /> {guideTypeLabel(sheet.guideType)}</div>

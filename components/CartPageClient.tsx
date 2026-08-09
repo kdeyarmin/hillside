@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
+import ResilientImage from '@/components/ResilientImage';
 import { useCart } from '@/components/CartProvider';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
 
@@ -36,8 +37,16 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
       <div className="cart-page-lines">
         {items.map((item) => (
           <article className="cart-page-line" key={item.slug}>
-            <Link href={`/shop/${item.slug}`}>
-              <img src={item.imageUrl || FALLBACK_PRODUCT_IMAGE} alt={item.name} />
+            <Link href={`/shop/${item.slug}`} aria-label={`View ${item.name}`}>
+              <ResilientImage
+                src={item.imageUrl || FALLBACK_PRODUCT_IMAGE}
+                fallbackSrc="/images/botanical-placeholder.svg"
+                alt={item.name}
+                width={110}
+                height={110}
+                loading="lazy"
+                decoding="async"
+              />
             </Link>
             <div>
               <h2 style={{ margin: '0 0 5px', color: 'var(--forest)', font: '500 25px Georgia,serif' }}>
@@ -45,10 +54,23 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
               </h2>
               <p className="muted" style={{ marginTop: 0 }}>{formatMoney(item.priceCents)} each</p>
               <div className="cart-line-actions">
-                <div className="quantity-picker small">
-                  <button type="button" onClick={() => setQuantity(item.slug, item.quantity - 1)} aria-label="Decrease quantity"><Minus size={14} /></button>
-                  <span>{item.quantity}</span>
-                  <button type="button" onClick={() => setQuantity(item.slug, item.quantity + 1)} disabled={item.quantity >= item.inventory} aria-label="Increase quantity"><Plus size={14} /></button>
+                <div className="quantity-picker small" role="group" aria-label={`Quantity for ${item.name}`}>
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(item.slug, item.quantity - 1)}
+                    aria-label={`Decrease ${item.name} quantity`}
+                  >
+                    <Minus size={14} />
+                  </button>
+                  <span aria-live="polite">{item.quantity}</span>
+                  <button
+                    type="button"
+                    onClick={() => setQuantity(item.slug, item.quantity + 1)}
+                    disabled={item.quantity >= item.inventory}
+                    aria-label={`Increase ${item.name} quantity`}
+                  >
+                    <Plus size={14} />
+                  </button>
                 </div>
                 <button className="text-button danger" type="button" onClick={() => removeItem(item.slug)}>
                   <Trash2 size={14} /> Remove
@@ -61,7 +83,7 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
         <Link className="text-link" href="/shop">← Continue shopping</Link>
       </div>
 
-      <aside className="order-summary">
+      <aside className="order-summary" aria-label="Order summary">
         <div className="eyebrow">Order summary</div>
         <div className="summary-row"><span>Subtotal</span><strong>{formatMoney(subtotalCents)}</strong></div>
         <div className="summary-row"><span>Shipping</span><span>Calculated at checkout</span></div>
@@ -69,7 +91,16 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
 
         {freeShippingThreshold > 0 && (
           <div style={{ margin: '18px 0' }}>
-            <div className="progress-track"><span style={{ width: `${progress}%` }} /></div>
+            <div
+              className="progress-track"
+              role="progressbar"
+              aria-label="Progress toward free shipping"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={progress}
+            >
+              <span style={{ width: `${progress}%` }} />
+            </div>
             <p className="muted" style={{ fontSize: 12 }}>
               {remaining > 0
                 ? `Add ${formatMoney(remaining)} more to qualify for free standard shipping.`
@@ -78,7 +109,13 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
           </div>
         )}
 
-        <button className="btn full" type="button" onClick={checkout} disabled={checkoutLoading}>
+        <button
+          className="btn full"
+          type="button"
+          onClick={checkout}
+          disabled={checkoutLoading}
+          aria-busy={checkoutLoading}
+        >
           {checkoutLoading ? 'Opening secure checkout…' : 'Continue to secure checkout'}
         </button>
         <p className="muted" style={{ fontSize: 12 }}>
