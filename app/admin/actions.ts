@@ -3,14 +3,18 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
+  ClassFormat,
   MessageStatus,
   OrderStatus,
   ProductType,
   RegistrationStatus
 } from '@prisma/client';
 import { clearAdminSession, isAdmin, setAdminSession } from '@/lib/admin';
+import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
+import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
+import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
 const checked = (form: FormData, name: string) => form.get(name) === 'on' || form.get(name) === 'true';
@@ -145,24 +149,91 @@ export async function saveClassEvent(formData: FormData) {
   const title = text(formData, 'title');
   const slug = slugify(text(formData, 'slug') || title) || null;
   const startsAt = optionalDate(text(formData, 'startsAt'));
+  const rawFormat = text(formData, 'format');
+  const format = Object.values(ClassFormat).includes(rawFormat as ClassFormat)
+    ? (rawFormat as ClassFormat)
+    : ClassFormat.IN_PERSON;
   if (!title || !startsAt) return;
+
   const data = {
     title,
     slug,
     description: text(formData, 'description'),
     startsAt,
-    location: text(formData, 'location'),
+    location:
+      text(formData, 'location') ||
+      (format === ClassFormat.ONLINE ? 'Online through Telnyx Video' : 'The Hillside Gardens'),
+    format,
     priceCents: money(formData.get('price')),
-    capacity: Math.max(1, integer(formData.get('capacity'), 12)),
+    capacity: Math.max(1, Math.min(49, integer(formData.get('capacity'), 12))),
     durationMinutes: Math.max(15, integer(formData.get('durationMinutes'), 90)),
     whatToBring: text(formData, 'whatToBring') || null,
     registrationDeadline: optionalDate(text(formData, 'registrationDeadline')),
     imageUrl: text(formData, 'imageUrl') || null,
-    active: checked(formData, 'active')
+    active: checked(formData, 'active'),
+    onlineInstructions: text(formData, 'onlineInstructions') || null,
+    telnyxRecordingEnabled: checked(formData, 'telnyxRecordingEnabled'),
+    joinOpensMinutesBefore: Math.max(0, Math.min(240, integer(formData.get('joinOpensMinutesBefore'), 30))),
+    joinClosesMinutesAfter: Math.max(0, Math.min(1440, integer(formData.get('joinClosesMinutesAfter'), 60)))
   };
-  if (id) await db.classEvent.update({ where: { id }, data });
-  else await db.classEvent.create({ data });
-  refresh('/classes', '/', '/admin/content');
+
+  const event = id
+    ? await db.classEvent.update({ where: { id }, data })
+    : await db.classEvent.create({ data });
+
+  if (isOnlineClass(event.format) && telnyxVideoConfigured()) {
+    try {
+      await ensureTelnyxRoom(event);
+    } catch (error) {
+      console.error('Class saved, but Telnyx room preparation failed', error);
+    }
+  }
+  refresh('/classes', '/', '/admin/content', `/admin/classes/${event.id}/studio`);
+}
+
+export async function prepareClassRoom(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  if (!id) return;
+  const event = await db.classEvent.findUnique({ where: { id } });
+  if (!event || !isOnlineClass(event.format)) return;
+  try {
+    await ensureTelnyxRoom(event);
+  } catch (error) {
+    console.error('Unable to prepare Telnyx room', error);
+  }
+  refresh('/admin/content', `/admin/classes/${id}/studio`);
+}
+
+export async function resendClassConfirmation(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  if (!id) return;
+  const registration = await db.classRegistration.findUnique({
+    where: { id },
+    include: { classEvent: true }
+  });
+  if (!registration || registration.status !== RegistrationStatus.PAID) return;
+
+  const credential = isOnlineClass(registration.classEvent.format)
+    ? createClassJoinCredential()
+    : null;
+  const updated = credential
+    ? await db.classRegistration.update({
+        where: { id: registration.id },
+        data: { joinTokenHash: credential.hash, confirmationEmailSentAt: null }
+      })
+    : await db.classRegistration.update({
+        where: { id: registration.id },
+        data: { confirmationEmailSentAt: null }
+      });
+
+  await sendClassRegistrationEmails({
+    event: registration.classEvent,
+    registration: updated,
+    accessToken: credential?.token
+  });
+  refresh('/admin', '/admin/content');
 }
 
 export async function saveGalleryItem(formData: FormData) {
