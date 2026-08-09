@@ -1,13 +1,43 @@
-import {db} from '@/lib/db';
-import {isAdmin} from '@/lib/admin';
+import { db } from '@/lib/db';
+import { isAdmin } from '@/lib/admin';
 
-export const runtime='nodejs';
-const q=(v:unknown)=>`"${String(v??'').replaceAll('"','""')}"`;
-export async function GET(){
- if(!await isAdmin())return new Response('Unauthorized',{status:401});
- const orders=await db.order.findMany({where:{status:{in:['PAID','FULFILLED']}},orderBy:{createdAt:'asc'}});
- const header=['Invoice','Name','Company','Address1','Address2','City','State','PostalCode','Country','Email','Phone','Tracking','Status'];
- const rows=orders.map(o=>[o.invoiceNumber,o.customerName,'The Hillside Gardens',o.address1,o.address2,o.city,o.state,o.postalCode,o.country,o.email,o.phone,o.trackingNumber,o.status]);
- const csv=[header,...rows].map(r=>r.map(q).join(',')).join('\r\n');
- return new Response(csv,{headers:{'content-type':'text/csv; charset=utf-8','content-disposition':'attachment; filename="hillside-shipping.csv"'}})
+export const runtime = 'nodejs';
+const quote = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+
+export async function GET() {
+  if (!(await isAdmin())) return new Response('Unauthorized', { status: 401 });
+  const orders = await db.order.findMany({
+    where: { status: 'PAID' },
+    orderBy: { createdAt: 'asc' },
+    include: { items: true }
+  });
+  const header = [
+    'OrderNumber', 'RecipientName', 'Company', 'Address1', 'Address2', 'City', 'State',
+    'PostalCode', 'Country', 'Email', 'Phone', 'ShippingMethod', 'Items', 'OrderTotal'
+  ];
+  const rows = orders.map((order) => [
+    order.invoiceNumber,
+    order.customerName,
+    '',
+    order.address1,
+    order.address2,
+    order.city,
+    order.state,
+    order.postalCode,
+    order.country,
+    order.email,
+    order.phone,
+    order.shippingMethod || 'Standard shipping',
+    order.items.map((item) => `${item.quantity} x ${item.name}`).join('; '),
+    (order.totalCents / 100).toFixed(2)
+  ]);
+  const csv = [header, ...rows].map((row) => row.map(quote).join(',')).join('\r\n');
+  const stamp = new Date().toISOString().slice(0, 10);
+  return new Response(`\uFEFF${csv}`, {
+    headers: {
+      'content-type': 'text/csv; charset=utf-8',
+      'content-disposition': `attachment; filename="hillside-unshipped-${stamp}.csv"`,
+      'cache-control': 'no-store'
+    }
+  });
 }

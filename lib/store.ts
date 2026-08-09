@@ -1,0 +1,30 @@
+export const FALLBACK_PRODUCT_IMAGE =
+  'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=1200&q=85';
+
+export function formatMoney(cents: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD'
+  }).format(cents / 100);
+}
+
+export function productTypeLabel(type: string) {
+  const labels: Record<string, string> = {
+    PLANT: 'Plant',
+    TEA: 'Tea',
+    TEA_SUPPLY: 'Tea supply',
+    LOTION: 'Lotion',
+    SOAP: 'Soap',
+    OTHER: 'Botanical good'
+  };
+  return labels[type] || type.replaceAll('_', ' ').toLowerCase();
+}
+
+export function clampQuantity(value: number, inventory: number) {
+  return Math.max(1, Math.min(Math.max(1, inventory), Math.floor(value || 1)));
+}
+
+export function absoluteUrl(path = '/') {
+  const base = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  return new URL(path, base).toString();
+}

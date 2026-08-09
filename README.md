@@ -1,72 +1,111 @@
 # The Hillside Gardens
 
-Standalone ecommerce and content-management website for **The Hillside Gardens** (`thehillsidegarden.com`), built for Railway hosting.
+A standalone ecommerce, class-registration and owner-operations website for **The Hillside Gardens** (`thehillsidegarden.com`). The application is designed for Railway hosting and for Tammy Hill to run from a simple password-protected dashboard.
 
-## Stack
+## Technology
 
-- Next.js 15 + React 19 + TypeScript
-- PostgreSQL + Prisma
-- Stripe Checkout + Stripe invoices
-- Railway-ready Nixpacks deployment
-- Password-protected owner dashboard
+- Next.js 15, React 19 and TypeScript
+- PostgreSQL with Prisma
+- Stripe Checkout, invoices, promotion codes, shipping and optional automatic tax
+- Railway Railpack deployment with a pre-deploy database schema step
+- Optional transactional email through Resend
+- No Base44 or proprietary site builder
 
-## Included
+## Public website
 
-- Professional botanical storefront using the Hillside green / sage / gold brand system
-- Live products and inventory from PostgreSQL
-- Stripe payment checkout, shipping-address collection, receipt/invoice creation and webhook order capture
-- Order dashboard with fulfillment status and tracking numbers
-- Shipping-address CSV export for label software / label makers
-- Inventory controls and low-stock visibility
-- Plant-care-sheet library
-- In-person class listings
-- Amazon influencer picks with affiliate disclosure
-- Past planter arrangement gallery
-- Easy content manager for classes, gallery items, Amazon picks and plant care sheets
+- Professional botanical storefront based on the Hillside green, sage and gold logo system
+- Searchable and filterable live product catalog
+- Individual SEO-ready product pages with live inventory
+- Persistent shopping cart and secure Stripe Checkout
+- Configurable flat or free standard shipping
+- Customer order-confirmation page and Stripe invoice link
+- Self-service order-status lookup
+- Paid planter-class registration with live seat availability
+- Printable houseplant care sheets and detailed care pages
+- Gallery of Tammy’s past planter arrangements
+- Tammy’s Amazon influencer picks with affiliate disclosure
+- Newsletter signup and customer contact form
+- About, FAQ, shipping/returns, privacy and terms pages
+- Sitemap, robots file, web manifest and structured data
 
-## Railway setup
+## Owner dashboard
 
-1. Create a Railway project from this GitHub repository.
-2. Add a PostgreSQL service to the project.
-3. On the web service, set `DATABASE_URL` to the PostgreSQL connection variable.
-4. Add the remaining variables from `.env.example`:
-   - `NEXT_PUBLIC_SITE_URL` (your Railway URL first, then `https://thehillsidegarden.com` after the domain is connected)
-   - `STRIPE_SECRET_KEY`
-   - `STRIPE_WEBHOOK_SECRET`
-   - `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
-   - `ADMIN_PASSWORD`
-   - `ADMIN_SESSION_SECRET`
-5. Deploy. Railway will use `railway.json`, run `npm run build`, and start the Next.js server on Railway's assigned `PORT`.
-6. Open a Railway shell or one-off command and run:
+The dashboard at `/admin` includes:
+
+- Revenue and operations overview
+- Order fulfillment, private notes, carrier and tracking entry
+- Automatic customer shipping-update email when an order is marked fulfilled
+- Packing-slip and 4 × 6 shipping-label printing
+- Shipping-address, full-order and newsletter-subscriber CSV exports
+- Product creation and editing, price, sale price, SKU, inventory, badges and featured products
+- Low-stock visibility and product archiving
+- Paid class registrations and seat counts
+- Customer website inbox
+- Newsletter subscriber management
+- A separate content manager at `/admin/content` for classes, care sheets, gallery items and Amazon picks
+
+## Railway deployment
+
+1. Create a Railway project from `kdeyarmin/hillside`.
+2. Add a PostgreSQL service.
+3. Add the variables from `.env.example` to the web service. Railway supplies the PostgreSQL `DATABASE_URL` when the database is linked.
+4. Deploy. `railway.json` runs `npx prisma db push` as a pre-deploy command, then starts Next.js on Railway’s assigned `PORT`.
+5. Run the starter-data command once from a Railway shell or one-off command:
 
 ```bash
-npx prisma db push
 npm run db:seed
 ```
 
-7. In Stripe, create a webhook endpoint pointing to:
+6. Generate a Railway public domain, then set `NEXT_PUBLIC_SITE_URL` to that full URL.
+7. After the custom domain is connected, change `NEXT_PUBLIC_SITE_URL` to `https://thehillsidegarden.com` and redeploy.
+
+## Stripe setup
+
+Create a Stripe webhook endpoint at:
 
 ```text
 https://YOUR-DOMAIN/api/stripe/webhook
 ```
 
-Subscribe it to `checkout.session.completed`, then place the resulting webhook signing secret in `STRIPE_WEBHOOK_SECRET`.
+Subscribe it to:
 
-## Admin
+- `checkout.session.completed`
+- `checkout.session.async_payment_succeeded`
+- `charge.refunded`
 
-Go to `/admin` and use the password stored in `ADMIN_PASSWORD`.
+Copy the signing secret into `STRIPE_WEBHOOK_SECRET`. Product purchases and class registrations are identified through signed Checkout metadata. Fulfillment is idempotent, so a repeated Stripe event does not create a second order or registration.
 
-The business dashboard handles orders, fulfillment, tracking, shipping export, inventory and product creation. The website content manager is at `/admin/content` and handles classes, gallery images, Amazon picks and plant care sheets.
+Set `STRIPE_AUTOMATIC_TAX=true` only after Stripe Tax has been configured for the business. Stripe Checkout emails receipts and creates invoices for paid product and class sessions.
 
-## Stripe invoices
+## Optional customer email
 
-Checkout is configured with Stripe invoice creation enabled. Paid Checkout sessions are also persisted into the Hillside PostgreSQL order system, where every sale receives an `HG-########` invoice/order number.
+The site works without Resend; Stripe still sends its payment documents. To send branded Hillside order, shipping, class, contact and newsletter messages:
 
-## Shipping labels
+1. Verify the sending domain with Resend.
+2. Add `RESEND_API_KEY`.
+3. Set `EMAIL_FROM` to an address on the verified domain.
+4. Set `BUSINESS_EMAIL` to Tammy’s inbox.
 
-The admin dashboard exports a CSV at `/api/admin/shipping.csv`. The output contains customer name, address, email, phone, order number, status and tracking fields and is suitable for importing into common shipping/label software.
+## Shipping configuration
 
-## Development
+- `FLAT_SHIPPING_CENTS=895` means $8.95 standard shipping.
+- `FREE_SHIPPING_THRESHOLD_CENTS=7500` means free standard shipping at $75.00.
+- Set the free-shipping threshold to `0` to disable the threshold.
+- `BUSINESS_RETURN_ADDRESS` is printed in the return-address area of the simple 4 × 6 label. A postage platform can instead import `/api/admin/shipping.csv` to purchase carrier postage and create barcoded labels.
+
+## First-launch checklist
+
+Before accepting live orders:
+
+- Replace starter product descriptions, photos, ingredient lists, net contents and allergy information with Tammy’s real product data.
+- Review the starter shipping/returns, privacy and terms pages with the business’s final policies and professional advisers as appropriate.
+- Enter a real business return address.
+- Test one Stripe product order, one class registration, a refund event and a shipping update in test mode.
+- Confirm that inventory decrements once and customer emails arrive as expected.
+- Replace sample gallery images with Tammy’s real work.
+- Verify mobile navigation, checkout, admin login and label printing on Tammy’s actual devices.
+
+## Local development
 
 ```bash
 npm install
@@ -76,4 +115,8 @@ npm run db:seed
 npm run dev
 ```
 
-The public storefront is at `/`; owner tools are under `/admin`.
+Production build check:
+
+```bash
+npm run build
+```

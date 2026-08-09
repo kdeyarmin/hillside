@@ -1,4 +1,26 @@
-import {db} from '@/lib/db';
-export const dynamic='force-dynamic';
-export const metadata={title:'Gallery'};
-export default async function Gallery(){const items=await db.galleryItem.findMany({orderBy:[{sortOrder:'asc'},{createdAt:'desc'}]});return <><section className="pagehero"><div className="container"><div className="eyebrow">Past work & inspiration</div><h1>Planter gallery.</h1><p>A growing collection of arrangements, combinations and garden ideas from The Hillside Gardens.</p></div></section><section className="content"><div className="container grid">{items.length?items.map(i=><article className="card" key={i.id}><img className="photo" src={i.imageUrl} alt={i.title}/><div className="cardbody"><span className="pill">Hillside arrangement</span><h3>{i.title}</h3>{i.caption&&<p>{i.caption}</p>}</div></article>):<div className="card"><div className="cardbody"><h3>Gallery coming soon</h3><p>Tammy can upload past planter arrangements from the Admin area as the collection is prepared.</p></div></div>}</div></section></>}
+import Link from 'next/link';
+import GalleryGrid from '@/components/GalleryGrid';
+import { db } from '@/lib/db';
+
+export const dynamic = 'force-dynamic';
+export const metadata = {
+  title: 'Planter Gallery',
+  description: 'Browse potted plant arrangements, container combinations and planter inspiration created by Tammy Hill.'
+};
+
+export default async function Gallery() {
+  const items = await db.galleryItem.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] });
+  return (
+    <>
+      <section className="pagehero">
+        <div className="container"><div className="eyebrow">Past work and inspiration</div><h1>Planter gallery.</h1><p>A growing collection of arrangements, combinations and garden ideas from The Hillside Gardens.</p></div>
+      </section>
+      <section className="content">
+        <div className="container">
+          {items.length ? <GalleryGrid items={items.map(({ id, title, imageUrl, caption }) => ({ id, title, imageUrl, caption }))} /> : <div className="empty-state"><h3>Gallery coming soon.</h3><p>Tammy is preparing photographs of past planter arrangements.</p></div>}
+          <div className="newsletter" style={{ marginTop: 55 }}><div><div className="eyebrow">Have something in mind?</div><h3>Ask Tammy about a custom arrangement.</h3></div><Link className="btn gold" href="/contact">Start a conversation</Link></div>
+        </div>
+      </section>
+    </>
+  );
+}
