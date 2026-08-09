@@ -90,6 +90,20 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
             role="dialog"
             aria-modal="true"
             aria-labelledby="gallery-dialog-title"
+            style={{
+              position: 'absolute',
+              inset: 'max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left))',
+              width: 'min(1000px, calc(100% - 24px))',
+              maxWidth: '1000px',
+              maxHeight: 'calc(100dvh - 24px)',
+              margin: 'auto',
+              alignSelf: 'center',
+              background: 'white',
+              borderRadius: 18,
+              overflow: 'auto',
+              overscrollBehavior: 'contain',
+              boxShadow: 'var(--shadow)'
+            }}
           >
             <button
               className="icon-button"
