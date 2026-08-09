@@ -6,6 +6,7 @@ import './care-library.css';
 import './homepage-fixes.css';
 import './brand-mockups.css';
 import './brand-mockups-pages.css';
+import './responsive-hardening.css';
 import type { Metadata, Viewport } from 'next';
 import { Cormorant_Garamond, Manrope } from 'next/font/google';
 import { CartProvider } from '@/components/CartProvider';
@@ -54,6 +55,11 @@ export const metadata: Metadata = {
   applicationName: 'The Hillside Gardens',
   alternates: { canonical: '/' },
   icons: { icon: '/logo.svg', apple: '/logo.svg' },
+  formatDetection: {
+    telephone: false,
+    address: false,
+    email: false
+  },
   openGraph: {
     type: 'website',
     locale: 'en_US',
@@ -85,6 +91,10 @@ const organizationJsonLd = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${hillsideSans.variable} ${hillsideDisplay.variable}`}>
+      <head>
+        <link rel="preconnect" href="https://images.unsplash.com" />
+        <link rel="dns-prefetch" href="https://images.unsplash.com" />
+      </head>
       <body>
         <a className="skip-link" href="#main-content">
           Skip to content
