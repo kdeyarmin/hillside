@@ -1,4 +1,5 @@
 import './globals.css';
+import './editorial.css';
 import type { Metadata } from 'next';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
     siteName: 'The Hillside Gardens',
     title: 'The Hillside Gardens',
     description: 'Plants, teas, botanicals and practical plant education from Tammy Hill.',
-    images: [{ url: '/logo.svg', width: 900, height: 760, alt: 'The Hillside Gardens logo' }]
+    images: [{ url: '/logo.svg', width: 720, height: 658, alt: 'The Hillside Gardens logo' }]
   },
   twitter: {
     card: 'summary_large_image',
