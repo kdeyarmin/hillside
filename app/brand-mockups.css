@@ -132,6 +132,11 @@
   aspect-ratio: 4 / 3;
 }
 
+.story-photo .brand-mockup-background {
+  min-height: 0;
+  max-height: none;
+}
+
 .class-editorial > .brand-mockup-scene {
   width: 100%;
   height: 100%;
