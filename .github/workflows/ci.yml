@@ -1,0 +1,22 @@
+name: Build check
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/hillside
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+      ADMIN_PASSWORD: test-admin-password
+      ADMIN_SESSION_SECRET: test-session-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm install
+      - run: npm run build
