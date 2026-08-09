@@ -124,12 +124,12 @@ model CareSheet {
   difficulty  String?
   botanical   String?
   summary     String
-  light       String?
-  water       String?
-  humidity    String?
-  soil        String?
-  feeding     String?
-  temperature String?
+  light       String        @default("")
+  water       String        @default("")
+  humidity    String        @default("")
+  soil        String        @default("")
+  feeding     String        @default("")
+  temperature String        @default("")
   petSafety   String?
   tips        String
   symptoms    String?
