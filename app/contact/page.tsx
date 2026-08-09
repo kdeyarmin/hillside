@@ -27,7 +27,7 @@ export default function ContactPage() {
               Messages from this form appear in Tammy’s private owner dashboard. She can respond directly to the email address you provide.
             </p>
             <div className="info-list">
-              <div className="info-item"><Mail size={20} /><b>Email</b><a href="mailto:hello@thehillsidegarden.com">hello@thehillsidegarden.com</a></div>
+              <div className="info-item"><Mail size={20} /><b>Email</b><a href="mailto:hello@thehillsidegardens.com">hello@thehillsidegardens.com</a></div>
               <div className="info-item"><Clock3 size={20} /><b>Response time</b><span>Most messages are answered within two business days.</span></div>
               <div className="info-item"><Sprout size={20} /><b>Plant questions</b><span>Include the plant name, lighting conditions and a clear photo when possible.</span></div>
               <div className="info-item"><MapPin size={20} /><b>Classes and pickup</b><span>Exact class and pickup details are shared with registered customers.</span></div>
