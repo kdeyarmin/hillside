@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
+import { normalizeHillsideDomain } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -40,7 +41,9 @@ export async function POST(request: Request) {
     }
 
     const stripe = new Stripe(secret);
-    const site = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
+    const site = normalizeHillsideDomain(
+      process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
+    );
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer_creation: 'always',
