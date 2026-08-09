@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import Stripe from 'stripe';
+import { MailCheck, Video } from 'lucide-react';
+import { classFormatLabel, classLocationLabel, isOnlineClass } from '@/lib/class-access';
 import { db } from '@/lib/db';
 import { formatMoney } from '@/lib/store';
 
@@ -25,6 +27,7 @@ export default async function ClassSuccess({
   const classId = session?.metadata?.classEventId;
   const event = classId ? await db.classEvent.findUnique({ where: { id: classId } }) : null;
   const seats = Math.max(1, Number(session?.metadata?.seats) || 1);
+  const online = Boolean(event && isOnlineClass(event.format));
 
   return (
     <section className="content">
@@ -36,16 +39,33 @@ export default async function ClassSuccess({
         {event ? (
           <div className="admin-card" style={{ textAlign: 'left', margin: '28px 0' }}>
             <h2 style={{ marginTop: 0 }}>{event.title}</h2>
+            <div className="summary-row"><span>Format</span><strong>{classFormatLabel(event.format)}</strong></div>
             <div className="summary-row"><span>Date</span><strong>{event.startsAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</strong></div>
-            <div className="summary-row"><span>Location</span><strong>{event.location}</strong></div>
+            <div className="summary-row"><span>Location</span><strong>{classLocationLabel(event)}</strong></div>
             <div className="summary-row"><span>Seats</span><strong>{seats}</strong></div>
             <div className="summary-row"><span>Paid</span><strong>{formatMoney(session?.amount_total || event.priceCents * seats)}</strong></div>
-            {event.whatToBring && <p><b>What to bring:</b> {event.whatToBring}</p>}
+            {event.whatToBring && <p><b>What to bring / what is included:</b> {event.whatToBring}</p>}
           </div>
         ) : (
           <p>Your payment was successful and your class registration is being recorded.</p>
         )}
-        <p>A confirmation and Stripe receipt will be sent to the email entered during checkout.</p>
+
+        {online ? (
+          <div className="class-success-email-note">
+            <MailCheck size={30} />
+            <div>
+              <h2>Check your email for the private classroom link.</h2>
+              <p>
+                The confirmation email contains a secure Hillside link that opens your Telnyx Video
+                classroom. Keep that email and do not forward the link.
+              </p>
+              <p><Video size={16} /> The classroom opens shortly before the scheduled class time.</p>
+            </div>
+          </div>
+        ) : (
+          <p>A confirmation and Stripe receipt will be sent to the email entered during checkout.</p>
+        )}
+
         <div className="actions" style={{ justifyContent: 'center' }}>
           <Link className="btn" href="/classes">View all classes</Link>
           <Link className="btn gold" href="/care">Explore plant care</Link>
