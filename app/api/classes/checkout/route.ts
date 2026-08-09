@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
+import {
+  classFormatLabel,
+  classLocationLabel,
+  isOnlineClass
+} from '@/lib/class-access';
 import { normalizeHillsideDomain } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -25,7 +30,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Registration for this class has closed.' }, { status: 400 });
     }
     if (event.priceCents <= 0) {
-      return NextResponse.json({ error: 'Please contact Tammy to register for this class.' }, { status: 400 });
+      return NextResponse.json({ error: 'Use the registration form on the class page.' }, { status: 400 });
     }
 
     const registrationTotals = await db.classRegistration.aggregate({
@@ -44,6 +49,7 @@ export async function POST(request: Request) {
     const site = normalizeHillsideDomain(
       process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
     );
+    const online = isOnlineClass(event.format);
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       customer_creation: 'always',
@@ -55,9 +61,9 @@ export async function POST(request: Request) {
             unit_amount: event.priceCents,
             product_data: {
               name: event.title,
-              description: `${event.startsAt.toLocaleDateString('en-US')} at ${event.location}`,
+              description: `${classFormatLabel(event.format)} • ${event.startsAt.toLocaleDateString('en-US')} • ${classLocationLabel(event)}`,
               images: event.imageUrl ? [event.imageUrl] : undefined,
-              metadata: { hillsideClassId: event.id }
+              metadata: { hillsideClassId: event.id, classFormat: event.format }
             }
           }
         }
@@ -73,12 +79,17 @@ export async function POST(request: Request) {
         metadata: { kind: 'CLASS_REGISTRATION', classEventId: event.id }
       },
       custom_text: {
-        submit: { message: 'Your class confirmation will be emailed after payment.' }
+        submit: {
+          message: online
+            ? 'After payment, your private Hillside Telnyx classroom link will be emailed to you.'
+            : 'Your class confirmation will be emailed after payment.'
+        }
       },
       metadata: {
         kind: 'CLASS_REGISTRATION',
         classEventId: event.id,
-        seats: String(seats)
+        seats: String(seats),
+        classFormat: event.format
       }
     });
 
