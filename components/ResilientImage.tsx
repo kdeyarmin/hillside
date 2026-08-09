@@ -14,6 +14,8 @@ export default function ResilientImage({
   fallbackSrc = DEFAULT_FALLBACK,
   alt,
   onError,
+  onLoad,
+  srcSet,
   ...props
 }: ResilientImageProps) {
   const preferredSrc = typeof src === 'string' && src.trim() ? src : fallbackSrc;
@@ -25,8 +27,31 @@ export default function ResilientImage({
 
   function handleError(event: SyntheticEvent<HTMLImageElement>) {
     onError?.(event);
-    if (currentSrc !== fallbackSrc) setCurrentSrc(fallbackSrc);
+
+    if (currentSrc !== fallbackSrc) {
+      setCurrentSrc(fallbackSrc);
+      return;
+    }
+
+    event.currentTarget.dataset.imageFailed = 'true';
   }
 
-  return <img {...props} src={currentSrc} alt={alt} onError={handleError} />;
+  function handleLoad(event: SyntheticEvent<HTMLImageElement>) {
+    delete event.currentTarget.dataset.imageFailed;
+    onLoad?.(event);
+  }
+
+  const usingFallback = currentSrc === fallbackSrc;
+
+  return (
+    <img
+      {...props}
+      src={currentSrc}
+      srcSet={usingFallback ? undefined : srcSet}
+      alt={alt}
+      draggable={props.draggable ?? false}
+      onError={handleError}
+      onLoad={handleLoad}
+    />
+  );
 }
