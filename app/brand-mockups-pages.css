@@ -1,0 +1,26 @@
+.contact-brand-scene {
+  min-height: 310px;
+  margin: 28px 0 34px;
+}
+
+.contact-brand-scene .mockup-package {
+  width: 48%;
+}
+
+.contact-brand-scene .mockup-brand-card {
+  width: 45%;
+}
+
+@media (max-width: 760px) {
+  .contact-brand-scene {
+    min-height: 0;
+    aspect-ratio: 16 / 10;
+    margin-block: 24px 30px;
+  }
+}
+
+@media (max-width: 560px) {
+  .contact-brand-scene {
+    aspect-ratio: 4 / 3;
+  }
+}
