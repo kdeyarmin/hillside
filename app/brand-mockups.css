@@ -72,31 +72,6 @@
   object-fit: contain;
 }
 
-.brand-mockup-hero .brand-mockup-background,
-.brand-mockup-shipping .brand-mockup-background {
-  object-position: 52% center;
-}
-
-.brand-mockup-plants .brand-mockup-background,
-.brand-mockup-about .brand-mockup-background {
-  object-position: 62% center;
-}
-
-.brand-mockup-tea .brand-mockup-background {
-  object-position: 62% center;
-}
-
-.brand-mockup-botanicals .brand-mockup-background,
-.brand-mockup-gifts .brand-mockup-background {
-  object-position: 66% center;
-}
-
-.brand-mockup-class .brand-mockup-background,
-.brand-mockup-care .brand-mockup-background,
-.brand-mockup-picks .brand-mockup-background {
-  object-position: 55% center;
-}
-
 /* Homepage hero */
 .editorial-hero-image.brand-mockup-scene {
   min-height: 560px;
@@ -261,14 +236,6 @@
 
   .editorial-collection > .brand-mockup-scene {
     min-height: 0;
-  }
-
-  .brand-mockup-plants .brand-mockup-background,
-  .brand-mockup-about .brand-mockup-background,
-  .brand-mockup-tea .brand-mockup-background,
-  .brand-mockup-botanicals .brand-mockup-background,
-  .brand-mockup-gifts .brand-mockup-background {
-    object-position: 66% center;
   }
 
   .story-photo .brand-mockup-scene,

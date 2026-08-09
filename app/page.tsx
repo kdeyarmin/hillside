@@ -134,11 +134,7 @@ export default async function Home() {
             </Link>
           </div>
         </div>
-        <BrandMockupScene
-          variant="hero"
-          catalogImage="house-plants"
-          className="editorial-hero-image"
-        />
+        <BrandMockupScene variant="hero" className="editorial-hero-image" />
       </section>
 
       <section className="trust-strip" aria-label="Why shop The Hillside Gardens">
@@ -248,7 +244,7 @@ export default async function Home() {
       <section className="section tammy-story home-story-section">
         <div className="container split">
           <div className="story-photo">
-            <BrandMockupScene variant="about" catalogImage="live-plant-planters" />
+            <BrandMockupScene variant="about" />
           </div>
           <div>
             <div className="eyebrow">Grow with confidence</div>
@@ -298,7 +294,6 @@ export default async function Home() {
                   <article className="class-editorial" key={event.id}>
                     <BrandMockupScene
                       variant="class"
-                      catalogImage="live-plant-planters"
                       backgroundSrc={event.imageUrl || undefined}
                       alt={`${event.title} workshop materials branded for The Hillside Gardens`}
                     />

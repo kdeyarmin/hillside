@@ -1,25 +1,146 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900" role="img" aria-labelledby="t d">
+  <title id="t">Homemade soaps</title>
+  <desc id="d">Small-batch botanical soap bars stacked with a kraft label, twine and a sprig of dried lavender.</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#e8dccf" stop-opacity="1"/>
-      <stop offset="100%" stop-color="#7c6854" stop-opacity="1"/>
+    <linearGradient id="wall" x1="0.2" y1="0" x2="0.75" y2="1">
+      <stop offset="0" stop-color="#fbf7ec"/>
+      <stop offset="0.5" stop-color="#e7dcc4"/>
+      <stop offset="1" stop-color="#a7a888"/>
     </linearGradient>
-    <linearGradient id="vignette" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgba(0,0,0,0)" stop-opacity="0"/>
-      <stop offset="60%" stop-color="rgba(0,0,0,0.1)" stop-opacity="1"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,0.45)" stop-opacity="1"/>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#cdc2a6"/>
+      <stop offset="1" stop-color="#948b70"/>
     </linearGradient>
+    <linearGradient id="barSage" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#e6e6cf"/>
+      <stop offset="0.55" stop-color="#c3ceac"/>
+      <stop offset="1" stop-color="#94a67f"/>
+    </linearGradient>
+    <linearGradient id="barOat" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#f6efdd"/>
+      <stop offset="0.6" stop-color="#e3d6b8"/>
+      <stop offset="1" stop-color="#bfab86"/>
+    </linearGradient>
+    <linearGradient id="barClay" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#eddcc8"/>
+      <stop offset="0.6" stop-color="#d5b699"/>
+      <stop offset="1" stop-color="#a67f5c"/>
+    </linearGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#14291c" stop-opacity="0"/>
+      <stop offset="1" stop-color="#14291c" stop-opacity="0.3"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="38"/></filter>
+    <filter id="cast" x="-50%" y="-90%" width="200%" height="280%"><feGaussianBlur stdDeviation="14"/></filter>
+
+    <g id="lavender">
+      <path d="M0 0 C -4 -50 -8 -96 -14 -134" fill="none" stroke="#6f8a58" stroke-width="5" stroke-linecap="round"/>
+      <g fill="#8a86a8" stroke="#6f6b92" stroke-width="1.6">
+        <ellipse cx="-14" cy="-140" rx="9" ry="13"/>
+        <ellipse cx="-24" cy="-124" rx="8" ry="12" transform="rotate(-14 -24 -124)"/>
+        <ellipse cx="-6" cy="-122" rx="8" ry="12" transform="rotate(12 -6 -122)"/>
+        <ellipse cx="-20" cy="-104" rx="8" ry="12" transform="rotate(-12 -20 -104)"/>
+        <ellipse cx="-2" cy="-102" rx="8" ry="12" transform="rotate(14 -2 -102)"/>
+        <ellipse cx="-14" cy="-84" rx="7" ry="11"/>
+      </g>
+      <g fill="#6f8a58">
+        <path d="M-8 -60 c 18 -8 34 -2 42 14 c -18 8 -36 2 -42 -14Z"/>
+        <path d="M-6 -34 c -18 -10 -22 -28 -10 -42 c 16 10 20 28 10 42Z"/>
+      </g>
+    </g>
   </defs>
-  <rect width="800" height="600" fill="url(#bg)"/>
-  <!-- Botanical leaf pattern -->
-  <g opacity="0.12" fill="#7c6854">
-    <ellipse cx="400" cy="250" rx="180" ry="60" transform="rotate(-30 400 250)"/>
-    <ellipse cx="350" cy="200" rx="140" ry="45" transform="rotate(15 350 200)"/>
-    <ellipse cx="450" cy="300" rx="160" ry="50" transform="rotate(-50 450 300)"/>
-    <ellipse cx="300" cy="320" rx="120" ry="40" transform="rotate(20 300 320)"/>
+
+  <rect width="1200" height="900" fill="url(#wall)"/>
+  <rect x="640" y="-150" width="380" height="600" rx="190" fill="#ffffff" opacity="0.4" filter="url(#soft)"/>
+  <circle cx="250" cy="750" r="230" fill="#6b5a3a" opacity="0.1" filter="url(#soft)"/>
+
+  <g fill="#7f8d67" opacity="0.13">
+    <path d="M276 592 C 234 520 248 432 304 380 C 350 450 340 538 276 592Z"/>
+    <path d="M978 588 C 936 518 948 428 1002 378 C 1048 448 1042 534 978 588Z"/>
   </g>
-  <rect width="800" height="600" fill="url(#vignette)"/>
-  <!-- Category label at bottom -->
-  <text x="40" y="540" font-family="Georgia, serif" font-size="42" fill="white" opacity="0.9">Homemade Soaps</text>
-  <text x="40" y="568" font-family="Arial, sans-serif" font-size="13" fill="white" opacity="0.7" letter-spacing="2">THE HILLSIDE GARDENS</text>
+
+  <rect x="0" y="690" width="1200" height="210" fill="url(#floor)"/>
+  <rect x="0" y="686" width="1200" height="8" fill="#8a8167" opacity="0.55"/>
+
+  <!-- dried petals scattered -->
+  <g fill="#b08b62" opacity="0.7">
+    <ellipse cx="316" cy="726" rx="17" ry="8" transform="rotate(-18 316 726)"/>
+    <ellipse cx="366" cy="748" rx="14" ry="7" transform="rotate(12 366 748)"/>
+    <ellipse cx="884" cy="734" rx="16" ry="8" transform="rotate(22 884 734)"/>
+    <ellipse cx="930" cy="756" rx="13" ry="6" transform="rotate(-9 930 756)"/>
+  </g>
+
+  <!-- lavender sprigs -->
+  <use href="#lavender" transform="translate(352 692) rotate(-9) scale(1.18)"/>
+  <use href="#lavender" transform="translate(404 696) rotate(6) scale(0.92)"/>
+
+  <!-- leaning bar, right -->
+  <g transform="translate(888 694) scale(1.04)">
+    <ellipse cx="0" cy="6" rx="128" ry="20" fill="#5f5136" opacity="0.3" filter="url(#cast)"/>
+    <g transform="rotate(-13)">
+      <rect x="-96" y="-206" width="192" height="206" rx="20" fill="url(#barClay)" stroke="#8d6e4b" stroke-width="3.5"/>
+      <path d="M-96 -122 C -50 -150 42 -150 96 -122 L96 -96 C 42 -124 -50 -124 -96 -96Z" fill="#c39a71" opacity="0.75"/>
+      <g fill="#8d6f4c" opacity="0.7">
+        <circle cx="-52" cy="-172" r="5"/><circle cx="-8" cy="-186" r="4"/><circle cx="40" cy="-168" r="5"/>
+        <circle cx="-30" cy="-62" r="4"/><circle cx="30" cy="-48" r="5"/><circle cx="66" cy="-74" r="4"/>
+      </g>
+      <path d="M-96 -206 h192 v22 h-192Z" fill="#ffffff" opacity="0.35"/>
+    </g>
+  </g>
+
+  <!-- stack of bars, centre -->
+  <g transform="translate(586 694) scale(1.1)">
+    <ellipse cx="10" cy="8" rx="230" ry="26" fill="#5f5136" opacity="0.32" filter="url(#cast)"/>
+
+    <g transform="translate(0 -6)">
+      <rect x="-186" y="-84" width="372" height="84" rx="18" fill="url(#barOat)" stroke="#a68d63" stroke-width="3.5"/>
+      <path d="M-186 -50 C -100 -70 100 -70 186 -50 L186 -32 C 100 -52 -100 -52 -186 -32Z" fill="#d9c6a0" opacity="0.7"/>
+      <g fill="#a98a5e" opacity="0.65">
+        <circle cx="-140" cy="-62" r="5"/><circle cx="-72" cy="-46" r="4"/><circle cx="12" cy="-64" r="5"/>
+        <circle cx="86" cy="-44" r="4"/><circle cx="150" cy="-60" r="5"/>
+      </g>
+    </g>
+
+    <g transform="translate(-10 -92)">
+      <rect x="-176" y="-86" width="352" height="86" rx="18" fill="url(#barSage)" stroke="#7f8f63" stroke-width="3.5"/>
+      <path d="M-176 -52 C -92 -74 92 -74 176 -52 L176 -32 C 92 -54 -92 -54 -176 -32Z" fill="#aebf95" opacity="0.75"/>
+      <g fill="#6f8a58" opacity="0.7">
+        <circle cx="-128" cy="-64" r="5"/><circle cx="-60" cy="-46" r="4"/><circle cx="18" cy="-66" r="5"/>
+        <circle cx="92" cy="-44" r="4"/><circle cx="142" cy="-62" r="5"/>
+      </g>
+    </g>
+
+    <g transform="translate(6 -180)">
+      <rect x="-160" y="-88" width="320" height="88" rx="18" fill="url(#barClay)" stroke="#96764f" stroke-width="3.5"/>
+      <path d="M-160 -54 C -84 -76 84 -76 160 -54 L160 -34 C 84 -56 -84 -56 -160 -34Z" fill="#c99f76" opacity="0.7"/>
+      <path d="M-160 -88 h320 v20 h-320Z" fill="#ffffff" opacity="0.35"/>
+
+      <!-- kraft label and twine -->
+      <rect x="-66" y="-104" width="132" height="120" rx="8" fill="#e3d3b3" stroke="#c2ac86" stroke-width="3"/>
+      <g stroke="#8a7a5c" stroke-width="5" fill="none" stroke-linecap="round">
+        <path d="M0 -104 V 16"/>
+      </g>
+      <g fill="none" stroke="#3d6b43" stroke-width="3.4" stroke-linecap="round">
+        <path d="M-30 -60 C -14 -76 8 -80 26 -72"/>
+      </g>
+      <g fill="#5f8a52">
+        <path d="M-30 -60 c -14 -8 -17 -25 -6 -35 c 13 9 17 25 6 35Z"/>
+        <path d="M26 -72 c 12 -12 30 -11 40 3 c -13 11 -31 10 -40 -3Z"/>
+      </g>
+      <g fill="#b9892e">
+        <rect x="-40" y="-30" width="80" height="4" rx="2"/>
+        <rect x="-28" y="-14" width="56" height="4" rx="2"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- small bar, left -->
+  <g transform="translate(320 694) scale(1.04)">
+    <ellipse cx="0" cy="6" rx="106" ry="17" fill="#5f5136" opacity="0.28" filter="url(#cast)"/>
+    <rect x="-86" y="-72" width="172" height="72" rx="16" fill="url(#barSage)" stroke="#7f8f63" stroke-width="3.5"/>
+    <path d="M-86 -44 C -42 -60 42 -60 86 -44 L86 -28 C 42 -44 -42 -44 -86 -28Z" fill="#aebf95" opacity="0.75"/>
+    <path d="M-86 -72 h172 v18 h-172Z" fill="#ffffff" opacity="0.3"/>
+  </g>
+
+  <rect width="1200" height="900" fill="url(#fade)"/>
 </svg>

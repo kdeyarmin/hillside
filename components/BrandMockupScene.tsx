@@ -34,44 +34,76 @@ type BrandMockupSceneProps = {
   catalogImage?: HillsideCatalogImage;
 };
 
-const defaultCatalogImage: Record<BrandMockupVariant, HillsideCatalogImage> = {
-  hero: 'house-plants',
-  plants: 'house-plants',
-  tea: 'apothecary',
-  botanicals: 'homemade-soaps',
-  about: 'live-plant-planters',
-  class: 'live-plant-planters',
-  care: 'terrarium-supplies',
-  shipping: 'moss',
-  gifts: 'apothecary',
-  picks: 'air-plants'
+type BrandArtwork = { src: string; alt: string };
+
+/** Category artwork, one illustration per collection, under public/images/catalog/. */
+const catalogArtwork: Record<HillsideCatalogImage, BrandArtwork> = {
+  'house-plants': {
+    src: '/images/catalog/house-plants.svg',
+    alt: 'Illustration of leafy house plants, a trailing pothos and a snake plant in pots'
+  },
+  'carnivorous-plants': {
+    src: '/images/catalog/carnivorous-plants.svg',
+    alt: 'Illustration of venus flytraps, sarracenia trumpets and hanging pitcher plants'
+  },
+  'live-plant-planters': {
+    src: '/images/catalog/live-plant-planters.svg',
+    alt: 'Illustration of a long stoneware trough planted with mixed greenery, blooms and trailing ivy'
+  },
+  'homemade-soaps': {
+    src: '/images/catalog/homemade-soaps.svg',
+    alt: 'Illustration of stacked botanical soap bars with a kraft label and dried lavender'
+  },
+  moss: {
+    src: '/images/catalog/moss.svg',
+    alt: 'Illustration of cushion moss mounds on a wooden tray beside a rolled sheet of moss'
+  },
+  succulents: {
+    src: '/images/catalog/succulents.svg',
+    alt: 'Illustration of succulent rosettes planted in a shallow stone bowl'
+  },
+  driftwood: {
+    src: '/images/catalog/driftwood.svg',
+    alt: 'Illustration of weathered driftwood branches on sand with moss and an air plant'
+  },
+  apothecary: {
+    src: '/images/catalog/apothecary.svg',
+    alt: 'Illustration of an amber dropper bottle, a corked stoneware jar and a bundle of dried herbs'
+  },
+  'air-plants': {
+    src: '/images/catalog/air-plants.svg',
+    alt: 'Illustration of tillandsia air plants in hanging glass globes and on driftwood'
+  },
+  'terrarium-supplies': {
+    src: '/images/catalog/terrarium-supplies.svg',
+    alt: 'Illustration of a layered glass terrarium beside planting tools and a sack of pebbles'
+  }
 };
 
-const catalogAlt: Record<HillsideCatalogImage, string> = {
-  'house-plants': 'Illustration representing the house plants category',
-  'carnivorous-plants': 'Illustration representing the carnivorous plants category',
-  'live-plant-planters': 'Illustration representing the live plant planters category',
-  'homemade-soaps': 'Illustration representing the homemade soaps category',
-  moss: 'Illustration representing the moss category',
-  succulents: 'Illustration representing the succulents category',
-  driftwood: 'Illustration representing the driftwood category',
-  apothecary: 'Illustration representing the apothecary category',
-  'air-plants': 'Illustration representing the air plants category',
-  'terrarium-supplies': 'Illustration representing the terrarium supplies category'
-};
-
-/** Catalog image paths — individual files under public/images/catalog/. */
-const catalogSrc: Record<HillsideCatalogImage, string> = {
-  'house-plants': '/images/catalog/house-plants.svg',
-  'carnivorous-plants': '/images/catalog/carnivorous-plants.svg',
-  'live-plant-planters': '/images/catalog/live-plant-planters.svg',
-  'homemade-soaps': '/images/catalog/homemade-soaps.svg',
-  moss: '/images/catalog/moss.svg',
-  succulents: '/images/catalog/succulents.svg',
-  driftwood: '/images/catalog/driftwood.svg',
-  apothecary: '/images/catalog/apothecary.svg',
-  'air-plants': '/images/catalog/air-plants.svg',
-  'terrarium-supplies': '/images/catalog/terrarium-supplies.svg'
+/**
+ * Artwork chosen by placement. The wide storytelling surfaces get their own scenes;
+ * the merchandising variants fall back to the matching category illustration.
+ */
+const variantArtwork: Record<BrandMockupVariant, BrandArtwork> = {
+  hero: {
+    src: '/images/scenes/hillside-hero.svg',
+    alt: 'Illustration of a sunlit greenhouse shelf of potted plants, a hanging plant and a watering can'
+  },
+  about: {
+    src: '/images/scenes/potting-bench.svg',
+    alt: 'Illustration of a potting bench with a plant being repotted, terracotta pots and hanging garden tools'
+  },
+  class: {
+    src: '/images/scenes/workshop-table.svg',
+    alt: 'Illustration of a workshop table set with terrariums in progress, planting tools and seedlings'
+  },
+  care: catalogArtwork['terrarium-supplies'],
+  shipping: catalogArtwork.moss,
+  plants: catalogArtwork['house-plants'],
+  tea: catalogArtwork.apothecary,
+  botanicals: catalogArtwork['homemade-soaps'],
+  gifts: catalogArtwork.apothecary,
+  picks: catalogArtwork['air-plants']
 };
 
 function isOwnerProvidedPhoto(source?: string | null) {
@@ -84,6 +116,7 @@ function isOwnerProvidedPhoto(source?: string | null) {
     normalized.includes('/images/botanical-placeholder') ||
     normalized.includes('botanical-placeholder.svg') ||
     normalized.includes('/images/brand/') ||
+    normalized.includes('/images/scenes/') ||
     normalized.includes('/images/catalog/')
   );
 }
@@ -95,10 +128,10 @@ export default function BrandMockupScene({
   alt,
   catalogImage
 }: BrandMockupSceneProps) {
+  const artwork = catalogImage ? catalogArtwork[catalogImage] : variantArtwork[variant];
   const ownerProvided = isOwnerProvidedPhoto(backgroundSrc);
-  const selectedCatalogImage = catalogImage || defaultCatalogImage[variant];
-  const imageSrc = ownerProvided ? backgroundSrc! : catalogSrc[selectedCatalogImage];
-  const imageAlt = alt || catalogAlt[selectedCatalogImage];
+  const imageSrc = ownerProvided ? backgroundSrc! : artwork.src;
+  const imageAlt = alt || artwork.alt;
 
   return (
     <div
@@ -112,8 +145,8 @@ export default function BrandMockupScene({
         fallbackSrc="/images/botanical-placeholder.svg"
         alt=""
         aria-hidden="true"
-        width={800}
-        height={600}
+        width={1200}
+        height={900}
         loading={variant === 'hero' ? 'eager' : 'lazy'}
         fetchPriority={variant === 'hero' ? 'high' : 'auto'}
         decoding="async"

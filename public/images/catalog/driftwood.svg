@@ -1,25 +1,131 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900" role="img" aria-labelledby="t d">
+  <title id="t">Driftwood</title>
+  <desc id="d">Weathered forked driftwood branches with split grain and knots, set on sand with moss, pebbles and an air plant.</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#d4c3a3" stop-opacity="1"/>
-      <stop offset="100%" stop-color="#7a6549" stop-opacity="1"/>
+    <linearGradient id="wall" x1="0.2" y1="0" x2="0.75" y2="1">
+      <stop offset="0" stop-color="#f9f4e6"/>
+      <stop offset="0.5" stop-color="#e2dbc2"/>
+      <stop offset="1" stop-color="#a8a98a"/>
     </linearGradient>
-    <linearGradient id="vignette" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgba(0,0,0,0)" stop-opacity="0"/>
-      <stop offset="60%" stop-color="rgba(0,0,0,0.1)" stop-opacity="1"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,0.45)" stop-opacity="1"/>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d4c8a9"/>
+      <stop offset="1" stop-color="#9b9174"/>
     </linearGradient>
+    <linearGradient id="woodLight" x1="0" y1="0" x2="0.45" y2="1">
+      <stop offset="0" stop-color="#e6d9be"/>
+      <stop offset="0.5" stop-color="#c0af8d"/>
+      <stop offset="1" stop-color="#7f6e52"/>
+    </linearGradient>
+    <linearGradient id="woodDark" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#cbb894"/>
+      <stop offset="0.5" stop-color="#96805f"/>
+      <stop offset="1" stop-color="#5d4d38"/>
+    </linearGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#14291c" stop-opacity="0"/>
+      <stop offset="1" stop-color="#14291c" stop-opacity="0.3"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="38"/></filter>
+    <filter id="cast" x="-50%" y="-90%" width="200%" height="280%"><feGaussianBlur stdDeviation="14"/></filter>
+
+    <path id="blade2" d="M0 8 C -11 -22 -13 -54 -3 -86 C 11 -54 9 -22 0 8Z"/>
+    <g id="airplant" stroke="#38623f" stroke-width="2.2" stroke-linejoin="round">
+      <g fill="#5c8a55">
+        <use href="#blade2" transform="rotate(-70) scale(0.9)"/>
+        <use href="#blade2" transform="rotate(70) scale(0.9)"/>
+        <use href="#blade2" transform="rotate(-46) scale(1.04)"/>
+        <use href="#blade2" transform="rotate(46) scale(1.04)"/>
+      </g>
+      <g fill="#6d9b62">
+        <use href="#blade2" transform="rotate(-24) scale(1.16)"/>
+        <use href="#blade2" transform="rotate(24) scale(1.16)"/>
+        <use href="#blade2" transform="rotate(-8) scale(1.24)"/>
+        <use href="#blade2" transform="rotate(8) scale(1.24)"/>
+      </g>
+    </g>
   </defs>
-  <rect width="800" height="600" fill="url(#bg)"/>
-  <!-- Botanical leaf pattern -->
-  <g opacity="0.12" fill="#7a6549">
-    <ellipse cx="400" cy="250" rx="180" ry="60" transform="rotate(-30 400 250)"/>
-    <ellipse cx="350" cy="200" rx="140" ry="45" transform="rotate(15 350 200)"/>
-    <ellipse cx="450" cy="300" rx="160" ry="50" transform="rotate(-50 450 300)"/>
-    <ellipse cx="300" cy="320" rx="120" ry="40" transform="rotate(20 300 320)"/>
+
+  <rect width="1200" height="900" fill="url(#wall)"/>
+  <rect x="620" y="-160" width="400" height="620" rx="200" fill="#ffffff" opacity="0.36" filter="url(#soft)"/>
+  <circle cx="240" cy="750" r="230" fill="#6b5a3a" opacity="0.12" filter="url(#soft)"/>
+
+  <g fill="#7f8d67" opacity="0.12">
+    <path d="M244 546 C 202 474 216 386 274 334 C 320 404 310 492 244 546Z"/>
+    <path d="M1010 542 C 966 472 978 382 1032 332 C 1078 402 1072 488 1010 542Z"/>
   </g>
-  <rect width="800" height="600" fill="url(#vignette)"/>
-  <!-- Category label at bottom -->
-  <text x="40" y="540" font-family="Georgia, serif" font-size="42" fill="white" opacity="0.9">Driftwood</text>
-  <text x="40" y="568" font-family="Arial, sans-serif" font-size="13" fill="white" opacity="0.7" letter-spacing="2">THE HILLSIDE GARDENS</text>
+
+  <rect x="0" y="690" width="1200" height="210" fill="url(#floor)"/>
+  <rect x="0" y="686" width="1200" height="8" fill="#8f8568" opacity="0.5"/>
+
+  <!-- tall forked branch -->
+  <g transform="translate(692 692)">
+    <ellipse cx="-6" cy="8" rx="142" ry="21" fill="#6b5a3a" opacity="0.3" filter="url(#cast)"/>
+
+    <!-- main trunk, angular and tapering -->
+    <path d="M-54 6 L-40 -70 L-52 -148 L-30 -238 L-46 -318 L-16 -404 L6 -466 L26 -462 L18 -392 L2 -318 L18 -240 L4 -160 L24 -78 L20 6Z"
+          fill="url(#woodDark)" stroke="#5f4f39" stroke-width="4" stroke-linejoin="round"/>
+    <!-- split limb, left -->
+    <path d="M-40 -232 L-96 -286 L-140 -366 L-158 -444 L-136 -450 L-112 -382 L-72 -312 L-24 -262Z"
+          fill="url(#woodLight)" stroke="#5f4f39" stroke-width="4" stroke-linejoin="round"/>
+    <!-- split limb, right -->
+    <path d="M10 -304 L64 -344 L118 -396 L156 -428 L168 -408 L128 -368 L78 -318 L28 -272Z"
+          fill="url(#woodLight)" stroke="#5f4f39" stroke-width="4" stroke-linejoin="round"/>
+    <!-- short broken stub -->
+    <path d="M8 -152 L58 -178 L96 -178 L92 -156 L56 -150 L14 -128Z"
+          fill="url(#woodLight)" stroke="#5f4f39" stroke-width="4" stroke-linejoin="round"/>
+
+    <g stroke="#836f4f" stroke-width="3.2" stroke-opacity="0.8" fill="none" stroke-linecap="round">
+      <path d="M-38 -6 L-28 -80 L-38 -152 L-18 -236 L-32 -318 L-6 -398 L10 -452"/>
+      <path d="M4 -8 L10 -84 L-2 -160 L14 -240 L2 -312 L14 -388"/>
+      <path d="M-44 -252 L-92 -300 L-128 -374 L-146 -436"/>
+      <path d="M20 -296 L68 -334 L118 -386 L152 -418"/>
+    </g>
+    <g fill="#6f5c42" opacity="0.75">
+      <ellipse cx="-16" cy="-196" rx="12" ry="8" transform="rotate(-16 -16 -196)"/>
+      <ellipse cx="-4" cy="-352" rx="9" ry="6" transform="rotate(12 -4 -352)"/>
+    </g>
+
+    <use href="#airplant" transform="translate(-14 -472) scale(0.78) rotate(-4)"/>
+  </g>
+
+  <!-- reclining branch, front -->
+  <g transform="translate(496 700)">
+    <ellipse cx="16" cy="12" rx="272" ry="24" fill="#6b5a3a" opacity="0.32" filter="url(#cast)"/>
+    <path d="M-262 -6 L-208 -46 L-138 -62 L-64 -50 L4 -66 L84 -58 L152 -78 L214 -60 L262 -20 L232 -2 L188 -18 L138 -30 L74 -14 L4 -22 L-62 -6 L-136 -16 L-206 4 L-248 12Z"
+          fill="url(#woodLight)" stroke="#7a6849" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M-262 -6 L-208 -46 L-138 -62 L-64 -50 L-70 -28 L-138 -34 L-204 -14 L-250 6Z" fill="#ffffff" opacity="0.24"/>
+    <g stroke="#8b7757" stroke-width="3.2" stroke-opacity="0.8" fill="none" stroke-linecap="round">
+      <path d="M-240 -10 L-198 -40 L-136 -54 L-62 -42 L6 -58 L84 -50 L150 -70 L212 -52"/>
+      <path d="M-232 4 L-192 -22 L-132 -36 L-58 -26 L8 -40 L86 -32 L148 -50 L214 -34"/>
+    </g>
+    <!-- broken forked end -->
+    <path d="M214 -60 L268 -104 L318 -122 L322 -100 L280 -80 L246 -46Z" fill="url(#woodDark)" stroke="#7a6849" stroke-width="4" stroke-linejoin="round"/>
+    <g fill="#6f5c42" opacity="0.7">
+      <ellipse cx="-96" cy="-30" rx="14" ry="8" transform="rotate(-8 -96 -30)"/>
+      <ellipse cx="106" cy="-40" rx="11" ry="7" transform="rotate(6 106 -40)"/>
+    </g>
+
+    <use href="#airplant" transform="translate(-150 -64) scale(0.84) rotate(-8)"/>
+
+    <!-- moss at the base -->
+    <g fill="#5d8a3f" stroke="#39602c" stroke-width="2.6">
+      <path d="M-40 6 C -38 -28 -6 -46 26 -38 C 50 -32 58 -8 52 10Z"/>
+    </g>
+    <g fill="#8fb35e" opacity="0.85">
+      <circle cx="-20" cy="-14" r="7"/><circle cx="4" cy="-26" r="6"/><circle cx="28" cy="-12" r="7"/><circle cx="12" cy="0" r="6"/>
+    </g>
+  </g>
+
+  <!-- pebbles -->
+  <g fill="#a89e80">
+    <ellipse cx="268" cy="770" rx="36" ry="15"/>
+    <ellipse cx="952" cy="774" rx="31" ry="13"/>
+    <ellipse cx="1010" cy="748" rx="23" ry="10"/>
+  </g>
+  <g fill="#c8bf9f">
+    <ellipse cx="262" cy="764" rx="24" ry="9"/>
+    <ellipse cx="948" cy="769" rx="21" ry="8"/>
+  </g>
+
+  <rect width="1200" height="900" fill="url(#fade)"/>
 </svg>

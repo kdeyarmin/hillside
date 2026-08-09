@@ -1,25 +1,158 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900" role="img" aria-labelledby="t d">
+  <title id="t">Moss</title>
+  <desc id="d">Cushion moss mounds and a rolled sheet moss on a wooden tray with ferns and river pebbles.</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#b8cba0" stop-opacity="1"/>
-      <stop offset="100%" stop-color="#4b6b3e" stop-opacity="1"/>
+    <linearGradient id="wall" x1="0.2" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#f3f2e3"/>
+      <stop offset="0.5" stop-color="#d4dcbf"/>
+      <stop offset="1" stop-color="#93a67f"/>
     </linearGradient>
-    <linearGradient id="vignette" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgba(0,0,0,0)" stop-opacity="0"/>
-      <stop offset="60%" stop-color="rgba(0,0,0,0.1)" stop-opacity="1"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,0.45)" stop-opacity="1"/>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b6bd9c"/>
+      <stop offset="1" stop-color="#7c8867"/>
     </linearGradient>
+    <linearGradient id="tray" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#c4a97f"/>
+      <stop offset="0.6" stop-color="#9b8158"/>
+      <stop offset="1" stop-color="#6e5a3c"/>
+    </linearGradient>
+    <radialGradient id="mossA" cx="0.35" cy="0.25" r="0.85">
+      <stop offset="0" stop-color="#8fb35e"/>
+      <stop offset="0.55" stop-color="#5d8a3f"/>
+      <stop offset="1" stop-color="#33552a"/>
+    </radialGradient>
+    <radialGradient id="mossB" cx="0.4" cy="0.28" r="0.85">
+      <stop offset="0" stop-color="#a2bd74"/>
+      <stop offset="0.55" stop-color="#6b9450"/>
+      <stop offset="1" stop-color="#3c6031"/>
+    </radialGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#14291c" stop-opacity="0"/>
+      <stop offset="1" stop-color="#14291c" stop-opacity="0.3"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="38"/></filter>
+    <filter id="cast" x="-50%" y="-90%" width="200%" height="280%"><feGaussianBlur stdDeviation="14"/></filter>
+
+    <g id="fern">
+      <path d="M0 0 C -6 -46 -14 -88 -26 -124" fill="none" stroke="#4a7a3c" stroke-width="5" stroke-linecap="round"/>
+      <g fill="#5d8a3f">
+        <path d="M-4 -22 c -20 -6 -30 -22 -26 -42 c 20 8 30 24 26 42Z"/>
+        <path d="M-2 -22 c 20 -8 34 -4 42 12 c -18 10 -36 6 -42 -12Z"/>
+        <path d="M-10 -54 c -18 -6 -27 -21 -23 -39 c 18 8 27 22 23 39Z"/>
+        <path d="M-8 -54 c 18 -8 31 -4 39 11 c -17 10 -33 6 -39 -11Z"/>
+        <path d="M-17 -86 c -15 -6 -22 -19 -18 -34 c 15 7 23 20 18 34Z"/>
+        <path d="M-16 -86 c 15 -8 27 -4 33 10 c -14 9 -28 5 -33 -10Z"/>
+        <path d="M-26 -118 c -8 -12 -6 -26 4 -36 c 8 13 7 27 -4 36Z"/>
+      </g>
+    </g>
   </defs>
-  <rect width="800" height="600" fill="url(#bg)"/>
-  <!-- Botanical leaf pattern -->
-  <g opacity="0.12" fill="#4b6b3e">
-    <ellipse cx="400" cy="250" rx="180" ry="60" transform="rotate(-30 400 250)"/>
-    <ellipse cx="350" cy="200" rx="140" ry="45" transform="rotate(15 350 200)"/>
-    <ellipse cx="450" cy="300" rx="160" ry="50" transform="rotate(-50 450 300)"/>
-    <ellipse cx="300" cy="320" rx="120" ry="40" transform="rotate(20 300 320)"/>
+
+  <rect width="1200" height="900" fill="url(#wall)"/>
+  <rect x="630" y="-150" width="380" height="600" rx="190" fill="#ffffff" opacity="0.3" filter="url(#soft)"/>
+  <circle cx="240" cy="740" r="240" fill="#1d3a26" opacity="0.13" filter="url(#soft)"/>
+
+  <g fill="#3d6142" opacity="0.13">
+    <path d="M256 596 C 212 520 228 428 288 374 C 336 448 326 540 256 596Z"/>
+    <path d="M996 592 C 950 520 962 428 1018 376 C 1064 448 1058 536 996 592Z"/>
   </g>
-  <rect width="800" height="600" fill="url(#vignette)"/>
-  <!-- Category label at bottom -->
-  <text x="40" y="540" font-family="Georgia, serif" font-size="42" fill="white" opacity="0.9">Moss</text>
-  <text x="40" y="568" font-family="Arial, sans-serif" font-size="13" fill="white" opacity="0.7" letter-spacing="2">THE HILLSIDE GARDENS</text>
+
+  <rect x="0" y="690" width="1200" height="210" fill="url(#floor)"/>
+  <rect x="0" y="686" width="1200" height="8" fill="#6f7c5b" opacity="0.5"/>
+
+  <!-- ferns behind -->
+  <use href="#fern" transform="translate(300 686) rotate(-16) scale(1.5)"/>
+  <use href="#fern" transform="translate(1046 682) rotate(14) scale(1.34) scale(-1 1)"/>
+
+  <!-- rolled sheet moss, right -->
+  <g transform="translate(902 690)">
+    <ellipse cx="0" cy="6" rx="126" ry="20" fill="#1d3a26" opacity="0.3" filter="url(#cast)"/>
+    <!-- the sheet unrolling forward -->
+    <path d="M-106 0 C -74 -14 -22 -20 34 -18 L34 4 C -18 6 -70 12 -106 12Z" fill="#4a7433" stroke="#31562a" stroke-width="3"/>
+    <g fill="#7aa64f" opacity="0.85">
+      <circle cx="-88" cy="-2" r="6"/><circle cx="-56" cy="-8" r="6"/><circle cx="-22" cy="-11" r="6"/><circle cx="12" cy="-9" r="5"/>
+    </g>
+    <!-- the roll itself -->
+    <path d="M-14 -6 C -14 -76 22 -122 74 -122 C 122 -122 152 -80 152 -20 C 152 0 -14 4 -14 -6Z" fill="#6b5540"/>
+    <ellipse cx="74" cy="-64" rx="58" ry="60" fill="#5d8a3f" stroke="#31562a" stroke-width="3.5"/>
+    <path d="M74 -64 C 74 -92 96 -110 122 -108 C 116 -80 98 -62 74 -64Z" fill="#4a7433"/>
+    <path d="M74 -64 C 50 -66 34 -88 38 -114 C 64 -108 78 -88 74 -64Z" fill="#7aa64f"/>
+    <ellipse cx="74" cy="-64" rx="26" ry="27" fill="#446b30" stroke="#31562a" stroke-width="3"/>
+    <ellipse cx="74" cy="-64" rx="10" ry="11" fill="#6b9445"/>
+    <g fill="#8fb35e" opacity="0.8">
+      <circle cx="104" cy="-96" r="7"/><circle cx="44" cy="-100" r="6"/><circle cx="112" cy="-40" r="7"/><circle cx="38" cy="-34" r="6"/>
+    </g>
+    <g stroke="#a9855a" stroke-width="6" fill="none" stroke-linecap="round">
+      <path d="M74 -122 C 96 -116 110 -100 114 -80"/>
+    </g>
+  </g>
+
+  <!-- wooden tray of cushion moss, centre -->
+  <g transform="translate(568 690)">
+    <ellipse cx="10" cy="10" rx="272" ry="28" fill="#1d3a26" opacity="0.34" filter="url(#cast)"/>
+
+    <!-- moss mounds -->
+    <g stroke="#2f5227" stroke-width="3" stroke-linejoin="round">
+      <path d="M-208 -66 C -212 -100 -200 -122 -180 -128 C -178 -150 -160 -164 -138 -160
+               C -128 -178 -106 -184 -88 -174 C -68 -180 -48 -168 -44 -148
+               C -26 -140 -20 -118 -30 -96 C -30 -80 -34 -70 -38 -66Z" fill="url(#mossA)"/>
+      <path d="M-66 -66 C -76 -106 -68 -140 -44 -156 C -42 -186 -18 -206 12 -204
+               C 34 -220 66 -214 80 -192 C 108 -188 122 -164 116 -136
+               C 124 -114 118 -86 106 -66Z" fill="url(#mossB)"/>
+      <path d="M92 -66 C 84 -96 92 -120 112 -132 C 116 -152 136 -164 158 -160
+               C 174 -172 196 -168 206 -152 C 226 -144 234 -122 226 -100
+               C 230 -86 228 -74 224 -66Z" fill="url(#mossA)"/>
+    </g>
+
+    <!-- moss texture -->
+    <g fill="#a7c877" opacity="0.7">
+      <circle cx="-176" cy="-116" r="8"/><circle cx="-146" cy="-140" r="7"/><circle cx="-114" cy="-124" r="8"/>
+      <circle cx="-84" cy="-150" r="6"/><circle cx="-60" cy="-112" r="7"/><circle cx="-190" cy="-90" r="6"/>
+      <circle cx="-22" cy="-150" r="8"/><circle cx="8" cy="-176" r="7"/><circle cx="42" cy="-156" r="8"/>
+      <circle cx="76" cy="-174" r="6"/><circle cx="96" cy="-126" r="7"/><circle cx="-44" cy="-106" r="6"/>
+      <circle cx="126" cy="-122" r="7"/><circle cx="154" cy="-142" r="8"/><circle cx="190" cy="-126" r="7"/>
+      <circle cx="214" cy="-98" r="6"/><circle cx="136" cy="-92" r="6"/><circle cx="32" cy="-112" r="6"/>
+    </g>
+    <!-- sporophyte hairs -->
+    <g stroke="#456b32" stroke-width="2.4" stroke-linecap="round" fill="none">
+      <path d="M-160 -128 C -164 -150 -162 -166 -154 -180"/>
+      <path d="M-104 -150 C -108 -172 -104 -188 -96 -200"/>
+      <path d="M-2 -186 C -6 -212 -2 -230 8 -244"/>
+      <path d="M52 -178 C 50 -204 56 -220 66 -232"/>
+      <path d="M160 -152 C 158 -176 164 -190 174 -202"/>
+    </g>
+    <g fill="#c2a24a">
+      <ellipse cx="-154" cy="-184" rx="6" ry="9" transform="rotate(-12 -154 -184)"/>
+      <ellipse cx="-96" cy="-204" rx="6" ry="9" transform="rotate(-10 -96 -204)"/>
+      <ellipse cx="8" cy="-248" rx="6" ry="10" transform="rotate(8 8 -248)"/>
+      <ellipse cx="66" cy="-236" rx="6" ry="9" transform="rotate(10 66 -236)"/>
+      <ellipse cx="174" cy="-206" rx="6" ry="9" transform="rotate(11 174 -206)"/>
+    </g>
+    <g stroke="#3c6031" stroke-width="2.4" stroke-opacity="0.45" fill="none">
+      <path d="M-160 -66 C -168 -100 -156 -126 -128 -142"/>
+      <path d="M-6 -66 C -18 -116 2 -152 40 -170"/>
+      <path d="M152 -66 C 144 -102 162 -126 192 -136"/>
+    </g>
+
+    <!-- the tray -->
+    <path d="M-244 -66 H244 L222 0 H-222Z" fill="url(#tray)"/>
+    <path d="M-244 -66 H-96 L-118 0 H-222Z" fill="#ffffff" opacity="0.13"/>
+    <rect x="-256" y="-84" width="512" height="24" rx="6" fill="#b3966b"/>
+    <g stroke="#7d6644" stroke-width="3" stroke-opacity="0.6" fill="none">
+      <path d="M-232 -42 H232"/>
+      <path d="M-226 -20 H226"/>
+    </g>
+  </g>
+
+  <!-- pebbles -->
+  <g fill="#a5ab8e">
+    <ellipse cx="300" cy="742" rx="30" ry="14"/>
+    <ellipse cx="350" cy="766" rx="22" ry="10"/>
+    <ellipse cx="1014" cy="748" rx="26" ry="12"/>
+  </g>
+  <g fill="#bcc0a4">
+    <ellipse cx="296" cy="738" rx="20" ry="8"/>
+    <ellipse cx="1010" cy="744" rx="17" ry="7"/>
+  </g>
+
+  <rect width="1200" height="900" fill="url(#fade)"/>
 </svg>

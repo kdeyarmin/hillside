@@ -1,25 +1,167 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" width="800" height="600">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" width="1200" height="900" role="img" aria-labelledby="t d">
+  <title id="t">Terrarium supplies</title>
+  <desc id="d">A tall glass terrarium layered with gravel, charcoal, soil and moss beside planting tools and a sack of pebbles.</desc>
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#bdc9a2" stop-opacity="1"/>
-      <stop offset="100%" stop-color="#3f6040" stop-opacity="1"/>
+    <linearGradient id="wall" x1="0.2" y1="0" x2="0.75" y2="1">
+      <stop offset="0" stop-color="#f8f6ea"/>
+      <stop offset="0.5" stop-color="#dde3cd"/>
+      <stop offset="1" stop-color="#9dad8c"/>
     </linearGradient>
-    <linearGradient id="vignette" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="rgba(0,0,0,0)" stop-opacity="0"/>
-      <stop offset="60%" stop-color="rgba(0,0,0,0.1)" stop-opacity="1"/>
-      <stop offset="100%" stop-color="rgba(0,0,0,0.45)" stop-opacity="1"/>
+    <linearGradient id="floor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c1c8aa"/>
+      <stop offset="1" stop-color="#86936f"/>
     </linearGradient>
+    <linearGradient id="glassBody" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.75"/>
+      <stop offset="0.45" stop-color="#e9f0e6" stop-opacity="0.34"/>
+      <stop offset="1" stop-color="#8ea08a" stop-opacity="0.46"/>
+    </linearGradient>
+    <linearGradient id="sack" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0" stop-color="#e4d5b5"/>
+      <stop offset="0.6" stop-color="#c3af88"/>
+      <stop offset="1" stop-color="#8d7a56"/>
+    </linearGradient>
+    <linearGradient id="crock" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#e8dcc4"/>
+      <stop offset="0.55" stop-color="#cbb994"/>
+      <stop offset="1" stop-color="#96825e"/>
+    </linearGradient>
+    <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0.55" stop-color="#14291c" stop-opacity="0"/>
+      <stop offset="1" stop-color="#14291c" stop-opacity="0.3"/>
+    </linearGradient>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="38"/></filter>
+    <filter id="cast" x="-50%" y="-90%" width="200%" height="280%"><feGaussianBlur stdDeviation="14"/></filter>
+    <clipPath id="jarInner">
+      <path d="M-142 -352 C -156 -300 -158 -70 -136 -26 C -118 14 118 14 136 -26 C 158 -70 156 -300 142 -352Z"/>
+    </clipPath>
   </defs>
-  <rect width="800" height="600" fill="url(#bg)"/>
-  <!-- Botanical leaf pattern -->
-  <g opacity="0.12" fill="#3f6040">
-    <ellipse cx="400" cy="250" rx="180" ry="60" transform="rotate(-30 400 250)"/>
-    <ellipse cx="350" cy="200" rx="140" ry="45" transform="rotate(15 350 200)"/>
-    <ellipse cx="450" cy="300" rx="160" ry="50" transform="rotate(-50 450 300)"/>
-    <ellipse cx="300" cy="320" rx="120" ry="40" transform="rotate(20 300 320)"/>
+
+  <rect width="1200" height="900" fill="url(#wall)"/>
+  <rect x="630" y="-150" width="380" height="600" rx="190" fill="#ffffff" opacity="0.34" filter="url(#soft)"/>
+  <circle cx="240" cy="750" r="230" fill="#1d3a26" opacity="0.12" filter="url(#soft)"/>
+
+  <g fill="#5d7a52" opacity="0.12">
+    <path d="M250 566 C 208 494 222 404 280 352 C 326 422 316 512 250 566Z"/>
+    <path d="M1004 562 C 960 492 972 402 1026 350 C 1072 420 1066 508 1004 562Z"/>
   </g>
-  <rect width="800" height="600" fill="url(#vignette)"/>
-  <!-- Category label at bottom -->
-  <text x="40" y="540" font-family="Georgia, serif" font-size="42" fill="white" opacity="0.9">Terrarium Supplies</text>
-  <text x="40" y="568" font-family="Arial, sans-serif" font-size="13" fill="white" opacity="0.7" letter-spacing="2">THE HILLSIDE GARDENS</text>
+
+  <rect x="0" y="690" width="1200" height="210" fill="url(#floor)"/>
+  <rect x="0" y="686" width="1200" height="8" fill="#7b8865" opacity="0.5"/>
+
+  <!-- sack of pebbles, left -->
+  <g transform="translate(316 690)">
+    <ellipse cx="0" cy="8" rx="118" ry="19" fill="#1d3a26" opacity="0.28" filter="url(#cast)"/>
+    <path d="M-92 0 C -104 -66 -90 -128 -58 -170 C -36 -198 36 -198 58 -170 C 90 -128 104 -66 92 0Z" fill="url(#sack)" stroke="#95835d" stroke-width="3.5"/>
+    <path d="M-92 0 C -103 -64 -90 -126 -58 -168 C -48 -116 -52 -54 -44 0Z" fill="#ffffff" opacity="0.3"/>
+    <path d="M-58 -170 C -36 -184 36 -184 58 -170 C 44 -206 -44 -206 -58 -170Z" fill="#b6a074" stroke="#95835d" stroke-width="3"/>
+    <g fill="#a9b092">
+      <circle cx="-26" cy="-196" r="13"/><circle cx="4" cy="-204" r="14"/><circle cx="34" cy="-194" r="12"/><circle cx="-2" cy="-182" r="12"/>
+    </g>
+    <g fill="#8f9878">
+      <circle cx="-24" cy="-192" r="7"/><circle cx="6" cy="-200" r="8"/><circle cx="32" cy="-190" r="6"/>
+    </g>
+    <path d="M-50 -178 C -20 -190 20 -190 50 -178" fill="none" stroke="#8a7551" stroke-width="6" stroke-linecap="round"/>
+    <g fill="#b9892e" opacity="0.85">
+      <rect x="-42" y="-104" width="84" height="6" rx="3"/>
+      <rect x="-28" y="-84" width="56" height="6" rx="3"/>
+    </g>
+  </g>
+
+  <!-- layered glass terrarium, centre -->
+  <g transform="translate(612 690)">
+    <ellipse cx="8" cy="12" rx="200" ry="25" fill="#1d3a26" opacity="0.32" filter="url(#cast)"/>
+
+    <g clip-path="url(#jarInner)">
+      <!-- gravel drainage -->
+      <rect x="-170" y="-58" width="340" height="80" fill="#a4a98d"/>
+      <g fill="#8b9174">
+        <circle cx="-112" cy="-34" r="13"/><circle cx="-66" cy="-22" r="14"/><circle cx="-18" cy="-36" r="13"/>
+        <circle cx="32" cy="-22" r="14"/><circle cx="82" cy="-34" r="13"/><circle cx="128" cy="-22" r="12"/>
+        <circle cx="-140" cy="-20" r="11"/><circle cx="6" cy="-8" r="12"/><circle cx="106" cy="-8" r="11"/>
+      </g>
+      <!-- charcoal -->
+      <rect x="-170" y="-96" width="340" height="40" fill="#3b3b38"/>
+      <g fill="#565650">
+        <circle cx="-104" cy="-80" r="9"/><circle cx="-44" cy="-72" r="9"/><circle cx="24" cy="-82" r="9"/>
+        <circle cx="92" cy="-72" r="9"/><circle cx="140" cy="-82" r="8"/>
+      </g>
+      <!-- potting soil -->
+      <rect x="-170" y="-178" width="340" height="84" fill="#4a3a2b"/>
+      <g fill="#5d4a36">
+        <circle cx="-118" cy="-154" r="11"/><circle cx="-52" cy="-134" r="12"/><circle cx="16" cy="-158" r="11"/>
+        <circle cx="84" cy="-136" r="12"/><circle cx="138" cy="-156" r="10"/><circle cx="-146" cy="-120" r="9"/>
+      </g>
+      <!-- moss cap -->
+      <path d="M-170 -186 C -110 -208 -46 -196 16 -204 C 78 -212 132 -198 170 -188 L170 -170 H-170Z" fill="#4f7f39"/>
+      <g fill="#7aa64f">
+        <circle cx="-126" cy="-194" r="13"/><circle cx="-78" cy="-202" r="14"/><circle cx="-24" cy="-196" r="13"/>
+        <circle cx="30" cy="-206" r="14"/><circle cx="86" cy="-194" r="13"/><circle cx="136" cy="-188" r="11"/>
+      </g>
+
+      <!-- planting inside the glass -->
+      <g fill="none" stroke="#3d6b43" stroke-width="7" stroke-linecap="round">
+        <path d="M-46 -196 C -56 -240 -60 -274 -54 -304"/>
+        <path d="M-46 -196 C -22 -238 -4 -266 14 -288"/>
+        <path d="M-46 -196 C -60 -226 -78 -246 -96 -260"/>
+      </g>
+      <g stroke="#2c5236" stroke-width="3" stroke-linejoin="round">
+        <path d="M-54 -304 c -32 -16 -40 -54 -20 -82 c 32 18 42 54 20 82Z" fill="#4a7a4a"/>
+        <path d="M-54 -304 c 18 -32 58 -38 84 -14 c -22 30 -60 34 -84 14Z" fill="#5d8a54"/>
+        <path d="M14 -288 c -24 -26 -22 -62 6 -84 c 24 26 20 60 -6 84Z" fill="#3f6d43"/>
+        <path d="M-96 -260 c -34 -8 -50 -40 -36 -70 c 34 12 50 42 36 70Z" fill="#5d8a54"/>
+      </g>
+      <g fill="none" stroke="#3d6b43" stroke-width="5" stroke-linecap="round">
+        <path d="M64 -196 C 74 -224 88 -244 106 -258"/>
+      </g>
+      <g fill="#4a7a4a" stroke="#2c5236" stroke-width="2.6">
+        <path d="M106 -258 c -26 -12 -34 -42 -16 -64 c 26 14 34 42 16 64Z"/>
+        <path d="M106 -258 c 16 -22 46 -24 66 -6 c -18 22 -48 24 -66 6Z"/>
+      </g>
+    </g>
+
+    <!-- the glass -->
+    <path d="M-142 -352 C -156 -300 -158 -70 -136 -26 C -118 14 118 14 136 -26 C 158 -70 156 -300 142 -352Z" fill="url(#glassBody)" stroke="#f2f6ee" stroke-width="5" stroke-opacity="0.8"/>
+    <path d="M-116 -338 C -132 -288 -134 -78 -114 -34" fill="none" stroke="#ffffff" stroke-width="12" stroke-opacity="0.5" stroke-linecap="round"/>
+    <path d="M-88 -330 C -102 -286 -104 -120 -92 -70" fill="none" stroke="#ffffff" stroke-width="5" stroke-opacity="0.35" stroke-linecap="round"/>
+    <path d="M-142 -352 C -156 -300 -158 -70 -136 -26 C -118 14 118 14 136 -26 C 158 -70 156 -300 142 -352Z" fill="none" stroke="#6f8168" stroke-width="3" stroke-opacity="0.4"/>
+    <ellipse cx="0" cy="-352" rx="142" ry="27" fill="#eef3ea" opacity="0.8" stroke="#dbe3d5" stroke-width="3"/>
+    <ellipse cx="0" cy="-354" rx="118" ry="19" fill="#c3d0bc" opacity="0.65"/>
+
+    <!-- glass cloche lid -->
+    <path d="M-150 -358 C -150 -376 -110 -388 0 -388 C 110 -388 150 -376 150 -358 C 150 -344 110 -336 0 -336 C -110 -336 -150 -344 -150 -358Z" fill="#e8efe3" opacity="0.85" stroke="#cfd9c7" stroke-width="3"/>
+    <ellipse cx="0" cy="-404" rx="26" ry="20" fill="#dfe8da" stroke="#c4d0bb" stroke-width="3"/>
+  </g>
+
+  <!-- planting tools in a crock, right -->
+  <g transform="translate(910 690)">
+    <ellipse cx="0" cy="8" rx="106" ry="17" fill="#1d3a26" opacity="0.28" filter="url(#cast)"/>
+
+    <!-- tweezers -->
+    <g stroke="#7f8c72" stroke-width="7" stroke-linecap="round" fill="none">
+      <path d="M-26 -104 C -40 -190 -50 -268 -56 -330"/>
+      <path d="M-18 -104 C -26 -190 -30 -268 -32 -330"/>
+    </g>
+    <g fill="#9aa68c">
+      <path d="M-60 -330 l 8 -34 l 8 34Z"/>
+      <path d="M-36 -330 l 4 -34 l 8 34Z"/>
+    </g>
+    <!-- long handled scoop -->
+    <path d="M22 -104 C 44 -188 62 -258 78 -312" fill="none" stroke="#8c7a5a" stroke-width="9" stroke-linecap="round"/>
+    <path d="M60 -304 C 54 -344 74 -374 106 -378 C 116 -344 100 -312 74 -300Z" fill="#b9892e" stroke="#8d6720" stroke-width="3"/>
+    <path d="M64 -306 C 60 -340 74 -364 96 -372 C 96 -348 84 -322 68 -304Z" fill="#d8ab54"/>
+    <!-- soft brush -->
+    <path d="M46 -104 C 56 -166 62 -212 66 -248" fill="none" stroke="#a8946f" stroke-width="8" stroke-linecap="round"/>
+    <path d="M56 -248 C 62 -286 82 -300 96 -292 C 92 -268 78 -252 62 -244Z" fill="#e0cfa8" stroke="#b9a67e" stroke-width="3"/>
+
+    <path d="M-70 -108 C -66 -66 -56 -28 -44 0 H44 C 56 -28 66 -66 70 -108Z" fill="url(#crock)" stroke="#96825e" stroke-width="3.5"/>
+    <path d="M-70 -108 C -66 -66 -56 -28 -44 0 H-14 C -26 -34 -36 -72 -40 -108Z" fill="#ffffff" opacity="0.38"/>
+    <rect x="-82" y="-132" width="164" height="28" rx="8" fill="#dccdae" stroke="#96825e" stroke-width="3"/>
+    <g fill="#b9892e" opacity="0.8">
+      <rect x="-40" y="-78" width="80" height="6" rx="3"/>
+      <rect x="-28" y="-58" width="56" height="6" rx="3"/>
+    </g>
+  </g>
+
+  <rect width="1200" height="900" fill="url(#fade)"/>
 </svg>
