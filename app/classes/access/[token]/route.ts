@@ -20,8 +20,9 @@ export async function GET(
     return NextResponse.redirect(new URL('/classes?access=invalid', request.url));
   }
 
+  const tokenHash = hashClassJoinToken(token);
   const registration = await db.classRegistration.findUnique({
-    where: { joinTokenHash: hashClassJoinToken(token) },
+    where: { joinTokenHash: tokenHash },
     include: { classEvent: true }
   });
 
@@ -42,6 +43,7 @@ export async function GET(
   const cookie = createClassAccessCookie(
     registration.classEventId,
     registration.id,
+    tokenHash,
     expires
   );
   const response = NextResponse.redirect(
