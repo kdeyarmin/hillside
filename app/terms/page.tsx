@@ -38,7 +38,7 @@ export default function TermsPage() {
           <p>To the fullest extent permitted by law, The Hillside Gardens is not liable for indirect, incidental or consequential losses arising from website use, delivery delays, plant-care outcomes or product misuse. Nothing in these terms excludes rights or remedies that cannot legally be excluded.</p>
 
           <h2>Changes and contact</h2>
-          <p>These terms may be updated as the business and website evolve. Questions can be sent to <a className="text-link" href="mailto:hello@thehillsidegarden.com">hello@thehillsidegarden.com</a>.</p>
+          <p>These terms may be updated as the business and website evolve. Questions can be sent to <a className="text-link" href="mailto:hello@thehillsidegardens.com">hello@thehillsidegardens.com</a>.</p>
         </article>
       </section>
     </>
