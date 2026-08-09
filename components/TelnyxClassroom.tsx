@@ -12,14 +12,28 @@ import {
   VideoOff
 } from 'lucide-react';
 
+type KeySequence = {
+  toArray?: () => string[];
+  forEach?: (callback: (key: string) => void) => void;
+};
+
+type CollectionLike<T> =
+  | Map<string, T>
+  | Record<string, T>
+  | {
+      get?: (key: string) => T | undefined;
+      forEach?: (callback: (value: T, key: string) => void) => void;
+      keySeq?: () => KeySequence;
+    };
+
 type RoomState = {
-  participants?: Map<string, ParticipantLike> | Record<string, ParticipantLike>;
+  participants?: CollectionLike<ParticipantLike>;
 };
 
 type ParticipantLike = {
   origin?: string;
   context?: string;
-  streams?: Map<string, unknown> | Record<string, unknown>;
+  streams?: CollectionLike<unknown>;
 };
 
 type ParticipantStream = {
@@ -72,17 +86,66 @@ type RemoteTile = {
   stream: MediaStream;
 };
 
+function collectionEntries<T>(collection: CollectionLike<T> | undefined): Array<[string, T]> {
+  if (!collection) return [];
+  if (collection instanceof Map) return Array.from(collection.entries());
+
+  const iterable = collection as {
+    forEach?: (callback: (value: T, key: string) => void) => void;
+  };
+  if (typeof iterable.forEach === 'function') {
+    const entries: Array<[string, T]> = [];
+    iterable.forEach((value, key) => entries.push([String(key), value]));
+    return entries;
+  }
+
+  return Object.entries(collection as Record<string, T>);
+}
+
+function collectionGet<T>(collection: CollectionLike<T> | undefined, key: string) {
+  if (!collection) return undefined;
+  if (collection instanceof Map) return collection.get(key);
+  const immutable = collection as { get?: (candidate: string) => T | undefined };
+  if (typeof immutable.get === 'function') return immutable.get(key);
+  return (collection as Record<string, T>)[key];
+}
+
+function collectionKeys<T>(collection: CollectionLike<T> | undefined) {
+  if (!collection) return [] as string[];
+  if (collection instanceof Map) return Array.from(collection.keys());
+
+  const immutable = collection as {
+    keySeq?: () => KeySequence;
+    forEach?: (callback: (value: T, key: string) => void) => void;
+  };
+  if (typeof immutable.keySeq === 'function') {
+    const sequence = immutable.keySeq();
+    if (typeof sequence.toArray === 'function') return sequence.toArray().map(String);
+    if (typeof sequence.forEach === 'function') {
+      const keys: string[] = [];
+      sequence.forEach((key) => keys.push(String(key)));
+      return keys;
+    }
+  }
+  if (typeof immutable.forEach === 'function') {
+    const keys: string[] = [];
+    immutable.forEach((_value, key) => keys.push(String(key)));
+    return keys;
+  }
+
+  return Object.keys(collection as Record<string, T>);
+}
+
 function participantEntries(state: RoomState | undefined) {
-  const participants = state?.participants;
-  if (!participants) return [] as Array<[string, ParticipantLike]>;
-  if (participants instanceof Map) return Array.from(participants.entries());
-  return Object.entries(participants);
+  return collectionEntries(state?.participants);
+}
+
+function getParticipant(state: RoomState | undefined, participantId: string) {
+  return collectionGet(state?.participants, participantId);
 }
 
 function streamKeys(participant: ParticipantLike) {
-  if (!participant.streams) return [];
-  if (participant.streams instanceof Map) return Array.from(participant.streams.keys());
-  return Object.keys(participant.streams);
+  return collectionKeys(participant.streams);
 }
 
 function participantLabel(participant: ParticipantLike | undefined) {
@@ -176,8 +239,9 @@ export default function TelnyxClassroom({
       subscribedRef.current.clear();
       setRemoteTiles([]);
       setScreenSharing(false);
+      setListeningOnly(false);
       setStatus('left');
-      setMessage('You left the classroom. You may rejoin while the class room remains open.');
+      setMessage('You left the classroom. You may rejoin while the classroom remains open.');
     }
   }, [stopAllMedia]);
 
@@ -196,6 +260,9 @@ export default function TelnyxClassroom({
     setStatus('joining');
     setMessage('Preparing your secure Telnyx classroom…');
     setListeningOnly(false);
+    setAudioEnabled(true);
+    setVideoEnabled(true);
+    setScreenSharing(false);
     setRemoteTiles([]);
     subscribedRef.current.clear();
 
@@ -219,12 +286,30 @@ export default function TelnyxClassroom({
       });
       roomRef.current = room;
 
+      const removeRemoteStream = (participantId: string, streamKey: string) => {
+        const subscriptionKey = `${participantId}:${streamKey}`;
+        subscribedRef.current.delete(subscriptionKey);
+        if (mountedRef.current) {
+          setRemoteTiles((current) => current.filter((item) => item.id !== subscriptionKey));
+        }
+      };
+
+      const removeRemoteParticipant = (participantId: string) => {
+        const prefix = `${participantId}:`;
+        for (const key of Array.from(subscribedRef.current)) {
+          if (key.startsWith(prefix)) subscribedRef.current.delete(key);
+        }
+        if (mountedRef.current) {
+          setRemoteTiles((current) => current.filter((item) => !item.id.startsWith(prefix)));
+        }
+      };
+
       const subscribe = async (
         participantId: string,
         streamKey: string,
         state?: RoomState
       ) => {
-        const participant = participantEntries(state).find(([id]) => id === participantId)?.[1];
+        const participant = getParticipant(state, participantId);
         if (participant?.origin === 'local') return;
         const key = `${participantId}:${streamKey}`;
         if (subscribedRef.current.has(key)) return;
@@ -239,18 +324,21 @@ export default function TelnyxClassroom({
 
       room.on('stream_published', (...args: unknown[]) => {
         const [participantId, streamKey, state] = args as [string, string, RoomState];
-        void subscribe(participantId, streamKey, state);
+        if (typeof participantId === 'string' && typeof streamKey === 'string') {
+          void subscribe(participantId, streamKey, state);
+        }
       });
 
       room.on('subscription_started', (...args: unknown[]) => {
         const [participantId, streamKey, state] = args as [string, string, RoomState];
+        if (typeof participantId !== 'string' || typeof streamKey !== 'string') return;
         const remote = room.getParticipantStream(participantId, streamKey);
         const tracks = [remote.audioTrack, remote.videoTrack].filter(
           (track): track is MediaStreamTrack => Boolean(track)
         );
-        if (!tracks.length) return;
+        if (!tracks.length || !mountedRef.current) return;
         const id = `${participantId}:${streamKey}`;
-        const participant = participantEntries(state).find(([candidate]) => candidate === participantId)?.[1];
+        const participant = getParticipant(state, participantId);
         const tile: RemoteTile = {
           id,
           label: participantLabel(participant),
@@ -259,18 +347,33 @@ export default function TelnyxClassroom({
         setRemoteTiles((current) => [...current.filter((item) => item.id !== id), tile]);
       });
 
-      const removeRemote = (...args: unknown[]) => {
-        const [participantId, streamKey] = args as [string, string | undefined];
-        setRemoteTiles((current) =>
-          current.filter((item) =>
-            streamKey ? item.id !== `${participantId}:${streamKey}` : !item.id.startsWith(`${participantId}:`)
-          )
-        );
-      };
-      room.on('stream_unpublished', removeRemote);
-      room.on('participant_left', removeRemote);
+      room.on('stream_unpublished', (...args: unknown[]) => {
+        const [participantId, streamKey] = args as [string, string];
+        if (typeof participantId === 'string' && typeof streamKey === 'string') {
+          removeRemoteStream(participantId, streamKey);
+        }
+      });
+
+      room.on('subscription_ended', (...args: unknown[]) => {
+        const [participantId, streamKey] = args as [string, string];
+        if (typeof participantId === 'string' && typeof streamKey === 'string') {
+          removeRemoteStream(participantId, streamKey);
+        }
+      });
+
+      room.on('participant_left', (...args: unknown[]) => {
+        const [participantId] = args as [string];
+        if (typeof participantId === 'string') removeRemoteParticipant(participantId);
+      });
+
       room.on('disconnected', () => {
         if (mountedRef.current && roomRef.current === room) {
+          stopAllMedia();
+          roomRef.current = null;
+          subscribedRef.current.clear();
+          setRemoteTiles([]);
+          setScreenSharing(false);
+          setListeningOnly(false);
           setStatus('left');
           setMessage('The video connection ended. Select rejoin to reconnect.');
         }
@@ -278,33 +381,69 @@ export default function TelnyxClassroom({
 
       await room.connect();
 
-      for (const [participantId, participant] of participantEntries(room.getState?.())) {
+      const currentState = room.getState?.();
+      for (const [participantId, participant] of participantEntries(currentState)) {
         if (participant.origin === 'local') continue;
         for (const streamKey of streamKeys(participant)) {
-          void subscribe(participantId, streamKey, room.getState?.());
+          void subscribe(participantId, streamKey, currentState);
         }
       }
 
-      try {
-        if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error('Camera and microphone access is not available in this browser.');
+      let joinedListeningOnly = false;
+      let joinedWithPartialMedia = false;
+      let media: MediaStream | null = null;
+
+      if (navigator.mediaDevices?.getUserMedia) {
+        try {
+          media = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true },
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+          });
+        } catch (combinedError) {
+          console.warn('Full camera and microphone access was unavailable', combinedError);
+          const fallbackTracks: MediaStreamTrack[] = [];
+          try {
+            const audioOnly = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: true, noiseSuppression: true },
+              video: false
+            });
+            fallbackTracks.push(...audioOnly.getAudioTracks());
+          } catch (audioError) {
+            console.warn('Microphone access was unavailable', audioError);
+          }
+          try {
+            const videoOnly = await navigator.mediaDevices.getUserMedia({
+              audio: false,
+              video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+            });
+            fallbackTracks.push(...videoOnly.getVideoTracks());
+          } catch (videoError) {
+            console.warn('Camera access was unavailable', videoError);
+          }
+          if (fallbackTracks.length) {
+            media = new MediaStream(fallbackTracks);
+            joinedWithPartialMedia = true;
+          }
         }
-        const media = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true },
-          video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
-        });
+      }
+
+      if (media && media.getTracks().length) {
         localMediaRef.current = media;
         if (localVideoRef.current) localVideoRef.current.srcObject = media;
+        const audioTrack = media.getAudioTracks()[0];
+        const videoTrack = media.getVideoTracks()[0];
+        setAudioEnabled(Boolean(audioTrack));
+        setVideoEnabled(Boolean(videoTrack));
         await room.addStream('camera', {
-          audio: media.getAudioTracks()[0],
-          video: media.getVideoTracks()[0]
+          audio: audioTrack,
+          video: videoTrack
         });
-      } catch (mediaError) {
-        console.warn('Joining Telnyx class without local media', mediaError);
-        setListeningOnly(true);
+      } else {
+        joinedListeningOnly = true;
         setAudioEnabled(false);
         setVideoEnabled(false);
       }
+      setListeningOnly(joinedListeningOnly);
 
       refreshTimerRef.current = setInterval(async () => {
         try {
@@ -316,12 +455,20 @@ export default function TelnyxClassroom({
       }, 45 * 60_000);
 
       setStatus('connected');
-      setMessage(listeningOnly ? 'Connected in listening-only mode.' : 'Connected to the classroom.');
+      setMessage(
+        joinedListeningOnly
+          ? 'Connected in listening-only mode.'
+          : joinedWithPartialMedia
+            ? 'Connected with the camera or microphone that your browser allowed.'
+            : 'Connected to the classroom.'
+      );
     } catch (error) {
       console.error('Unable to join Telnyx classroom', error);
       await roomRef.current?.disconnect().catch(() => undefined);
       roomRef.current = null;
       stopAllMedia();
+      subscribedRef.current.clear();
+      setRemoteTiles([]);
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'Unable to join the online classroom.');
     }
@@ -329,6 +476,7 @@ export default function TelnyxClassroom({
 
   function toggleAudio() {
     const tracks = localMediaRef.current?.getAudioTracks() || [];
+    if (!tracks.length) return;
     const next = !audioEnabled;
     tracks.forEach((track) => {
       track.enabled = next;
@@ -338,6 +486,7 @@ export default function TelnyxClassroom({
 
   function toggleVideo() {
     const tracks = localMediaRef.current?.getVideoTracks() || [];
+    if (!tracks.length) return;
     const next = !videoEnabled;
     tracks.forEach((track) => {
       track.enabled = next;
@@ -373,6 +522,8 @@ export default function TelnyxClassroom({
   }
 
   const canJoin = status === 'ready' || status === 'left' || status === 'error';
+  const hasLocalAudio = Boolean(localMediaRef.current?.getAudioTracks().length);
+  const hasLocalVideo = Boolean(localMediaRef.current?.getVideoTracks().length);
 
   return (
     <section className="telnyx-classroom" aria-label={`${title} online classroom`}>
@@ -429,10 +580,10 @@ export default function TelnyxClassroom({
             {remoteTiles.map((tile) => <RemoteVideo tile={tile} key={tile.id} />)}
           </div>
           <div className="classroom-controls" aria-label="Classroom controls">
-            <button type="button" onClick={toggleAudio} disabled={!localMediaRef.current}>
+            <button type="button" onClick={toggleAudio} disabled={!hasLocalAudio}>
               {audioEnabled ? <Mic /> : <MicOff />} <span>{audioEnabled ? 'Mute' : 'Unmute'}</span>
             </button>
-            <button type="button" onClick={toggleVideo} disabled={!localMediaRef.current}>
+            <button type="button" onClick={toggleVideo} disabled={!hasLocalVideo}>
               {videoEnabled ? <Video /> : <VideoOff />} <span>{videoEnabled ? 'Camera off' : 'Camera on'}</span>
             </button>
             {host && (
