@@ -20,3 +20,8 @@ jobs:
       - run: npm install
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: generated-package-lock
+          path: package-lock.json
+          retention-days: 1
