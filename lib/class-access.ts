@@ -15,6 +15,7 @@ type WindowEvent = Pick<
 type AccessPayload = {
   eventId: string;
   registrationId: string;
+  tokenHash: string;
   exp: number;
 };
 
@@ -53,11 +54,13 @@ export function hashClassJoinToken(token: string) {
 export function createClassAccessCookie(
   eventId: string,
   registrationId: string,
+  tokenHash: string,
   expiresAt: Date
 ) {
   const payload: AccessPayload = {
     eventId,
     registrationId,
+    tokenHash,
     exp: expiresAt.getTime()
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -74,6 +77,7 @@ export function verifyClassAccessCookie(value: string | undefined, eventId: stri
     if (
       payload.eventId !== eventId ||
       !payload.registrationId ||
+      !payload.tokenHash ||
       !Number.isFinite(payload.exp) ||
       payload.exp <= Date.now()
     ) {
