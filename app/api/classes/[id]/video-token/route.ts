@@ -53,11 +53,15 @@ export async function POST(
       where: {
         id: access.registrationId,
         classEventId: event.id,
+        joinTokenHash: access.tokenHash,
         status: 'PAID'
       }
     });
     if (!registration) {
-      return NextResponse.json({ error: 'Your class registration is not active.' }, { status: 403 });
+      return NextResponse.json(
+        { error: 'Your access link has been replaced or your registration is not active.' },
+        { status: 403 }
+      );
     }
     registrationId = registration.id;
 
