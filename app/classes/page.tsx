@@ -67,7 +67,7 @@ export default async function Classes() {
                       ) : (
                         <a
                           className="btn"
-                          href={`mailto:hello@thehillsidegarden.com?subject=${encodeURIComponent(`Class registration: ${event.title}`)}`}
+                          href={`mailto:hello@thehillsidegardens.com?subject=${encodeURIComponent(`Class registration: ${event.title}`)}`}
                         >
                           Request a seat
                         </a>
@@ -95,7 +95,7 @@ export default async function Classes() {
                   piece.
                 </p>
                 <p>New dates are being planned now.</p>
-                <a className="btn" href="mailto:hello@thehillsidegarden.com?subject=Planter%20Class%20Interest">
+                <a className="btn" href="mailto:hello@thehillsidegardens.com?subject=Planter%20Class%20Interest">
                   Ask about the next class
                 </a>
               </div>
