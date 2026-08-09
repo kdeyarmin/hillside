@@ -1,14 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { CreditCard } from 'lucide-react';
+import { CreditCard, MailCheck } from 'lucide-react';
 
 export default function ClassBookingButton({
   classId,
-  seatsLeft
+  seatsLeft,
+  online = false
 }: {
   classId: string;
   seatsLeft: number;
+  online?: boolean;
 }) {
   const [seats, setSeats] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -32,20 +34,27 @@ export default function ClassBookingButton({
   }
 
   return (
-    <div className="class-booking">
-      <select
-        className="form-input"
-        value={seats}
-        onChange={(event) => setSeats(Number(event.target.value))}
-        aria-label="Number of seats"
-      >
-        {Array.from({ length: maxSeats }, (_, index) => index + 1).map((value) => (
-          <option value={value} key={value}>{value} {value === 1 ? 'seat' : 'seats'}</option>
-        ))}
-      </select>
-      <button className="btn" type="button" onClick={register} disabled={loading || seatsLeft <= 0}>
-        <CreditCard size={17} /> {loading ? 'Opening checkout…' : 'Reserve with Stripe'}
-      </button>
+    <div className="class-booking-wrap">
+      <div className="class-booking">
+        <select
+          className="form-input"
+          value={seats}
+          onChange={(event) => setSeats(Number(event.target.value))}
+          aria-label="Number of seats"
+        >
+          {Array.from({ length: maxSeats }, (_, index) => index + 1).map((value) => (
+            <option value={value} key={value}>{value} {value === 1 ? 'seat' : 'seats'}</option>
+          ))}
+        </select>
+        <button className="btn" type="button" onClick={register} disabled={loading || seatsLeft <= 0}>
+          <CreditCard size={17} /> {loading ? 'Opening checkout…' : 'Reserve with Stripe'}
+        </button>
+      </div>
+      {online && (
+        <p className="class-checkout-email-note">
+          <MailCheck size={15} /> Your private Telnyx classroom link will be emailed after payment.
+        </p>
+      )}
     </div>
   );
 }
