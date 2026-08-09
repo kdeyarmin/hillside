@@ -1,6 +1,12 @@
 export const FALLBACK_PRODUCT_IMAGE =
   'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=1200&q=85';
 
+export const CANONICAL_SITE_URL = 'https://thehillsidegardens.com';
+
+export function normalizeHillsideDomain(value: string) {
+  return value.replaceAll('thehillsidegarden.com', 'thehillsidegardens.com');
+}
+
 export function formatMoney(cents: number) {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -25,6 +31,6 @@ export function clampQuantity(value: number, inventory: number) {
 }
 
 export function absoluteUrl(path = '/') {
-  const base = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+  const base = normalizeHillsideDomain(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
   return new URL(path, base).toString();
 }
