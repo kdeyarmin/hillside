@@ -1,1 +1,68 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 760" role="img" aria-labelledby="title desc"><title id="title">The Hillside Gardens</title><desc id="desc">Botanical branch and elegant Hillside Gardens wordmark</desc><rect width="900" height="760" fill="#fff"/><g fill="none" stroke="#203f2b" stroke-width="5"><path d="M180 320C145 105 725 5 738 320"/><path d="M290 360c66-128 148-212 266-265"/></g><g fill="#7f8d67" stroke="#203f2b" stroke-width="2"><ellipse cx="337" cy="274" rx="20" ry="47" transform="rotate(-23 337 274)"/><ellipse cx="391" cy="215" rx="20" ry="48" transform="rotate(-18 391 215)"/><ellipse cx="449" cy="162" rx="20" ry="48" transform="rotate(5 449 162)"/><ellipse cx="515" cy="126" rx="18" ry="47" transform="rotate(30 515 126)"/><ellipse cx="553" cy="207" rx="48" ry="18" transform="rotate(13 553 207)"/><ellipse cx="476" cy="260" rx="45" ry="17" transform="rotate(17 476 260)"/><ellipse cx="392" cy="322" rx="44" ry="17" transform="rotate(10 392 322)"/></g><g fill="#203f2b" text-anchor="middle"><text x="450" y="405" font-family="Arial,sans-serif" font-size="50" letter-spacing="18">THE</text><text x="450" y="535" font-family="Georgia,serif" font-size="116" letter-spacing="10">HILLSIDE</text><text x="450" y="622" font-family="Arial,sans-serif" font-size="52" letter-spacing="24">GARDENS</text><text x="450" y="710" font-family="Arial,sans-serif" font-size="28" letter-spacing="10">PLANTS  •  TEAS  •  BOTANICALS</text></g><g stroke="#b9892e" stroke-width="4"><path d="M295 390h85M520 390h85M250 662h165M485 662h165"/></g><g fill="#b9892e"><ellipse cx="444" cy="657" rx="19" ry="8" transform="rotate(30 444 657)"/><ellipse cx="466" cy="657" rx="19" ry="8" transform="rotate(-30 466 657)"/><path d="M455 638c10 14 10 27 0 41-10-14-10-27 0-41z"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 658" role="img" aria-labelledby="title desc">
+  <title id="title">The Hillside Gardens</title>
+  <desc id="desc">Elegant botanical logo with a sage leafy branch, forest green wordmark and warm gold accents.</desc>
+  <defs>
+    <linearGradient id="leafA" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a7ad8f"/>
+      <stop offset="0.52" stop-color="#7f8d67"/>
+      <stop offset="1" stop-color="#667555"/>
+    </linearGradient>
+    <linearGradient id="leafB" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#71805f"/>
+      <stop offset="0.55" stop-color="#99a184"/>
+      <stop offset="1" stop-color="#7c8967"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c99a3b"/>
+      <stop offset="1" stop-color="#a9771d"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="720" height="658" fill="#ffffff"/>
+
+  <g fill="none" stroke="#18371f" stroke-linecap="round">
+    <path d="M151 283 C119 92 594 -4 568 283" stroke-width="3.4"/>
+    <path d="M214 304 C255 232 308 174 425 87" stroke-width="4"/>
+  </g>
+
+  <g stroke="#25462c" stroke-width="1.05" stroke-linejoin="round">
+    <path d="M235 257 C209 238 201 206 211 173 C237 190 249 222 235 257Z" fill="url(#leafA)"/>
+    <path d="M274 217 C251 191 250 158 264 128 C288 151 293 187 274 217Z" fill="url(#leafB)"/>
+    <path d="M322 170 C304 137 311 103 328 80 C345 109 343 144 322 170Z" fill="url(#leafA)"/>
+    <path d="M370 135 C372 100 393 72 420 59 C415 91 396 121 370 135Z" fill="url(#leafB)"/>
+    <path d="M397 156 C428 139 458 141 484 154 C459 172 426 174 397 156Z" fill="url(#leafA)"/>
+    <path d="M337 199 C368 186 402 195 427 216 C394 224 361 216 337 199Z" fill="url(#leafB)"/>
+    <path d="M273 248 C305 237 337 244 359 261 C328 272 295 266 273 248Z" fill="url(#leafA)"/>
+  </g>
+
+  <g fill="none" stroke="#18371f" stroke-width="1.6" stroke-linecap="round">
+    <path d="M234 253 L214 181"/>
+    <path d="M273 212 L264 136"/>
+    <path d="M322 165 L328 88"/>
+    <path d="M374 131 L415 66"/>
+    <path d="M402 155 L475 154"/>
+    <path d="M341 199 L420 214"/>
+    <path d="M278 248 L352 260"/>
+  </g>
+
+  <g fill="#17351d" text-anchor="middle">
+    <text x="360" y="326" font-family="Arial, Helvetica, sans-serif" font-size="37" font-weight="500" letter-spacing="13">THE</text>
+    <text x="360" y="437" font-family="Georgia, 'Times New Roman', serif" font-size="91" font-weight="400" letter-spacing="6">HILLSIDE</text>
+    <text x="360" y="501" font-family="Arial, Helvetica, sans-serif" font-size="39" font-weight="500" letter-spacing="18">GARDENS</text>
+    <text x="360" y="619" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="600" letter-spacing="6">PLANTS • TEAS • BOTANICALS</text>
+  </g>
+
+  <g fill="none" stroke="url(#gold)" stroke-width="2.5">
+    <path d="M238 310 H289"/>
+    <path d="M431 310 H482"/>
+    <path d="M126 551 H292"/>
+    <path d="M428 551 H594"/>
+  </g>
+
+  <g fill="url(#gold)" stroke="#a9771d" stroke-width="0.7">
+    <path d="M350 551 C335 548 326 539 321 529 C337 529 349 537 356 550 C354 551 352 551 350 551Z"/>
+    <path d="M370 551 C385 548 394 539 399 529 C383 529 371 537 364 550 C366 551 368 551 370 551Z"/>
+    <path d="M360 547 C353 536 354 524 360 515 C367 526 367 538 360 547Z"/>
+    <path d="M359 544 L359 565 L351 558 M359 565 L368 557" fill="none" stroke="#a9771d" stroke-width="2.4" stroke-linecap="round"/>
+  </g>
+</svg>
