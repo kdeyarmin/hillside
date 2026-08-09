@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
+import { normalizeHillsideDomain } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -57,7 +58,9 @@ export async function POST(request: Request) {
     const shippingCents =
       freeShippingThreshold > 0 && subtotalCents >= freeShippingThreshold ? 0 : flatShippingCents;
     const invoiceNumber = `HG-${Date.now().toString().slice(-8)}`;
-    const site = process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin;
+    const site = normalizeHillsideDomain(
+      process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
+    );
     const stripe = new Stripe(secret);
 
     const session = await stripe.checkout.sessions.create({
