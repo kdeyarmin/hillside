@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, CalendarDays, Leaf, PackageCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, Heart, Leaf, Package, Sparkles, Sprout } from 'lucide-react';
 import NewsletterForm from '@/components/NewsletterForm';
 import { db } from '@/lib/db';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney, productTypeLabel } from '@/lib/store';
@@ -8,21 +8,24 @@ export const dynamic = 'force-dynamic';
 
 const collections = [
   {
-    title: 'Hand-potted houseplants',
-    description: 'Healthy plants and thoughtful planters selected to brighten real homes.',
-    image: 'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=1000&q=85',
+    title: 'Plants',
+    subtitle: 'Living beauty for every room',
+    image:
+      'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=1200&q=90',
     href: '/shop?category=PLANT'
   },
   {
-    title: 'Loose-leaf teas',
-    description: 'Comforting blends and practical supplies for a slower everyday ritual.',
-    image: 'https://images.unsplash.com/photo-1594631252845-29fc4cc8cde9?auto=format&fit=crop&w=1000&q=85',
+    title: 'Teas & Herbals',
+    subtitle: 'A slower botanical ritual',
+    image:
+      'https://images.unsplash.com/photo-1594631252845-29fc4cc8cde9?auto=format&fit=crop&w=1200&q=90',
     href: '/shop?category=TEA'
   },
   {
-    title: 'Handmade botanicals',
-    description: 'Small-batch soaps and lotions inspired by garden ingredients.',
-    image: 'https://images.unsplash.com/photo-1607006483225-3f4b5308f95d?auto=format&fit=crop&w=1000&q=85',
+    title: 'Botanicals',
+    subtitle: 'Small-batch soaps and lotions',
+    image:
+      'https://images.unsplash.com/photo-1607006483225-3f4b5308f95d?auto=format&fit=crop&w=1200&q=90',
     href: '/shop?category=SOAP'
   }
 ];
@@ -32,7 +35,7 @@ export default async function Home() {
     db.product.findMany({
       where: { active: true, featured: true },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      take: 3
+      take: 4
     }),
     db.classEvent.findMany({
       where: { active: true, startsAt: { gte: new Date() } },
@@ -44,158 +47,212 @@ export default async function Home() {
 
   return (
     <>
-      <section className="hero">
-        <div className="container hero-inner">
-          <div className="eyebrow">Grow beautifully</div>
-          <h1>Plants, botanicals and a little know-how.</h1>
+      <section className="editorial-hero">
+        <div className="editorial-hero-copy">
+          <span className="eyebrow">Welcome to The Hillside Gardens</span>
+          <h1>
+            Rooted in Nature.
+            <br />
+            Grown with Care.
+          </h1>
+          <div className="botanical-rule" aria-hidden="true">
+            <span />
+            <Leaf size={22} />
+            <span />
+          </div>
           <p>
-            The Hillside Gardens is Tammy Hill’s collection of living plants, comforting teas,
-            handmade goods and practical plant education.
+            Explore hand-selected plants, comforting teas and thoughtfully made botanicals to
+            nurture your home and your everyday rituals.
           </p>
           <div className="actions">
-            <Link className="btn gold" href="/shop">
-              Explore the shop <ArrowRight size={17} />
+            <Link className="btn editorial-btn" href="/shop">
+              Shop now <ArrowRight size={17} />
             </Link>
-            <Link className="btn light" href="/classes">
-              Join a planter class
+            <Link className="editorial-link" href="/classes">
+              Explore Tammy’s classes →
             </Link>
           </div>
         </div>
+        <div
+          className="editorial-hero-image"
+          role="img"
+          aria-label="Potted plants and botanical goods arranged in a warm home setting"
+        />
       </section>
 
-      <section className="section">
+      <section className="trust-strip" aria-label="Why shop The Hillside Gardens">
+        <div>
+          <Leaf />
+          <span>
+            <b>Natural & thoughtful</b>
+            <small>Plants and goods chosen with care.</small>
+          </span>
+        </div>
+        <div>
+          <Sparkles />
+          <span>
+            <b>Premium quality</b>
+            <small>Small batches and considered details.</small>
+          </span>
+        </div>
+        <div>
+          <Package />
+          <span>
+            <b>Careful fulfillment</b>
+            <small>Secure packaging and order tracking.</small>
+          </span>
+        </div>
+        <div>
+          <Heart />
+          <span>
+            <b>Made with care</b>
+            <small>Small business, big plant passion.</small>
+          </span>
+        </div>
+      </section>
+
+      <section className="section editorial-section">
         <div className="container">
           <div className="sectionhead">
-            <div className="eyebrow">From the hillside</div>
-            <h2>Things made to be enjoyed, shared and grown.</h2>
+            <div className="eyebrow">Shop the garden</div>
+            <h2>Bring a little Hillside home.</h2>
             <p>
-              Find a new plant, settle in with a cup of tea, or discover a handmade botanical
-              favorite.
+              Plants, teas and botanical goods selected to make everyday spaces feel warmer,
+              greener and more personal.
             </p>
           </div>
-          <div className="grid">
+          <div className="editorial-collections">
             {collections.map((collection) => (
-              <article className="card" key={collection.title}>
-                <Link href={collection.href}>
-                  <img className="photo" src={collection.image} alt={collection.title} />
-                </Link>
-                <div className="cardbody">
-                  <span className="pill">Hillside collection</span>
+              <Link className="editorial-collection" href={collection.href} key={collection.title}>
+                <img src={collection.image} alt={collection.title} />
+                <div>
+                  <span>{collection.subtitle}</span>
                   <h3>{collection.title}</h3>
-                  <p>{collection.description}</p>
-                  <Link className="text-link" href={collection.href}>
-                    Shop the collection →
-                  </Link>
+                  <b>Shop collection →</b>
                 </div>
-              </article>
+              </Link>
             ))}
           </div>
         </div>
       </section>
 
       {featured.length > 0 && (
-        <section className="section alt">
+        <section className="section editorial-products">
           <div className="container">
-            <div className="sectionhead">
-              <div className="eyebrow">Tammy’s featured picks</div>
-              <h2>Current favorites from the shop.</h2>
-              <p>Inventory shown here is live and updates as products are purchased.</p>
+            <div className="editorial-heading-row">
+              <div>
+                <div className="eyebrow">New & noteworthy</div>
+                <h2>Tammy’s current favorites.</h2>
+              </div>
+              <Link className="editorial-link" href="/shop">
+                Shop all products →
+              </Link>
             </div>
-            <div className="product-grid">
+            <div className="product-grid editorial-product-grid">
               {featured.map((product) => (
-                <article className="product-card" key={product.id}>
+                <article className="product-card editorial-product" key={product.id}>
                   <Link className="product-image-wrap" href={`/shop/${product.slug}`}>
                     {product.badge && <span className="product-badge">{product.badge}</span>}
                     <img src={product.imageUrl || FALLBACK_PRODUCT_IMAGE} alt={product.name} />
                   </Link>
                   <div className="product-copy">
-                    <span className="pill">{productTypeLabel(product.type)}</span>
-                    <h3><Link href={`/shop/${product.slug}`}>{product.name}</Link></h3>
+                    <span className="product-kicker">{productTypeLabel(product.type)}</span>
+                    <h3>
+                      <Link href={`/shop/${product.slug}`}>{product.name}</Link>
+                    </h3>
                     <p>{product.shortDescription || product.description}</p>
                     <div className="product-actions">
                       <strong className="price">{formatMoney(product.priceCents)}</strong>
-                      <Link className="btn small" href={`/shop/${product.slug}`}>View product</Link>
+                      <Link className="editorial-link" href={`/shop/${product.slug}`}>
+                        View →
+                      </Link>
                     </div>
                   </div>
                 </article>
               ))}
             </div>
-            <div className="actions" style={{ justifyContent: 'center' }}>
-              <Link className="btn outline" href="/shop">See everything in the shop</Link>
-            </div>
           </div>
         </section>
       )}
 
-      <section className="section">
+      <section className="section tammy-story">
         <div className="container split">
-          <img
-            className="portrait"
-            src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=1200&q=88"
-            alt="Lush potted garden plants"
-          />
+          <div className="story-photo">
+            <img
+              src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=1400&q=90"
+              alt="Beautiful potted plants ready for a planter class"
+            />
+          </div>
           <div>
-            <div className="eyebrow">Meet Tammy</div>
-            <h2>Helping people feel confident with plants.</h2>
+            <div className="eyebrow">Grow with confidence</div>
+            <h2>Beautiful plants are better when you know how to care for them.</h2>
             <p className="quote">
               “You don’t need a green thumb. You just need to understand what your plant is asking
               for.”
             </p>
             <p>
-              Tammy Hill created The Hillside Gardens around a simple love of plants and sharing
-              what she knows. Her hands-on planter classes make plant care approachable, social and
-              fun.
+              Tammy Hill created The Hillside Gardens around her love of plants and her love of
+              teaching. Her hands-on classes make choosing, arranging and caring for plants
+              approachable — even if you’re just getting started.
             </p>
             <div className="actions">
-              <Link className="btn" href="/about">Read Tammy’s story</Link>
-              <Link className="btn outline" href="/care">Browse care sheets</Link>
+              <Link className="btn editorial-btn" href="/about">
+                Meet Tammy
+              </Link>
+              <Link className="editorial-link" href="/care">
+                Plant care library →
+              </Link>
             </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="section forest">
-        <div className="container">
-          <div className="sectionhead">
-            <div className="eyebrow">Why The Hillside Gardens</div>
-            <h2>Practical guidance is part of every plant.</h2>
-          </div>
-          <div className="featuregrid">
-            <div className="feature"><Leaf size={22} /><b>Chosen with care</b><span>Plants and goods selected in small, manageable batches.</span></div>
-            <div className="feature"><Sparkles size={22} /><b>Made approachable</b><span>Clear care advice without confusing greenhouse language.</span></div>
-            <div className="feature"><PackageCheck size={22} /><b>Prepared thoughtfully</b><span>Orders packed carefully and tracked from the owner dashboard.</span></div>
-            <div className="feature"><CalendarDays size={22} /><b>Learn in person</b><span>Friendly planter workshops designed for beginners and groups.</span></div>
           </div>
         </div>
       </section>
 
       {upcomingClasses.length > 0 && (
-        <section className="section alt">
+        <section className="section editorial-classes">
           <div className="container">
             <div className="sectionhead">
-              <div className="eyebrow">Hands-on with Tammy</div>
-              <h2>Upcoming planter workshops.</h2>
+              <div className="eyebrow">Hands-on at The Hillside Gardens</div>
+              <h2>Make something beautiful with Tammy.</h2>
+              <p>
+                Relaxed, practical planter workshops that send you home with a finished arrangement
+                and the confidence to keep it thriving.
+              </p>
             </div>
             <div className="grid two">
               {upcomingClasses.map((event) => {
-                const reserved = event.registrations.reduce((total, registration) => total + registration.seats, 0);
+                const reserved = event.registrations.reduce(
+                  (total, registration) => total + registration.seats,
+                  0
+                );
                 const seatsLeft = Math.max(0, event.capacity - reserved);
+
                 return (
-                  <article className="card class-card" key={event.id}>
-                    {event.imageUrl && <img className="photo" src={event.imageUrl} alt={event.title} />}
-                    <div className="cardbody">
-                      <span className="pill">In person</span>
+                  <article className="class-editorial" key={event.id}>
+                    {event.imageUrl && <img src={event.imageUrl} alt={event.title} />}
+                    <div>
+                      <span className="product-kicker">In-person workshop</span>
                       <h3>{event.title}</h3>
                       <p>{event.description}</p>
-                      <div className="class-meta">
-                        <span><b>{event.startsAt.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</b></span>
-                        <span>{event.startsAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} • {event.location}</span>
-                        <span>{seatsLeft} of {event.capacity} seats remaining</span>
-                      </div>
-                      <div className="product-actions">
-                        <strong className="price">{formatMoney(event.priceCents)}</strong>
-                        <Link className="btn small" href="/classes">View class</Link>
-                      </div>
+                      <p>
+                        <b>
+                          {event.startsAt.toLocaleDateString('en-US', {
+                            weekday: 'long',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </b>{' '}
+                        ·{' '}
+                        {event.startsAt.toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                      <p>
+                        {seatsLeft} seats remaining · {formatMoney(event.priceCents)} per person
+                      </p>
+                      <Link className="btn editorial-btn" href="/classes">
+                        View class
+                      </Link>
                     </div>
                   </article>
                 );
@@ -205,12 +262,29 @@ export default async function Home() {
         </section>
       )}
 
+      <section className="section care-promo">
+        <div className="container care-promo-inner">
+          <Sprout size={42} />
+          <div>
+            <div className="eyebrow">Plant help, without the guesswork</div>
+            <h2>Keep your plants happy.</h2>
+            <p>
+              Use Tammy’s practical care sheets for light, watering, soil, feeding, pet safety and
+              the little details that make a difference.
+            </p>
+          </div>
+          <Link className="btn light" href="/care">
+            Browse plant care
+          </Link>
+        </div>
+      </section>
+
       <section className="section">
-        <div className="container newsletter">
+        <div className="container newsletter editorial-newsletter">
           <div>
             <div className="eyebrow">The Hillside Notes</div>
-            <h3>Seasonal tips, class dates and new arrivals.</h3>
-            <p>Useful plant guidance and shop news, sent occasionally.</p>
+            <h3>Seasonal tips, class dates & fresh arrivals.</h3>
+            <p>A thoughtful note from Tammy, sent occasionally.</p>
           </div>
           <NewsletterForm />
         </div>
