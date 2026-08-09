@@ -11,6 +11,7 @@ import {
   Sparkles,
   SunMedium
 } from 'lucide-react';
+import ResilientImage from '@/components/ResilientImage';
 import { FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
 
 type GuideType = 'PLANT' | 'GENERAL' | 'PROBLEM' | 'SEASONAL';
@@ -100,6 +101,8 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search plants, symptoms, pests or care topics"
+            inputMode="search"
+            enterKeyHint="search"
           />
         </label>
         <div className="care-filter-row" role="group" aria-label="Filter care guides">
@@ -142,7 +145,15 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
             <article className={`care-guide-card care-type-${guide.guideType.toLowerCase()}`} key={guide.id}>
               <Link className="care-guide-image" href={`/care/${guide.slug}`}>
                 {guide.featured && <span className="care-featured-badge">Tammy’s essential</span>}
-                <img src={guide.imageUrl || FALLBACK_PRODUCT_IMAGE} alt={guide.plantName} />
+                <ResilientImage
+                  src={guide.imageUrl || FALLBACK_PRODUCT_IMAGE}
+                  fallbackSrc="/images/botanical-placeholder.svg"
+                  alt={guide.plantName}
+                  width={900}
+                  height={675}
+                  loading="lazy"
+                  decoding="async"
+                />
               </Link>
               <div className="care-guide-copy">
                 <div className="care-card-meta">
