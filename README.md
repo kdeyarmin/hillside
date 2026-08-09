@@ -1,14 +1,15 @@
 # The Hillside Gardens
 
-A standalone ecommerce, class-registration and owner-operations website for **The Hillside Gardens** (`thehillsidegarden.com`). The application is designed for Railway hosting and for Tammy Hill to run from a simple password-protected dashboard.
+A standalone ecommerce, class-registration and owner-operations website for **The Hillside Gardens** (`thehillsidegardens.com`). The application is designed for Railway hosting and for Tammy Hill to run from a simple password-protected dashboard.
 
 ## Technology
 
 - Next.js 15, React 19 and TypeScript
 - PostgreSQL with Prisma
 - Stripe Checkout, invoices, promotion codes, shipping and optional automatic tax
+- Telnyx Video Rooms for secure browser-based online classes
 - Railway Railpack deployment with a pre-deploy database schema step
-- Optional transactional email through Resend
+- Transactional customer email through Resend
 - No Base44 or proprietary site builder
 
 ## Public website
@@ -20,7 +21,9 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Configurable flat or free standard shipping
 - Customer order-confirmation page and Stripe invoice link
 - Self-service order-status lookup
-- Paid planter-class registration with live seat availability
+- Paid and free class registration with live seat availability
+- In-person, online and hybrid classes
+- Private emailed links to Telnyx Video classrooms
 - Printable houseplant care sheets and detailed care pages
 - Gallery of Tammy’s past planter arrangements
 - Tammy’s Amazon influencer picks with affiliate disclosure
@@ -39,10 +42,12 @@ The dashboard at `/admin` includes:
 - Shipping-address, full-order and newsletter-subscriber CSV exports
 - Product creation and editing, price, sale price, SKU, inventory, badges and featured products
 - Low-stock visibility and product archiving
-- Paid class registrations and seat counts
+- Paid and free class registrations and seat counts
 - Customer website inbox
 - Newsletter subscriber management
 - A separate content manager at `/admin/content` for classes, care sheets, gallery items and Amazon picks
+- Online class creation, Telnyx room preparation and a private host studio
+- Online-class confirmation status, attendee last-join time and secure link resending
 
 ## Railway deployment
 
@@ -57,7 +62,7 @@ npm run db:seed
 ```
 
 6. Generate a Railway public domain, then set `NEXT_PUBLIC_SITE_URL` to that full URL.
-7. After the custom domain is connected, change `NEXT_PUBLIC_SITE_URL` to `https://thehillsidegarden.com` and redeploy.
+7. After the custom domain is connected, change `NEXT_PUBLIC_SITE_URL` to `https://thehillsidegardens.com` and redeploy.
 
 ## Stripe setup
 
@@ -73,18 +78,36 @@ Subscribe it to:
 - `checkout.session.async_payment_succeeded`
 - `charge.refunded`
 
-Copy the signing secret into `STRIPE_WEBHOOK_SECRET`. Product purchases and class registrations are identified through signed Checkout metadata. Fulfillment is idempotent, so a repeated Stripe event does not create a second order or registration.
+Copy the signing secret into `STRIPE_WEBHOOK_SECRET`. Product purchases and class registrations are identified through signed Checkout metadata. Fulfillment is idempotent, so a repeated Stripe event does not create a second order or registration. When a paid online class is fulfilled, the webhook creates and emails the customer’s secure classroom access link.
 
 Set `STRIPE_AUTOMATIC_TAX=true` only after Stripe Tax has been configured for the business. Stripe Checkout emails receipts and creates invoices for paid product and class sessions.
 
-## Optional customer email
+## Telnyx Video setup
 
-The site works without Resend; Stripe still sends its payment documents. To send branded Hillside order, shipping, class, contact and newsletter messages:
+Online and hybrid classes use Telnyx Video Rooms. Add these Railway variables:
+
+```text
+TELNYX_API_KEY=...
+TELNYX_API_BASE_URL=https://api.telnyx.com/v2
+NEXT_PUBLIC_TELNYX_VIDEO_SDK_URL=https://cdn.jsdelivr.net/npm/@telnyx/video@1.0.2/+esm
+CLASS_ACCESS_SECRET=ANOTHER_LONG_RANDOM_SECRET
+CLASS_HOST_NAME=Tammy Hill
+```
+
+The Telnyx API key remains server-side. Customers receive a private Hillside access link rather than a Telnyx client token. The app creates short-lived Telnyx client credentials only after the customer’s paid registration and signed class-access cookie are verified.
+
+Detailed setup, security design, testing steps and recording guidance are in [`docs/telnyx-video-classes.md`](docs/telnyx-video-classes.md).
+
+## Customer email
+
+Resend is required to email online-class access links. To send branded Hillside order, shipping, class, contact and newsletter messages:
 
 1. Verify the sending domain with Resend.
 2. Add `RESEND_API_KEY`.
 3. Set `EMAIL_FROM` to an address on the verified domain.
 4. Set `BUSINESS_EMAIL` to Tammy’s inbox.
+
+Product ordering still works without Resend because Stripe can send payment documents. Online class registrations are saved without Resend, but Tammy must configure email and use the host studio’s **Resend link** action before customers can receive their private classroom URL.
 
 ## Shipping configuration
 
@@ -95,15 +118,16 @@ The site works without Resend; Stripe still sends its payment documents. To send
 
 ## First-launch checklist
 
-Before accepting live orders:
+Before accepting live orders or class registrations:
 
 - Replace starter product descriptions, photos, ingredient lists, net contents and allergy information with Tammy’s real product data.
 - Review the starter shipping/returns, privacy and terms pages with the business’s final policies and professional advisers as appropriate.
 - Enter a real business return address.
-- Test one Stripe product order, one class registration, a refund event and a shipping update in test mode.
+- Test one Stripe product order, one paid class registration, one free class registration, a refund event and a shipping update in test mode.
 - Confirm that inventory decrements once and customer emails arrive as expected.
+- Complete the Telnyx two-device test in `docs/telnyx-video-classes.md`.
 - Replace sample gallery images with Tammy’s real work.
-- Verify mobile navigation, checkout, admin login and label printing on Tammy’s actual devices.
+- Verify mobile navigation, checkout, online classroom, admin login and label printing on Tammy’s actual devices.
 
 ## Local development
 
