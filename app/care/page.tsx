@@ -8,6 +8,7 @@ import {
   Sprout,
   SunMedium
 } from 'lucide-react';
+import BrandMockupScene from '@/components/BrandMockupScene';
 import CareLibrary from '@/components/CareLibrary';
 import { db } from '@/lib/db';
 
@@ -93,18 +94,21 @@ export default async function Care() {
   return (
     <>
       <section className="pagehero care-pagehero">
-        <div className="container">
-          <div className="eyebrow">Tammy’s plant care library</div>
-          <h1>Plant care that makes sense in a real home.</h1>
-          <p>
-            Start with a plant profile, learn the basics, or troubleshoot a symptom with practical
-            steps that help you decide what to check next.
-          </p>
-          <div className="care-library-stats" aria-label="Plant care library contents">
-            <span><Leaf size={18} /><b>{plantProfiles}</b> plant profiles</span>
-            <span><AlertTriangle size={18} /><b>{problemGuides}</b> problem guides</span>
-            <span><SearchCheck size={18} /><b>{learningGuides}</b> care lessons</span>
+        <div className="container care-hero-grid">
+          <div>
+            <div className="eyebrow">Tammy’s plant care library</div>
+            <h1>Plant care that makes sense in a real home.</h1>
+            <p>
+              Start with a plant profile, learn the basics, or troubleshoot a symptom with practical
+              steps that help you decide what to check next.
+            </p>
+            <div className="care-library-stats" aria-label="Plant care library contents">
+              <span><Leaf size={18} /><b>{plantProfiles}</b> plant profiles</span>
+              <span><AlertTriangle size={18} /><b>{problemGuides}</b> problem guides</span>
+              <span><SearchCheck size={18} /><b>{learningGuides}</b> care lessons</span>
+            </div>
           </div>
+          <BrandMockupScene variant="care" />
         </div>
       </section>
 

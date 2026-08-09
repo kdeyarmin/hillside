@@ -1,4 +1,5 @@
 import { ExternalLink, ShieldCheck } from 'lucide-react';
+import BrandMockupScene from '@/components/BrandMockupScene';
 import { db } from '@/lib/db';
 import { FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
 
@@ -21,6 +22,7 @@ export default async function AmazonPage() {
       </section>
       <section className="content">
         <div className="container">
+          <BrandMockupScene variant="picks" className="picks-brand-scene" />
           <div className="note-box" style={{ marginBottom: 32 }}><ShieldCheck size={20} /><b>Affiliate disclosure</b>As an Amazon Associate, The Hillside Gardens may earn from qualifying purchases. Using an affiliate link does not increase the customer’s price.</div>
           {picks.length ? (
             <div className="product-grid">

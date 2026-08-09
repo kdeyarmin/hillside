@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { BookOpen, Heart, Leaf, Users } from 'lucide-react';
+import BrandMockupScene from '@/components/BrandMockupScene';
 
 export const metadata = {
   title: 'About Tammy Hill',
@@ -14,7 +15,7 @@ export default function About() {
       </section>
       <section className="content">
         <div className="container split">
-          <img className="portrait" src="https://images.unsplash.com/photo-1525498128493-380d1990a112?auto=format&fit=crop&w=1100&q=88" alt="A greenhouse filled with healthy plants" />
+          <BrandMockupScene variant="about" className="portrait about-brand-scene" />
           <div>
             <div className="eyebrow">The Hillside story</div>
             <h2 className="display-title" style={{ fontSize: 50, color: 'var(--forest)', margin: '8px 0 18px' }}>Plants should feel joyful, not intimidating.</h2>

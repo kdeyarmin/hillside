@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import AddToCartButton from '@/components/AddToCartButton';
+import BrandedProductVisual from '@/components/BrandedProductVisual';
 import { db } from '@/lib/db';
 import { absoluteUrl, FALLBACK_PRODUCT_IMAGE, formatMoney, productTypeLabel } from '@/lib/store';
 
@@ -61,11 +62,15 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <Link href="/">Home</Link><span>/</span><Link href="/shop">Shop</Link><span>/</span><span>{product.name}</span>
         </div>
         <div className="product-detail">
-          <div>
-            <img
+          <div className="product-detail-image-wrap">
+            <BrandedProductVisual
+              slug={product.slug}
+              name={product.name}
+              type={product.type}
+              imageUrl={product.imageUrl}
               className="product-detail-image"
-              src={product.imageUrl || FALLBACK_PRODUCT_IMAGE}
-              alt={product.name}
+              detail
+              loading="eager"
             />
           </div>
           <div className="product-detail-copy">
@@ -126,7 +131,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               {related.map((item) => (
                 <article className="product-card" key={item.id}>
                   <Link className="product-image-wrap" href={`/shop/${item.slug}`}>
-                    <img src={item.imageUrl || FALLBACK_PRODUCT_IMAGE} alt={item.name} />
+                    <BrandedProductVisual
+                      slug={item.slug}
+                      name={item.name}
+                      type={item.type}
+                      imageUrl={item.imageUrl}
+                    />
                   </Link>
                   <div className="product-copy">
                     <span className="pill">{productTypeLabel(item.type)}</span>

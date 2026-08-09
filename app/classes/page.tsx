@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { CalendarDays, Clock3, MailCheck, MapPin, Users, Video } from 'lucide-react';
+import BrandMockupScene from '@/components/BrandMockupScene';
 import ClassBookingButton from '@/components/ClassBookingButton';
 import FreeClassRegistrationForm from '@/components/FreeClassRegistrationForm';
 import {
@@ -69,7 +70,11 @@ export default async function Classes({
 
                 return (
                   <article className="card class-card" id={`class-${event.id}`} key={event.id}>
-                    {event.imageUrl && <img className="photo" src={event.imageUrl} alt={event.title} />}
+                    <BrandMockupScene
+                      variant="class"
+                      backgroundSrc={event.imageUrl || undefined}
+                      alt={`${event.title} workshop image with The Hillside Gardens class materials`}
+                    />
                     <div className="cardbody">
                       <span className="pill">{classFormatLabel(event.format)}</span>
                       <h3>{event.title}</h3>
@@ -150,11 +155,7 @@ export default async function Classes({
             </div>
           ) : (
             <div className="split">
-              <img
-                className="portrait"
-                src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=1100&q=85"
-                alt="Plants ready for a workshop"
-              />
+              <BrandMockupScene variant="class" className="portrait about-brand-scene" />
               <div>
                 <span className="pill">In person and online</span>
                 <h2 className="display-title" style={{ fontSize: 48, color: 'var(--forest)' }}>

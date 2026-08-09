@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import BrandMockupScene from '@/components/BrandMockupScene';
 
 export const metadata = {
   title: 'Shipping, Pickup & Returns',
@@ -16,35 +17,38 @@ export default function ShippingReturnsPage() {
         </div>
       </section>
       <section className="content">
-        <article className="narrow prose">
-          <p><strong>Last updated: August 9, 2026.</strong></p>
-          <h2>Order preparation</h2>
-          <p>Most in-stock orders are prepared within 2–4 business days. Handmade, custom-potted or made-to-order items may need additional time. Estimated delivery dates begin after the carrier receives the package and are not guaranteed.</p>
+        <div className="container">
+          <BrandMockupScene variant="shipping" className="policy-brand-scene" />
+          <article className="narrow prose">
+            <p><strong>Last updated: August 9, 2026.</strong></p>
+            <h2>Order preparation</h2>
+            <p>Most in-stock orders are prepared within 2–4 business days. Handmade, custom-potted or made-to-order items may need additional time. Estimated delivery dates begin after the carrier receives the package and are not guaranteed.</p>
 
-          <h2>Shipping charges</h2>
-          <p>Available shipping methods and the exact charge are shown before payment in Stripe Checkout. Promotional free-shipping thresholds may change. Oversized planters, custom arrangements and certain live plants may be available only for local pickup.</p>
+            <h2>Shipping charges</h2>
+            <p>Available shipping methods and the exact charge are shown before payment in Stripe Checkout. Promotional free-shipping thresholds may change. Oversized planters, custom arrangements and certain live plants may be available only for local pickup.</p>
 
-          <h2>Weather and live plants</h2>
-          <p>Living plants can be damaged by extreme heat or freezing temperatures. The Hillside Gardens may hold a plant shipment until a safer weather window. If a delay is necessary, Tammy will contact the customer using the checkout email or phone number.</p>
-          <p>Customers are responsible for providing a deliverable address and retrieving live-plant packages promptly after delivery. The Hillside Gardens is not responsible for damage caused by a package left outdoors after confirmed delivery.</p>
+            <h2>Weather and live plants</h2>
+            <p>Living plants can be damaged by extreme heat or freezing temperatures. The Hillside Gardens may hold a plant shipment until a safer weather window. If a delay is necessary, Tammy will contact the customer using the checkout email or phone number.</p>
+            <p>Customers are responsible for providing a deliverable address and retrieving live-plant packages promptly after delivery. The Hillside Gardens is not responsible for damage caused by a package left outdoors after confirmed delivery.</p>
 
-          <h2>Local pickup</h2>
-          <p>Local pickup is offered only when shown on the product or arranged directly with Tammy. A pickup is not ready until the customer receives confirmation. Exact pickup instructions are provided privately for safety and scheduling.</p>
+            <h2>Local pickup</h2>
+            <p>Local pickup is offered only when shown on the product or arranged directly with Tammy. A pickup is not ready until the customer receives confirmation. Exact pickup instructions are provided privately for safety and scheduling.</p>
 
-          <h2>Damage in transit</h2>
-          <p>Open packages promptly. If an item arrives materially damaged, contact The Hillside Gardens within 48 hours of delivery and include the order number, a description, photographs of the item, packaging and shipping label. Tammy will review the situation and may offer a replacement, store credit or refund depending on inventory and the type of damage.</p>
-          <p>Minor soil movement, a bent leaf, normal leaf variation or temporary stress after shipping does not necessarily mean a plant is unhealthy. Tammy may provide recovery instructions before determining that replacement is appropriate.</p>
+            <h2>Damage in transit</h2>
+            <p>Open packages promptly. If an item arrives materially damaged, contact The Hillside Gardens within 48 hours of delivery and include the order number, a description, photographs of the item, packaging and shipping label. Tammy will review the situation and may offer a replacement, store credit or refund depending on inventory and the type of damage.</p>
+            <p>Minor soil movement, a bent leaf, normal leaf variation or temporary stress after shipping does not necessarily mean a plant is unhealthy. Tammy may provide recovery instructions before determining that replacement is appropriate.</p>
 
-          <h2>Returns</h2>
-          <p>Live plants, teas, opened personal-care products, custom arrangements, class registrations and clearance items are generally final sale unless they arrive damaged, are incorrect or applicable law requires otherwise.</p>
-          <p>Unopened, unused nonperishable merchandise may be eligible for return within 14 days of delivery after Tammy authorizes the return. Original shipping charges are not refundable, and return shipping is normally the customer’s responsibility. Do not send an item back without contacting The Hillside Gardens first.</p>
+            <h2>Returns</h2>
+            <p>Live plants, teas, opened personal-care products, custom arrangements, class registrations and clearance items are generally final sale unless they arrive damaged, are incorrect or applicable law requires otherwise.</p>
+            <p>Unopened, unused nonperishable merchandise may be eligible for return within 14 days of delivery after Tammy authorizes the return. Original shipping charges are not refundable, and return shipping is normally the customer’s responsibility. Do not send an item back without contacting The Hillside Gardens first.</p>
 
-          <h2>Class cancellations</h2>
-          <p>Class registration terms may be listed with the specific event. When no event-specific terms are shown, contact Tammy as early as possible. A transfer to another guest or future class may be available, but materials purchased for a class can limit refunds close to the event date. If The Hillside Gardens cancels a class, registered customers will be offered a refund or transfer.</p>
+            <h2>Class cancellations</h2>
+            <p>Class registration terms may be listed with the specific event. When no event-specific terms are shown, contact Tammy as early as possible. A transfer to another guest or future class may be available, but materials purchased for a class can limit refunds close to the event date. If The Hillside Gardens cancels a class, registered customers will be offered a refund or transfer.</p>
 
-          <h2>Start a request</h2>
-          <p>Use the <Link className="text-link" href="/contact">contact form</Link> and include the HG order number. Tammy will respond with the next step.</p>
-        </article>
+            <h2>Start a request</h2>
+            <p>Use the <Link className="text-link" href="/contact">contact form</Link> and include the HG order number. Tammy will respond with the next step.</p>
+          </article>
+        </div>
       </section>
     </>
   );

@@ -1,33 +1,36 @@
 import Link from 'next/link';
 import { ArrowRight, Heart, Leaf, Package, Sparkles, Sprout } from 'lucide-react';
+import BrandMockupScene, { type BrandMockupVariant } from '@/components/BrandMockupScene';
+import BrandedProductVisual from '@/components/BrandedProductVisual';
 import NewsletterForm from '@/components/NewsletterForm';
-import ResilientImage from '@/components/ResilientImage';
 import { classFormatLabel, classLocationLabel, isOnlineClass } from '@/lib/class-access';
 import { db } from '@/lib/db';
-import { FALLBACK_PRODUCT_IMAGE, formatMoney, productTypeLabel } from '@/lib/store';
+import { formatMoney, productTypeLabel } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
-const collections = [
+const collections: Array<{
+  title: string;
+  subtitle: string;
+  variant: BrandMockupVariant;
+  href: string;
+}> = [
   {
     title: 'Plants',
     subtitle: 'Living beauty for every room',
-    image:
-      'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=1200&q=90',
+    variant: 'plants',
     href: '/shop?category=PLANT'
   },
   {
     title: 'Teas & Herbals',
     subtitle: 'A slower botanical ritual',
-    image:
-      'https://images.unsplash.com/photo-1594631252845-29fc4cc8cde9?auto=format&fit=crop&w=1200&q=90',
+    variant: 'tea',
     href: '/shop?category=TEA'
   },
   {
     title: 'Botanicals',
     subtitle: 'Small-batch soaps and lotions',
-    image:
-      'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=1200&q=90',
+    variant: 'botanicals',
     href: '/shop?category=SOAP'
   }
 ];
@@ -75,11 +78,7 @@ export default async function Home() {
             </Link>
           </div>
         </div>
-        <div
-          className="editorial-hero-image"
-          role="img"
-          aria-label="Potted plants and botanical goods arranged in a warm home setting"
-        />
+        <BrandMockupScene variant="hero" className="editorial-hero-image" />
       </section>
 
       <section className="trust-strip" aria-label="Why shop The Hillside Gardens">
@@ -126,14 +125,9 @@ export default async function Home() {
           <div className="editorial-collections">
             {collections.map((collection) => (
               <Link className="editorial-collection" href={collection.href} key={collection.title}>
-                <ResilientImage
-                  src={collection.image}
-                  fallbackSrc="/images/botanical-placeholder.svg"
-                  alt={collection.title}
-                  width={1200}
-                  height={900}
-                  loading="lazy"
-                  decoding="async"
+                <BrandMockupScene
+                  variant={collection.variant}
+                  alt={`${collection.title} from The Hillside Gardens shown with the approved logo`}
                 />
                 <div>
                   <span>{collection.subtitle}</span>
@@ -163,14 +157,11 @@ export default async function Home() {
                 <article className="product-card editorial-product" key={product.id}>
                   <Link className="product-image-wrap" href={`/shop/${product.slug}`}>
                     {product.badge && <span className="product-badge">{product.badge}</span>}
-                    <ResilientImage
-                      src={product.imageUrl || FALLBACK_PRODUCT_IMAGE}
-                      fallbackSrc="/images/botanical-placeholder.svg"
-                      alt={product.name}
-                      width={1200}
-                      height={1050}
-                      loading="lazy"
-                      decoding="async"
+                    <BrandedProductVisual
+                      slug={product.slug}
+                      name={product.name}
+                      type={product.type}
+                      imageUrl={product.imageUrl}
                     />
                   </Link>
                   <div className="product-copy">
@@ -196,15 +187,7 @@ export default async function Home() {
       <section className="section tammy-story home-story-section">
         <div className="container split">
           <div className="story-photo">
-            <ResilientImage
-              src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=1400&q=90"
-              fallbackSrc="/images/botanical-placeholder.svg"
-              alt="Beautiful potted plants ready for a planter class"
-              width={1400}
-              height={1050}
-              loading="lazy"
-              decoding="async"
-            />
+            <BrandMockupScene variant="about" />
           </div>
           <div>
             <div className="eyebrow">Grow with confidence</div>
@@ -252,17 +235,11 @@ export default async function Home() {
 
                 return (
                   <article className="class-editorial" key={event.id}>
-                    {event.imageUrl && (
-                      <ResilientImage
-                        src={event.imageUrl}
-                        fallbackSrc="/images/botanical-placeholder.svg"
-                        alt={event.title}
-                        width={1200}
-                        height={800}
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    )}
+                    <BrandMockupScene
+                      variant="class"
+                      backgroundSrc={event.imageUrl || undefined}
+                      alt={`${event.title} workshop materials branded for The Hillside Gardens`}
+                    />
                     <div>
                       <span className="product-kicker">{classFormatLabel(event.format)}</span>
                       <h3>{event.title}</h3>
