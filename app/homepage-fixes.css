@@ -1,0 +1,69 @@
+/* Targeted homepage corrections based on mobile device review. */
+.editorial-collection img,
+.editorial-product .product-image-wrap img,
+.story-photo img,
+.class-editorial > img {
+  background:
+    radial-gradient(circle at 78% 18%, rgba(255, 255, 255, 0.4), transparent 32%),
+    linear-gradient(135deg, #e8e4d9 0%, #aeb9a6 52%, #526c57 100%);
+}
+
+.home-newsletter-section {
+  padding-bottom: 42px;
+}
+
+.footer-without-newsletter .footergrid {
+  padding-top: 50px;
+}
+
+@media (max-width: 760px) {
+  .home-collections-section {
+    padding-bottom: 28px;
+  }
+
+  .home-products-section,
+  .home-story-section,
+  .home-classes-section {
+    padding-top: 28px;
+    padding-bottom: 44px;
+  }
+
+  .home-care-section {
+    padding-block: 46px;
+  }
+
+  .home-newsletter-section {
+    padding-top: 38px;
+    padding-bottom: 26px;
+  }
+
+  .footer-without-newsletter .footergrid {
+    padding-top: 42px;
+  }
+}
+
+@media (max-width: 560px) {
+  .home-collections-section {
+    padding-bottom: 22px;
+  }
+
+  .home-products-section,
+  .home-story-section,
+  .home-classes-section {
+    padding-top: 22px;
+    padding-bottom: 36px;
+  }
+
+  .home-care-section {
+    padding-block: 40px;
+  }
+
+  .home-newsletter-section {
+    padding-top: 30px;
+    padding-bottom: 18px;
+  }
+
+  .footer-without-newsletter .footergrid {
+    padding-top: 34px;
+  }
+}

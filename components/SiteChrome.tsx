@@ -259,15 +259,20 @@ export function SiteHeader() {
 }
 
 export function SiteFooter() {
+  const pathname = usePathname();
+  const showNewsletter = pathname !== '/';
+
   return (
-    <footer className="footer">
-      <div className="container footer-newsletter">
-        <div>
-          <div className="eyebrow">The Hillside Notes</div>
-          <h3>Seasonal tips, class dates and new arrivals.</h3>
+    <footer className={`footer${showNewsletter ? '' : ' footer-without-newsletter'}`}>
+      {showNewsletter && (
+        <div className="container footer-newsletter">
+          <div>
+            <div className="eyebrow">The Hillside Notes</div>
+            <h3>Seasonal tips, class dates and new arrivals.</h3>
+          </div>
+          <NewsletterForm compact />
         </div>
-        <NewsletterForm compact />
-      </div>
+      )}
       <div className="container footergrid">
         <div className="footer-brand">
           <img src="/logo.svg" alt="The Hillside Gardens" width="720" height="658" />

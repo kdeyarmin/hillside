@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight, Heart, Leaf, Package, Sparkles, Sprout } from 'lucide-react';
 import NewsletterForm from '@/components/NewsletterForm';
+import ResilientImage from '@/components/ResilientImage';
 import { classFormatLabel, classLocationLabel, isOnlineClass } from '@/lib/class-access';
 import { db } from '@/lib/db';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney, productTypeLabel } from '@/lib/store';
@@ -26,7 +27,7 @@ const collections = [
     title: 'Botanicals',
     subtitle: 'Small-batch soaps and lotions',
     image:
-      'https://images.unsplash.com/photo-1607006483225-3f4b5308f95d?auto=format&fit=crop&w=1200&q=90',
+      'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=1200&q=90',
     href: '/shop?category=SOAP'
   }
 ];
@@ -112,7 +113,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="section editorial-section">
+      <section className="section editorial-section home-collections-section">
         <div className="container">
           <div className="sectionhead">
             <div className="eyebrow">Shop the garden</div>
@@ -125,7 +126,15 @@ export default async function Home() {
           <div className="editorial-collections">
             {collections.map((collection) => (
               <Link className="editorial-collection" href={collection.href} key={collection.title}>
-                <img src={collection.image} alt={collection.title} />
+                <ResilientImage
+                  src={collection.image}
+                  fallbackSrc="/images/botanical-placeholder.svg"
+                  alt={collection.title}
+                  width={1200}
+                  height={900}
+                  loading="lazy"
+                  decoding="async"
+                />
                 <div>
                   <span>{collection.subtitle}</span>
                   <h3>{collection.title}</h3>
@@ -138,7 +147,7 @@ export default async function Home() {
       </section>
 
       {featured.length > 0 && (
-        <section className="section editorial-products">
+        <section className="section editorial-products home-products-section">
           <div className="container">
             <div className="editorial-heading-row">
               <div>
@@ -154,7 +163,15 @@ export default async function Home() {
                 <article className="product-card editorial-product" key={product.id}>
                   <Link className="product-image-wrap" href={`/shop/${product.slug}`}>
                     {product.badge && <span className="product-badge">{product.badge}</span>}
-                    <img src={product.imageUrl || FALLBACK_PRODUCT_IMAGE} alt={product.name} />
+                    <ResilientImage
+                      src={product.imageUrl || FALLBACK_PRODUCT_IMAGE}
+                      fallbackSrc="/images/botanical-placeholder.svg"
+                      alt={product.name}
+                      width={1200}
+                      height={1050}
+                      loading="lazy"
+                      decoding="async"
+                    />
                   </Link>
                   <div className="product-copy">
                     <span className="product-kicker">{productTypeLabel(product.type)}</span>
@@ -176,12 +193,17 @@ export default async function Home() {
         </section>
       )}
 
-      <section className="section tammy-story">
+      <section className="section tammy-story home-story-section">
         <div className="container split">
           <div className="story-photo">
-            <img
+            <ResilientImage
               src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=1400&q=90"
+              fallbackSrc="/images/botanical-placeholder.svg"
               alt="Beautiful potted plants ready for a planter class"
+              width={1400}
+              height={1050}
+              loading="lazy"
+              decoding="async"
             />
           </div>
           <div>
@@ -209,7 +231,7 @@ export default async function Home() {
       </section>
 
       {upcomingClasses.length > 0 && (
-        <section className="section editorial-classes">
+        <section className="section editorial-classes home-classes-section">
           <div className="container">
             <div className="sectionhead">
               <div className="eyebrow">Learn with Tammy</div>
@@ -230,7 +252,17 @@ export default async function Home() {
 
                 return (
                   <article className="class-editorial" key={event.id}>
-                    {event.imageUrl && <img src={event.imageUrl} alt={event.title} />}
+                    {event.imageUrl && (
+                      <ResilientImage
+                        src={event.imageUrl}
+                        fallbackSrc="/images/botanical-placeholder.svg"
+                        alt={event.title}
+                        width={1200}
+                        height={800}
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    )}
                     <div>
                       <span className="product-kicker">{classFormatLabel(event.format)}</span>
                       <h3>{event.title}</h3>
@@ -266,7 +298,7 @@ export default async function Home() {
         </section>
       )}
 
-      <section className="section care-promo">
+      <section className="section care-promo home-care-section">
         <div className="container care-promo-inner">
           <Sprout size={42} />
           <div>
@@ -283,7 +315,7 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="section">
+      <section className="section home-newsletter-section">
         <div className="container newsletter editorial-newsletter">
           <div>
             <div className="eyebrow">The Hillside Notes</div>
