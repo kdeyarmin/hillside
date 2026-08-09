@@ -37,6 +37,17 @@ function CartDrawer() {
     };
   }, [drawerOpen]);
 
+  useEffect(() => {
+    if (!drawerOpen) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeCart();
+    };
+
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [closeCart, drawerOpen]);
+
   if (!drawerOpen) return null;
 
   return (
@@ -132,7 +143,29 @@ export function SiteHeader() {
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileOpen(false);
+    };
+
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [mobileOpen]);
+
   const isActive = (href: string) => !href.includes('?') && pathname === href;
+
+  const openMobileCart = () => {
+    setMobileOpen(false);
+    openCart();
+  };
 
   return (
     <>
@@ -153,7 +186,7 @@ export function SiteHeader() {
           </Link>
 
           <Link href="/" className="brand editorial-brand" aria-label="The Hillside Gardens home">
-            <img src="/logo.svg" alt="The Hillside Gardens" />
+            <img src="/logo.svg" alt="The Hillside Gardens" width="720" height="658" />
           </Link>
 
           <div className="header-actions">
@@ -169,15 +202,27 @@ export function SiteHeader() {
             </button>
           </div>
 
-          <button
-            className="icon-button mobile-menu-button"
-            type="button"
-            onClick={() => setMobileOpen((value) => !value)}
-            aria-expanded={mobileOpen}
-            aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
-          >
-            {mobileOpen ? <X /> : <Menu />}
-          </button>
+          <div className="mobile-header-actions">
+            <button
+              className="icon-button mobile-cart-button"
+              type="button"
+              onClick={openMobileCart}
+              aria-label={`Open cart with ${count} items`}
+            >
+              <ShoppingBag size={20} />
+              <span className="mobile-cart-count" aria-hidden="true">{count}</span>
+            </button>
+            <button
+              className="icon-button mobile-menu-button"
+              type="button"
+              onClick={() => setMobileOpen((value) => !value)}
+              aria-expanded={mobileOpen}
+              aria-controls="mobile-primary-menu"
+              aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+            >
+              {mobileOpen ? <X /> : <Menu />}
+            </button>
+          </div>
         </div>
 
         <nav className="editorial-nav" aria-label="Primary navigation">
@@ -193,7 +238,7 @@ export function SiteHeader() {
           </div>
 
           {mobileOpen && (
-            <div className="mobile-menu container">
+            <div className="mobile-menu container" id="mobile-primary-menu">
               {navigation.map(([label, href]) => (
                 <Link href={href} key={href}>
                   {label}
@@ -225,7 +270,7 @@ export function SiteFooter() {
       </div>
       <div className="container footergrid">
         <div className="footer-brand">
-          <img src="/logo.svg" alt="The Hillside Gardens" />
+          <img src="/logo.svg" alt="The Hillside Gardens" width="720" height="658" />
           <p>
             Plants, teas and botanicals chosen with care, plus approachable education to help you grow
             with confidence.

@@ -1,9 +1,32 @@
 import './globals.css';
 import './editorial.css';
-import type { Metadata } from 'next';
+import './refinement.css';
+import type { Metadata, Viewport } from 'next';
+import { Cormorant_Garamond, Manrope } from 'next/font/google';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
 import { absoluteUrl, normalizeHillsideDomain } from '@/lib/store';
+
+const hillsideSans = Manrope({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-hillside-sans'
+});
+
+const hillsideDisplay = Cormorant_Garamond({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-hillside-display',
+  weight: ['400', '500', '600', '700']
+});
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#203f2b',
+  colorScheme: 'light'
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(normalizeHillsideDomain(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000')),
@@ -55,7 +78,7 @@ const organizationJsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${hillsideSans.variable} ${hillsideDisplay.variable}`}>
       <body>
         <a className="skip-link" href="#main-content">
           Skip to content
