@@ -1,0 +1,936 @@
+/* Plant care library, troubleshooting guides and care manager */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.care-pagehero {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(120deg, rgba(247, 244, 236, 0.98), rgba(237, 241, 233, 0.93)),
+    radial-gradient(circle at 86% 24%, rgba(127, 141, 103, 0.2), transparent 34%);
+}
+
+.care-pagehero::after {
+  content: '';
+  position: absolute;
+  width: 330px;
+  height: 330px;
+  right: -95px;
+  bottom: -155px;
+  border: 1px solid rgba(32, 63, 43, 0.14);
+  border-radius: 50%;
+}
+
+.care-pagehero .container {
+  position: relative;
+  z-index: 1;
+}
+
+.care-library-stats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.care-library-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 1px solid rgba(32, 63, 43, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--forest);
+  font-size: 13px;
+  backdrop-filter: blur(8px);
+}
+
+.care-library-stats b {
+  color: var(--gold);
+  font-size: 16px;
+}
+
+.care-quick-start-section {
+  padding: clamp(62px, 7vw, 92px) 0;
+  background: var(--white);
+}
+
+.care-quick-start-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.care-quick-start-card {
+  position: relative;
+  min-height: 265px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 29px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: linear-gradient(145deg, #ffffff, #f8f6ef);
+  box-shadow: 0 14px 42px rgba(32, 63, 43, 0.07);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.care-quick-start-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(185, 137, 46, 0.46);
+  box-shadow: 0 20px 46px rgba(32, 63, 43, 0.12);
+}
+
+.care-quick-start-card > svg {
+  color: var(--gold);
+}
+
+.care-quick-start-card h3 {
+  margin: 24px 0 9px;
+  color: var(--forest);
+  font: 600 clamp(27px, 2.2vw, 34px)/1 var(--font-hillside-display), Georgia, serif;
+}
+
+.care-quick-start-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.care-quick-start-card span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: auto;
+  padding-top: 22px;
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.care-plant-doctor {
+  padding: 54px 0;
+  background: var(--forest);
+  color: var(--white);
+}
+
+.care-plant-doctor-inner {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(0, 1.18fr);
+  align-items: center;
+  gap: clamp(36px, 6vw, 86px);
+}
+
+.care-plant-doctor .eyebrow {
+  color: var(--gold-light);
+}
+
+.care-plant-doctor h2 {
+  margin: 5px 0 12px;
+  color: var(--white);
+  font: 600 clamp(42px, 5vw, 60px)/0.98 var(--font-hillside-display), Georgia, serif;
+}
+
+.care-plant-doctor p {
+  max-width: 560px;
+  margin: 0;
+  color: #dce7df;
+}
+
+.care-symptom-links {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.care-symptom-links a {
+  min-height: 47px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.17);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.055);
+  font-size: 13px;
+  font-weight: 700;
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.care-symptom-links a:hover {
+  border-color: var(--gold-light);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.care-library-content {
+  padding-top: clamp(56px, 7vw, 84px);
+}
+
+.care-library-tools {
+  position: sticky;
+  top: 12px;
+  z-index: 15;
+  display: grid;
+  gap: 16px;
+  margin-bottom: 44px;
+  padding: 18px;
+  border: 1px solid rgba(32, 63, 43, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 14px 40px rgba(32, 63, 43, 0.09);
+  backdrop-filter: blur(16px);
+}
+
+.care-search {
+  position: relative;
+  display: block;
+}
+
+.care-search svg {
+  position: absolute;
+  top: 50%;
+  left: 16px;
+  transform: translateY(-50%);
+  color: var(--sage);
+  pointer-events: none;
+}
+
+.care-search input {
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 17px 12px 48px;
+  border: 1px solid #cfd8cf;
+  border-radius: 13px;
+  background: var(--white);
+  color: var(--ink);
+  font: inherit;
+  outline: none;
+}
+
+.care-search input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 4px rgba(185, 137, 46, 0.12);
+}
+
+.care-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.care-filter-row button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.care-filter-row button span {
+  min-width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--sage-light);
+  font-size: 10px;
+}
+
+.care-filter-row button:hover,
+.care-filter-row button.active {
+  border-color: var(--forest);
+  background: var(--forest);
+  color: var(--white);
+}
+
+.care-filter-row button.active span {
+  background: var(--gold);
+  color: var(--white);
+}
+
+.care-results-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+
+.care-results-heading h2 {
+  margin: 3px 0 0;
+  color: var(--forest);
+  font: 600 clamp(34px, 4vw, 49px)/1 var(--font-hillside-display), Georgia, serif;
+}
+
+.care-library-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.care-guide-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 21px;
+  background: var(--white);
+  box-shadow: 0 12px 34px rgba(32, 63, 43, 0.075);
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+}
+
+.care-guide-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(127, 141, 103, 0.55);
+  box-shadow: 0 19px 46px rgba(32, 63, 43, 0.13);
+}
+
+.care-guide-image {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--cream);
+}
+
+.care-guide-image img {
+  width: 100%;
+  aspect-ratio: 1.38 / 1;
+  object-fit: cover;
+  transition: transform 0.35s ease;
+}
+
+.care-guide-card:hover .care-guide-image img {
+  transform: scale(1.025);
+}
+
+.care-featured-badge {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: 14px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: var(--white);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.care-guide-copy {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 23px;
+}
+
+.care-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.care-card-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--sage-light);
+  color: var(--forest);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+}
+
+.care-type-problem .care-card-meta span:first-child {
+  background: #f9ece7;
+  color: #8b3f2f;
+}
+
+.care-type-seasonal .care-card-meta span:first-child {
+  background: #f7efd9;
+  color: #805d1d;
+}
+
+.care-guide-copy h3 {
+  margin: 14px 0 5px;
+  color: var(--forest);
+  font: 600 clamp(28px, 2.8vw, 36px)/1.02 var(--font-hillside-display), Georgia, serif;
+  overflow-wrap: anywhere;
+}
+
+.care-guide-copy > p:not(.botanical) {
+  color: var(--muted);
+}
+
+.care-guide-copy .botanical {
+  margin: 0 0 8px;
+  color: var(--sage);
+  font-style: italic;
+}
+
+.care-card-quick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin: 15px 0 2px;
+}
+
+.care-card-quick span {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 12px;
+  background: var(--cream);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.care-card-quick svg,
+.care-card-quick b {
+  color: var(--forest);
+}
+
+.care-symptom-preview {
+  margin: 14px 0 2px;
+  padding: 13px;
+  border-left: 3px solid var(--gold);
+  border-radius: 0 10px 10px 0;
+  background: #fbf5e9;
+  color: #5c574c;
+  font-size: 12px;
+}
+
+.care-symptom-preview b {
+  color: var(--forest);
+}
+
+.care-guide-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 20px;
+}
+
+.care-guide-footer > span {
+  color: var(--sage);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.care-guide-footer .text-link {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+.care-empty-state {
+  display: grid;
+  justify-items: center;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 62px 28px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--cream);
+  text-align: center;
+}
+
+.care-empty-state svg {
+  color: var(--sage);
+}
+
+.care-empty-state h3 {
+  margin: 16px 0 5px;
+  color: var(--forest);
+  font: 600 36px/1 var(--font-hillside-display), Georgia, serif;
+}
+
+.care-guide-page {
+  background: linear-gradient(#ffffff 0, #ffffff 42%, #faf8f2 100%);
+}
+
+.care-guide-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.03fr) minmax(340px, 0.97fr);
+  align-items: center;
+  gap: clamp(38px, 6vw, 78px);
+  padding: 14px 0 54px;
+}
+
+.care-guide-hero .care-hero-image {
+  width: 100%;
+  max-height: 610px;
+  aspect-ratio: 1.1 / 1;
+  border-radius: 26px;
+  object-fit: cover;
+  box-shadow: 0 22px 60px rgba(32, 63, 43, 0.14);
+}
+
+.care-guide-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--sage-light);
+  color: var(--forest);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.care-guide-hero h1 {
+  margin: 14px 0 7px;
+  color: var(--forest);
+  font: 600 clamp(49px, 6vw, 76px)/0.96 var(--font-hillside-display), Georgia, serif;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.care-botanical-name {
+  margin: 0 0 12px;
+  color: var(--sage);
+  font-size: 18px;
+  font-style: italic;
+}
+
+.care-guide-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 17px;
+}
+
+.care-guide-tags span {
+  padding: 5px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.care-guide-lead {
+  max-width: 670px;
+  color: #465149;
+  font-size: clamp(17px, 2vw, 20px);
+}
+
+.care-problem-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin: 30px 0 64px;
+}
+
+.care-problem-section {
+  padding: 27px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--white);
+  box-shadow: 0 12px 34px rgba(32, 63, 43, 0.06);
+}
+
+.care-problem-section > svg {
+  color: var(--gold);
+}
+
+.care-problem-section h2,
+.care-problem-section h3 {
+  margin: 13px 0 8px;
+  color: var(--forest);
+  font: 600 34px/1 var(--font-hillside-display), Georgia, serif;
+}
+
+.care-problem-section h3 {
+  font-size: 29px;
+}
+
+.care-problem-section p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.care-problem-symptoms {
+  background: #fffaf2;
+}
+
+.care-problem-treatment {
+  background: #f4f8f2;
+}
+
+.care-problem-grid.compact {
+  margin-bottom: 0;
+}
+
+.care-lesson-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
+  gap: 28px;
+  margin: 28px 0 64px;
+}
+
+.care-lesson-main,
+.care-checklist-card,
+.care-problem-closing,
+.care-checklist-wide {
+  padding: clamp(28px, 4vw, 43px);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--white);
+  box-shadow: 0 14px 42px rgba(32, 63, 43, 0.07);
+}
+
+.care-lesson-main h2,
+.care-checklist-card h2,
+.care-problem-closing h2,
+.care-checklist-wide h2 {
+  margin: 7px 0 14px;
+  color: var(--forest);
+  font: 600 clamp(36px, 4vw, 50px)/1 var(--font-hillside-display), Georgia, serif;
+}
+
+.care-lesson-main > p,
+.care-problem-closing p {
+  font-size: 17px;
+}
+
+.care-checklist-card {
+  background: var(--cream);
+}
+
+.care-inline-section {
+  margin-top: 25px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.care-inline-section h3 {
+  margin: 0 0 6px;
+  color: var(--forest);
+  font: 600 29px/1 var(--font-hillside-display), Georgia, serif;
+}
+
+.care-checklist {
+  display: grid;
+  gap: 11px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.care-checklist li {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 8px;
+  align-items: start;
+  color: #465149;
+}
+
+.care-checklist li svg {
+  margin-top: 3px;
+  color: var(--gold);
+}
+
+.care-advice-grid {
+  margin: 28px 0 0;
+}
+
+.care-advice-grid .admin-card {
+  padding: 32px;
+  border-radius: 20px;
+  box-shadow: 0 12px 34px rgba(32, 63, 43, 0.06);
+}
+
+.care-advice-grid h2 {
+  margin: 7px 0 12px;
+  font-size: 40px !important;
+  line-height: 1 !important;
+}
+
+.care-plant-troubleshooting {
+  margin-top: 74px;
+}
+
+.care-checklist-wide {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.75fr) minmax(0, 1.25fr);
+  align-items: start;
+  gap: 40px;
+  margin-top: 28px;
+  background: var(--forest);
+  color: var(--white);
+}
+
+.care-checklist-wide h2,
+.care-checklist-wide .eyebrow {
+  color: var(--white);
+}
+
+.care-checklist-wide .eyebrow {
+  color: var(--gold-light);
+}
+
+.care-checklist-wide .care-checklist {
+  margin-top: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.care-checklist-wide .care-checklist li {
+  color: #e2ebe4;
+}
+
+.care-problem-closing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.8fr);
+  gap: 36px;
+  margin-top: 28px;
+  background: var(--cream);
+}
+
+.care-related-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.care-related-card {
+  padding: 25px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--white);
+}
+
+.care-related-card > span {
+  color: var(--gold);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.care-related-card h3 {
+  margin: 9px 0 6px;
+  color: var(--forest);
+  font: 600 32px/1 var(--font-hillside-display), Georgia, serif;
+}
+
+.care-related-card p {
+  color: var(--muted);
+}
+
+.care-admin-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 18px;
+}
+
+.care-admin-summary span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: var(--sage-light);
+  color: var(--forest);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.care-admin-seed-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: center;
+  padding: 28px;
+  border: 1px solid rgba(185, 137, 46, 0.34);
+  border-radius: 18px;
+  background: #fffaf0;
+}
+
+@media (max-width: 1080px) {
+  .care-quick-start-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .care-library-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .care-plant-doctor-inner,
+  .care-guide-hero,
+  .care-lesson-layout,
+  .care-problem-closing,
+  .care-checklist-wide {
+    grid-template-columns: 1fr;
+  }
+
+  .care-guide-hero {
+    gap: 32px;
+  }
+
+  .care-guide-hero .care-hero-image {
+    max-height: 520px;
+  }
+
+  .care-related-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .care-checklist-wide .care-checklist {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .care-admin-seed-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .care-library-stats {
+    display: grid;
+    grid-template-columns: 1fr;
+    max-width: 320px;
+    margin-inline: auto;
+  }
+
+  .care-library-stats span {
+    justify-content: center;
+  }
+
+  .care-quick-start-grid,
+  .care-symptom-links,
+  .care-library-grid,
+  .care-problem-grid,
+  .care-related-grid,
+  .care-checklist-wide .care-checklist {
+    grid-template-columns: 1fr;
+  }
+
+  .care-quick-start-card {
+    min-height: 235px;
+  }
+
+  .care-plant-doctor {
+    padding: 48px 0;
+  }
+
+  .care-library-tools {
+    position: static;
+    margin-inline: -2px;
+    padding: 13px;
+  }
+
+  .care-filter-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .care-filter-row button {
+    justify-content: space-between;
+    border-radius: 11px;
+  }
+
+  .care-results-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .care-guide-image img {
+    aspect-ratio: 1.42 / 1;
+  }
+
+  .care-card-quick {
+    grid-template-columns: 1fr;
+  }
+
+  .care-guide-footer {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .care-guide-hero {
+    padding-bottom: 38px;
+  }
+
+  .care-guide-hero .care-hero-image {
+    border-radius: 18px;
+  }
+
+  .care-guide-hero h1 {
+    font-size: clamp(44px, 14vw, 62px);
+  }
+
+  .care-problem-section,
+  .care-lesson-main,
+  .care-checklist-card,
+  .care-problem-closing,
+  .care-checklist-wide {
+    padding: 24px;
+  }
+
+  .care-advice-grid h2 {
+    font-size: 34px !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .care-filter-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  .care-library-tools,
+  .care-quick-start-section,
+  .care-plant-doctor,
+  .care-related-grid,
+  .care-plant-troubleshooting .sectionhead {
+    display: none !important;
+  }
+
+  .care-guide-page {
+    background: #fff;
+  }
+
+  .care-guide-hero,
+  .care-lesson-layout,
+  .care-problem-grid,
+  .care-advice-grid,
+  .care-checklist-wide,
+  .care-problem-closing {
+    break-inside: avoid;
+  }
+}
