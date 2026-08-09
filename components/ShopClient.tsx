@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Search, ShoppingBag } from 'lucide-react';
+import BrandedProductVisual from '@/components/BrandedProductVisual';
 import { useCart } from '@/components/CartProvider';
-import { FALLBACK_PRODUCT_IMAGE, formatMoney, productTypeLabel } from '@/lib/store';
+import { formatMoney, productTypeLabel } from '@/lib/store';
 
 type Product = {
   id: string;
@@ -139,7 +140,12 @@ export default function ShopClient({
               <article className="product-card" key={product.id}>
                 <Link className="product-image-wrap" href={`/shop/${product.slug}`}>
                   {product.badge && <span className="product-badge">{product.badge}</span>}
-                  <img src={product.imageUrl || FALLBACK_PRODUCT_IMAGE} alt={product.name} />
+                  <BrandedProductVisual
+                    slug={product.slug}
+                    name={product.name}
+                    type={product.type}
+                    imageUrl={product.imageUrl}
+                  />
                 </Link>
                 <div className="product-copy">
                   <span className="pill">{productTypeLabel(product.type)}</span>
