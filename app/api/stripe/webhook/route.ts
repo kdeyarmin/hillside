@@ -1,6 +1,8 @@
 import Stripe from 'stripe';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
+import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { formatMoney } from '@/lib/store';
 
@@ -164,16 +166,28 @@ async function fulfillProductOrder(session: Stripe.Checkout.Session) {
 }
 
 async function fulfillClassRegistration(session: Stripe.Checkout.Session) {
-  const existing = await db.classRegistration.findUnique({ where: { stripeSessionId: session.id } });
-  if (existing) return;
-
   const classEventId = session.metadata?.classEventId || '';
   const event = await db.classEvent.findUnique({ where: { id: classEventId } });
   if (!event) throw new Error(`Class ${classEventId} was not found for Stripe session ${session.id}`);
 
+  const existing = await db.classRegistration.findUnique({ where: { stripeSessionId: session.id } });
+  if (existing) {
+    if (existing.confirmationEmailSentAt) return;
+    const credential = isOnlineClass(event.format) ? createClassJoinCredential() : null;
+    const registration = credential
+      ? await db.classRegistration.update({
+          where: { id: existing.id },
+          data: { joinTokenHash: credential.hash }
+        })
+      : existing;
+    await sendClassRegistrationEmails({ event, registration, accessToken: credential?.token });
+    return;
+  }
+
   const seats = Math.max(1, Math.min(6, Number(session.metadata?.seats) || 1));
   const name = session.customer_details?.name || 'Class guest';
-  const email = session.customer_details?.email || session.customer_email || '';
+  const email = (session.customer_details?.email || session.customer_email || '').toLowerCase();
+  const credential = isOnlineClass(event.format) ? createClassJoinCredential() : null;
   const registration = await db.classRegistration.create({
     data: {
       classEventId: event.id,
@@ -184,36 +198,17 @@ async function fulfillClassRegistration(session: Stripe.Checkout.Session) {
       phone: session.customer_details?.phone || null,
       seats,
       amountCents: session.amount_total || event.priceCents * seats,
-      status: 'PAID'
+      status: 'PAID',
+      joinTokenHash: credential?.hash || null
     }
   });
 
   await subscribeFromCheckout(session);
-
-  if (email) {
-    await sendEmail({
-      to: email,
-      subject: `You’re registered for ${event.title}`,
-      html: emailShell(
-        'Your class registration is confirmed',
-        `<p>Hi ${escapeHtml(name)},</p><p>Your registration for <strong>${escapeHtml(event.title)}</strong> is confirmed for ${seats} ${seats === 1 ? 'seat' : 'seats'}.</p><p><strong>Date:</strong> ${escapeHtml(event.startsAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' }))}<br><strong>Location:</strong> ${escapeHtml(event.location)}<br><strong>Amount paid:</strong> ${formatMoney(registration.amountCents)}</p>${event.whatToBring ? `<p><strong>What to bring:</strong> ${escapeHtml(event.whatToBring)}</p>` : ''}<p>Tammy looks forward to planting with you.</p>`
-      ),
-      idempotencyKey: `class-confirmation/${registration.id}`
-    });
-  }
-
-  const businessEmail = process.env.BUSINESS_EMAIL;
-  if (businessEmail) {
-    await sendEmail({
-      to: businessEmail,
-      subject: `New class registration • ${event.title}`,
-      html: emailShell(
-        'New paid class registration',
-        `<p><strong>${escapeHtml(name)}</strong> registered ${seats} ${seats === 1 ? 'seat' : 'seats'} for ${escapeHtml(event.title)}.</p><p>Email: ${escapeHtml(email)}<br>Phone: ${escapeHtml(session.customer_details?.phone || '')}</p>`
-      ),
-      idempotencyKey: `class-registration-admin/${registration.id}`
-    });
-  }
+  await sendClassRegistrationEmails({
+    event,
+    registration,
+    accessToken: credential?.token
+  });
 }
 
 async function fulfillSession(session: Stripe.Checkout.Session) {
