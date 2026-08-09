@@ -1,3 +1,5 @@
+'use client';
+
 import ResilientImage from '@/components/ResilientImage';
 
 export type BrandMockupVariant =
