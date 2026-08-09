@@ -2,10 +2,10 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
-import { absoluteUrl } from '@/lib/store';
+import { absoluteUrl, normalizeHillsideDomain } from '@/lib/store';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
+  metadataBase: new URL(normalizeHillsideDomain(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000')),
   title: {
     default: 'The Hillside Gardens | Plants, Teas & Botanicals',
     template: '%s | The Hillside Gardens'
@@ -49,7 +49,7 @@ const organizationJsonLd = {
   logo: absoluteUrl('/logo.svg'),
   description: 'Plants, teas, botanicals and plant education from Tammy Hill.',
   founder: { '@type': 'Person', name: 'Tammy Hill' },
-  email: process.env.BUSINESS_EMAIL || 'hello@thehillsidegarden.com'
+  email: normalizeHillsideDomain(process.env.BUSINESS_EMAIL || 'hello@thehillsidegardens.com')
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
