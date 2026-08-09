@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: [main]
 permissions:
-  contents: write
+  contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,21 +16,10 @@ jobs:
       ADMIN_SESSION_SECRET: test-session-secret
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - run: npm install
-      - name: Commit generated package lock
-        if: github.event_name == 'pull_request'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          if ! git diff --cached --quiet; then
-            git commit -m "Add generated package lock"
-            git push origin HEAD:${GITHUB_HEAD_REF}
-          fi
+          cache: npm
+      - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run build
