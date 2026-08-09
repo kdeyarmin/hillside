@@ -46,6 +46,32 @@
   pointer-events: none;
 }
 
+.brand-photo-badge {
+  position: absolute;
+  z-index: 3;
+  top: 18px;
+  right: 18px;
+  width: clamp(84px, 17%, 132px);
+  aspect-ratio: 1.16;
+  display: grid;
+  place-items: center;
+  padding: 8px 10px;
+  overflow: hidden;
+  border: 1px solid rgba(170, 147, 103, 0.52);
+  border-radius: 4px;
+  background: rgba(252, 250, 245, 0.92);
+  box-shadow: 0 10px 28px rgba(20, 41, 28, 0.17);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+  pointer-events: none;
+}
+
+.brand-photo-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .brand-mockup-hero .brand-mockup-background,
 .brand-mockup-shipping .brand-mockup-background {
   object-position: 52% center;
@@ -82,6 +108,13 @@
   border: 0;
 }
 
+.editorial-hero-image .brand-photo-badge {
+  top: auto;
+  right: 24px;
+  bottom: 24px;
+  width: clamp(110px, 17%, 158px);
+}
+
 /* Homepage collection cards. The stronger selector prevents the generic
    collection text rule from adding margins and padding to the photograph. */
 .editorial-collection > .brand-mockup-scene {
@@ -101,9 +134,19 @@
   transform: scale(1.035);
 }
 
+.editorial-collection .brand-photo-badge {
+  width: clamp(78px, 24%, 112px);
+}
+
 /* Product merchandising */
 .product-image-wrap .brand-mockup-scene {
   width: 100%;
+}
+
+.product-image-wrap .brand-photo-badge {
+  width: clamp(72px, 21%, 100px);
+  top: 14px;
+  right: 14px;
 }
 
 .branded-product-card {
@@ -198,9 +241,22 @@
     min-height: 300px;
   }
 
+  .brand-photo-badge {
+    top: 13px;
+    right: 13px;
+    width: 76px;
+    padding: 6px 7px;
+  }
+
   .editorial-hero-image.brand-mockup-scene {
     min-height: 315px;
     aspect-ratio: 4 / 3;
+  }
+
+  .editorial-hero-image .brand-photo-badge {
+    right: 14px;
+    bottom: 14px;
+    width: 92px;
   }
 
   .editorial-collection > .brand-mockup-scene {
