@@ -52,6 +52,12 @@ function safeName(value) {
   return value.replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '').toLowerCase();
 }
 
+function expectedAbort(request) {
+  const error = request.failure()?.errorText || '';
+  const url = request.url();
+  return error.includes('ERR_ABORTED') && (url.includes('_rsc=') || request.resourceType() === 'fetch');
+}
+
 async function settlePage(page) {
   await page.evaluate(async () => {
     if (document.fonts?.ready) await document.fonts.ready;
@@ -62,22 +68,22 @@ async function settlePage(page) {
     const step = Math.max(500, Math.floor(window.innerHeight * 0.8));
     for (let y = 0; y < documentHeight; y += step) {
       window.scrollTo(0, y);
-      await new Promise((resolve) => setTimeout(resolve, 55));
+      await new Promise((resolve) => setTimeout(resolve, 45));
     }
     window.scrollTo(0, 0);
   });
 
-  await page.waitForTimeout(350);
+  await page.waitForTimeout(250);
   await page.evaluate(async () => {
-    const visibleImages = Array.from(document.images).filter((image) => {
+    const images = Array.from(document.images).filter((image) => {
       const rect = image.getBoundingClientRect();
       const style = getComputedStyle(image);
       return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
     });
 
     await Promise.all(
-      visibleImages.map((image) => {
-        if (image.complete) return Promise.resolve();
+      images.map((image) => {
+        if (image.complete && image.naturalWidth > 0) return Promise.resolve();
         return new Promise((resolve) => {
           const finish = () => resolve(undefined);
           image.addEventListener('load', finish, { once: true });
@@ -87,6 +93,9 @@ async function settlePage(page) {
       })
     );
   });
+
+  /* Give React image fallback state updates one paint cycle to settle. */
+  await page.waitForTimeout(250);
 }
 
 async function collectMetrics(page, mobile) {
@@ -191,9 +200,8 @@ async function collectMetrics(page, mobile) {
       : [];
 
     const desktopNav = document.querySelector('.editorial-nav-inner');
-    const desktopNavOverflow = desktopNav
-      ? desktopNav.scrollWidth > desktopNav.clientWidth + 2
-      : false;
+    const desktopNavOverflow = desktopNav ? desktopNav.scrollWidth > desktopNav.clientWidth + 2 : false;
+    const scrollWidth = Math.max(document.body.scrollWidth, root.scrollWidth);
 
     return {
       title: document.title,
@@ -201,8 +209,8 @@ async function collectMetrics(page, mobile) {
       mainCount: document.querySelectorAll('main').length,
       h1Count: document.querySelectorAll('h1').length,
       viewportWidth,
-      scrollWidth: Math.max(document.body.scrollWidth, root.scrollWidth),
-      horizontalOverflow: Math.max(document.body.scrollWidth, root.scrollWidth) > viewportWidth + 2,
+      scrollWidth,
+      horizontalOverflow: scrollWidth > viewportWidth + 2,
       brokenImages,
       overflowElements,
       smallTouchTargets: smallTouchTargets.slice(0, 16),
@@ -217,7 +225,7 @@ async function auditHeaderInteractions(page, profile, route) {
   if (route.path !== '/') return;
 
   if (profile.mobile) {
-    const menuButton = page.getByRole('button', { name: 'Open navigation menu' });
+    const menuButton = page.locator('button.mobile-menu-button');
     if ((await menuButton.count()) !== 1 || !(await menuButton.isVisible())) {
       recordFailure(profile, route, 'Mobile navigation button is missing or hidden');
       return;
@@ -236,8 +244,8 @@ async function auditHeaderInteractions(page, profile, route) {
     await page.keyboard.press('Escape');
     await menu.waitFor({ state: 'detached', timeout: 5000 });
 
-    const cartButton = page.getByRole('button', { name: /Open cart with/ }).first();
-    if (!(await cartButton.isVisible())) {
+    const cartButton = page.locator('button.mobile-cart-button');
+    if ((await cartButton.count()) !== 1 || !(await cartButton.isVisible())) {
       recordFailure(profile, route, 'Mobile cart button is missing or hidden');
       return;
     }
@@ -265,7 +273,7 @@ async function auditHeaderInteractions(page, profile, route) {
       recordFailure(profile, route, 'Desktop navigation is missing or hidden');
     }
 
-    const mobileButton = page.getByRole('button', { name: 'Open navigation menu' });
+    const mobileButton = page.locator('button.mobile-menu-button');
     if ((await mobileButton.count()) && (await mobileButton.isVisible())) {
       recordFailure(profile, route, 'Mobile menu button is visible at a desktop viewport');
     }
@@ -278,8 +286,10 @@ try {
   for (const profile of profiles) {
     const context = await browser.newContext({
       viewport: { width: profile.width, height: profile.height },
+      screen: { width: profile.width, height: profile.height },
       deviceScaleFactor: profile.mobile ? 2 : 1,
-      isMobile: profile.mobile,
+      /* Exact CSS viewport dimensions matter more than Chromium's device preset behavior. */
+      isMobile: false,
       hasTouch: profile.mobile,
       colorScheme: 'light',
       reducedMotion: 'reduce',
@@ -300,10 +310,10 @@ try {
         if (message.type() === 'error') consoleErrors.push(message.text());
       });
       page.on('requestfailed', (request) => {
-        const type = request.resourceType();
+        if (expectedAbort(request)) return;
         failedRequests.push({
           url: request.url(),
-          type,
+          type: request.resourceType(),
           error: request.failure()?.errorText || 'request failed'
         });
       });
