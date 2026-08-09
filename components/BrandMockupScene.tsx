@@ -48,24 +48,16 @@ const defaultCatalogImage: Record<BrandMockupVariant, HillsideCatalogImage> = {
 };
 
 const catalogAlt: Record<HillsideCatalogImage, string> = {
-  'house-plants': 'House plants styled with The Hillside Gardens branded plant tags',
-  'carnivorous-plants':
-    'Carnivorous plants including pitcher plants, sundews and Venus flytraps with Hillside Gardens branding',
-  'live-plant-planters':
-    'Finished live plant planters arranged in warm natural light with Hillside Gardens tags',
-  'homemade-soaps':
-    'Handmade botanical soaps displayed in The Hillside Gardens branded packaging',
-  moss: 'Preserved and decorative moss products arranged with The Hillside Gardens packaging',
-  succulents:
-    'A curated collection of succulents in neutral planters with Hillside Gardens branding',
-  driftwood:
-    'Natural driftwood and botanical display materials styled for The Hillside Gardens',
-  apothecary:
-    'Hillside Gardens apothecary goods, herbal blends, jars and botanical products',
-  'air-plants':
-    'Air plants displayed on driftwood and in decorative holders with Hillside Gardens branding',
-  'terrarium-supplies':
-    'Terrarium supplies, moss, soil, stones and a planted glass terrarium from The Hillside Gardens'
+  'house-plants': 'Illustration representing the house plants category',
+  'carnivorous-plants': 'Illustration representing the carnivorous plants category',
+  'live-plant-planters': 'Illustration representing the live plant planters category',
+  'homemade-soaps': 'Illustration representing the homemade soaps category',
+  moss: 'Illustration representing the moss category',
+  succulents: 'Illustration representing the succulents category',
+  driftwood: 'Illustration representing the driftwood category',
+  apothecary: 'Illustration representing the apothecary category',
+  'air-plants': 'Illustration representing the air plants category',
+  'terrarium-supplies': 'Illustration representing the terrarium supplies category'
 };
 
 /** Catalog image paths — individual files under public/images/catalog/. */
