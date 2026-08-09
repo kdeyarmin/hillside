@@ -3,19 +3,19 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { Menu, Minus, Plus, ShoppingBag, Trash2, X } from 'lucide-react';
+import { Menu, Minus, Plus, Search, ShoppingBag, Trash2, X } from 'lucide-react';
 import NewsletterForm from '@/components/NewsletterForm';
 import { useCart } from '@/components/CartProvider';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
 
 const navigation = [
-  ['Shop', '/shop'],
+  ['Plants', '/shop?category=PLANT'],
+  ['Teas & Herbals', '/shop?category=TEA'],
+  ['Botanicals', '/shop?category=SOAP'],
   ['Classes', '/classes'],
   ['Plant Care', '/care'],
   ['Gallery', '/gallery'],
-  ['Tammy’s Picks', '/amazon'],
-  ['Our Story', '/about'],
-  ['Contact', '/contact']
+  ['Tammy’s Picks', '/amazon']
 ] as const;
 
 function CartDrawer() {
@@ -132,49 +132,82 @@ export function SiteHeader() {
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
+  const isActive = (href: string) => !href.includes('?') && pathname === href;
+
   return (
     <>
-      <div className="topbar">Small-batch botanicals • Plant workshops • Thoughtful gifts</div>
-      <nav className="nav" aria-label="Primary navigation">
-        <div className="container navin">
+      <div className="topbar editorial-topbar">
+        <span>❧ &nbsp; Free shipping on orders $75+</span>
+        <div>
+          <Link href="/about">About Us</Link>
+          <Link href="/contact">Contact</Link>
+          <Link href="/care">Plant Care</Link>
+        </div>
+      </div>
+
+      <header className="editorial-header">
+        <div className="container editorial-head-main">
+          <Link className="header-search" href="/shop" aria-label="Search The Hillside Gardens shop">
+            <Search size={22} />
+            <span>Search our shop</span>
+          </Link>
+
+          <Link href="/" className="brand editorial-brand" aria-label="The Hillside Gardens home">
+            <img src="/logo.svg" alt="The Hillside Gardens" />
+          </Link>
+
+          <div className="header-actions">
+            <Link href="/order-status">Orders</Link>
+            <button
+              className="editorial-cart"
+              type="button"
+              onClick={openCart}
+              aria-label={`Open cart with ${count} items`}
+            >
+              <ShoppingBag size={22} />
+              <span>Cart ({count})</span>
+            </button>
+          </div>
+
           <button
             className="icon-button mobile-menu-button"
             type="button"
             onClick={() => setMobileOpen((value) => !value)}
             aria-expanded={mobileOpen}
-            aria-label="Open navigation menu"
+            aria-label={mobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
           >
             {mobileOpen ? <X /> : <Menu />}
           </button>
-          <Link href="/" className="brand" aria-label="The Hillside Gardens home">
-            <img src="/logo.svg" alt="The Hillside Gardens" />
-          </Link>
-          <div className="links">
-            {navigation.map(([label, href]) => (
-              <Link className={pathname === href ? 'active' : ''} href={href} key={href}>
-                {label}
-              </Link>
-            ))}
-          </div>
-          <button className="site-cart" type="button" onClick={openCart} aria-label={`Open cart with ${count} items`}>
-            <ShoppingBag size={20} />
-            <span>Cart</span>
-            {count > 0 && <b>{count}</b>}
-          </button>
         </div>
-        {mobileOpen && (
-          <div className="mobile-menu container">
+
+        <nav className="editorial-nav" aria-label="Primary navigation">
+          <div className="container editorial-nav-inner">
             {navigation.map(([label, href]) => (
-              <Link href={href} key={href}>
+              <Link className={isActive(href) ? 'active' : ''} href={href} key={href}>
                 {label}
               </Link>
             ))}
-            <Link className="btn" href="/shop">
-              Shop now
+            <Link className="sale-link" href="/shop">
+              New Arrivals
             </Link>
           </div>
-        )}
-      </nav>
+
+          {mobileOpen && (
+            <div className="mobile-menu container">
+              {navigation.map(([label, href]) => (
+                <Link href={href} key={href}>
+                  {label}
+                </Link>
+              ))}
+              <Link href="/shop">New Arrivals</Link>
+              <Link href="/order-status">Order Status</Link>
+              <Link href="/about">About Us</Link>
+              <Link href="/contact">Contact</Link>
+            </div>
+          )}
+        </nav>
+      </header>
+
       <CartDrawer />
     </>
   );
