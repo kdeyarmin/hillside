@@ -1,4 +1,5 @@
 import { Clock3, Mail, MapPin, Sprout } from 'lucide-react';
+import BrandMockupScene from '@/components/BrandMockupScene';
 import ContactForm from '@/components/ContactForm';
 
 export const metadata = {
@@ -26,6 +27,7 @@ export default function ContactPage() {
             <p className="muted">
               Messages from this form appear in Tammy’s private owner dashboard. She can respond directly to the email address you provide.
             </p>
+            <BrandMockupScene variant="gifts" className="contact-brand-scene" />
             <div className="info-list">
               <div className="info-item"><Mail size={20} /><b>Email</b><a href="mailto:hello@thehillsidegardens.com">hello@thehillsidegardens.com</a></div>
               <div className="info-item"><Clock3 size={20} /><b>Response time</b><span>Most messages are answered within two business days.</span></div>
