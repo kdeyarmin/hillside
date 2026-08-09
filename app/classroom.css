@@ -1,0 +1,506 @@
+/* Online classes and Telnyx Video classroom */
+.class-list-grid {
+  align-items: start;
+}
+
+.online-class-note,
+.class-success-email-note,
+.class-registration-success,
+.telnyx-room-status,
+.classroom-banner,
+.class-access-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border: 1px solid #d8e2d7;
+  border-radius: 14px;
+  background: var(--sage-light);
+  color: var(--forest);
+}
+
+.online-class-note {
+  margin: 18px 0;
+  padding: 15px;
+}
+
+.online-class-note svg,
+.class-registration-success svg,
+.class-success-email-note svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+  color: var(--success);
+}
+
+.online-class-note b,
+.class-registration-success b {
+  display: block;
+}
+
+.online-class-note span,
+.class-registration-success p {
+  display: block;
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.class-recording-note,
+.classroom-recording-disclosure {
+  padding: 12px 14px;
+  border-left: 3px solid var(--gold);
+  background: #fbf5e6;
+  color: #63502c;
+}
+
+.class-booking-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.class-checkout-email-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.free-class-registration {
+  display: grid;
+  gap: 16px;
+  margin-top: 20px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fafbf8;
+}
+
+.free-class-registration-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  color: var(--forest);
+}
+
+.free-class-registration-heading svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+.free-class-registration-heading b,
+.free-class-registration-heading span {
+  display: block;
+}
+
+.free-class-registration-heading span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.free-class-registration-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.free-class-registration-grid label {
+  display: grid;
+  gap: 5px;
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.class-registration-success {
+  margin-top: 18px;
+  padding: 18px;
+}
+
+.class-access-alert {
+  margin-bottom: 28px;
+  padding: 15px 18px;
+}
+
+.class-access-alert.error {
+  border-color: #e3c6c0;
+  background: #fff2ef;
+  color: var(--danger);
+}
+
+.class-success-email-note {
+  margin: 30px 0;
+  padding: 22px;
+  text-align: left;
+}
+
+.class-success-email-note h2 {
+  margin: 0 0 6px;
+  font-size: 28px;
+}
+
+.class-success-email-note p {
+  margin: 5px 0;
+}
+
+.class-success-email-note p:last-child {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.telnyx-setup-warning {
+  margin-bottom: 20px;
+  border-left: 4px solid var(--gold);
+}
+
+.telnyx-setup-warning p {
+  margin-bottom: 0;
+}
+
+.telnyx-room-status {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding: 12px 15px;
+  font-size: 13px;
+}
+
+.classroom-page {
+  min-height: 75vh;
+  padding: clamp(28px, 5vw, 64px) 0 80px;
+  background: #f2f4ef;
+}
+
+.classroom-event-summary {
+  margin-bottom: 24px;
+  padding: clamp(20px, 4vw, 32px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--white);
+  box-shadow: var(--shadow-soft);
+}
+
+.classroom-event-summary h2 {
+  margin: 7px 0 15px;
+  color: var(--forest);
+  font-family: var(--font-hillside-display), Georgia, serif;
+  font-size: clamp(34px, 5vw, 50px);
+  line-height: 1.05;
+}
+
+.classroom-event-summary > div:not(.toolbar) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+  color: var(--muted);
+}
+
+.classroom-event-summary > div:not(.toolbar) span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.classroom-access-card,
+.classroom-prejoin {
+  display: grid;
+  justify-items: center;
+  max-width: 760px;
+  margin: 30px auto;
+  padding: clamp(30px, 6vw, 60px);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--white);
+  box-shadow: var(--shadow-soft);
+  text-align: center;
+}
+
+.classroom-access-card > svg,
+.classroom-prejoin > svg {
+  color: var(--sage);
+}
+
+.classroom-access-card h1,
+.classroom-prejoin h2 {
+  margin: 12px 0 8px;
+  color: var(--forest);
+  font-family: var(--font-hillside-display), Georgia, serif;
+  font-size: clamp(32px, 6vw, 48px);
+  line-height: 1.05;
+}
+
+.classroom-access-card p,
+.classroom-prejoin p {
+  max-width: 600px;
+  color: var(--muted);
+}
+
+.telnyx-classroom {
+  overflow: hidden;
+  border: 1px solid #2b4231;
+  border-radius: 24px;
+  background: #0f1d14;
+  color: var(--white);
+  box-shadow: 0 24px 70px rgba(15, 29, 20, 0.28);
+}
+
+.classroom-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: clamp(20px, 4vw, 30px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  background: #172b1e;
+}
+
+.classroom-heading h1 {
+  margin: 5px 0 6px;
+  font-family: var(--font-hillside-display), Georgia, serif;
+  font-size: clamp(31px, 5vw, 48px);
+  font-weight: 500;
+  line-height: 1.05;
+}
+
+.classroom-heading p {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: #b9c7bc;
+  font-size: 12px;
+}
+
+.classroom-recording-notice {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 7px 11px;
+  background: #8e3529;
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.telnyx-classroom .classroom-prejoin {
+  margin: 0;
+  max-width: none;
+  min-height: 430px;
+  border: 0;
+  border-radius: 0;
+  background: #101f16;
+  box-shadow: none;
+  color: var(--white);
+}
+
+.telnyx-classroom .classroom-prejoin h2 {
+  color: var(--white);
+}
+
+.telnyx-classroom .classroom-prejoin p {
+  color: #b9c7bc;
+}
+
+.classroom-error {
+  color: #ffc2b8 !important;
+  font-weight: 700;
+}
+
+.classroom-spinner {
+  animation: classroom-spin 0.9s linear infinite;
+}
+
+@keyframes classroom-spin {
+  to { transform: rotate(360deg); }
+}
+
+.classroom-banner {
+  margin: 16px;
+  padding: 12px 15px;
+  border-color: #8e7140;
+  background: #3c321f;
+  color: #f6e8c7;
+  font-size: 13px;
+}
+
+.classroom-grid {
+  min-height: 480px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  align-content: center;
+  gap: 10px;
+  padding: 10px;
+  background: #0b140e;
+}
+
+.classroom-video-tile {
+  position: relative;
+  min-height: 260px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 15px;
+  background: #17231b;
+}
+
+.classroom-video-tile video {
+  width: 100%;
+  height: 100%;
+  min-height: 260px;
+  display: block;
+  object-fit: cover;
+  background: #17231b;
+}
+
+.classroom-video-tile.local video {
+  transform: scaleX(-1);
+}
+
+.classroom-video-tile.screen-preview video {
+  object-fit: contain;
+  transform: none;
+}
+
+.classroom-video-tile span {
+  position: absolute;
+  left: 11px;
+  bottom: 10px;
+  max-width: calc(100% - 22px);
+  overflow: hidden;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(9, 17, 12, 0.78);
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.classroom-controls {
+  position: sticky;
+  bottom: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  padding: 15px max(15px, env(safe-area-inset-right)) calc(15px + env(safe-area-inset-bottom)) max(15px, env(safe-area-inset-left));
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(19, 39, 27, 0.96);
+  backdrop-filter: blur(12px);
+}
+
+.classroom-controls button {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: #294332;
+  color: var(--white);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.classroom-controls button:hover:not(:disabled) {
+  background: #385a43;
+}
+
+.classroom-controls button.leave {
+  background: #9b3527;
+}
+
+.classroom-controls button:disabled {
+  opacity: 0.45;
+}
+
+.classroom-roster {
+  margin-top: 30px;
+}
+
+.host-studio-page .telnyx-classroom {
+  margin-top: 24px;
+}
+
+@media (max-width: 720px) {
+  .free-class-registration-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .free-class-registration {
+    padding: 16px;
+  }
+
+  .class-success-email-note {
+    padding: 18px;
+  }
+
+  .classroom-page {
+    padding-top: 18px;
+  }
+
+  .classroom-event-summary,
+  .telnyx-classroom {
+    border-radius: 17px;
+  }
+
+  .classroom-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .classroom-recording-notice {
+    align-self: flex-start;
+  }
+
+  .classroom-grid {
+    min-height: 360px;
+    grid-template-columns: 1fr;
+  }
+
+  .classroom-video-tile,
+  .classroom-video-tile video {
+    min-height: 220px;
+  }
+
+  .classroom-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .classroom-controls button {
+    width: 100%;
+    padding-inline: 10px;
+  }
+
+  .classroom-controls button.leave:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 420px) {
+  .classroom-controls button span {
+    font-size: 11px;
+  }
+
+  .classroom-video-tile,
+  .classroom-video-tile video {
+    min-height: 190px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .classroom-spinner {
+    animation-duration: 1.8s;
+  }
+}

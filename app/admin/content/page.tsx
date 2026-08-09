@@ -1,10 +1,14 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { AmazonPick, CareSheet, ClassEvent, GalleryItem } from '@prisma/client';
+import { ClassFormat } from '@prisma/client';
 import { isAdmin } from '@/lib/admin';
+import { classFormatLabel, isOnlineClass } from '@/lib/class-access';
 import { db } from '@/lib/db';
+import { telnyxVideoConfigured } from '@/lib/telnyx-video';
 import {
   archiveContent,
+  prepareClassRoom,
   saveAmazonPick,
   saveCareSheet,
   saveClassEvent,
@@ -27,17 +31,32 @@ function ClassFields({ event }: { event?: ClassEvent }) {
       <div className="admin-form-grid">
         <label className="admin-label">Class title<input className="admin-input" name="title" defaultValue={event?.title} required /></label>
         <label className="admin-label">URL slug<input className="admin-input" name="slug" defaultValue={event?.slug || ''} placeholder="created-from-title" /></label>
+        <label className="admin-label">Class format
+          <select className="admin-input" name="format" defaultValue={event?.format || ClassFormat.IN_PERSON}>
+            <option value={ClassFormat.IN_PERSON}>In person</option>
+            <option value={ClassFormat.ONLINE}>Online through Telnyx Video</option>
+            <option value={ClassFormat.HYBRID}>Hybrid: in person + online</option>
+          </select>
+        </label>
+        <label className="admin-label">Location
+          <input className="admin-input" name="location" defaultValue={event?.location || ''} placeholder="Leave blank for an online-only class" />
+        </label>
         <label className="admin-label full">Description<textarea className="admin-input" name="description" rows={4} defaultValue={event?.description} required /></label>
         <label className="admin-label">Date and time<input className="admin-input" name="startsAt" type="datetime-local" defaultValue={localDateTime(event?.startsAt)} required /></label>
         <label className="admin-label">Registration deadline<input className="admin-input" name="registrationDeadline" type="datetime-local" defaultValue={localDateTime(event?.registrationDeadline)} /></label>
-        <label className="admin-label">Location<input className="admin-input" name="location" defaultValue={event?.location} required /></label>
         <label className="admin-label">Price per person<input className="admin-input" name="price" type="number" min="0" step="0.01" defaultValue={event ? (event.priceCents / 100).toFixed(2) : ''} required /></label>
-        <label className="admin-label">Total seats<input className="admin-input" name="capacity" type="number" min="1" defaultValue={event?.capacity ?? 12} required /></label>
+        <label className="admin-label">Total seats<input className="admin-input" name="capacity" type="number" min="1" max="49" defaultValue={event?.capacity ?? 12} required /></label>
         <label className="admin-label">Duration in minutes<input className="admin-input" name="durationMinutes" type="number" min="15" step="15" defaultValue={event?.durationMinutes ?? 90} /></label>
+        <label className="admin-label">Online room opens minutes before class<input className="admin-input" name="joinOpensMinutesBefore" type="number" min="0" max="240" defaultValue={event?.joinOpensMinutesBefore ?? 30} /></label>
+        <label className="admin-label">Online room closes minutes after class<input className="admin-input" name="joinClosesMinutesAfter" type="number" min="0" max="1440" defaultValue={event?.joinClosesMinutesAfter ?? 60} /></label>
+        <label className="admin-label full">Online class instructions<textarea className="admin-input" name="onlineInstructions" rows={3} defaultValue={event?.onlineInstructions || ''} placeholder="Supplies, camera setup, what customers should have ready, or other online-class notes" /></label>
         <label className="admin-label full">What to bring / what is included<textarea className="admin-input" name="whatToBring" rows={2} defaultValue={event?.whatToBring || ''} /></label>
         <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="url" defaultValue={event?.imageUrl || ''} /></label>
       </div>
-      <label className="admin-checkbox" style={{ marginTop: 12 }}><input name="active" type="checkbox" defaultChecked={event?.active ?? true} /> Published and open for registration</label>
+      <div className="admin-actions">
+        <label className="admin-checkbox"><input name="active" type="checkbox" defaultChecked={event?.active ?? true} /> Published and open for registration</label>
+        <label className="admin-checkbox"><input name="telnyxRecordingEnabled" type="checkbox" defaultChecked={event?.telnyxRecordingEnabled ?? false} /> Enable Telnyx room recording and show participant notice</label>
+      </div>
     </>
   );
 }
@@ -105,6 +124,7 @@ export default async function ContentManager() {
     db.amazonPick.findMany({ orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { title: 'asc' }] }),
     db.careSheet.findMany({ orderBy: [{ published: 'desc' }, { plantName: 'asc' }] })
   ]);
+  const telnyxReady = telnyxVideoConfigured();
 
   return (
     <div className="adminshell">
@@ -124,25 +144,67 @@ export default async function ContentManager() {
         <p className="muted">Use the forms below to publish and update content without changing code.</p>
         <div className="statgrid">
           <div className="stat"><span>Classes</span><strong>{classes.filter((item) => item.active).length}</strong></div>
+          <div className="stat"><span>Online classes</span><strong>{classes.filter((item) => item.active && isOnlineClass(item.format)).length}</strong></div>
           <div className="stat"><span>Gallery photos</span><strong>{gallery.length}</strong></div>
           <div className="stat"><span>Amazon picks</span><strong>{picks.filter((item) => item.active).length}</strong></div>
-          <div className="stat"><span>Published care sheets</span><strong>{sheets.filter((item) => item.published).length}</strong></div>
+          <div className="stat"><span>Care sheets</span><strong>{sheets.filter((item) => item.published).length}</strong></div>
+          <div className="stat"><span>Telnyx Video</span><strong>{telnyxReady ? 'Ready' : 'Setup'}</strong></div>
         </div>
 
         <section className="admin-section" id="classes">
-          <div className="toolbar"><div><h2>Planter classes</h2><p className="muted">Classes with a price above $0 can be reserved and paid through Stripe.</p></div><Link className="btn outline small" href="/classes">View public classes</Link></div>
-          <div className="admin-list">
-            {classes.map((event) => (
-              <details key={event.id}>
-                <summary><span>{event.title} • {event.startsAt.toLocaleString()}</span><span className={`status-badge ${event.active ? 'PAID' : 'CANCELLED'}`}>{event.active ? 'Published' : 'Archived'}</span></summary>
-                <div>
-                  <form action={saveClassEvent}><ClassFields event={event} /><div className="admin-actions"><button className="btn small">Save class</button></div></form>
-                  {event.active && <form action={archiveContent} style={{ marginTop: 10 }}><input type="hidden" name="id" value={event.id} /><input type="hidden" name="kind" value="class" /><button className="text-button danger">Archive class</button></form>}
-                </div>
-              </details>
-            ))}
+          <div className="toolbar">
+            <div>
+              <h2>In-person and online classes</h2>
+              <p className="muted">Paid classes use Stripe. Free classes use the website signup form. Online customers receive a private Telnyx classroom link by email.</p>
+            </div>
+            <Link className="btn outline small" href="/classes">View public classes</Link>
           </div>
-          <div className="admin-card" style={{ marginTop: 20 }}><h2 style={{ marginTop: 0 }}>Add a class</h2><form action={saveClassEvent}><ClassFields /><button className="btn" style={{ marginTop: 16 }}>Publish class</button></form></div>
+          {!telnyxReady && (
+            <div className="admin-card telnyx-setup-warning">
+              <b>Telnyx Video needs one Railway variable.</b>
+              <p>Add <code>TELNYX_API_KEY</code> to the Hillside web service before publishing an online class. Class content can still be saved now.</p>
+            </div>
+          )}
+          <div className="admin-list">
+            {classes.map((event) => {
+              const online = isOnlineClass(event.format);
+              return (
+                <details key={event.id}>
+                  <summary>
+                    <span>{event.title} • {classFormatLabel(event.format)} • {event.startsAt.toLocaleString()}</span>
+                    <span className={`status-badge ${event.active ? 'PAID' : 'CANCELLED'}`}>{event.active ? 'Published' : 'Archived'}</span>
+                  </summary>
+                  <div>
+                    {online && (
+                      <div className="telnyx-room-status">
+                        <span><b>Telnyx room:</b> {event.telnyxRoomId ? 'Prepared' : 'Not prepared yet'}</span>
+                        <span><b>Recording:</b> {event.telnyxRecordingEnabled ? 'Enabled' : 'Off'}</span>
+                      </div>
+                    )}
+                    <form action={saveClassEvent}>
+                      <ClassFields event={event} />
+                      <div className="admin-actions">
+                        <button className="btn small">Save class</button>
+                        {online && <Link className="btn outline small" href={`/admin/classes/${event.id}/studio`}>Open host studio</Link>}
+                      </div>
+                    </form>
+                    {online && (
+                      <form action={prepareClassRoom} style={{ marginTop: 10 }}>
+                        <input type="hidden" name="id" value={event.id} />
+                        <button className="text-button">Prepare or repair Telnyx room</button>
+                      </form>
+                    )}
+                    {event.active && <form action={archiveContent} style={{ marginTop: 10 }}><input type="hidden" name="id" value={event.id} /><input type="hidden" name="kind" value="class" /><button className="text-button danger">Archive class</button></form>}
+                  </div>
+                </details>
+              );
+            })}
+          </div>
+          <div className="admin-card" style={{ marginTop: 20 }}>
+            <h2 style={{ marginTop: 0 }}>Add a class</h2>
+            <p className="muted">Choose Online or Hybrid to automatically prepare a private Telnyx Video room.</p>
+            <form action={saveClassEvent}><ClassFields /><button className="btn" style={{ marginTop: 16 }}>Publish class</button></form>
+          </div>
         </section>
 
         <section className="admin-section" id="gallery">

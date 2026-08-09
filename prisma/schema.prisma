@@ -37,6 +37,12 @@ enum MessageStatus {
   ARCHIVED
 }
 
+enum ClassFormat {
+  IN_PERSON
+  ONLINE
+  HYBRID
+}
+
 model Product {
   id               String      @id @default(cuid())
   name             String
@@ -123,36 +129,45 @@ model CareSheet {
 }
 
 model ClassEvent {
-  id                   String              @id @default(cuid())
-  slug                 String?             @unique
-  title                String
-  description          String
-  startsAt             DateTime
-  location             String
-  priceCents           Int
-  capacity             Int
-  durationMinutes      Int                 @default(90)
-  whatToBring          String?
-  registrationDeadline DateTime?
-  imageUrl             String?
-  active               Boolean             @default(true)
-  registrations        ClassRegistration[]
+  id                     String              @id @default(cuid())
+  slug                   String?             @unique
+  title                  String
+  description            String
+  startsAt               DateTime
+  location               String
+  format                 ClassFormat         @default(IN_PERSON)
+  priceCents             Int
+  capacity               Int
+  durationMinutes        Int                 @default(90)
+  whatToBring            String?
+  registrationDeadline   DateTime?
+  imageUrl               String?
+  active                 Boolean             @default(true)
+  onlineInstructions     String?
+  telnyxRoomId           String?             @unique
+  telnyxRecordingEnabled Boolean             @default(false)
+  joinOpensMinutesBefore Int                 @default(30)
+  joinClosesMinutesAfter Int                 @default(60)
+  registrations          ClassRegistration[]
 }
 
 model ClassRegistration {
-  id                String             @id @default(cuid())
-  classEventId      String
-  stripeSessionId   String             @unique
-  paymentIntentId   String?            @unique
-  name              String
-  email             String
-  phone             String?
-  seats             Int                @default(1)
-  amountCents       Int
-  status            RegistrationStatus @default(PENDING)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  classEvent        ClassEvent         @relation(fields: [classEventId], references: [id], onDelete: Cascade)
+  id                      String             @id @default(cuid())
+  classEventId            String
+  stripeSessionId         String             @unique
+  paymentIntentId         String?            @unique
+  name                    String
+  email                   String
+  phone                   String?
+  seats                   Int                @default(1)
+  amountCents             Int
+  status                  RegistrationStatus @default(PENDING)
+  joinTokenHash           String?            @unique
+  confirmationEmailSentAt DateTime?
+  lastJoinedAt            DateTime?
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  classEvent              ClassEvent         @relation(fields: [classEventId], references: [id], onDelete: Cascade)
 }
 
 model GalleryItem {
