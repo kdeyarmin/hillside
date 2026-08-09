@@ -43,6 +43,13 @@ enum ClassFormat {
   HYBRID
 }
 
+enum CareGuideType {
+  PLANT
+  GENERAL
+  PROBLEM
+  SEASONAL
+}
+
 model Product {
   id               String      @id @default(cuid())
   name             String
@@ -109,23 +116,33 @@ model OrderItem {
 }
 
 model CareSheet {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   plantName   String
-  slug        String   @unique
+  slug        String        @unique
+  guideType   CareGuideType @default(PLANT)
+  category    String?
+  difficulty  String?
   botanical   String?
   summary     String
-  light       String
-  water       String
-  humidity    String
-  soil        String
-  feeding     String
-  temperature String
+  light       String        @default("")
+  water       String        @default("")
+  humidity    String        @default("")
+  soil        String        @default("")
+  feeding     String        @default("")
+  temperature String        @default("")
   petSafety   String?
   tips        String
+  symptoms    String?
+  causes      String?
+  treatment   String?
+  prevention  String?
+  checklist   String?
   imageUrl    String?
-  published   Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  featured    Boolean       @default(false)
+  sortOrder   Int           @default(0)
+  published   Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 }
 
 model ClassEvent {
