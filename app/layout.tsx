@@ -7,6 +7,7 @@ import './homepage-fixes.css';
 import './brand-mockups.css';
 import './brand-mockups-pages.css';
 import './responsive-hardening.css';
+import './responsive-audit-fixes.css';
 import type { Metadata, Viewport } from 'next';
 import { Cormorant_Garamond, Manrope } from 'next/font/google';
 import { CartProvider } from '@/components/CartProvider';
