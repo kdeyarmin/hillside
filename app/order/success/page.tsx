@@ -23,7 +23,7 @@ export default async function Success({
       const invoiceId = typeof session.invoice === 'string' ? session.invoice : session.invoice?.id;
       if (invoiceId) {
         const invoice = await stripe.invoices.retrieve(invoiceId);
-        invoiceUrl = invoice.hosted_invoice_url;
+        invoiceUrl = invoice.hosted_invoice_url || null;
       }
     } catch (error) {
       console.error('Unable to load checkout confirmation', error);
