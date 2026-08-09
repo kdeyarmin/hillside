@@ -197,7 +197,7 @@ export function SiteFooter() {
             Plants, teas and botanicals chosen with care, plus approachable education to help you grow
             with confidence.
           </p>
-          <a href="mailto:hello@thehillsidegarden.com">hello@thehillsidegarden.com</a>
+          <a href="mailto:hello@thehillsidegardens.com">hello@thehillsidegardens.com</a>
         </div>
         <div>
           <h4>Explore</h4>
