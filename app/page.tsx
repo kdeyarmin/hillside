@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { ArrowRight, Heart, Leaf, Package, Sparkles, Sprout } from 'lucide-react';
-import BrandMockupScene, { type BrandMockupVariant } from '@/components/BrandMockupScene';
+import BrandMockupScene, {
+  type BrandMockupVariant,
+  type HillsideCatalogImage
+} from '@/components/BrandMockupScene';
 import BrandedProductVisual from '@/components/BrandedProductVisual';
 import NewsletterForm from '@/components/NewsletterForm';
 import { classFormatLabel, classLocationLabel, isOnlineClass } from '@/lib/class-access';
@@ -13,25 +16,78 @@ const collections: Array<{
   title: string;
   subtitle: string;
   variant: BrandMockupVariant;
+  catalogImage: HillsideCatalogImage;
   href: string;
 }> = [
   {
-    title: 'Plants',
+    title: 'House Plants',
     subtitle: 'Living beauty for every room',
     variant: 'plants',
+    catalogImage: 'house-plants',
     href: '/shop?category=PLANT'
   },
   {
-    title: 'Teas & Herbals',
-    subtitle: 'A slower botanical ritual',
-    variant: 'tea',
-    href: '/shop?category=TEA'
+    title: 'Carnivorous Plants',
+    subtitle: 'Wild, unusual & wonderfully alive',
+    variant: 'plants',
+    catalogImage: 'carnivorous-plants',
+    href: '/shop?category=PLANT'
   },
   {
-    title: 'Botanicals',
-    subtitle: 'Small-batch soaps and lotions',
+    title: 'Live Plant Planters',
+    subtitle: 'Arrangements made to feel at home',
+    variant: 'plants',
+    catalogImage: 'live-plant-planters',
+    href: '/shop?category=PLANT'
+  },
+  {
+    title: 'Succulents',
+    subtitle: 'Sculptural greens in easygoing forms',
+    variant: 'plants',
+    catalogImage: 'succulents',
+    href: '/shop?category=PLANT'
+  },
+  {
+    title: 'Air Plants',
+    subtitle: 'Small plants with big personality',
+    variant: 'plants',
+    catalogImage: 'air-plants',
+    href: '/shop?category=PLANT'
+  },
+  {
+    title: 'Homemade Soaps',
+    subtitle: 'Small-batch botanical bars',
     variant: 'botanicals',
+    catalogImage: 'homemade-soaps',
     href: '/shop?category=SOAP'
+  },
+  {
+    title: 'Moss',
+    subtitle: 'Natural texture for creative projects',
+    variant: 'picks',
+    catalogImage: 'moss',
+    href: '/shop'
+  },
+  {
+    title: 'Driftwood',
+    subtitle: 'One-of-a-kind natural forms',
+    variant: 'picks',
+    catalogImage: 'driftwood',
+    href: '/shop'
+  },
+  {
+    title: 'Apothecary',
+    subtitle: 'Thoughtful botanical goods & rituals',
+    variant: 'botanicals',
+    catalogImage: 'apothecary',
+    href: '/shop'
+  },
+  {
+    title: 'Terrarium Supplies',
+    subtitle: 'Everything for a tiny living world',
+    variant: 'picks',
+    catalogImage: 'terrarium-supplies',
+    href: '/shop'
   }
 ];
 
@@ -66,8 +122,8 @@ export default async function Home() {
             <span />
           </div>
           <p>
-            Explore hand-selected plants, comforting teas and thoughtfully made botanicals to
-            nurture your home and your everyday rituals.
+            Explore hand-selected plants, living arrangements, terrarium supplies, handmade soaps
+            and botanical goods chosen to make everyday spaces feel warmer and more personal.
           </p>
           <div className="actions">
             <Link className="btn editorial-btn" href="/shop">
@@ -78,7 +134,11 @@ export default async function Home() {
             </Link>
           </div>
         </div>
-        <BrandMockupScene variant="hero" className="editorial-hero-image" />
+        <BrandMockupScene
+          variant="hero"
+          catalogImage="house-plants"
+          className="editorial-hero-image"
+        />
       </section>
 
       <section className="trust-strip" aria-label="Why shop The Hillside Gardens">
@@ -118,8 +178,8 @@ export default async function Home() {
             <div className="eyebrow">Shop the garden</div>
             <h2>Bring a little Hillside home.</h2>
             <p>
-              Plants, teas and botanical goods selected to make everyday spaces feel warmer,
-              greener and more personal.
+              Discover the plants, handmade goods and natural supplies that make The Hillside
+              Gardens collection distinctive.
             </p>
           </div>
           <div className="editorial-collections">
@@ -127,7 +187,8 @@ export default async function Home() {
               <Link className="editorial-collection" href={collection.href} key={collection.title}>
                 <BrandMockupScene
                   variant={collection.variant}
-                  alt={`${collection.title} from The Hillside Gardens shown with the approved logo`}
+                  catalogImage={collection.catalogImage}
+                  alt={`${collection.title} from The Hillside Gardens in branded product photography`}
                 />
                 <div>
                   <span>{collection.subtitle}</span>
@@ -187,7 +248,7 @@ export default async function Home() {
       <section className="section tammy-story home-story-section">
         <div className="container split">
           <div className="story-photo">
-            <BrandMockupScene variant="about" />
+            <BrandMockupScene variant="about" catalogImage="live-plant-planters" />
           </div>
           <div>
             <div className="eyebrow">Grow with confidence</div>
@@ -237,6 +298,7 @@ export default async function Home() {
                   <article className="class-editorial" key={event.id}>
                     <BrandMockupScene
                       variant="class"
+                      catalogImage="live-plant-planters"
                       backgroundSrc={event.imageUrl || undefined}
                       alt={`${event.title} workshop materials branded for The Hillside Gardens`}
                     />
