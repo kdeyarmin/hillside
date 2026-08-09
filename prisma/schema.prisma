@@ -1,0 +1,114 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProductType { PLANT TEA TEA_SUPPLY LOTION SOAP OTHER }
+enum OrderStatus { PENDING PAID FULFILLED CANCELLED REFUNDED }
+
+model Product {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String      @unique
+  description String
+  type        ProductType
+  priceCents  Int
+  inventory   Int         @default(0)
+  imageUrl    String?
+  active      Boolean     @default(true)
+  featured    Boolean     @default(false)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  items       OrderItem[]
+}
+
+model Order {
+  id                String      @id @default(cuid())
+  invoiceNumber     String      @unique
+  stripeSessionId   String?     @unique
+  status            OrderStatus @default(PENDING)
+  customerName      String
+  email             String
+  phone             String?
+  address1          String
+  address2          String?
+  city              String
+  state             String
+  postalCode        String
+  country           String      @default("US")
+  subtotalCents     Int
+  shippingCents     Int         @default(0)
+  taxCents          Int         @default(0)
+  totalCents        Int
+  trackingNumber    String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  items             OrderItem[]
+}
+
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  productId   String
+  name        String
+  quantity    Int
+  unitCents   Int
+  order       Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product @relation(fields: [productId], references: [id])
+}
+
+model CareSheet {
+  id          String   @id @default(cuid())
+  plantName   String
+  slug        String   @unique
+  botanical   String?
+  summary     String
+  light       String
+  water       String
+  humidity    String
+  soil        String
+  feeding     String
+  temperature String
+  petSafety   String?
+  tips        String
+  imageUrl    String?
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ClassEvent {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  startsAt    DateTime
+  location    String
+  priceCents  Int
+  capacity    Int
+  imageUrl    String?
+  active      Boolean  @default(true)
+}
+
+model GalleryItem {
+  id        String   @id @default(cuid())
+  title     String
+  imageUrl  String
+  caption   String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+model AmazonPick {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  imageUrl    String?
+  amazonUrl   String
+  category    String?
+  active      Boolean  @default(true)
+  sortOrder   Int      @default(0)
+}
