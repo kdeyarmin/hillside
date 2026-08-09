@@ -69,6 +69,8 @@ const approvedPhotos: Record<BrandMockupVariant, ApprovedPhoto> = {
   }
 };
 
+const responsiveWidths = [480, 720, 960, 1200, 1500, 1800];
+
 function isOwnerProvidedPhoto(source?: string | null) {
   if (!source?.trim()) return false;
 
@@ -82,6 +84,34 @@ function isOwnerProvidedPhoto(source?: string | null) {
   );
 }
 
+function buildUnsplashSrcSet(source: string) {
+  try {
+    const parsed = new URL(source);
+    if (parsed.hostname !== 'images.unsplash.com') return undefined;
+
+    return responsiveWidths
+      .map((width) => {
+        const candidate = new URL(parsed);
+        candidate.searchParams.set('auto', 'format');
+        candidate.searchParams.set('fit', 'crop');
+        candidate.searchParams.set('w', String(width));
+        candidate.searchParams.set('q', width <= 720 ? '78' : '86');
+        return `${candidate.toString()} ${width}w`;
+      })
+      .join(', ');
+  } catch {
+    return undefined;
+  }
+}
+
+function responsiveSizes(variant: BrandMockupVariant) {
+  if (variant === 'hero') return '(max-width: 900px) 100vw, 57vw';
+  if (variant === 'plants' || variant === 'tea' || variant === 'botanicals' || variant === 'gifts') {
+    return '(max-width: 620px) calc(100vw - 24px), (max-width: 1060px) 50vw, 33vw';
+  }
+  return '(max-width: 900px) calc(100vw - 32px), 50vw';
+}
+
 export default function BrandMockupScene({
   variant,
   className = '',
@@ -91,6 +121,7 @@ export default function BrandMockupScene({
   const approvedPhoto = approvedPhotos[variant];
   const ownerProvided = isOwnerProvidedPhoto(backgroundSrc);
   const source = ownerProvided ? backgroundSrc! : approvedPhoto.src;
+  const srcSet = ownerProvided ? undefined : buildUnsplashSrcSet(source);
 
   return (
     <div
@@ -101,18 +132,21 @@ export default function BrandMockupScene({
       <ResilientImage
         className="brand-mockup-background"
         src={source}
+        srcSet={srcSet}
+        sizes={srcSet ? responsiveSizes(variant) : undefined}
         fallbackSrc="/images/botanical-placeholder.svg"
         alt=""
         aria-hidden="true"
         width={1600}
         height={1200}
         loading={variant === 'hero' ? 'eager' : 'lazy'}
+        fetchPriority={variant === 'hero' ? 'high' : 'auto'}
         decoding="async"
       />
       <span className="brand-mockup-wash" aria-hidden="true" />
       {!ownerProvided && (
         <span className="brand-photo-badge" aria-hidden="true">
-          <img src="/logo.svg" alt="" />
+          <img src="/logo.svg" alt="" width="720" height="658" loading="lazy" />
         </span>
       )}
     </div>
