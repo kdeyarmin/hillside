@@ -1,15 +1,15 @@
-/* Reusable branded lifestyle mockups using the approved Hillside logo. */
+/* Approved photographic brand imagery for The Hillside Gardens. */
 .brand-mockup-scene {
   position: relative;
   isolation: isolate;
+  display: block;
+  width: 100%;
   min-width: 0;
   min-height: 360px;
   overflow: hidden;
-  border-radius: 3px;
-  background:
-    radial-gradient(circle at 78% 18%, rgba(255, 255, 255, 0.55), transparent 34%),
-    linear-gradient(135deg, #eee8dc 0%, #b8c1ad 55%, #55705c 100%);
-  box-shadow: 0 20px 52px rgba(20, 41, 28, 0.12);
+  border-radius: 4px;
+  background: #dfe4d8;
+  box-shadow: 0 18px 46px rgba(20, 41, 28, 0.12);
 }
 
 .brand-mockup-background,
@@ -21,610 +21,213 @@
 }
 
 .brand-mockup-background {
-  z-index: -3;
+  z-index: 0;
+  display: block;
   object-fit: cover;
   object-position: center;
-  filter: saturate(0.88) contrast(0.96) brightness(1.02);
-  transform: scale(1.015);
+  filter: none;
+  transform: scale(1.002);
+  transition: transform 0.45s ease;
 }
 
 .brand-mockup-wash {
-  z-index: -2;
-  background:
-    linear-gradient(90deg, rgba(247, 244, 236, 0.12), transparent 42%),
-    linear-gradient(0deg, rgba(17, 42, 25, 0.08), transparent 48%);
+  z-index: 1;
   pointer-events: none;
+  background: linear-gradient(180deg, rgba(18, 40, 25, 0.015), rgba(18, 40, 25, 0.055));
 }
 
 .brand-mockup-scene::after {
   content: '';
   position: absolute;
   inset: 0;
-  z-index: 20;
-  border: 1px solid rgba(255, 255, 255, 0.22);
+  z-index: 2;
+  border: 1px solid rgba(32, 63, 43, 0.12);
   border-radius: inherit;
   pointer-events: none;
 }
 
-.mockup-logo-label {
-  position: absolute;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-  border: 1px solid rgba(161, 132, 78, 0.58);
-  border-radius: 6px;
-  background: rgba(249, 246, 237, 0.97);
-  box-shadow: 0 8px 22px rgba(54, 37, 20, 0.13);
+.brand-mockup-hero .brand-mockup-background,
+.brand-mockup-shipping .brand-mockup-background {
+  object-position: 52% center;
 }
 
-.mockup-logo-label img {
-  width: 86%;
-  height: 86%;
-  object-fit: contain;
+.brand-mockup-plants .brand-mockup-background,
+.brand-mockup-about .brand-mockup-background {
+  object-position: 62% center;
 }
 
-.mockup-pouch {
-  position: absolute;
-  z-index: 4;
-  width: clamp(150px, 28%, 330px);
-  aspect-ratio: 0.69;
-  border: 1px solid rgba(100, 67, 35, 0.42);
-  border-radius: 12px 12px 18px 18px;
-  background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.2), transparent 10% 88%, rgba(79, 47, 22, 0.13)),
-    repeating-linear-gradient(0deg, rgba(75, 46, 23, 0.035) 0 1px, transparent 1px 4px),
-    #c4965f;
-  box-shadow: 0 24px 45px rgba(40, 28, 16, 0.28);
-  transform: rotate(-1.5deg);
+.brand-mockup-tea .brand-mockup-background {
+  object-position: 62% center;
 }
 
-.mockup-pouch::before,
-.mockup-pouch::after {
-  content: '';
-  position: absolute;
-  left: 8%;
-  right: 8%;
-  height: 2px;
-  background: rgba(111, 72, 35, 0.46);
+.brand-mockup-botanicals .brand-mockup-background,
+.brand-mockup-gifts .brand-mockup-background {
+  object-position: 66% center;
 }
 
-.mockup-pouch::before { top: 9%; }
-.mockup-pouch::after { top: 12%; background: rgba(244, 218, 174, 0.52); }
-
-.mockup-pouch-seal {
-  position: absolute;
-  top: 3.5%;
-  left: 7%;
-  right: 7%;
-  height: 4.5%;
-  border-radius: 4px;
-  background: rgba(120, 78, 38, 0.2);
+.brand-mockup-class .brand-mockup-background,
+.brand-mockup-care .brand-mockup-background,
+.brand-mockup-picks .brand-mockup-background {
+  object-position: 55% center;
 }
 
-.mockup-pouch > .mockup-logo-label {
-  top: 18%;
-  left: 12%;
-  width: 76%;
-  height: 43%;
-}
-
-.mockup-pouch-window {
-  position: absolute;
-  left: 13%;
-  right: 13%;
-  bottom: 11%;
-  height: 23%;
-  overflow: hidden;
-  border: 1px solid rgba(245, 224, 188, 0.42);
-  border-radius: 8px;
-  background:
-    radial-gradient(circle at 22% 26%, #9a6d38 0 3%, transparent 4%),
-    radial-gradient(circle at 68% 35%, #354d2d 0 4%, transparent 5%),
-    radial-gradient(circle at 42% 72%, #b3864f 0 4%, transparent 5%),
-    radial-gradient(circle at 78% 78%, #6f4b29 0 4%, transparent 5%),
-    repeating-linear-gradient(35deg, #35452d 0 3px, #76502f 3px 7px, #a87942 7px 10px);
-  box-shadow: inset 0 4px 12px rgba(25, 18, 10, 0.34);
-}
-
-.mockup-pouch-window i {
-  position: absolute;
-  width: 13%;
-  aspect-ratio: 1;
-  border-radius: 50% 12% 50% 18%;
-  background: rgba(208, 158, 85, 0.65);
-  transform: rotate(35deg);
-}
-
-.mockup-pouch-window i:nth-child(1) { left: 9%; top: 18%; }
-.mockup-pouch-window i:nth-child(2) { left: 29%; top: 58%; background: rgba(72, 105, 61, 0.76); }
-.mockup-pouch-window i:nth-child(3) { left: 48%; top: 17%; }
-.mockup-pouch-window i:nth-child(4) { left: 69%; top: 47%; background: rgba(67, 87, 48, 0.78); }
-.mockup-pouch-window i:nth-child(5) { left: 82%; top: 12%; }
-.mockup-pouch-window i:nth-child(6) { left: 53%; top: 66%; background: rgba(193, 125, 59, 0.72); }
-.mockup-pouch-window i:nth-child(7) { left: 14%; top: 70%; background: rgba(58, 76, 42, 0.72); }
-
-.mockup-candle {
-  position: absolute;
-  z-index: 5;
-  width: clamp(120px, 20%, 245px);
-  aspect-ratio: 0.82;
-  border: 1px solid rgba(53, 29, 14, 0.62);
-  border-radius: 17% 17% 23% 23%;
-  background:
-    linear-gradient(90deg, rgba(255, 210, 142, 0.23), transparent 18% 75%, rgba(30, 14, 5, 0.22)),
-    #4c2612;
-  box-shadow: 0 25px 40px rgba(38, 24, 14, 0.31);
-}
-
-.mockup-candle::before {
-  content: '';
-  position: absolute;
-  left: -2%;
-  right: -2%;
-  top: 2%;
-  height: 10%;
-  border: 3px solid rgba(31, 15, 7, 0.65);
-  border-radius: 50%;
-  background: #6e3d20;
-}
-
-.mockup-candle > .mockup-logo-label {
-  left: 10%;
-  right: 10%;
-  bottom: 8%;
-  height: 54%;
-}
-
-.mockup-candle-flame {
-  position: absolute;
-  z-index: 2;
-  top: -12%;
-  left: 48%;
-  width: 7%;
-  height: 16%;
-  border-radius: 90% 8% 90% 10%;
-  background: #f5c55f;
-  box-shadow: 0 0 14px 5px rgba(244, 184, 71, 0.35);
-  transform: rotate(40deg);
-}
-
-.mockup-mug {
-  position: absolute;
-  z-index: 3;
-  width: clamp(105px, 17%, 210px);
-  aspect-ratio: 1.05;
-  border: 1px solid rgba(108, 93, 73, 0.34);
-  border-radius: 12% 12% 23% 23%;
-  background: linear-gradient(95deg, #f4efe4, #cfc5b5);
-  box-shadow: 0 20px 35px rgba(50, 38, 25, 0.19);
-}
-
-.mockup-mug::before {
-  content: '';
-  position: absolute;
-  top: 23%;
-  right: -34%;
-  width: 45%;
-  height: 48%;
-  border: clamp(9px, 1.2vw, 16px) solid #d8d0c2;
-  border-left: 0;
-  border-radius: 0 70% 70% 0;
-}
-
-.mockup-mug i {
-  position: absolute;
-  left: 8%;
-  right: 8%;
-  top: 4%;
-  height: 13%;
-  border-radius: 50%;
-  background: #947052;
-  box-shadow: inset 0 2px 4px rgba(45, 25, 14, 0.35);
-}
-
-.mockup-booklet {
-  position: absolute;
-  z-index: 5;
-  width: clamp(175px, 34%, 390px);
-  aspect-ratio: 0.78;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 1.8%;
-  padding: 8% 7% 7% 11%;
-  border: 1px solid rgba(156, 135, 99, 0.52);
-  border-radius: 5px 11px 11px 5px;
-  background: rgba(248, 245, 236, 0.97);
-  box-shadow: 0 24px 44px rgba(32, 38, 25, 0.24);
-  color: var(--forest);
-  transform: rotate(-4deg);
-}
-
-.mockup-booklet-spine {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 8%;
-  background: var(--forest);
-  border-radius: 5px 0 0 5px;
-}
-
-.mockup-booklet img {
-  position: absolute;
-  top: 7%;
-  left: 13%;
-  width: 77%;
-  height: 59%;
-  object-fit: contain;
-}
-
-.mockup-booklet b {
-  font-family: var(--hillside-sans);
-  font-size: clamp(8px, 1.05vw, 14px);
-  letter-spacing: 0.12em;
-  text-align: center;
-}
-
-.mockup-booklet small {
-  font-size: clamp(7px, 0.8vw, 11px);
-  text-align: center;
-  color: #6d766d;
-}
-
-.mockup-booklet i {
-  width: 72%;
-  height: 2px;
-  margin-top: 4%;
-  background: var(--gold);
-}
-
-.mockup-plant-tag {
-  position: absolute;
-  z-index: 6;
-  width: clamp(72px, 14%, 145px);
-  aspect-ratio: 0.77;
-  display: grid;
-  place-items: center;
-  padding: 8%;
-  border: 1px solid rgba(161, 138, 98, 0.58);
-  border-radius: 5px;
-  background: rgba(249, 246, 237, 0.98);
-  box-shadow: 0 13px 25px rgba(29, 38, 25, 0.2);
-  transform: rotate(4deg);
-}
-
-.mockup-plant-tag::before {
-  content: '';
-  position: absolute;
-  top: -42%;
-  left: 49%;
-  width: 2px;
-  height: 43%;
-  background: #8e8068;
-}
-
-.mockup-plant-tag img { width: 100%; height: 100%; object-fit: contain; }
-
-.mockup-bottle {
-  position: absolute;
-  z-index: 4;
-  width: clamp(125px, 23%, 260px);
-  aspect-ratio: 0.56;
-  border: 1px solid rgba(56, 28, 11, 0.55);
-  border-radius: 27% 27% 12% 12% / 13% 13% 8% 8%;
-  background:
-    linear-gradient(90deg, rgba(255, 201, 119, 0.24), transparent 20% 76%, rgba(41, 17, 4, 0.25)),
-    #67330f;
-  box-shadow: 0 24px 42px rgba(42, 25, 14, 0.25);
-}
-
-.mockup-bottle.small { width: clamp(72px, 12%, 140px); }
-
-.mockup-bottle-cap {
-  position: absolute;
-  top: -12%;
-  left: 29%;
-  width: 42%;
-  height: 15%;
-  border-radius: 7px 7px 3px 3px;
-  background: #171713;
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.06);
-}
-
-.mockup-bottle > .mockup-logo-label {
-  left: 10%;
-  right: 10%;
-  top: 36%;
-  height: 43%;
-}
-
-.mockup-soap {
-  position: absolute;
-  z-index: 6;
-  width: clamp(120px, 25%, 270px);
-  aspect-ratio: 1.65;
-  border: 1px solid rgba(128, 103, 68, 0.45);
-  border-radius: 18px;
-  background: linear-gradient(135deg, #e7dcc4, #cbb892);
-  box-shadow: 0 20px 35px rgba(44, 31, 18, 0.23);
-  transform: rotate(5deg);
-}
-
-.mockup-soap > .mockup-logo-label {
-  top: 11%;
-  bottom: 11%;
-  left: 21%;
-  right: 21%;
-}
-
-.mockup-brand-card {
-  position: absolute;
-  z-index: 8;
-  width: clamp(190px, 37%, 430px);
-  min-height: clamp(92px, 16%, 165px);
-  display: grid;
-  grid-template-columns: 36% 1fr;
-  align-items: center;
-  gap: 5%;
-  padding: 3.5% 4%;
-  border: 1px solid rgba(164, 143, 105, 0.5);
-  border-radius: 9px;
-  background: rgba(250, 247, 239, 0.98);
-  box-shadow: 0 18px 36px rgba(34, 34, 24, 0.22);
-  color: var(--forest);
-  transform: rotate(3deg);
-}
-
-.mockup-brand-card img {
-  width: 100%;
-  height: clamp(62px, 11vw, 120px);
-  object-fit: contain;
-}
-
-.mockup-brand-card span { min-width: 0; }
-.mockup-brand-card b {
-  display: block;
-  font-family: var(--hillside-sans);
-  font-size: clamp(8px, 1.05vw, 14px);
-  line-height: 1.25;
-  letter-spacing: 0.08em;
-}
-.mockup-brand-card small {
-  display: block;
-  margin-top: 6px;
-  color: #6d766d;
-  font-size: clamp(7px, 0.82vw, 11px);
-  line-height: 1.35;
-}
-
-.mockup-seal {
-  position: absolute;
-  z-index: 7;
-  width: 28%;
-  aspect-ratio: 1;
-  display: grid;
-  place-items: center;
-  padding: 2.5%;
-  border: 4px solid var(--gold);
-  border-radius: 50%;
-  background: rgba(249, 246, 237, 0.99);
-  box-shadow: 0 12px 26px rgba(44, 30, 18, 0.21);
-  transform: rotate(-7deg);
-}
-
-.mockup-seal img { width: 100%; height: 100%; object-fit: contain; }
-
-.mockup-package {
-  position: absolute;
-  z-index: 4;
-  width: clamp(230px, 46%, 520px);
-  aspect-ratio: 1.32;
-  border: 1px solid rgba(104, 72, 37, 0.48);
-  border-radius: 7px;
-  background:
-    repeating-linear-gradient(25deg, rgba(84, 55, 28, 0.025) 0 2px, transparent 2px 6px),
-    #c69a66;
-  box-shadow: 0 25px 45px rgba(44, 31, 18, 0.27);
-  transform: rotate(-6deg);
-}
-
-.mockup-package::before {
-  content: '';
-  position: absolute;
-  inset: 7%;
-  border: 1px solid rgba(91, 57, 28, 0.17);
-}
-
-.mockup-package-ribbon {
-  position: absolute;
-  z-index: 2;
-  background: rgba(123, 88, 51, 0.75);
-}
-.mockup-package-ribbon.horizontal { left: 0; right: 0; top: 47%; height: 5%; }
-.mockup-package-ribbon.vertical { top: 0; bottom: 0; left: 48%; width: 5%; }
-.mockup-package > .mockup-seal { left: 36%; top: 31%; }
-
-/* Per-scene composition */
-.brand-mockup-hero { min-height: 560px; border-radius: 0; box-shadow: none; }
-.brand-mockup-hero .brand-mockup-background { object-position: 55% center; }
-.brand-mockup-hero .mockup-pouch { left: 30%; bottom: 5%; width: 32%; }
-.brand-mockup-hero .mockup-candle { right: 13%; bottom: 4%; width: 23%; }
-.brand-mockup-hero .mockup-mug { right: -1%; bottom: 5%; width: 18%; }
-
-.brand-mockup-plants .brand-mockup-background { object-position: 55% center; }
-.brand-mockup-plants .mockup-booklet { left: 5%; bottom: 3%; width: 35%; }
-.brand-mockup-plants .mockup-plant-tag { right: 20%; bottom: 19%; }
-
-.brand-mockup-tea .brand-mockup-background { object-position: 55% center; }
-.brand-mockup-tea .mockup-pouch { left: 5%; bottom: 5%; width: 34%; }
-.brand-mockup-tea .mockup-brand-card { right: 4%; bottom: 5%; width: 39%; }
-
-.brand-mockup-botanicals .brand-mockup-background { object-position: 55% center; }
-.brand-mockup-botanicals .mockup-bottle { left: 36%; bottom: 4%; }
-.brand-mockup-botanicals .mockup-bottle.small { left: 18%; bottom: 5%; }
-.brand-mockup-botanicals .mockup-soap { right: 4%; bottom: 4%; }
-
-.brand-mockup-about .brand-mockup-background { object-position: 52% center; }
-.brand-mockup-about .mockup-pouch { left: 5%; bottom: 4%; width: 31%; }
-.brand-mockup-about .mockup-brand-card { right: 4%; bottom: 7%; width: 42%; }
-
-.brand-mockup-class .brand-mockup-background { object-position: 50% center; }
-.brand-mockup-class .mockup-booklet { right: 5%; bottom: 4%; width: 38%; transform: rotate(4deg); }
-.brand-mockup-class .mockup-brand-card { left: 4%; bottom: 5%; width: 38%; transform: rotate(-3deg); }
-
-.brand-mockup-care .brand-mockup-background { object-position: 54% center; }
-.brand-mockup-care .mockup-booklet { left: 4%; bottom: 4%; width: 42%; }
-.brand-mockup-care .mockup-brand-card { right: 3%; bottom: 6%; width: 40%; }
-
-.brand-mockup-shipping,
-.brand-mockup-gifts {
-  background:
-    radial-gradient(circle at 86% 18%, rgba(255, 255, 255, 0.85), transparent 31%),
-    linear-gradient(135deg, #f1ebdf 0%, #d4d6c7 55%, #75836a 100%);
-}
-.brand-mockup-shipping::before,
-.brand-mockup-gifts::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  right: -7%;
-  top: -5%;
-  width: 58%;
-  height: 55%;
-  border-radius: 50% 0 50% 50%;
-  background: linear-gradient(135deg, rgba(61, 94, 62, 0.6), rgba(126, 143, 105, 0.2));
-  transform: rotate(18deg);
-}
-.brand-mockup-shipping .mockup-package,
-.brand-mockup-gifts .mockup-package { left: 8%; bottom: 8%; }
-.brand-mockup-shipping .mockup-brand-card,
-.brand-mockup-gifts .mockup-brand-card { right: 4%; top: 9%; width: 43%; transform: rotate(3deg); }
-
-.brand-mockup-picks .brand-mockup-background { object-position: 50% center; }
-.brand-mockup-picks .mockup-booklet { left: 5%; bottom: 4%; width: 40%; }
-.brand-mockup-picks .mockup-plant-tag { right: 15%; bottom: 18%; }
-
-/* Integration with existing page layouts */
+/* Homepage hero */
 .editorial-hero-image.brand-mockup-scene {
   min-height: 560px;
-  background-image: none;
-}
-
-.editorial-collection .brand-mockup-scene {
-  width: 100%;
-  height: 430px;
-  min-height: 430px;
   border-radius: 0;
   box-shadow: none;
+}
+
+.editorial-hero-image.brand-mockup-scene::after {
+  border: 0;
+}
+
+/* Homepage collection cards. The stronger selector prevents the generic
+   collection text rule from adding margins and padding to the photograph. */
+.editorial-collection > .brand-mockup-scene {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
+  color: inherit;
 }
 
 .editorial-collection:hover .brand-mockup-background {
-  transform: scale(1.045);
+  transform: scale(1.035);
 }
 
-.story-photo .brand-mockup-scene {
+/* Product merchandising */
+.product-image-wrap .brand-mockup-scene {
+  width: 100%;
+}
+
+.branded-product-card {
+  min-height: 0;
+  aspect-ratio: 25 / 24;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.branded-product-detail {
+  min-height: 0;
+  aspect-ratio: 4 / 3;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.product-detail-image.brand-mockup-scene {
+  width: 100%;
+}
+
+/* Story, classes and care */
+.story-photo .brand-mockup-scene,
+.about-brand-scene {
   width: 100%;
   min-height: 560px;
-  max-height: 650px;
+  aspect-ratio: 4 / 3;
+}
+
+.class-editorial > .brand-mockup-scene {
+  width: 100%;
   height: 100%;
+  min-height: 360px;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
-.class-editorial > .brand-mockup-scene,
 .class-card > .brand-mockup-scene {
-  width: 100%;
-  min-height: 340px;
-  border-radius: 0;
-  box-shadow: none;
-}
-
-.product-image-wrap > .brand-mockup-scene {
-  width: 100%;
   min-height: 0;
-  aspect-ratio: 1 / 0.96;
+  aspect-ratio: 16 / 10;
   border-radius: 0;
   box-shadow: none;
 }
 
-.product-detail-image-wrap > .brand-mockup-scene {
-  width: 100%;
-  min-height: 520px;
-  height: min(670px, 65vw);
+.care-hero-grid .brand-mockup-scene {
+  min-height: 420px;
+  aspect-ratio: 4 / 3;
 }
 
-.about-brand-scene,
+/* Interior-page photographic banners */
 .policy-brand-scene,
 .picks-brand-scene {
-  min-height: 520px;
+  min-height: 0;
+  aspect-ratio: 16 / 7;
+  margin-bottom: 38px;
 }
 
-.policy-brand-scene,
-.picks-brand-scene {
-  margin-bottom: 48px;
-}
-
-.care-pagehero .care-hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.82fr);
-  align-items: center;
-  gap: 54px;
-  text-align: left;
-}
-
-.care-pagehero .brand-mockup-scene {
-  min-height: 410px;
-}
-
-.care-pagehero .care-library-stats {
-  justify-content: flex-start;
+.contact-brand-scene {
+  min-height: 0;
+  aspect-ratio: 16 / 10;
+  margin: 28px 0 34px;
 }
 
 @media (max-width: 900px) {
-  .brand-mockup-hero { min-height: 0; aspect-ratio: 16 / 10; }
-  .editorial-hero-image.brand-mockup-scene { min-height: 0; aspect-ratio: 16 / 10; }
-  .brand-mockup-hero .mockup-pouch { left: 28%; width: 34%; }
-  .brand-mockup-hero .mockup-candle { right: 12%; width: 24%; }
-
-  .story-photo .brand-mockup-scene { min-height: 0; aspect-ratio: 4 / 3; }
-  .class-editorial > .brand-mockup-scene { min-height: 0; aspect-ratio: 16 / 10; }
-
-  .care-pagehero .care-hero-grid {
-    grid-template-columns: 1fr;
-    gap: 36px;
-    text-align: center;
+  .editorial-hero-image.brand-mockup-scene {
+    min-height: 390px;
   }
-  .care-pagehero .care-library-stats { justify-content: center; }
-  .care-pagehero .brand-mockup-scene { min-height: 0; aspect-ratio: 16 / 10; }
+
+  .story-photo .brand-mockup-scene,
+  .about-brand-scene {
+    min-height: 420px;
+  }
+
+  .class-editorial > .brand-mockup-scene {
+    min-height: 300px;
+    aspect-ratio: 16 / 10;
+  }
+
+  .policy-brand-scene,
+  .picks-brand-scene {
+    aspect-ratio: 16 / 9;
+  }
 }
 
 @media (max-width: 620px) {
-  .brand-mockup-scene { min-height: 310px; }
-  .editorial-collection .brand-mockup-scene { height: 350px; min-height: 350px; }
-  .brand-mockup-hero,
-  .editorial-hero-image.brand-mockup-scene { aspect-ratio: 4 / 3; }
-
-  .mockup-brand-card {
-    grid-template-columns: 34% 1fr;
-    padding: 3% 3.5%;
+  .brand-mockup-scene {
+    min-height: 300px;
   }
 
-  .brand-mockup-hero .mockup-pouch { left: 20%; bottom: 4%; width: 39%; }
-  .brand-mockup-hero .mockup-candle { right: 8%; bottom: 3%; width: 27%; }
-  .brand-mockup-hero .mockup-mug { display: none; }
+  .editorial-hero-image.brand-mockup-scene {
+    min-height: 315px;
+    aspect-ratio: 4 / 3;
+  }
 
-  .brand-mockup-plants .mockup-booklet,
-  .brand-mockup-class .mockup-booklet,
-  .brand-mockup-care .mockup-booklet,
-  .brand-mockup-picks .mockup-booklet { width: 44%; }
+  .editorial-collection > .brand-mockup-scene {
+    min-height: 0;
+  }
 
-  .brand-mockup-tea .mockup-pouch { width: 39%; }
-  .brand-mockup-tea .mockup-brand-card { width: 43%; }
+  .brand-mockup-plants .brand-mockup-background,
+  .brand-mockup-about .brand-mockup-background,
+  .brand-mockup-tea .brand-mockup-background,
+  .brand-mockup-botanicals .brand-mockup-background,
+  .brand-mockup-gifts .brand-mockup-background {
+    object-position: 66% center;
+  }
 
-  .brand-mockup-botanicals .mockup-bottle { left: 34%; width: 27%; }
-  .brand-mockup-botanicals .mockup-bottle.small { left: 13%; width: 15%; }
-  .brand-mockup-botanicals .mockup-soap { width: 30%; }
+  .story-photo .brand-mockup-scene,
+  .about-brand-scene {
+    min-height: 0;
+    aspect-ratio: 4 / 3;
+  }
 
-  .product-detail-image-wrap > .brand-mockup-scene { min-height: 0; height: auto; aspect-ratio: 1; }
-  .about-brand-scene,
+  .class-card > .brand-mockup-scene,
+  .care-hero-grid .brand-mockup-scene,
   .policy-brand-scene,
-  .picks-brand-scene { min-height: 0; aspect-ratio: 4 / 3; }
+  .picks-brand-scene,
+  .contact-brand-scene {
+    min-height: 0;
+    aspect-ratio: 4 / 3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-mockup-background {
+    transition: none;
+  }
 }
