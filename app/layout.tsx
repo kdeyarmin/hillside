@@ -1,6 +1,7 @@
 import './globals.css';
 import './editorial.css';
 import './refinement.css';
+import './classroom.css';
 import type { Metadata, Viewport } from 'next';
 import { Cormorant_Garamond, Manrope } from 'next/font/google';
 import { CartProvider } from '@/components/CartProvider';
@@ -35,11 +36,12 @@ export const metadata: Metadata = {
     template: '%s | The Hillside Gardens'
   },
   description:
-    'Shop potted plants, loose-leaf teas, handmade soaps and lotions, explore practical plant-care sheets, and join Tammy Hill for hands-on planter classes.',
+    'Shop potted plants, loose-leaf teas, handmade soaps and lotions, explore practical plant-care sheets, and join Tammy Hill for in-person or online plant classes.',
   keywords: [
     'houseplants',
     'potted plants',
     'planter classes',
+    'online plant classes',
     'loose leaf tea',
     'handmade soap',
     'botanical lotion',
