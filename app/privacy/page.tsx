@@ -38,7 +38,7 @@ export default function PrivacyPage() {
           <p>This website is not directed to children under 13, and The Hillside Gardens does not knowingly collect personal information from children under 13.</p>
 
           <h2>Contact</h2>
-          <p>Privacy questions can be sent to <a className="text-link" href="mailto:hello@thehillsidegarden.com">hello@thehillsidegarden.com</a>.</p>
+          <p>Privacy questions can be sent to <a className="text-link" href="mailto:hello@thehillsidegardens.com">hello@thehillsidegardens.com</a>.</p>
         </article>
       </section>
     </>
