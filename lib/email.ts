@@ -1,3 +1,5 @@
+import { normalizeHillsideDomain } from '@/lib/store';
+
 type EmailInput = {
   to: string | string[];
   subject: string;
@@ -18,7 +20,9 @@ export function escapeHtml(value: unknown) {
 
 export async function sendEmail(input: EmailInput) {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || 'The Hillside Gardens <orders@thehillsidegarden.com>';
+  const from = normalizeHillsideDomain(
+    process.env.EMAIL_FROM || 'The Hillside Gardens <orders@thehillsidegardens.com>'
+  );
   if (!apiKey) return { sent: false, reason: 'not-configured' as const };
 
   try {
