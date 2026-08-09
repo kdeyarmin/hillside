@@ -75,14 +75,14 @@ The host studio allows Tammy to:
 - View registered guests
 - See whether confirmation emails were sent
 - See when a guest last joined
-- Resend a confirmation, which rotates and invalidates the customer’s previous private link
+- Resend a confirmation, which rotates and invalidates the customer’s previous private link and any session established from that link
 
 ## Attendee security and room timing
 
 - Only paid-status registrations can enter.
 - The emailed bearer token is stored as a one-way hash in PostgreSQL.
 - The private URL is removed from the browser address bar before the Telnyx SDK loads.
-- The access cookie is HttpOnly, signed and scoped to `/classes`.
+- The access cookie is HttpOnly, signed, limited to the Hillside domain and bound to the customer’s current emailed token hash.
 - Attendees can request Telnyx credentials only during the configured join window.
 - Tammy’s authenticated host studio can open outside the attendee window for testing.
 - Telnyx client tokens are short-lived and are refreshed by the application during longer classes.
@@ -103,5 +103,5 @@ Before advertising the first online class:
 6. Open Tammy’s host studio in a different browser or device.
 7. Verify two-way audio/video, mute, camera controls and screen sharing.
 8. Leave the room open for more than 45 minutes to verify token renewal.
-9. Test the **Resend link** action and verify the earlier link no longer works.
+9. Test the **Resend link** action and verify the earlier link and earlier browser session no longer work.
 10. Test a free online class and a hybrid class.
