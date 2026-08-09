@@ -1,0 +1,109 @@
+name: Responsive audit
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: responsive-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  responsive-audit:
+    name: Mobile and desktop browser audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: hillside
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hillside"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/hillside?schema=public
+      NEXT_PUBLIC_SITE_URL: http://127.0.0.1:3000
+      ADMIN_PASSWORD: responsive-audit-only
+      ADMIN_SESSION_SECRET: responsive-audit-session-secret-which-is-long-and-private
+      CLASS_ACCESS_SECRET: responsive-audit-class-access-secret-which-is-long
+      BUSINESS_EMAIL: hello@thehillsidegardens.com
+      EMAIL_FROM: The Hillside Gardens <orders@thehillsidegardens.com>
+      STRIPE_AUTOMATIC_TAX: "false"
+      FLAT_SHIPPING_CENTS: "895"
+      FREE_SHIPPING_THRESHOLD_CENTS: "7500"
+      UPLOAD_DIR: /tmp/hillside-uploads
+      AUDIT_BASE_URL: http://127.0.0.1:3000
+      AUDIT_OUTPUT_DIR: responsive-audit-output
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Install Chromium audit runtime
+        run: |
+          npm install --no-save --package-lock=false playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Prepare audit database
+        run: |
+          npx prisma db push --accept-data-loss
+          npm run db:seed
+
+      - name: Build production application
+        run: npm run build
+
+      - name: Start production application
+        run: |
+          mkdir -p "$UPLOAD_DIR"
+          nohup npm start > /tmp/hillside-responsive-server.log 2>&1 &
+          echo $! > /tmp/hillside-responsive-server.pid
+
+      - name: Wait for application health check
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/hillside-responsive-server.log
+          exit 1
+
+      - name: Audit mobile and desktop viewports
+        run: node scripts/responsive-audit.mjs
+
+      - name: Show server log after failure
+        if: failure()
+        run: cat /tmp/hillside-responsive-server.log || true
+
+      - name: Upload responsive audit report and screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: responsive-audit-${{ github.run_id }}
+          path: responsive-audit-output
+          if-no-files-found: warn
+          retention-days: 14
