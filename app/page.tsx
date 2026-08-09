@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight, Heart, Leaf, Package, Sparkles, Sprout } from 'lucide-react';
 import NewsletterForm from '@/components/NewsletterForm';
+import { classFormatLabel, classLocationLabel, isOnlineClass } from '@/lib/class-access';
 import { db } from '@/lib/db';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney, productTypeLabel } from '@/lib/store';
 
@@ -192,8 +193,8 @@ export default async function Home() {
             </p>
             <p>
               Tammy Hill created The Hillside Gardens around her love of plants and her love of
-              teaching. Her hands-on classes make choosing, arranging and caring for plants
-              approachable — even if you’re just getting started.
+              teaching. Her in-person and online classes make choosing, arranging and caring for
+              plants approachable — even if you’re just getting started.
             </p>
             <div className="actions">
               <Link className="btn editorial-btn" href="/about">
@@ -211,11 +212,11 @@ export default async function Home() {
         <section className="section editorial-classes">
           <div className="container">
             <div className="sectionhead">
-              <div className="eyebrow">Hands-on at The Hillside Gardens</div>
-              <h2>Make something beautiful with Tammy.</h2>
+              <div className="eyebrow">Learn with Tammy</div>
+              <h2>Make something beautiful, in person or online.</h2>
               <p>
-                Relaxed, practical planter workshops that send you home with a finished arrangement
-                and the confidence to keep it thriving.
+                Relaxed, practical plant classes offered at The Hillside Gardens and through secure
+                Telnyx Video rooms.
               </p>
             </div>
             <div className="grid two">
@@ -225,12 +226,13 @@ export default async function Home() {
                   0
                 );
                 const seatsLeft = Math.max(0, event.capacity - reserved);
+                const online = isOnlineClass(event.format);
 
                 return (
                   <article className="class-editorial" key={event.id}>
                     {event.imageUrl && <img src={event.imageUrl} alt={event.title} />}
                     <div>
-                      <span className="product-kicker">In-person workshop</span>
+                      <span className="product-kicker">{classFormatLabel(event.format)}</span>
                       <h3>{event.title}</h3>
                       <p>{event.description}</p>
                       <p>
@@ -247,8 +249,10 @@ export default async function Home() {
                           minute: '2-digit'
                         })}
                       </p>
+                      <p>{classLocationLabel(event)}</p>
+                      {online && <p><b>Private classroom link emailed after registration.</b></p>}
                       <p>
-                        {seatsLeft} seats remaining · {formatMoney(event.priceCents)} per person
+                        {seatsLeft} seats remaining · {event.priceCents > 0 ? `${formatMoney(event.priceCents)} per person` : 'Free'}
                       </p>
                       <Link className="btn editorial-btn" href="/classes">
                         View class
