@@ -1,0 +1,188 @@
+'use client';
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState
+} from 'react';
+import { clampQuantity } from '@/lib/store';
+
+export type CartProduct = {
+  slug: string;
+  name: string;
+  priceCents: number;
+  imageUrl: string | null;
+  inventory: number;
+  type?: string;
+};
+
+export type CartLine = CartProduct & { quantity: number };
+
+type CartContextValue = {
+  items: CartLine[];
+  count: number;
+  subtotalCents: number;
+  drawerOpen: boolean;
+  checkoutLoading: boolean;
+  addItem: (product: CartProduct, quantity?: number) => void;
+  setQuantity: (slug: string, quantity: number) => void;
+  removeItem: (slug: string) => void;
+  clearCart: () => void;
+  openCart: () => void;
+  closeCart: () => void;
+  checkout: () => Promise<void>;
+};
+
+const CartContext = createContext<CartContextValue | null>(null);
+const STORAGE_KEY = 'hillside-cart-v2';
+
+export function CartProvider({ children }: { children: React.ReactNode }) {
+  const [items, setItems] = useState<CartLine[]>([]);
+  const [ready, setReady] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') as unknown;
+      if (Array.isArray(saved)) {
+        const lines = saved.flatMap((entry): CartLine[] => {
+          if (!entry || typeof entry !== 'object') return [];
+          const line = entry as Partial<CartLine>;
+          if (!line.slug || !line.name || !Number.isFinite(line.priceCents)) return [];
+          const inventory = Math.max(1, Number(line.inventory) || 1);
+          return [
+            {
+              slug: String(line.slug),
+              name: String(line.name),
+              priceCents: Number(line.priceCents),
+              imageUrl: line.imageUrl ? String(line.imageUrl) : null,
+              inventory,
+              type: line.type ? String(line.type) : undefined,
+              quantity: clampQuantity(Number(line.quantity) || 1, inventory)
+            }
+          ];
+        });
+        setItems(lines);
+      }
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+    } finally {
+      setReady(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (ready) localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  }, [items, ready]);
+
+  const addItem = useCallback((product: CartProduct, quantity = 1) => {
+    setItems((current) => {
+      const existing = current.find((item) => item.slug === product.slug);
+      if (existing) {
+        return current.map((item) =>
+          item.slug === product.slug
+            ? {
+                ...item,
+                ...product,
+                quantity: clampQuantity(item.quantity + quantity, product.inventory)
+              }
+            : item
+        );
+      }
+      return [
+        ...current,
+        {
+          ...product,
+          quantity: clampQuantity(quantity, product.inventory)
+        }
+      ];
+    });
+  }, []);
+
+  const setQuantity = useCallback((slug: string, quantity: number) => {
+    setItems((current) =>
+      current.flatMap((item) => {
+        if (item.slug !== slug) return [item];
+        if (quantity <= 0) return [];
+        return [{ ...item, quantity: clampQuantity(quantity, item.inventory) }];
+      })
+    );
+  }, []);
+
+  const removeItem = useCallback((slug: string) => {
+    setItems((current) => current.filter((item) => item.slug !== slug));
+  }, []);
+
+  const clearCart = useCallback(() => setItems([]), []);
+  const openCart = useCallback(() => setDrawerOpen(true), []);
+  const closeCart = useCallback(() => setDrawerOpen(false), []);
+
+  const checkout = useCallback(async () => {
+    if (!items.length || checkoutLoading) return;
+    setCheckoutLoading(true);
+    try {
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: items.map((item) => ({ id: item.slug, quantity: item.quantity }))
+        })
+      });
+      const result = (await response.json()) as { url?: string; error?: string };
+      if (!response.ok || !result.url) throw new Error(result.error || 'Unable to open checkout.');
+      window.location.assign(result.url);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : 'Unable to open checkout.');
+      setCheckoutLoading(false);
+    }
+  }, [checkoutLoading, items]);
+
+  const count = useMemo(() => items.reduce((total, item) => total + item.quantity, 0), [items]);
+  const subtotalCents = useMemo(
+    () => items.reduce((total, item) => total + item.priceCents * item.quantity, 0),
+    [items]
+  );
+
+  const value = useMemo(
+    () => ({
+      items,
+      count,
+      subtotalCents,
+      drawerOpen,
+      checkoutLoading,
+      addItem,
+      setQuantity,
+      removeItem,
+      clearCart,
+      openCart,
+      closeCart,
+      checkout
+    }),
+    [
+      items,
+      count,
+      subtotalCents,
+      drawerOpen,
+      checkoutLoading,
+      addItem,
+      setQuantity,
+      removeItem,
+      clearCart,
+      openCart,
+      closeCart,
+      checkout
+    ]
+  );
+
+  return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
+}
+
+export function useCart() {
+  const context = useContext(CartContext);
+  if (!context) throw new Error('useCart must be used inside CartProvider');
+  return context;
+}

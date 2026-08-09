@@ -1,2 +1,42 @@
-export const metadata={title:'About Tammy'};
-export default function About(){return <><section className="pagehero"><div className="container"><div className="eyebrow">Rooted in a love of plants</div><h1>Meet Tammy Hill.</h1><p>The heart behind The Hillside Gardens.</p></div></section><section className="content"><div className="container split"><img className="portrait" src="https://images.unsplash.com/photo-1525498128493-380d1990a112?auto=format&fit=crop&w=1000&q=85" alt="Greenhouse plants"/><div><h2 style={{fontFamily:'Georgia,serif',fontSize:48,color:'var(--forest)'}}>Plants should feel joyful, not intimidating.</h2><p>Tammy built The Hillside Gardens around two things she genuinely loves: growing beautiful plants and teaching other people how to succeed with them.</p><p>Her in-person planter classes focus on the practical questions that make the biggest difference — which plants belong together, how to arrange them, what kind of soil and container to use, and how to keep the finished planter healthy once it gets home.</p><p>The shop extends that same approach into hand-potted plants, teas and tea supplies, handmade lotions and soaps, and a carefully selected collection of botanical goods.</p><p><b>The goal is simple:</b> send people home with something beautiful and the confidence to care for it.</p></div></div></section></>}
+import Link from 'next/link';
+import { BookOpen, Heart, Leaf, Users } from 'lucide-react';
+
+export const metadata = {
+  title: 'About Tammy Hill',
+  description: 'Meet Tammy Hill, the plant lover and teacher behind The Hillside Gardens.'
+};
+
+export default function About() {
+  return (
+    <>
+      <section className="pagehero">
+        <div className="container"><div className="eyebrow">Rooted in a love of plants</div><h1>Meet Tammy Hill.</h1><p>The plant lover, teacher and maker behind The Hillside Gardens.</p></div>
+      </section>
+      <section className="content">
+        <div className="container split">
+          <img className="portrait" src="https://images.unsplash.com/photo-1525498128493-380d1990a112?auto=format&fit=crop&w=1100&q=88" alt="A greenhouse filled with healthy plants" />
+          <div>
+            <div className="eyebrow">The Hillside story</div>
+            <h2 className="display-title" style={{ fontSize: 50, color: 'var(--forest)', margin: '8px 0 18px' }}>Plants should feel joyful, not intimidating.</h2>
+            <p>Tammy built The Hillside Gardens around two things she genuinely loves: growing beautiful plants and helping other people succeed with them.</p>
+            <p>Her in-person planter classes focus on the practical questions that make the biggest difference — which plants belong together, how to arrange them, what soil and container to use, and how to keep the finished planter healthy once it gets home.</p>
+            <p>The shop extends that same approach into hand-potted plants, teas and tea supplies, handmade lotions and soaps, and carefully selected botanical goods.</p>
+            <p><b>The goal is simple:</b> send people home with something beautiful and the confidence to care for it.</p>
+            <div className="actions"><Link className="btn" href="/classes">Join Tammy for a class</Link><Link className="btn outline" href="/contact">Ask Tammy a question</Link></div>
+          </div>
+        </div>
+      </section>
+      <section className="section alt">
+        <div className="container">
+          <div className="sectionhead"><div className="eyebrow">What guides the business</div><h2>Care, confidence and real connection.</h2></div>
+          <div className="featuregrid">
+            <div className="feature"><Heart size={22} /><b>Carefully chosen</b><span>Small batches make it possible to pay attention to quality and presentation.</span></div>
+            <div className="feature"><BookOpen size={22} /><b>Clearly explained</b><span>Plant education is practical, friendly and designed for everyday homes.</span></div>
+            <div className="feature"><Users size={22} /><b>Better together</b><span>Classes turn learning into a relaxed social experience.</span></div>
+            <div className="feature"><Leaf size={22} /><b>Rooted in growth</b><span>The shop and care library will continue growing with Tammy’s community.</span></div>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}

@@ -1,13 +1,74 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { SiteHeader, SiteFooter } from '@/components/SiteChrome';
+import { CartProvider } from '@/components/CartProvider';
+import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
+import { absoluteUrl } from '@/lib/store';
 
 export const metadata: Metadata = {
-  title: { default: 'The Hillside Gardens', template: '%s | The Hillside Gardens' },
-  description: 'Plants, teas, botanicals, handmade body care and plant education from The Hillside Gardens.',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000')
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
+  title: {
+    default: 'The Hillside Gardens | Plants, Teas & Botanicals',
+    template: '%s | The Hillside Gardens'
+  },
+  description:
+    'Shop potted plants, loose-leaf teas, handmade soaps and lotions, explore practical plant-care sheets, and join Tammy Hill for hands-on planter classes.',
+  keywords: [
+    'houseplants',
+    'potted plants',
+    'planter classes',
+    'loose leaf tea',
+    'handmade soap',
+    'botanical lotion',
+    'plant care'
+  ],
+  applicationName: 'The Hillside Gardens',
+  alternates: { canonical: '/' },
+  icons: { icon: '/logo.svg', apple: '/logo.svg' },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: '/',
+    siteName: 'The Hillside Gardens',
+    title: 'The Hillside Gardens',
+    description: 'Plants, teas, botanicals and practical plant education from Tammy Hill.',
+    images: [{ url: '/logo.svg', width: 900, height: 760, alt: 'The Hillside Gardens logo' }]
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'The Hillside Gardens',
+    description: 'Plants, teas, botanicals and practical plant education from Tammy Hill.',
+    images: ['/logo.svg']
+  }
 };
 
-export default function RootLayout({children}:{children:React.ReactNode}){
- return <html lang="en"><body><SiteHeader/><main>{children}</main><SiteFooter/></body></html>
+const organizationJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Store',
+  name: 'The Hillside Gardens',
+  url: absoluteUrl('/'),
+  logo: absoluteUrl('/logo.svg'),
+  description: 'Plants, teas, botanicals and plant education from Tammy Hill.',
+  founder: { '@type': 'Person', name: 'Tammy Hill' },
+  email: process.env.BUSINESS_EMAIL || 'hello@thehillsidegarden.com'
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <a className="skip-link" href="#main-content">
+          Skip to content
+        </a>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        />
+        <CartProvider>
+          <SiteHeader />
+          <main id="main-content">{children}</main>
+          <SiteFooter />
+        </CartProvider>
+      </body>
+    </html>
+  );
 }

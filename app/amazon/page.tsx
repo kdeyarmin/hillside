@@ -1,4 +1,48 @@
-import {db} from '@/lib/db';
-export const dynamic='force-dynamic';
-export const metadata={title:'Tammy’s Amazon Picks'};
-export default async function Amazon(){const picks=await db.amazonPick.findMany({where:{active:true},orderBy:[{sortOrder:'asc'},{title:'asc'}]});return <><section className="pagehero"><div className="container"><div className="eyebrow">Tammy recommends</div><h1>Tammy’s Amazon picks.</h1><p>A curated shelf of tools and supplies Tammy actually likes for plants, planters and tea.</p></div></section><section className="content"><div className="container"><div className="grid">{picks.length?picks.map(p=><article className="card" key={p.id}>{p.imageUrl&&<img className="photo" src={p.imageUrl} alt={p.title}/>}<div className="cardbody"><span className="pill">{p.category||'Amazon favorite'}</span><h3>{p.title}</h3>{p.description&&<p>{p.description}</p>}<a className="btn" href={p.amazonUrl} target="_blank" rel="sponsored nofollow noopener">View on Amazon</a></div></article>):<div className="card"><div className="cardbody"><h3>Tammy’s picks are being added.</h3><p>Amazon influencer products can be entered from the owner dashboard and will appear here automatically.</p></div></div>}</div><p style={{marginTop:34,color:'var(--muted)',fontSize:13}}>As an Amazon Associate, The Hillside Gardens may earn from qualifying purchases.</p></div></section></>}
+import { ExternalLink, ShieldCheck } from 'lucide-react';
+import { db } from '@/lib/db';
+import { FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
+
+export const dynamic = 'force-dynamic';
+export const metadata = {
+  title: 'Tammy’s Amazon Picks',
+  description: 'A curated collection of plant tools, planter supplies and tea favorites recommended by Tammy Hill.'
+};
+
+export default async function AmazonPage() {
+  const picks = await db.amazonPick.findMany({
+    where: { active: true },
+    orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }]
+  });
+
+  return (
+    <>
+      <section className="pagehero">
+        <div className="container"><div className="eyebrow">Tammy recommends</div><h1>Tammy’s Amazon picks.</h1><p>A curated shelf of useful tools and supplies for plants, planters and tea.</p></div>
+      </section>
+      <section className="content">
+        <div className="container">
+          <div className="note-box" style={{ marginBottom: 32 }}><ShieldCheck size={20} /><b>Affiliate disclosure</b>As an Amazon Associate, The Hillside Gardens may earn from qualifying purchases. Using an affiliate link does not increase the customer’s price.</div>
+          {picks.length ? (
+            <div className="product-grid">
+              {picks.map((pick) => (
+                <article className="product-card" key={pick.id}>
+                  <a className="product-image-wrap" href={pick.amazonUrl} target="_blank" rel="sponsored nofollow noopener noreferrer">
+                    <img src={pick.imageUrl || FALLBACK_PRODUCT_IMAGE} alt={pick.title} />
+                  </a>
+                  <div className="product-copy">
+                    <span className="pill">{pick.category || 'Amazon favorite'}</span>
+                    <h2>{pick.title}</h2>
+                    {pick.description && <p>{pick.description}</p>}
+                    <a className="btn" href={pick.amazonUrl} target="_blank" rel="sponsored nofollow noopener noreferrer">View on Amazon <ExternalLink size={16} /></a>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state"><h3>Tammy’s picks are being added.</h3><p>Recommended products will appear here as Tammy builds her influencer collection.</p></div>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}

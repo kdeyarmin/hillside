@@ -24,26 +24,49 @@ enum OrderStatus {
   REFUNDED
 }
 
+enum RegistrationStatus {
+  PENDING
+  PAID
+  CANCELLED
+  REFUNDED
+}
+
+enum MessageStatus {
+  NEW
+  READ
+  ARCHIVED
+}
+
 model Product {
-  id          String      @id @default(cuid())
-  name        String
-  slug        String      @unique
-  description String
-  type        ProductType
-  priceCents  Int
-  inventory   Int         @default(0)
-  imageUrl    String?
-  active      Boolean     @default(true)
-  featured    Boolean     @default(false)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-  items       OrderItem[]
+  id               String      @id @default(cuid())
+  name             String
+  slug             String      @unique
+  sku              String?     @unique
+  shortDescription String?
+  description      String
+  details          String?
+  careNotes        String?
+  shippingNote     String?
+  type             ProductType
+  priceCents       Int
+  compareAtCents   Int?
+  inventory        Int         @default(0)
+  imageUrl         String?
+  badge            String?
+  active           Boolean     @default(true)
+  featured         Boolean     @default(false)
+  sortOrder        Int         @default(0)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  items            OrderItem[]
 }
 
 model Order {
   id                String      @id @default(cuid())
   invoiceNumber     String      @unique
   stripeSessionId   String?     @unique
+  paymentIntentId   String?     @unique
+  stripeInvoiceId   String?
   status            OrderStatus @default(PENDING)
   customerName      String
   email             String
@@ -58,7 +81,11 @@ model Order {
   shippingCents     Int         @default(0)
   taxCents          Int         @default(0)
   totalCents        Int
+  shippingMethod    String?
+  trackingCarrier   String?
   trackingNumber    String?
+  internalNotes     String?
+  fulfilledAt       DateTime?
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
   items             OrderItem[]
@@ -96,15 +123,36 @@ model CareSheet {
 }
 
 model ClassEvent {
-  id          String   @id @default(cuid())
-  title       String
-  description String
-  startsAt    DateTime
-  location    String
-  priceCents  Int
-  capacity    Int
-  imageUrl    String?
-  active      Boolean  @default(true)
+  id                   String              @id @default(cuid())
+  slug                 String?             @unique
+  title                String
+  description          String
+  startsAt             DateTime
+  location             String
+  priceCents           Int
+  capacity             Int
+  durationMinutes      Int                 @default(90)
+  whatToBring          String?
+  registrationDeadline DateTime?
+  imageUrl             String?
+  active               Boolean             @default(true)
+  registrations        ClassRegistration[]
+}
+
+model ClassRegistration {
+  id                String             @id @default(cuid())
+  classEventId      String
+  stripeSessionId   String             @unique
+  paymentIntentId   String?            @unique
+  name              String
+  email             String
+  phone             String?
+  seats             Int                @default(1)
+  amountCents       Int
+  status            RegistrationStatus @default(PENDING)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  classEvent        ClassEvent         @relation(fields: [classEventId], references: [id], onDelete: Cascade)
 }
 
 model GalleryItem {
@@ -117,12 +165,35 @@ model GalleryItem {
 }
 
 model AmazonPick {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   title       String
   description String?
   imageUrl    String?
   amazonUrl   String
   category    String?
-  active      Boolean  @default(true)
-  sortOrder   Int      @default(0)
+  active      Boolean @default(true)
+  sortOrder   Int     @default(0)
+}
+
+model NewsletterSubscriber {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  name           String?
+  source         String?  @default("website")
+  active         Boolean  @default(true)
+  unsubscribedAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model ContactMessage {
+  id        String        @id @default(cuid())
+  name      String
+  email     String
+  phone     String?
+  subject   String
+  message   String
+  status    MessageStatus @default(NEW)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 }
