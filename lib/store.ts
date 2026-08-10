@@ -61,14 +61,19 @@ export function clampQuantity(value: number, inventory: number) {
   return Math.max(1, Math.min(Math.max(1, inventory), Math.floor(value || 1)));
 }
 
-const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1', '[::1]']);
+// IPv6 keeps its brackets here on purpose: URL.hostname serialises [::1] with
+// them, so the bracketed form is the one a parsed URL is ever compared against.
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]']);
 
-/** True for an address that only resolves on the machine serving it. */
-function isLoopbackUrl(value: string) {
+/**
+ * True when a value cannot serve as the site's public origin — either it names
+ * an address that only resolves on the machine serving it, or it does not parse
+ * as a URL at all. Both are equally unusable, so they get one answer.
+ */
+function isUnusableAsPublicOrigin(value: string) {
   try {
     return LOOPBACK_HOSTNAMES.has(new URL(value).hostname.toLowerCase());
   } catch {
-    // Unparseable is not usable as a base either; treat it the same way.
     return true;
   }
 }
@@ -101,7 +106,7 @@ export function siteBaseUrl() {
   const isDev = process.env.NODE_ENV === 'development';
 
   if (isDev) return normalizeHillsideDomain(configured || 'http://localhost:3000');
-  if (configured && !isLoopbackUrl(configured)) return normalizeHillsideDomain(configured);
+  if (configured && !isUnusableAsPublicOrigin(configured)) return normalizeHillsideDomain(configured);
 
   if (configured && !warnedAboutBase) {
     warnedAboutBase = true;
