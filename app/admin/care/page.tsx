@@ -13,7 +13,13 @@ import {
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Plant Care Library Manager' };
 
-function CareGuideFields({ guide }: { guide?: CareSheet }) {
+function CareGuideFields({
+  guide,
+  products
+}: {
+  guide?: CareSheet;
+  products: Array<{ id: string; name: string }>;
+}) {
   return (
     <>
       {guide && <input type="hidden" name="id" value={guide.id} />}
@@ -52,6 +58,14 @@ function CareGuideFields({ guide }: { guide?: CareSheet }) {
         </label>
         <label className="admin-label">Photo URL
           <input className="admin-input" name="imageUrl" type="text" defaultValue={guide?.imageUrl || ''} />
+        </label>
+        <label className="admin-label full">Sell this plant on the guide
+          <select className="admin-input" name="productId" defaultValue={guide?.productId || ''}>
+            <option value="">No product — show current plants instead</option>
+            {products.map((product) => (
+              <option value={product.id} key={product.id}>{product.name}</option>
+            ))}
+          </select>
         </label>
         <label className="admin-label full">Short introduction
           <textarea className="admin-input" name="summary" rows={3} defaultValue={guide?.summary || ''} required />
@@ -107,14 +121,17 @@ export default async function CareLibraryManager({
 }) {
   if (!(await isAdmin())) redirect('/admin');
   const params = await searchParams;
-  const guides = await db.careSheet.findMany({
-    orderBy: [
-      { published: 'desc' },
-      { guideType: 'asc' },
-      { sortOrder: 'asc' },
-      { plantName: 'asc' }
-    ]
-  });
+  const [guides, products] = await Promise.all([
+    db.careSheet.findMany({
+      orderBy: [
+        { published: 'desc' },
+        { guideType: 'asc' },
+        { sortOrder: 'asc' },
+        { plantName: 'asc' }
+      ]
+    }),
+    db.product.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, name: true } })
+  ]);
 
   const counts = Object.fromEntries(
     Object.values(CareGuideType).map((type) => [
@@ -199,7 +216,7 @@ export default async function CareLibraryManager({
                     {guide.featured && <span>Featured</span>}
                   </div>
                   <form action={saveCareGuide}>
-                    <CareGuideFields guide={guide} />
+                    <CareGuideFields guide={guide} products={products} />
                     <div className="admin-actions">
                       <button className="btn small">Save guide</button>
                       <Link className="btn outline small" href={`/care/${guide.slug}`}>View guide</Link>
@@ -223,7 +240,7 @@ export default async function CareLibraryManager({
             <h2 style={{ marginTop: 0 }}>Add a new care guide</h2>
             <p className="muted">Choose a guide type and fill only the sections that apply.</p>
             <form action={saveCareGuide}>
-              <CareGuideFields />
+              <CareGuideFields products={products} />
               <button className="btn" style={{ marginTop: 18 }}>Create guide</button>
             </form>
           </div>

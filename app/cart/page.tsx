@@ -1,4 +1,5 @@
 import CartPageClient from '@/components/CartPageClient';
+import { freeShippingThresholdCents } from '@/lib/store';
 
 export const metadata = {
   title: 'Shopping Cart',
@@ -6,7 +7,7 @@ export const metadata = {
 };
 
 export default function CartPage() {
-  const freeShippingThreshold = Math.max(0, Number(process.env.FREE_SHIPPING_THRESHOLD_CENTS || 7500));
+  const freeShippingThreshold = freeShippingThresholdCents();
   return (
     <>
       <section className="pagehero">

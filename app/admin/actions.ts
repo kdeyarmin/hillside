@@ -7,13 +7,15 @@ import {
   MessageStatus,
   OrderStatus,
   ProductType,
-  RegistrationStatus
+  RegistrationStatus,
+  ReviewStatus
 } from '@prisma/client';
 import { clearAdminSession, isAdmin, setAdminSession } from '@/lib/admin';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
+import { absoluteUrl } from '@/lib/store';
 import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
@@ -84,13 +86,105 @@ export async function saveProduct(formData: FormData) {
     badge: text(formData, 'badge') || null,
     active: checked(formData, 'active'),
     featured: checked(formData, 'featured'),
-    sortOrder: integer(formData.get('sortOrder'))
+    sortOrder: integer(formData.get('sortOrder')),
+    galleryImages: text(formData, 'galleryImages')
+      .split(/[\n,]+/)
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .slice(0, 8)
   };
 
   if (!name || !slug || !data.description || priceCents < 0) return;
-  if (id) await db.product.update({ where: { id }, data });
-  else await db.product.create({ data });
-  refresh('/shop', '/', `/shop/${slug}`);
+
+  const collectionIds = formData
+    .getAll('collectionIds')
+    .map((value) => String(value))
+    .filter(Boolean);
+
+  const before = id ? await db.product.findUnique({ where: { id }, select: { inventory: true } }) : null;
+
+  const product = id
+    ? await db.product.update({
+        where: { id },
+        data: { ...data, collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) } }
+      })
+    : await db.product.create({
+        data: { ...data, collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) } }
+      });
+
+  // Restocking is the moment the waiting list is worth something.
+  if (before && before.inventory <= 0 && product.inventory > 0) {
+    await notifyStockAlerts(product.id, product.name, product.slug);
+  }
+
+  refresh('/shop', '/', '/collections', `/shop/${slug}`);
+}
+
+async function notifyStockAlerts(productId: string, name: string, slug: string) {
+  const waiting = await db.stockAlert.findMany({ where: { productId, notifiedAt: null } });
+  if (!waiting.length) return;
+
+  for (const alert of waiting) {
+    const delivery = await sendEmail({
+      to: alert.email,
+      subject: `${name} is back at The Hillside Gardens`,
+      idempotencyKey: `stock-alert/${alert.id}`,
+      html: emailShell(
+        `${name} is back`,
+        `<p>You asked us to let you know when <strong>${escapeHtml(name)}</strong> returned. It is back on the shelf now.</p><p><a href="${absoluteUrl(`/shop/${slug}`)}">View ${escapeHtml(name)}</a></p><p>Stock is limited, so it may not last long.</p>`
+      )
+    });
+    if (delivery.sent) {
+      await db.stockAlert.update({ where: { id: alert.id }, data: { notifiedAt: new Date() } });
+    }
+  }
+}
+
+export async function saveCollection(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  const title = text(formData, 'title');
+  const slug = slugify(text(formData, 'slug') || title);
+  if (!title || !slug) return;
+
+  const data = {
+    title,
+    slug,
+    tagline: text(formData, 'tagline') || null,
+    description: text(formData, 'description') || null,
+    imageUrl: text(formData, 'imageUrl') || null,
+    featured: checked(formData, 'featured'),
+    active: checked(formData, 'active'),
+    sortOrder: integer(formData.get('sortOrder'))
+  };
+
+  if (id) await db.collection.update({ where: { id }, data });
+  else await db.collection.create({ data });
+  refresh('/', '/collections', `/collections/${slug}`, '/shop');
+}
+
+export async function deleteCollection(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  if (id) await db.collection.delete({ where: { id } });
+  refresh('/', '/collections', '/shop');
+}
+
+export async function updateReview(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  const rawStatus = text(formData, 'status');
+  const status = Object.values(ReviewStatus).includes(rawStatus as ReviewStatus)
+    ? (rawStatus as ReviewStatus)
+    : ReviewStatus.PENDING;
+  if (!id) return;
+
+  const review = await db.review.update({
+    where: { id },
+    data: { status, ownerReply: text(formData, 'ownerReply') || null },
+    include: { product: { select: { slug: true } } }
+  });
+  refresh('/shop', `/shop/${review.product.slug}`);
 }
 
 export async function archiveProduct(formData: FormData) {
@@ -243,6 +337,8 @@ export async function saveGalleryItem(formData: FormData) {
     title: text(formData, 'title'),
     imageUrl: text(formData, 'imageUrl'),
     caption: text(formData, 'caption') || null,
+    linkUrl: text(formData, 'linkUrl') || null,
+    linkLabel: text(formData, 'linkLabel') || null,
     sortOrder: integer(formData.get('sortOrder'))
   };
   if (!data.title || !data.imageUrl) return;
@@ -288,6 +384,7 @@ export async function saveCareSheet(formData: FormData) {
     petSafety: text(formData, 'petSafety') || null,
     tips: text(formData, 'tips'),
     imageUrl: text(formData, 'imageUrl') || null,
+    productId: text(formData, 'productId') || null,
     published: checked(formData, 'published')
   };
   if (!plantName || !slug || !data.summary) return;

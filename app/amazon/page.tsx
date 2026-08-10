@@ -1,35 +1,63 @@
+import Link from 'next/link';
 import { ExternalLink, ShieldCheck } from 'lucide-react';
-import BrandMockupScene from '@/components/BrandMockupScene';
+import ProductGrid from '@/components/ProductGrid';
 import ResilientImage from '@/components/ResilientImage';
 import { db } from '@/lib/db';
+import { ratingsByProduct } from '@/lib/reviews';
 import { FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
   title: 'Our Amazon Picks',
-  description: 'A curated collection of plant tools, planter supplies and tea favorites we recommend.'
+  description: 'A curated collection of plant tools, planter supplies and tea favorites we recommend.',
+  alternates: { canonical: '/amazon' }
 };
 
 export default async function AmazonPage() {
-  const picks = await db.amazonPick.findMany({
-    where: { active: true },
-    orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }]
-  });
+  const [picks, ourProducts] = await Promise.all([
+    db.amazonPick.findMany({ where: { active: true }, orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }] }),
+    db.product.findMany({
+      where: { active: true, inventory: { gt: 0 } },
+      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
+      take: 3
+    })
+  ]);
+
+  const ratings = await ratingsByProduct(ourProducts.map((product) => product.id));
+  const shopProducts = ourProducts.map((product) => ({
+    ...product,
+    averageRating: ratings.get(product.id)?.average ?? null,
+    reviewCount: ratings.get(product.id)?.count ?? 0
+  }));
 
   return (
     <>
       <section className="pagehero">
-        <div className="container"><div className="eyebrow">We recommend</div><h1>Our Amazon picks.</h1><p>A curated shelf of useful tools and supplies for plants, planters and tea.</p></div>
+        <div className="container">
+          <div className="eyebrow">We recommend</div>
+          <h1>Our Amazon picks.</h1>
+          <p>A curated shelf of useful tools and supplies for plants, planters and tea.</p>
+        </div>
       </section>
       <section className="content">
         <div className="container">
-          <BrandMockupScene variant="picks" className="picks-brand-scene" />
-          <div className="note-box" style={{ marginBottom: 32 }}><ShieldCheck size={20} /><b>Affiliate disclosure</b>As an Amazon Associate, The Hillside Gardens may earn from qualifying purchases. Using an affiliate link does not increase the customer’s price.</div>
+          <div className="note-box disclosure">
+            <ShieldCheck size={20} aria-hidden="true" />
+            <b>Affiliate disclosure</b>
+            As an Amazon Associate, The Hillside Gardens may earn from qualifying purchases. Using an
+            affiliate link does not increase the customer&rsquo;s price.
+          </div>
+
           {picks.length ? (
-            <div className="product-grid">
+            <div className={`product-grid${picks.length < 3 ? ' sparse' : ''}`}>
               {picks.map((pick) => (
                 <article className="product-card" key={pick.id}>
-                  <a className="product-image-wrap" href={pick.amazonUrl} target="_blank" rel="sponsored nofollow noopener noreferrer">
+                  <a
+                    className="product-image-wrap"
+                    href={pick.amazonUrl}
+                    target="_blank"
+                    rel="sponsored nofollow noopener noreferrer"
+                  >
                     <ResilientImage
                       src={pick.imageUrl}
                       fallbackSrc={FALLBACK_PRODUCT_IMAGE}
@@ -42,13 +70,37 @@ export default async function AmazonPage() {
                     <span className="pill">{pick.category || 'Amazon favorite'}</span>
                     <h2>{pick.title}</h2>
                     {pick.description && <p>{pick.description}</p>}
-                    <a className="btn" href={pick.amazonUrl} target="_blank" rel="sponsored nofollow noopener noreferrer">View on Amazon <ExternalLink size={16} /></a>
+                    <a
+                      className="btn"
+                      href={pick.amazonUrl}
+                      target="_blank"
+                      rel="sponsored nofollow noopener noreferrer"
+                    >
+                      View on Amazon <ExternalLink size={16} />
+                    </a>
                   </div>
                 </article>
               ))}
             </div>
           ) : (
-            <div className="empty-state"><h3>Our picks are being added.</h3><p>Recommended products will appear here as we build our influencer collection.</p></div>
+            <div className="empty-state">
+              <h3>Our picks are being added.</h3>
+              <p>Recommended products will appear here as we build our influencer collection.</p>
+            </div>
+          )}
+
+          {shopProducts.length > 0 && (
+            <div className="product-details-section">
+              <div className="sectionhead">
+                <div className="eyebrow">Made and potted by us</div>
+                <h2>We also sell these directly.</h2>
+                <p>Plants, teas and botanicals prepared here — no affiliate link required.</p>
+              </div>
+              <ProductGrid products={shopProducts} />
+              <div className="collections-all">
+                <Link className="editorial-link" href="/shop">Shop everything we make →</Link>
+              </div>
+            </div>
           )}
         </div>
       </section>

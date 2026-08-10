@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { X, ZoomIn } from 'lucide-react';
+import { ArrowRight, X, ZoomIn } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
 
 type GalleryItem = {
@@ -9,6 +10,9 @@ type GalleryItem = {
   title: string;
   imageUrl: string;
   caption: string | null;
+  /** Optional route to the product, collection or class the piece was built from. */
+  linkUrl: string | null;
+  linkLabel: string | null;
 };
 
 export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
@@ -71,6 +75,11 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
               <span className="pill">Hillside arrangement</span>
               <h3>{item.title}</h3>
               {item.caption && <p>{item.caption}</p>}
+              {item.linkUrl && (
+                <Link className="text-link gallery-link" href={item.linkUrl}>
+                  {item.linkLabel || 'Shop this look'} <ArrowRight size={14} />
+                </Link>
+              )}
             </div>
           </article>
         ))}
@@ -131,6 +140,11 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
                 {selected.title}
               </h2>
               {selected.caption && <p>{selected.caption}</p>}
+              {selected.linkUrl && (
+                <Link className="btn" href={selected.linkUrl}>
+                  {selected.linkLabel || 'Shop this look'} <ArrowRight size={16} />
+                </Link>
+              )}
             </div>
           </div>
         </div>

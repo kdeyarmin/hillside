@@ -45,6 +45,46 @@ export function formatMoney(cents: number) {
   }).format(cents / 100);
 }
 
+/**
+ * Navigation categories are merchandising groups, not database enums. A shopper
+ * looking for "Botanicals" expects soaps, lotions and anything else handmade —
+ * mapping each nav link to a single ProductType hid part of the catalog from the
+ * only navigation that pointed at it.
+ */
+export const CATEGORY_GROUPS: Record<string, { label: string; types: string[] }> = {
+  PLANT: { label: 'Plants', types: ['PLANT'] },
+  TEA: { label: 'Teas & Herbals', types: ['TEA', 'TEA_SUPPLY'] },
+  BOTANICAL: { label: 'Botanicals', types: ['SOAP', 'LOTION', 'OTHER'] }
+};
+
+/** Accepts a group key, a bare ProductType, or a comma separated list of either. */
+export function categoryTypes(value?: string | null): string[] {
+  const raw = (value || '').trim().toUpperCase();
+  if (!raw || raw === 'ALL') return [];
+  return raw
+    .split(',')
+    .flatMap((entry) => {
+      const key = entry.trim();
+      if (!key) return [];
+      return CATEGORY_GROUPS[key]?.types || [key];
+    });
+}
+
+export function categoryLabel(value?: string | null) {
+  const key = (value || '').trim().toUpperCase();
+  if (CATEGORY_GROUPS[key]) return CATEGORY_GROUPS[key].label;
+  return key ? productTypeLabel(key) : 'Everything';
+}
+
+export function discountPercent(priceCents: number, compareAtCents?: number | null) {
+  if (!compareAtCents || compareAtCents <= priceCents) return 0;
+  return Math.round(((compareAtCents - priceCents) / compareAtCents) * 100);
+}
+
+export function freeShippingThresholdCents() {
+  return Math.max(0, Number(process.env.FREE_SHIPPING_THRESHOLD_CENTS || 7500));
+}
+
 export function productTypeLabel(type: string) {
   const labels: Record<string, string> = {
     PLANT: 'Plant',

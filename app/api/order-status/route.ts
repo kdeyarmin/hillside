@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { rateLimited } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
+  if (rateLimited(request, { name: 'order-status', limit: 12, windowMs: 10 * 60_000 })) {
+    return NextResponse.json(
+      { error: 'Too many lookups. Please wait a few minutes and try again.' },
+      { status: 429 }
+    );
+  }
+
   try {
     const body: unknown = await request.json();
     if (!body || typeof body !== 'object') {

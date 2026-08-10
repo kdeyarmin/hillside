@@ -8,6 +8,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const pages = [
     '',
     '/shop',
+    '/collections',
     '/classes',
     '/care',
     '/gallery',
@@ -21,7 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '/terms'
   ];
 
-  const [products, careGuides] = await Promise.all([
+  const [products, careGuides, collections] = await Promise.all([
     db.product.findMany({
       where: { active: true },
       select: { slug: true, updatedAt: true }
@@ -29,6 +30,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     db.careSheet.findMany({
       where: { published: true },
       select: { slug: true, updatedAt: true, featured: true }
+    }),
+    db.collection.findMany({
+      where: { active: true, products: { some: { active: true } } },
+      select: { slug: true, updatedAt: true }
     })
   ]);
 
@@ -53,5 +58,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: guide.featured ? 0.85 : 0.75
   }));
 
-  return [...staticPages, ...productPages, ...guidePages];
+  const collectionPages: MetadataRoute.Sitemap = collections.map((collection) => ({
+    url: absoluteUrl(`/collections/${collection.slug}`),
+    lastModified: collection.updatedAt,
+    changeFrequency: 'weekly',
+    priority: 0.85
+  }));
+
+  return [...staticPages, ...collectionPages, ...productPages, ...guidePages];
 }

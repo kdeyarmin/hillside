@@ -32,7 +32,17 @@ type BrandMockupSceneProps = {
   backgroundSrc?: string | null;
   alt?: string;
   catalogImage?: HillsideCatalogImage;
-  /** Overlays the Hillside mark on the image. Off for the small product tiles. */
+  /**
+   * A source that is definitely the intended artwork — a collection cover, say —
+   * rather than a product row that may still hold a seeded placeholder. Skips the
+   * `isOwnerProvidedPhoto` heuristic entirely.
+   */
+  imageSrc?: string | null;
+  /**
+   * Overlays the Hillside mark. Off by default: repeated on every tile it read as
+   * stock-photo watermarking and competed with the header logo. Reserved for the
+   * hero and the occasional storytelling scene.
+   */
   badge?: boolean;
 };
 
@@ -129,11 +139,12 @@ export default function BrandMockupScene({
   backgroundSrc,
   alt,
   catalogImage,
-  badge = true
+  imageSrc,
+  badge = false
 }: BrandMockupSceneProps) {
   const artwork = catalogImage ? catalogArtwork[catalogImage] : variantArtwork[variant];
   const ownerProvided = isOwnerProvidedPhoto(backgroundSrc);
-  const imageSrc = ownerProvided ? backgroundSrc! : artwork.src;
+  const resolvedSrc = imageSrc?.trim() || (ownerProvided ? backgroundSrc! : artwork.src);
   const imageAlt = alt || artwork.alt;
 
   return (
@@ -144,7 +155,7 @@ export default function BrandMockupScene({
     >
       <ResilientImage
         className="brand-mockup-background"
-        src={imageSrc}
+        src={resolvedSrc}
         fallbackSrc="/images/botanical-placeholder.svg"
         alt=""
         aria-hidden="true"

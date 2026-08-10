@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import type { AmazonPick, CareSheet, ClassEvent, GalleryItem } from '@prisma/client';
+import type { AmazonPick, CareSheet, ClassEvent, Collection, GalleryItem } from '@prisma/client';
 import { ClassFormat } from '@prisma/client';
 import { isAdmin } from '@/lib/admin';
 import { classFormatLabel, isOnlineClass } from '@/lib/class-access';
@@ -8,12 +8,34 @@ import { db } from '@/lib/db';
 import { telnyxVideoConfigured } from '@/lib/telnyx-video';
 import {
   archiveContent,
+  deleteCollection,
   prepareClassRoom,
   saveAmazonPick,
   saveCareSheet,
   saveClassEvent,
+  saveCollection,
   saveGalleryItem
 } from '../actions';
+
+function CollectionFields({ collection }: { collection?: Collection }) {
+  return (
+    <>
+      {collection && <input type="hidden" name="id" value={collection.id} />}
+      <div className="admin-form-grid">
+        <label className="admin-label">Collection name<input className="admin-input" name="title" defaultValue={collection?.title} required /></label>
+        <label className="admin-label">URL slug<input className="admin-input" name="slug" defaultValue={collection?.slug || ''} placeholder="created-from-name" /></label>
+        <label className="admin-label">Short tagline<input className="admin-input" name="tagline" defaultValue={collection?.tagline || ''} placeholder="Living beauty for every room" /></label>
+        <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={collection?.sortOrder ?? 0} /></label>
+        <label className="admin-label full">Description<textarea className="admin-input" name="description" rows={3} defaultValue={collection?.description || ''} /></label>
+        <label className="admin-label full">Cover photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={collection?.imageUrl || ''} /></label>
+      </div>
+      <div className="admin-actions">
+        <label className="admin-checkbox"><input name="active" type="checkbox" defaultChecked={collection?.active ?? true} /> Visible on the website</label>
+        <label className="admin-checkbox"><input name="featured" type="checkbox" defaultChecked={collection?.featured ?? true} /> Show as a tile on the homepage</label>
+      </div>
+    </>
+  );
+}
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Website Content Manager' };
@@ -70,6 +92,14 @@ function GalleryFields({ item }: { item?: GalleryItem }) {
         <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={item?.sortOrder ?? 0} /></label>
         <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={item?.imageUrl} required /></label>
         <label className="admin-label full">Caption<textarea className="admin-input" name="caption" rows={3} defaultValue={item?.caption || ''} /></label>
+        <label className="admin-label">
+          Link to a product, collection or class
+          <input className="admin-input" name="linkUrl" type="text" defaultValue={item?.linkUrl || ''} placeholder="/shop/monstera-deliciosa" />
+        </label>
+        <label className="admin-label">
+          Link wording
+          <input className="admin-input" name="linkLabel" defaultValue={item?.linkLabel || ''} placeholder="Shop this look" />
+        </label>
       </div>
     </>
   );
@@ -92,7 +122,13 @@ function AmazonFields({ item }: { item?: AmazonPick }) {
   );
 }
 
-function CareFields({ sheet }: { sheet?: CareSheet }) {
+function CareFields({
+  sheet,
+  products
+}: {
+  sheet?: CareSheet;
+  products: Array<{ id: string; name: string }>;
+}) {
   return (
     <>
       {sheet && <input type="hidden" name="id" value={sheet.id} />}
@@ -110,6 +146,15 @@ function CareFields({ sheet }: { sheet?: CareSheet }) {
         <label className="admin-label">Temperature<input className="admin-input" name="temperature" defaultValue={sheet?.temperature} required /></label>
         <label className="admin-label full">Pet safety<input className="admin-input" name="petSafety" defaultValue={sheet?.petSafety || ''} /></label>
         <label className="admin-label full">Our best tips<textarea className="admin-input" name="tips" rows={4} defaultValue={sheet?.tips} required /></label>
+        <label className="admin-label full">
+          Sell this plant on the guide
+          <select className="admin-input" name="productId" defaultValue={sheet?.productId || ''}>
+            <option value="">No product — show current plants instead</option>
+            {products.map((product) => (
+              <option value={product.id} key={product.id}>{product.name}</option>
+            ))}
+          </select>
+        </label>
       </div>
       <label className="admin-checkbox" style={{ marginTop: 12 }}><input name="published" type="checkbox" defaultChecked={sheet?.published ?? true} /> Published in care library</label>
     </>
@@ -118,11 +163,16 @@ function CareFields({ sheet }: { sheet?: CareSheet }) {
 
 export default async function ContentManager() {
   if (!(await isAdmin())) redirect('/admin');
-  const [classes, gallery, picks, sheets] = await Promise.all([
+  const [classes, gallery, picks, sheets, products, collections] = await Promise.all([
     db.classEvent.findMany({ orderBy: { startsAt: 'desc' } }),
     db.galleryItem.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] }),
     db.amazonPick.findMany({ orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { title: 'asc' }] }),
-    db.careSheet.findMany({ orderBy: [{ published: 'desc' }, { plantName: 'asc' }] })
+    db.careSheet.findMany({ orderBy: [{ published: 'desc' }, { plantName: 'asc' }] }),
+    db.product.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+    db.collection.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      include: { _count: { select: { products: { where: { active: true } } } } }
+    })
   ]);
   const telnyxReady = telnyxVideoConfigured();
 
@@ -132,6 +182,7 @@ export default async function ContentManager() {
         <img src="/logo.png" alt="The Hillside Gardens" />
         <b>Website Content Manager</b>
         <Link href="/admin">← Business dashboard</Link>
+        <a href="#collections">Collections</a>
         <a href="#classes">Classes</a>
         <a href="#gallery">Gallery</a>
         <a href="#amazon">Amazon picks</a>
@@ -148,8 +199,56 @@ export default async function ContentManager() {
           <div className="stat"><span>Gallery photos</span><strong>{gallery.length}</strong></div>
           <div className="stat"><span>Amazon picks</span><strong>{picks.filter((item) => item.active).length}</strong></div>
           <div className="stat"><span>Care sheets</span><strong>{sheets.filter((item) => item.published).length}</strong></div>
+          <div className="stat"><span>Collections</span><strong>{collections.filter((item) => item.active).length}</strong></div>
           <div className="stat"><span>Telnyx Video</span><strong>{telnyxReady ? 'Ready' : 'Setup'}</strong></div>
         </div>
+
+        <section className="admin-section" id="collections">
+          <h2>Collections</h2>
+          <p className="muted">
+            Collections are how the website groups what you sell. A collection only appears on the
+            homepage once it holds at least one active product — assign products from the
+            <Link className="text-link" href="/admin#inventory"> inventory section</Link> of the business dashboard.
+          </p>
+          <div className="admin-list">
+            {collections.map((collection) => (
+              <details key={collection.id}>
+                <summary>
+                  <span>
+                    {collection.title} • {collection._count.products}{' '}
+                    {collection._count.products === 1 ? 'product' : 'products'}
+                    {collection.featured && collection._count.products === 0 && (
+                      <> • <b className="needs-photo">empty, hidden from homepage</b></>
+                    )}
+                  </span>
+                  <span className={`status-badge ${collection.active ? 'PAID' : 'CANCELLED'}`}>
+                    {collection.active ? 'Visible' : 'Hidden'}
+                  </span>
+                </summary>
+                <div>
+                  <form action={saveCollection}>
+                    <CollectionFields collection={collection} />
+                    <div className="admin-actions">
+                      <button className="btn small">Save collection</button>
+                      <Link className="btn outline small" href={`/collections/${collection.slug}`}>View collection</Link>
+                    </div>
+                  </form>
+                  <form action={deleteCollection} style={{ marginTop: 10 }}>
+                    <input type="hidden" name="id" value={collection.id} />
+                    <button className="text-button danger">Delete collection</button>
+                  </form>
+                </div>
+              </details>
+            ))}
+          </div>
+          <div className="admin-card" style={{ marginTop: 20 }}>
+            <h2 style={{ marginTop: 0 }}>Add a collection</h2>
+            <form action={saveCollection}>
+              <CollectionFields />
+              <button className="btn" style={{ marginTop: 16 }}>Create collection</button>
+            </form>
+          </div>
+        </section>
 
         <section className="admin-section" id="classes">
           <div className="toolbar">
@@ -231,10 +330,10 @@ export default async function ContentManager() {
           <div className="toolbar"><div><h2>Plant care sheets</h2><p className="muted">Each published plant receives a searchable detail page and print-friendly care sheet.</p></div><Link className="btn outline small" href="/care">View care library</Link></div>
           <div className="admin-list">
             {sheets.map((sheet) => (
-              <details key={sheet.id}><summary><span>{sheet.plantName}{sheet.botanical ? ` • ${sheet.botanical}` : ''}</span><span className={`status-badge ${sheet.published ? 'PAID' : 'CANCELLED'}`}>{sheet.published ? 'Published' : 'Draft'}</span></summary><div><form action={saveCareSheet}><CareFields sheet={sheet} /><div className="admin-actions"><button className="btn small">Save care sheet</button><Link className="btn outline small" href={`/care/${sheet.slug}`}>View guide</Link></div></form>{sheet.published && <form action={archiveContent} style={{ marginTop: 10 }}><input type="hidden" name="id" value={sheet.id} /><input type="hidden" name="kind" value="care" /><button className="text-button danger">Unpublish care sheet</button></form>}</div></details>
+              <details key={sheet.id}><summary><span>{sheet.plantName}{sheet.botanical ? ` • ${sheet.botanical}` : ''}</span><span className={`status-badge ${sheet.published ? 'PAID' : 'CANCELLED'}`}>{sheet.published ? 'Published' : 'Draft'}</span></summary><div><form action={saveCareSheet}><CareFields sheet={sheet} products={products} /><div className="admin-actions"><button className="btn small">Save care sheet</button><Link className="btn outline small" href={`/care/${sheet.slug}`}>View guide</Link></div></form>{sheet.published && <form action={archiveContent} style={{ marginTop: 10 }}><input type="hidden" name="id" value={sheet.id} /><input type="hidden" name="kind" value="care" /><button className="text-button danger">Unpublish care sheet</button></form>}</div></details>
             ))}
           </div>
-          <div className="admin-card" style={{ marginTop: 20 }}><h2 style={{ marginTop: 0 }}>Add a plant care sheet</h2><form action={saveCareSheet}><CareFields /><button className="btn" style={{ marginTop: 16 }}>Publish care sheet</button></form></div>
+          <div className="admin-card" style={{ marginTop: 20 }}><h2 style={{ marginTop: 0 }}>Add a plant care sheet</h2><form action={saveCareSheet}><CareFields products={products} /><button className="btn" style={{ marginTop: 16 }}>Publish care sheet</button></form></div>
         </section>
       </main>
     </div>

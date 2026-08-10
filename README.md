@@ -15,8 +15,11 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 ## Public website
 
 - Professional botanical storefront based on the Hillside green, sage and gold logo system
-- Searchable and filterable live product catalog
-- Individual SEO-ready product pages with live inventory
+- Owner-managed collections with their own pages, assigned from the dashboard
+- Site-wide search across products, care guides and classes
+- Searchable and filterable live product catalog, with sale and new-arrival sorting
+- Individual SEO-ready product pages with live inventory, multiple photographs and customer reviews
+- Back-in-stock email alerts on sold-out products
 - Persistent shopping cart and secure Stripe Checkout
 - Configurable flat or free standard shipping
 - Customer order-confirmation page and Stripe invoice link
@@ -27,7 +30,10 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Printable houseplant care sheets and detailed care pages
 - Gallery of Tammy’s past planter arrangements
 - Tammy’s Amazon influencer picks with affiliate disclosure
-- Newsletter signup and customer contact form
+- Newsletter signup, cart saving and customer contact form
+- Care guides that link through to the plant they describe and to upcoming classes
+- Google Analytics 4 ecommerce events (opt-in through an environment variable)
+- LocalBusiness and Event structured data, plus a purpose-built social share image
 - About, FAQ, shipping/returns, privacy and terms pages
 - Sitemap, robots file, web manifest and structured data
 
@@ -45,6 +51,11 @@ The dashboard at `/admin` includes:
 - Paid and free class registrations and seat counts
 - Customer website inbox
 - Newsletter subscriber management
+- Customer review moderation with optional public replies
+- Restock request list, emailed automatically when stock returns
+- Collection management and per-product collection assignment
+- Visibility of products still missing their own photograph
+- Order confirmation email delivery status
 - A separate content manager at `/admin/content` for classes, care sheets, gallery items and Amazon picks
 - Online class creation, Telnyx room preparation and a private host studio
 - Online-class confirmation status, attendee last-join time and secure link resending

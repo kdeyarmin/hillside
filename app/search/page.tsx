@@ -1,0 +1,193 @@
+import type { Metadata } from 'next';
+import Link from 'next/link';
+import { CalendarDays, Leaf, Search, ShoppingBag } from 'lucide-react';
+import ProductGrid from '@/components/ProductGrid';
+import { db } from '@/lib/db';
+import { ratingsByProduct } from '@/lib/reviews';
+import { classFormatLabel } from '@/lib/class-access';
+import { formatMoney } from '@/lib/store';
+
+export const dynamic = 'force-dynamic';
+
+export async function generateMetadata({
+  searchParams
+}: {
+  searchParams: Promise<{ q?: string }>;
+}): Promise<Metadata> {
+  const { q } = await searchParams;
+  return {
+    title: q?.trim() ? `Search: ${q.trim()}` : 'Search',
+    description: 'Search plants, botanicals, plant care guides and classes at The Hillside Gardens.',
+    robots: { index: false, follow: true }
+  };
+}
+
+export default async function SearchPage({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  const { q } = await searchParams;
+  const term = (q || '').trim().slice(0, 120);
+  const contains = { contains: term, mode: 'insensitive' as const };
+
+  const [products, guides, classes] = term
+    ? await Promise.all([
+        db.product.findMany({
+          where: {
+            active: true,
+            OR: [{ name: contains }, { shortDescription: contains }, { description: contains }]
+          },
+          orderBy: [{ featured: 'desc' }, { name: 'asc' }],
+          take: 12
+        }),
+        db.careSheet.findMany({
+          where: {
+            published: true,
+            OR: [
+              { plantName: contains },
+              { botanical: contains },
+              { summary: contains },
+              { symptoms: contains },
+              { category: contains }
+            ]
+          },
+          orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
+          take: 12
+        }),
+        db.classEvent.findMany({
+          where: {
+            active: true,
+            startsAt: { gte: new Date() },
+            OR: [{ title: contains }, { description: contains }]
+          },
+          orderBy: { startsAt: 'asc' },
+          take: 6
+        })
+      ])
+    : [[], [], []];
+
+  const ratings = await ratingsByProduct(products.map((product) => product.id));
+  const shopProducts = products.map((product) => ({
+    ...product,
+    averageRating: ratings.get(product.id)?.average ?? null,
+    reviewCount: ratings.get(product.id)?.count ?? 0
+  }));
+
+  const total = products.length + guides.length + classes.length;
+
+  return (
+    <>
+      <section className="pagehero">
+        <div className="container">
+          <div className="eyebrow">Search</div>
+          <h1>{term ? `Results for “${term}”` : 'Search The Hillside Gardens'}</h1>
+          <form className="search-page-form" action="/search" role="search">
+            <label className="sr-only" htmlFor="search-page-input">Search the whole site</label>
+            <div className="search-wrap">
+              <Search size={18} aria-hidden="true" />
+              <input
+                id="search-page-input"
+                className="search-input"
+                type="search"
+                name="q"
+                defaultValue={term}
+                placeholder="Plants, symptoms, classes, care topics"
+                enterKeyHint="search"
+              />
+            </div>
+            <button className="btn" type="submit">Search</button>
+          </form>
+          {term && <p>{total} {total === 1 ? 'result' : 'results'} across the shop, care library and classes.</p>}
+        </div>
+      </section>
+
+      <section className="content">
+        <div className="container">
+          {!term && (
+            <div className="empty-state">
+              <Search size={38} />
+              <h3>What are you looking for?</h3>
+              <p>Search a plant name, a symptom such as “yellow leaves”, a product or a class.</p>
+            </div>
+          )}
+
+          {term && total === 0 && (
+            <div className="empty-state">
+              <Search size={38} />
+              <h3>Nothing matched “{term}”.</h3>
+              <p>Try a shorter word, or browse the shop and care library directly.</p>
+              <div className="actions" style={{ justifyContent: 'center' }}>
+                <Link className="btn" href="/shop">Browse the shop</Link>
+                <Link className="btn outline" href="/care">Plant care library</Link>
+              </div>
+            </div>
+          )}
+
+          {shopProducts.length > 0 && (
+            <div className="search-group">
+              <div className="editorial-heading-row">
+                <div>
+                  <div className="eyebrow"><ShoppingBag size={14} /> Shop</div>
+                  <h2>{shopProducts.length} {shopProducts.length === 1 ? 'product' : 'products'}</h2>
+                </div>
+                <Link className="editorial-link" href={`/shop?q=${encodeURIComponent(term)}`}>
+                  Refine in the shop →
+                </Link>
+              </div>
+              <ProductGrid products={shopProducts} />
+            </div>
+          )}
+
+          {guides.length > 0 && (
+            <div className="search-group">
+              <div className="editorial-heading-row">
+                <div>
+                  <div className="eyebrow"><Leaf size={14} /> Plant care</div>
+                  <h2>{guides.length} {guides.length === 1 ? 'guide' : 'guides'}</h2>
+                </div>
+                <Link className="editorial-link" href="/care">Open the library →</Link>
+              </div>
+              <div className="care-related-grid">
+                {guides.map((guide) => (
+                  <article className="care-related-card" key={guide.id}>
+                    <span>{guide.category || 'Care guide'}</span>
+                    <h3><Link href={`/care/${guide.slug}`}>{guide.plantName}</Link></h3>
+                    <p>{guide.summary}</p>
+                    <Link className="text-link" href={`/care/${guide.slug}`}>Read guide →</Link>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {classes.length > 0 && (
+            <div className="search-group">
+              <div className="editorial-heading-row">
+                <div>
+                  <div className="eyebrow"><CalendarDays size={14} /> Classes</div>
+                  <h2>{classes.length} upcoming</h2>
+                </div>
+                <Link className="editorial-link" href="/classes">All classes →</Link>
+              </div>
+              <div className="care-related-grid">
+                {classes.map((event) => (
+                  <article className="care-related-card" key={event.id}>
+                    <span>{classFormatLabel(event.format)}</span>
+                    <h3><Link href={`/classes#class-${event.id}`}>{event.title}</Link></h3>
+                    <p>
+                      {event.startsAt.toLocaleDateString('en-US', {
+                        weekday: 'long',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                      {' · '}
+                      {event.priceCents > 0 ? `${formatMoney(event.priceCents)} per person` : 'Free'}
+                    </p>
+                    <Link className="text-link" href={`/classes#class-${event.id}`}>See the class →</Link>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}

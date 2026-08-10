@@ -6,6 +6,7 @@ import {
   classLocationLabel,
   isOnlineClass
 } from '@/lib/class-access';
+import { holdExpiry, seatsRemaining } from '@/lib/class-seats';
 import { absoluteUrl, normalizeHillsideDomain } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -33,11 +34,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Use the registration form on the class page.' }, { status: 400 });
     }
 
-    const registrationTotals = await db.classRegistration.aggregate({
-      where: { classEventId: event.id, status: 'PAID' },
-      _sum: { seats: true }
-    });
-    const seatsLeft = Math.max(0, event.capacity - (registrationTotals._sum.seats || 0));
+    const seatsLeft = await seatsRemaining(event.id, event.capacity);
     if (seats > seatsLeft) {
       return NextResponse.json(
         { error: seatsLeft ? `Only ${seatsLeft} seats remain.` : 'This class is sold out.' },
@@ -74,6 +71,7 @@ export async function POST(request: Request) {
       phone_number_collection: { enabled: true },
       invoice_creation: { enabled: true },
       allow_promotion_codes: true,
+      consent_collection: { promotions: 'auto' },
       payment_intent_data: {
         description: `The Hillside Gardens class: ${event.title}`,
         metadata: { kind: 'CLASS_REGISTRATION', classEventId: event.id }
@@ -90,6 +88,21 @@ export async function POST(request: Request) {
         classEventId: event.id,
         seats: String(seats),
         classFormat: event.format
+      }
+    });
+
+    // Hold the seats for this session so a simultaneous buyer cannot take them
+    // while the customer is still on Stripe's payment page.
+    await db.classRegistration.create({
+      data: {
+        classEventId: event.id,
+        stripeSessionId: session.id,
+        name: 'Reserved seat',
+        email: '',
+        seats,
+        amountCents: event.priceCents * seats,
+        status: 'PENDING',
+        holdExpiresAt: holdExpiry()
       }
     });
 

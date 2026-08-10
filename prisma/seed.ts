@@ -3,6 +3,20 @@ import { PrismaClient, ProductType } from '@prisma/client';
 const db = new PrismaClient();
 
 async function main() {
+  /**
+   * Demo data must never land on top of a real catalog. `npm run db:seed` is a
+   * first-run convenience; once Tammy has entered products it refuses to run
+   * unless explicitly forced with HILLSIDE_FORCE_SEED=true.
+   */
+  const existingProducts = await db.product.count();
+  if (existingProducts > 0 && process.env.HILLSIDE_FORCE_SEED !== 'true') {
+    console.log(
+      `Skipping product seed: ${existingProducts} products already exist. ` +
+        'Set HILLSIDE_FORCE_SEED=true to overwrite them.'
+    );
+    return;
+  }
+
   const products = [
     {
       name: 'Monstera Deliciosa',

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
-import { absoluteUrl, normalizeHillsideDomain } from '@/lib/store';
+import { absoluteUrl, normalizeHillsideDomain, resolveImageUrl } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -39,6 +39,28 @@ export async function POST(request: Request) {
       return [{ product, quantity: Math.min(requestedItem.quantity, product.inventory) }];
     });
 
+    /**
+     * Anything the server had to change is reported back rather than applied
+     * silently, so the customer confirms the corrected basket before paying.
+     */
+    const adjustments = requested.flatMap((requestedItem) => {
+      const product = products.find((candidate) => candidate.slug === requestedItem.id);
+      const available = product ? Math.max(0, product.inventory) : 0;
+      if (product && available >= requestedItem.quantity) return [];
+      return [
+        {
+          slug: requestedItem.id,
+          name: product?.name || 'That item',
+          requested: requestedItem.quantity,
+          available
+        }
+      ];
+    });
+
+    if (adjustments.length) {
+      return NextResponse.json({ adjustments }, { status: 409 });
+    }
+
     if (!items.length) {
       return NextResponse.json(
         { error: 'The selected items are unavailable or sold out.' },
@@ -75,7 +97,7 @@ export async function POST(request: Request) {
           product_data: {
             name: product.name,
             description: product.shortDescription || product.description || undefined,
-            images: product.imageUrl ? [absoluteUrl(product.imageUrl)] : undefined,
+            images: [absoluteUrl(resolveImageUrl(product.imageUrl))],
             metadata: { hillsideProductId: product.id, hillsideSlug: product.slug }
           }
         }
@@ -101,6 +123,7 @@ export async function POST(request: Request) {
       automatic_tax: { enabled: process.env.STRIPE_AUTOMATIC_TAX === 'true' },
       invoice_creation: { enabled: true },
       allow_promotion_codes: true,
+      consent_collection: { promotions: 'auto' },
       payment_intent_data: {
         description: `The Hillside Gardens ${invoiceNumber}`,
         metadata: { invoiceNumber, kind: 'PRODUCT_ORDER' }

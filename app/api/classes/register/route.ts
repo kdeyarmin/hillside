@@ -3,7 +3,9 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
+import { seatsRemaining } from '@/lib/class-seats';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
+import { rateLimited } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
@@ -16,21 +18,8 @@ const requestSchema = z.object({
   website: z.string().max(0).optional().default('')
 });
 
-const attempts = new Map<string, number[]>();
-
-function rateLimited(request: Request) {
-  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim();
-  const key = forwarded || request.headers.get('x-real-ip') || 'unknown';
-  const now = Date.now();
-  const recent = (attempts.get(key) || []).filter((time) => now - time < 10 * 60_000);
-  if (recent.length >= 8) return true;
-  recent.push(now);
-  attempts.set(key, recent);
-  return false;
-}
-
 export async function POST(request: Request) {
-  if (rateLimited(request)) {
+  if (rateLimited(request, { name: 'class-register', limit: 8, windowMs: 10 * 60_000 })) {
     return NextResponse.json({ error: 'Too many registration attempts. Please try again shortly.' }, { status: 429 });
   }
 
@@ -70,11 +59,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const totals = await db.classRegistration.aggregate({
-      where: { classEventId: event.id, status: 'PAID' },
-      _sum: { seats: true }
-    });
-    const seatsLeft = Math.max(0, event.capacity - (totals._sum.seats || 0));
+    const seatsLeft = await seatsRemaining(event.id, event.capacity);
     if (input.seats > seatsLeft) {
       return NextResponse.json(
         { error: seatsLeft ? `Only ${seatsLeft} seats remain.` : 'This class is sold out.' },

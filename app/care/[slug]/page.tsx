@@ -18,9 +18,11 @@ import {
   Wind,
   Wrench
 } from 'lucide-react';
+import ProductGrid from '@/components/ProductGrid';
 import PrintButton from '@/components/PrintButton';
 import ResilientImage from '@/components/ResilientImage';
 import { db } from '@/lib/db';
+import { ratingsByProduct } from '@/lib/reviews';
 import { FALLBACK_PRODUCT_IMAGE, absoluteUrl, resolveImageUrl } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -91,11 +93,44 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     relatedWhere.guideType = sheet.guideType;
   }
 
-  const related = await db.careSheet.findMany({
-    where: relatedWhere,
-    orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { plantName: 'asc' }],
-    take: 3
-  });
+  const [related, linkedProduct, upcomingClass] = await Promise.all([
+    db.careSheet.findMany({
+      where: relatedWhere,
+      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { plantName: 'asc' }],
+      take: 3
+    }),
+    sheet.productId
+      ? db.product.findFirst({ where: { id: sheet.productId, active: true } })
+      : null,
+    db.classEvent.findFirst({
+      where: { active: true, startsAt: { gte: new Date() } },
+      orderBy: { startsAt: 'asc' }
+    })
+  ]);
+
+  /**
+   * The care library is the reason strangers find this site, and it used to link
+   * only to other care guides. A reader here is the most qualified visitor there
+   * is, so the guide now offers the plant itself, a class, and a fallback into
+   * the shop when nothing specific is linked.
+   */
+  const suggestedProducts = linkedProduct
+    ? []
+    : await db.product.findMany({
+        where: { active: true, inventory: { gt: 0 }, type: 'PLANT' },
+        orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
+        take: 3
+      });
+  const suggestedRatings = await ratingsByProduct(
+    [linkedProduct?.id, ...suggestedProducts.map((product) => product.id)].filter(
+      (id): id is string => Boolean(id)
+    )
+  );
+  const shopProducts = (linkedProduct ? [linkedProduct] : suggestedProducts).map((product) => ({
+    ...product,
+    averageRating: suggestedRatings.get(product.id)?.average ?? null,
+    reviewCount: suggestedRatings.get(product.id)?.count ?? 0
+  }));
 
   const title = guideTitle(sheet.plantName, sheet.guideType);
   const articleJsonLd = {
@@ -293,6 +328,44 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
             </section>
           )}
         </article>
+
+        {shopProducts.length > 0 && (
+          <section className="product-details-section no-print care-shop-cta">
+            <div className="sectionhead">
+              <div className="eyebrow">{linkedProduct ? 'From our shop' : 'Ready for a new plant?'}</div>
+              <h2>
+                {linkedProduct
+                  ? `Bring ${linkedProduct.name} home.`
+                  : 'Plants we have on the bench right now.'}
+              </h2>
+              <p>
+                Every plant is potted here and leaves with the same care notes you just read.
+              </p>
+            </div>
+            <ProductGrid products={shopProducts} />
+          </section>
+        )}
+
+        {upcomingClass && (
+          <section className="newsletter care-class-cta no-print">
+            <div>
+              <div className="eyebrow">Learn it hands-on</div>
+              <h3>{upcomingClass.title}</h3>
+              <p>
+                {upcomingClass.startsAt.toLocaleDateString('en-US', {
+                  weekday: 'long',
+                  month: 'long',
+                  day: 'numeric'
+                })}
+                {' · '}
+                {upcomingClass.priceCents > 0 ? 'Reserve a seat' : 'Free registration'}
+              </p>
+            </div>
+            <Link className="btn gold" href={`/classes#class-${upcomingClass.id}`}>
+              See the class
+            </Link>
+          </section>
+        )}
 
         {related.length > 0 && (
           <section className="product-details-section no-print">
