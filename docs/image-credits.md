@@ -45,10 +45,32 @@ Whatever the source, add it to the tables below with its licence before committi
 | `potting-bench.webp` | [photo-1636039479790](https://unsplash.com/photos/1636039479790-be1d880e2b8c) |
 | `workshop-table.webp` | [photo-1781977972837](https://unsplash.com/photos/1781977972837-e3b3f343be0e) |
 
+## Branded product photography
+
+`apothecary.webp` and `homemade-soaps.webp` carry the Hillside mark on the packaging inside the
+photograph — a printed label on the amber bottles, an inked stamp on the kraft soap wraps. This is
+the ordinary product-mockup technique, and it is why the logo was supplied as transparent artwork.
+
+The mark is not pasted on flat. Each placement is rotated onto its object's axis and then relit
+from the luminance of the pixels it covers, so the bottle's own highlight runs across the label and
+its shadow side stays dark. The soap stamps are composited in multiply, so the kraft grain reads
+through the ink the way it would on absorbent paper.
+
+```bash
+npm run images:mockup                               # rebuild every branded shot
+npm run images:mockup -- --only apothecary --debug  # outline each placement to re-measure
+```
+
+The unbranded originals live in `assets/photography/`, outside `public/` so they are never served.
+Every run reads from there and rewrites the file in `public/images/catalog/`, so the step is
+idempotent — the mark can never be composited onto an already-branded image. Placement geometry is
+recorded in `scripts/brand-mockup.config.mjs` rather than re-measured by hand.
+
 ## What these images are, and are not
 
-They are real photographs of real plants and goods, and they are licensed for commercial use.
-They are **not** photographs of The Hillside Gardens' own stock. For a shop where the customer
+They are real photographs of real plants and goods, licensed for commercial use, now carrying the
+real Hillside mark. They are still **not** photographs of The Hillside Gardens' own stock — the
+bottles and soap in them belong to the original photographers. For a shop where the customer
 receives the specific item pictured, the honest end state is Tammy's own photography, uploaded
 per product through the admin dashboard — see `docs/admin-image-uploads.md`. Owner uploads
 already override these automatically on a per-product basis, so replacing them is incremental
