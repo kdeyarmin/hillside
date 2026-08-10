@@ -127,7 +127,7 @@ function CareFields({
   products
 }: {
   sheet?: CareSheet;
-  products: Array<{ id: string; name: string }>;
+  products: Array<{ id: string; name: string; active: boolean }>;
 }) {
   return (
     <>
@@ -151,7 +151,9 @@ function CareFields({
           <select className="admin-input" name="productId" defaultValue={sheet?.productId || ''}>
             <option value="">No product — show current plants instead</option>
             {products.map((product) => (
-              <option value={product.id} key={product.id}>{product.name}</option>
+              <option value={product.id} key={product.id}>
+                {product.name}{product.active ? '' : ' (archived)'}
+              </option>
             ))}
           </select>
         </label>
@@ -168,7 +170,7 @@ export default async function ContentManager() {
     db.galleryItem.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] }),
     db.amazonPick.findMany({ orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { title: 'asc' }] }),
     db.careSheet.findMany({ orderBy: [{ published: 'desc' }, { plantName: 'asc' }] }),
-    db.product.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+    db.product.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { id: true, name: true, active: true } }),
     db.collection.findMany({
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
       include: { _count: { select: { products: { where: { active: true } } } } }

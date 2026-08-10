@@ -6,6 +6,7 @@ import ProductGrid from '@/components/ProductGrid';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { absoluteUrl, resolveImageUrl } from '@/lib/store';
+import { jsonLd } from '@/lib/json-ld';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,7 +79,7 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(listJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(listJsonLd) }} />
       <section className="pagehero collection-hero">
         <div className="container">
           <div className="breadcrumbs centered">

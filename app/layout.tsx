@@ -13,6 +13,7 @@ import Analytics from '@/components/Analytics';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
 import { absoluteUrl, normalizeHillsideDomain, siteBaseUrl } from '@/lib/store';
+import { jsonLd } from '@/lib/json-ld';
 
 const hillsideSans = Manrope({
   subsets: ['latin'],
@@ -147,7 +148,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(businessJsonLd()) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd(businessJsonLd()) }}
         />
         <CartProvider>
           <SiteHeader />

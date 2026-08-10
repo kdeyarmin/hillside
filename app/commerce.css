@@ -356,3 +356,13 @@
   align-items: center;
   min-height: 24px;
 }
+.save-cart-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.save-cart-consent input { margin-top: 3px; }

@@ -24,6 +24,7 @@ import ResilientImage from '@/components/ResilientImage';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { FALLBACK_PRODUCT_IMAGE, absoluteUrl, resolveImageUrl } from '@/lib/store';
+import { jsonLd } from '@/lib/json-ld';
 
 export const dynamic = 'force-dynamic';
 
@@ -177,7 +178,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     <section className="content care-guide-page">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(articleJsonLd) }}
       />
       <div className="container">
         <div className="breadcrumbs no-print">

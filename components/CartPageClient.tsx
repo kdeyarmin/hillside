@@ -19,6 +19,7 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
     checkout
   } = useCart();
   const [saveEmail, setSaveEmail] = useState('');
+  const [saveSubscribe, setSaveSubscribe] = useState(false);
   const [saveState, setSaveState] = useState<{ type: 'idle' | 'ok' | 'error'; message?: string }>({
     type: 'idle'
   });
@@ -36,7 +37,7 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
         body: JSON.stringify({
           email: saveEmail,
           subtotalCents,
-          subscribe: true,
+          subscribe: saveSubscribe,
           items: items.map((item) => ({ slug: item.slug, quantity: item.quantity }))
         })
       });
@@ -44,6 +45,7 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
       if (!response.ok) throw new Error(result.error || 'We could not save your cart.');
       setSaveState({ type: 'ok', message: result.message });
       setSaveEmail('');
+      setSaveSubscribe(false);
     } catch (error) {
       setSaveState({
         type: 'error',
@@ -177,6 +179,16 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
             />
             <button className="btn outline small" type="submit">Save cart</button>
           </div>
+          {/* Saving a cart is not consent to be marketed to. The newsletter is a
+              separate, explicit opt-in that defaults to off. */}
+          <label className="save-cart-consent">
+            <input
+              type="checkbox"
+              checked={saveSubscribe}
+              onChange={(event) => setSaveSubscribe(event.target.checked)}
+            />
+            <span>Also send me seasonal tips, class dates and new arrivals.</span>
+          </label>
           {saveState.message && (
             <p className={`form-status ${saveState.type === 'ok' ? 'success' : 'error'}`} role="status">
               {saveState.message}

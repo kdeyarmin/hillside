@@ -38,16 +38,12 @@ export async function POST(request: Request) {
 
     const email = input.email.toLowerCase();
 
-    // A reviewer who has an order against this email gets a "verified purchase"
-    // mark, which is the part shoppers actually weigh.
-    const purchase = await db.orderItem.findFirst({
-      where: {
-        productId: product.id,
-        order: { email: { equals: email, mode: 'insensitive' }, status: { in: ['PAID', 'FULFILLED'] } }
-      },
-      select: { id: true }
-    });
-
+    /**
+     * The badge is never granted from the submitted email alone — nothing proves
+     * the reviewer controls that address, so anyone who knew a customer's email
+     * could publish a review carrying it. The dashboard shows Tammy whether the
+     * address matches a paid order and she applies the badge during moderation.
+     */
     const review = await db.review.create({
       data: {
         productId: product.id,
@@ -56,7 +52,7 @@ export async function POST(request: Request) {
         rating: input.rating,
         title: input.title || null,
         body: input.body,
-        verifiedPurchase: Boolean(purchase),
+        verifiedPurchase: false,
         status: 'PENDING'
       }
     });

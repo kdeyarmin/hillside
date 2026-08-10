@@ -14,6 +14,9 @@ import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
  * owner-managed rows, so "Plants" leads somewhere that can be curated, and
  * `usePathname` alone is enough to mark the current section without pulling
  * `useSearchParams` (and a Suspense boundary) into the root layout.
+ *
+ * These three slugs are locked in the content manager (see
+ * `lib/collections.ts`) so the header can never point at a deleted collection.
  */
 const navigation = [
   ['Plants', '/collections/plants'],

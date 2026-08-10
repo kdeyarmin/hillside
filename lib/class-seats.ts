@@ -1,10 +1,21 @@
+import crypto from 'crypto';
+import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 
-/** How long a checkout session may hold a seat before the seat returns to the pool. */
+/**
+ * How long a checkout session may hold a seat before the seat returns to the pool.
+ * Stripe requires a Checkout Session to expire between 30 minutes and 24 hours
+ * out, so this must stay at or above 30.
+ */
 const HOLD_MINUTES = 35;
 
 export function holdExpiry(now = new Date()) {
   return new Date(now.getTime() + HOLD_MINUTES * 60_000);
+}
+
+/** The same instant as a Unix timestamp, for Stripe's `expires_at`. */
+export function holdExpiryUnix(expiresAt: Date) {
+  return Math.floor(expiresAt.getTime() / 1000);
 }
 
 /**
@@ -33,4 +44,81 @@ export async function seatsTaken(classEventId: string) {
 
 export async function seatsRemaining(classEventId: string, capacity: number) {
   return Math.max(0, capacity - (await seatsTaken(classEventId)));
+}
+
+
+export type Reservation =
+  | { ok: true; holdId: string; expiresAt: Date }
+  | { ok: false; seatsLeft: number };
+
+/**
+ * Reserves seats atomically.
+ *
+ * Checking availability and then inserting the hold as two statements leaves a
+ * window — widened by the Stripe API round trip that used to sit between them —
+ * where two buyers both pass the check and the class oversells. A transaction
+ * advisory lock keyed on the class serializes reservations for that class only,
+ * so the count and the insert cannot interleave.
+ */
+export async function reserveSeats({
+  classEventId,
+  capacity,
+  seats,
+  amountCents
+}: {
+  classEventId: string;
+  capacity: number;
+  seats: number;
+  amountCents: number;
+}): Promise<Reservation> {
+  const expiresAt = holdExpiry();
+  const holdId = `hold_${crypto.randomUUID()}`;
+
+  return db.$transaction(async (transaction) => {
+    await transaction.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(1, hashtext(${classEventId}))`
+    );
+
+    await transaction.classRegistration.deleteMany({
+      where: { classEventId, status: 'PENDING', holdExpiresAt: { lt: new Date() } }
+    });
+
+    const totals = await transaction.classRegistration.aggregate({
+      where: {
+        classEventId,
+        OR: [{ status: 'PAID' }, { status: 'PENDING', holdExpiresAt: { gte: new Date() } }]
+      },
+      _sum: { seats: true }
+    });
+
+    const seatsLeft = Math.max(0, capacity - (totals._sum.seats || 0));
+    if (seats > seatsLeft) return { ok: false, seatsLeft } as const;
+
+    await transaction.classRegistration.create({
+      data: {
+        classEventId,
+        stripeSessionId: holdId,
+        name: 'Reserved seat',
+        email: '',
+        seats,
+        amountCents,
+        status: 'PENDING',
+        holdExpiresAt: expiresAt
+      }
+    });
+
+    return { ok: true, holdId, expiresAt } as const;
+  });
+}
+
+/** Attaches the real Stripe session to a hold once checkout has been created. */
+export async function attachSessionToHold(holdId: string, stripeSessionId: string) {
+  await db.classRegistration.update({
+    where: { stripeSessionId: holdId },
+    data: { stripeSessionId }
+  });
+}
+
+export async function releaseHold(holdId: string) {
+  await db.classRegistration.deleteMany({ where: { stripeSessionId: holdId } });
 }

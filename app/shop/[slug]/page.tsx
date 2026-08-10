@@ -5,10 +5,12 @@ import { Truck } from 'lucide-react';
 import AddToCartButton from '@/components/AddToCartButton';
 import ProductGallery from '@/components/ProductGallery';
 import ProductGrid from '@/components/ProductGrid';
+import ProductViewTracker from '@/components/ProductViewTracker';
 import ProductReviews from '@/components/ProductReviews';
 import StockAlertForm from '@/components/StockAlertForm';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
+import { jsonLd } from '@/lib/json-ld';
 import {
   absoluteUrl,
   discountPercent,
@@ -134,8 +136,14 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   return (
     <section className="content">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(productJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbJsonLd) }} />
+      <ProductViewTracker
+        slug={product.slug}
+        name={product.name}
+        type={product.type}
+        priceCents={product.priceCents}
+      />
       <div className="container">
         <div className="breadcrumbs">
           <Link href="/">Home</Link><span>/</span>

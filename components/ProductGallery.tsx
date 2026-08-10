@@ -51,13 +51,15 @@ export default function ProductGallery({
         loading="eager"
         decoding="async"
       />
-      <div className="product-gallery-thumbs" role="tablist" aria-label={`${name} photographs`}>
+      {/* A plain pressed-state group rather than ARIA tabs: tab semantics promise
+          arrow-key navigation and an associated tabpanel that this control does
+          not provide. */}
+      <div className="product-gallery-thumbs" role="group" aria-label={`${name} photographs`}>
         {all.map((source, index) => (
           <button
             type="button"
-            role="tab"
-            aria-selected={index === active}
-            aria-label={`Show photograph ${index + 1}`}
+            aria-pressed={index === active}
+            aria-label={`Show photograph ${index + 1} of ${all.length}`}
             className={index === active ? 'active' : ''}
             onClick={() => setActive(index)}
             key={`${source}-${index}`}

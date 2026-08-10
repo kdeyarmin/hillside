@@ -6,7 +6,12 @@ import {
   classLocationLabel,
   isOnlineClass
 } from '@/lib/class-access';
-import { holdExpiry, seatsRemaining } from '@/lib/class-seats';
+import {
+  attachSessionToHold,
+  holdExpiryUnix,
+  releaseHold,
+  reserveSeats
+} from '@/lib/class-seats';
 import { absoluteUrl, normalizeHillsideDomain } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -34,10 +39,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Use the registration form on the class page.' }, { status: 400 });
     }
 
-    const seatsLeft = await seatsRemaining(event.id, event.capacity);
-    if (seats > seatsLeft) {
+    /**
+     * Reserve before talking to Stripe. Checking availability and inserting the
+     * hold as separate statements — with a Stripe round trip between them — let
+     * two buyers pass the same check and oversell the class.
+     */
+    const reservation = await reserveSeats({
+      classEventId: event.id,
+      capacity: event.capacity,
+      seats,
+      amountCents: event.priceCents * seats
+    });
+    if (!reservation.ok) {
       return NextResponse.json(
-        { error: seatsLeft ? `Only ${seatsLeft} seats remain.` : 'This class is sold out.' },
+        {
+          error: reservation.seatsLeft
+            ? `Only ${reservation.seatsLeft} seats remain.`
+            : 'This class is sold out.'
+        },
         { status: 400 }
       );
     }
@@ -47,64 +66,64 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
     );
     const online = isOnlineClass(event.format);
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      customer_creation: 'always',
-      line_items: [
-        {
-          quantity: seats,
-          price_data: {
-            currency: 'usd',
-            unit_amount: event.priceCents,
-            product_data: {
-              name: event.title,
-              description: `${classFormatLabel(event.format)} • ${event.startsAt.toLocaleDateString('en-US')} • ${classLocationLabel(event)}`,
-              images: event.imageUrl ? [absoluteUrl(event.imageUrl)] : undefined,
-              metadata: { hillsideClassId: event.id, classFormat: event.format }
+
+    let session: Stripe.Checkout.Session;
+    try {
+      session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        customer_creation: 'always',
+        line_items: [
+          {
+            quantity: seats,
+            price_data: {
+              currency: 'usd',
+              unit_amount: event.priceCents,
+              product_data: {
+                name: event.title,
+                description: `${classFormatLabel(event.format)} • ${event.startsAt.toLocaleDateString('en-US')} • ${classLocationLabel(event)}`,
+                images: event.imageUrl ? [absoluteUrl(event.imageUrl)] : undefined,
+                metadata: { hillsideClassId: event.id, classFormat: event.format }
+              }
             }
           }
+        ],
+        /**
+         * The session expires exactly when the seat hold does. Left at Stripe's
+         * 24 hour default, a customer could pay long after the hold lapsed and
+         * the seat had been resold.
+         */
+        expires_at: holdExpiryUnix(reservation.expiresAt),
+        success_url: `${site}/classes/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${site}/classes#class-${event.id}`,
+        billing_address_collection: 'auto',
+        phone_number_collection: { enabled: true },
+        invoice_creation: { enabled: true },
+        allow_promotion_codes: true,
+        consent_collection: { promotions: 'auto' },
+        payment_intent_data: {
+          description: `The Hillside Gardens class: ${event.title}`,
+          metadata: { kind: 'CLASS_REGISTRATION', classEventId: event.id }
+        },
+        custom_text: {
+          submit: {
+            message: online
+              ? 'After payment, your private Hillside Telnyx classroom link will be emailed to you.'
+              : 'Your class confirmation will be emailed after payment.'
+          }
+        },
+        metadata: {
+          kind: 'CLASS_REGISTRATION',
+          classEventId: event.id,
+          seats: String(seats),
+          classFormat: event.format
         }
-      ],
-      success_url: `${site}/classes/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${site}/classes#class-${event.id}`,
-      billing_address_collection: 'auto',
-      phone_number_collection: { enabled: true },
-      invoice_creation: { enabled: true },
-      allow_promotion_codes: true,
-      consent_collection: { promotions: 'auto' },
-      payment_intent_data: {
-        description: `The Hillside Gardens class: ${event.title}`,
-        metadata: { kind: 'CLASS_REGISTRATION', classEventId: event.id }
-      },
-      custom_text: {
-        submit: {
-          message: online
-            ? 'After payment, your private Hillside Telnyx classroom link will be emailed to you.'
-            : 'Your class confirmation will be emailed after payment.'
-        }
-      },
-      metadata: {
-        kind: 'CLASS_REGISTRATION',
-        classEventId: event.id,
-        seats: String(seats),
-        classFormat: event.format
-      }
-    });
+      });
+    } catch (error) {
+      await releaseHold(reservation.holdId);
+      throw error;
+    }
 
-    // Hold the seats for this session so a simultaneous buyer cannot take them
-    // while the customer is still on Stripe's payment page.
-    await db.classRegistration.create({
-      data: {
-        classEventId: event.id,
-        stripeSessionId: session.id,
-        name: 'Reserved seat',
-        email: '',
-        seats,
-        amountCents: event.priceCents * seats,
-        status: 'PENDING',
-        holdExpiresAt: holdExpiry()
-      }
-    });
+    await attachSessionToHold(reservation.holdId, session.id);
 
     return NextResponse.json({ url: session.url });
   } catch (error) {

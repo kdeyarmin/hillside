@@ -165,11 +165,12 @@ async function main() {
   for (const seed of collections) {
     const existing = await db.collection.findUnique({
       where: { slug: seed.slug },
-      include: { products: { select: { id: true } } }
+      select: { id: true }
     });
 
+    if (existing) continue;
+
     const collection =
-      existing ||
       (await db.collection.create({
         data: {
           slug: seed.slug,
@@ -180,16 +181,17 @@ async function main() {
           featured: seed.featured,
           sortOrder: seed.sortOrder
         },
-        include: { products: { select: { id: true } } }
       }));
 
-    if (!existing) created += 1;
+    created += 1;
 
-    // Only ever add memberships, so an owner who removes a product from a
-    // collection does not get it put back on the next deploy.
-    const alreadyLinked = new Set(collection.products.map((product) => product.id));
+    /**
+     * Memberships are seeded once, when the collection row is first created.
+     * Re-matching on every deploy would undo the owner's merchandising: a product
+     * they deliberately removed would keep reappearing because it still matches
+     * the seed's keywords.
+     */
     const matches = products.filter((product) => {
-      if (alreadyLinked.has(product.id)) return false;
       const haystack = `${product.name} ${product.slug}`.toLowerCase();
       const byType = seed.types?.includes(product.type);
       const byKeyword = seed.keywords?.some((keyword) => haystack.includes(keyword));

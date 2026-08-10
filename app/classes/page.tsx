@@ -11,6 +11,7 @@ import {
 import { seatsRemaining } from '@/lib/class-seats';
 import { db } from '@/lib/db';
 import { absoluteUrl, formatMoney } from '@/lib/store';
+import { jsonLd } from '@/lib/json-ld';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -79,7 +80,7 @@ export default async function Classes({
       {eventsJsonLd.length > 0 && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(eventsJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd(eventsJsonLd) }}
         />
       )}
       <section className="pagehero">

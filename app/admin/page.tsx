@@ -167,6 +167,26 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
     db.collection.findMany({ orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }], select: { id: true, title: true } })
   ]);
 
+  /**
+   * Which reviewer emails actually appear on a paid order for that product.
+   * A reviewer cannot claim the badge themselves, so this is the evidence Tammy
+   * needs to grant it during moderation.
+   */
+  const reviewPurchaseMatches = new Set(
+    (
+      await db.orderItem.findMany({
+        where: {
+          productId: { in: reviews.map((review) => review.productId) },
+          order: {
+            status: { in: [OrderStatus.PAID, OrderStatus.FULFILLED] },
+            email: { in: reviews.map((review) => review.email || '').filter(Boolean), mode: 'insensitive' }
+          }
+        },
+        select: { productId: true, order: { select: { email: true } } }
+      })
+    ).map((item) => `${item.productId}:${item.order.email.toLowerCase()}`)
+  );
+
   const lowStock = products.filter((product) => product.active && product.inventory <= 3).length;
   const openOrders = orders.filter((order) => order.status === OrderStatus.PAID).length;
   const unreadMessages = messages.filter((message) => message.status === MessageStatus.NEW).length;
@@ -343,13 +363,24 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
                     <p style={{ whiteSpace: 'pre-line' }}>{review.body}</p>
                     <p className="muted">
                       {review.email || 'No email'} • {review.createdAt.toLocaleDateString()}
-                      {review.verifiedPurchase && ' • verified purchase'}
+
                     </p>
                     <form action={updateReview}>
                       <input type="hidden" name="id" value={review.id} />
                       <label className="admin-label full">
                         Public reply (optional)
                         <textarea className="admin-input" name="ownerReply" rows={2} defaultValue={review.ownerReply || ''} />
+                      </label>
+                      <label className="admin-checkbox">
+                        <input
+                          type="checkbox"
+                          name="verifiedPurchase"
+                          defaultChecked={review.verifiedPurchase}
+                        />{' '}
+                        Show the &ldquo;verified purchase&rdquo; badge
+                        {reviewPurchaseMatches.has(`${review.productId}:${(review.email || '').toLowerCase()}`)
+                          ? ' — this email is on a paid order for this product'
+                          : ' — no paid order matches this email'}
                       </label>
                       <div className="admin-actions">
                         <button className="btn small" name="status" value={ReviewStatus.APPROVED}>Approve &amp; publish</button>

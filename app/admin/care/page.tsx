@@ -18,7 +18,7 @@ function CareGuideFields({
   products
 }: {
   guide?: CareSheet;
-  products: Array<{ id: string; name: string }>;
+  products: Array<{ id: string; name: string; active: boolean }>;
 }) {
   return (
     <>
@@ -63,7 +63,9 @@ function CareGuideFields({
           <select className="admin-input" name="productId" defaultValue={guide?.productId || ''}>
             <option value="">No product — show current plants instead</option>
             {products.map((product) => (
-              <option value={product.id} key={product.id}>{product.name}</option>
+              <option value={product.id} key={product.id}>
+                {product.name}{product.active ? '' : ' (archived)'}
+              </option>
             ))}
           </select>
         </label>
@@ -130,7 +132,7 @@ export default async function CareLibraryManager({
         { plantName: 'asc' }
       ]
     }),
-    db.product.findMany({ where: { active: true }, orderBy: { name: 'asc' }, select: { id: true, name: true } })
+    db.product.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { id: true, name: true, active: true } })
   ]);
 
   const counts = Object.fromEntries(

@@ -11,6 +11,7 @@ import {
   ReviewStatus
 } from '@prisma/client';
 import { clearAdminSession, isAdmin, setAdminSession } from '@/lib/admin';
+import { isNavigationCollection } from '@/lib/collections';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { db } from '@/lib/db';
@@ -101,8 +102,6 @@ export async function saveProduct(formData: FormData) {
     .map((value) => String(value))
     .filter(Boolean);
 
-  const before = id ? await db.product.findUnique({ where: { id }, select: { inventory: true } }) : null;
-
   const product = id
     ? await db.product.update({
         where: { id },
@@ -112,8 +111,13 @@ export async function saveProduct(formData: FormData) {
         data: { ...data, collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) } }
       });
 
-  // Restocking is the moment the waiting list is worth something.
-  if (before && before.inventory <= 0 && product.inventory > 0) {
+  /**
+   * Any save that leaves the product in stock flushes the waiting list. Firing
+   * only on the zero-to-positive transition stranded everyone permanently if the
+   * email provider happened to be down for that one save; `notifyStockAlerts`
+   * only picks up alerts it has not delivered, so this retries safely.
+   */
+  if (product.inventory > 0) {
     await notifyStockAlerts(product.id, product.name, product.slug);
   }
 
@@ -144,8 +148,15 @@ export async function saveCollection(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
   const title = text(formData, 'title');
-  const slug = slugify(text(formData, 'slug') || title);
-  if (!title || !slug) return;
+  const requestedSlug = slugify(text(formData, 'slug') || title);
+  if (!title || !requestedSlug) return;
+
+  const existing = id ? await db.collection.findUnique({ where: { id } }) : null;
+
+  // A collection the header links to keeps its slug and stays visible; renaming
+  // or hiding it would break the primary navigation.
+  const locked = Boolean(existing && isNavigationCollection(existing.slug));
+  const slug = locked ? existing!.slug : requestedSlug;
 
   const data = {
     title,
@@ -154,7 +165,7 @@ export async function saveCollection(formData: FormData) {
     description: text(formData, 'description') || null,
     imageUrl: text(formData, 'imageUrl') || null,
     featured: checked(formData, 'featured'),
-    active: checked(formData, 'active'),
+    active: locked ? true : checked(formData, 'active'),
     sortOrder: integer(formData.get('sortOrder'))
   };
 
@@ -166,7 +177,12 @@ export async function saveCollection(formData: FormData) {
 export async function deleteCollection(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
-  if (id) await db.collection.delete({ where: { id } });
+  if (!id) return;
+
+  const collection = await db.collection.findUnique({ where: { id } });
+  if (!collection || isNavigationCollection(collection.slug)) return;
+
+  await db.collection.delete({ where: { id } });
   refresh('/', '/collections', '/shop');
 }
 
@@ -181,7 +197,11 @@ export async function updateReview(formData: FormData) {
 
   const review = await db.review.update({
     where: { id },
-    data: { status, ownerReply: text(formData, 'ownerReply') || null },
+    data: {
+      status,
+      ownerReply: text(formData, 'ownerReply') || null,
+      verifiedPurchase: checked(formData, 'verifiedPurchase')
+    },
     include: { product: { select: { slug: true } } }
   });
   refresh('/shop', `/shop/${review.product.slug}`);
