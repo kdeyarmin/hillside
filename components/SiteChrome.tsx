@@ -325,7 +325,7 @@ export function SiteHeader() {
           </Link>
 
           <Link href="/" className="brand editorial-brand" aria-label="The Hillside Gardens home">
-            <img src="/logo.svg" alt="The Hillside Gardens" width="720" height="658" />
+            <img src="/logo.png" alt="The Hillside Gardens" width="949" height="917" />
           </Link>
 
           <div className="header-actions">
@@ -430,7 +430,7 @@ export function SiteFooter() {
       )}
       <div className="container footergrid">
         <div className="footer-brand">
-          <img src="/logo.svg" alt="The Hillside Gardens" width="720" height="658" />
+          <img src="/logo.png" alt="The Hillside Gardens" width="949" height="917" />
           <p>
             Plants, teas and botanicals chosen with care, plus approachable education to help you grow
             with confidence.

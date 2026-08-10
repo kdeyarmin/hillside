@@ -55,7 +55,7 @@ export const metadata: Metadata = {
   ],
   applicationName: 'The Hillside Gardens',
   alternates: { canonical: '/' },
-  icons: { icon: '/logo.svg', apple: '/logo.svg' },
+  icons: { icon: '/logo.png', apple: '/logo.png' },
   formatDetection: {
     telephone: false,
     address: false,
@@ -68,13 +68,13 @@ export const metadata: Metadata = {
     siteName: 'The Hillside Gardens',
     title: 'The Hillside Gardens',
     description: 'Plants, teas, botanicals and practical plant education from Tammy Hill.',
-    images: [{ url: '/logo.svg', width: 720, height: 658, alt: 'The Hillside Gardens logo' }]
+    images: [{ url: '/logo.png', width: 949, height: 917, alt: 'The Hillside Gardens logo' }]
   },
   twitter: {
     card: 'summary_large_image',
     title: 'The Hillside Gardens',
     description: 'Plants, teas, botanicals and practical plant education from Tammy Hill.',
-    images: ['/logo.svg']
+    images: ['/logo.png']
   }
 };
 
@@ -83,7 +83,7 @@ const organizationJsonLd = {
   '@type': 'Store',
   name: 'The Hillside Gardens',
   url: absoluteUrl('/'),
-  logo: absoluteUrl('/logo.svg'),
+  logo: absoluteUrl('/logo.png'),
   description: 'Plants, teas, botanicals and plant education from Tammy Hill.',
   founder: { '@type': 'Person', name: 'Tammy Hill' },
   email: normalizeHillsideDomain(process.env.BUSINESS_EMAIL || 'hello@thehillsidegardens.com')

@@ -18,7 +18,7 @@ export default async function PackingSlip({ params }: { params: Promise<{ id: st
       <div className="no-print" style={{ width: 'min(900px, calc(100% - 30px))', margin: '0 auto 12px' }}><PrintButton label="Print packing slip" /></div>
       <article className="print-document">
         <header className="print-header">
-          <img src="/logo.svg" alt="The Hillside Gardens" />
+          <img src="/logo.png" alt="The Hillside Gardens" />
           <div style={{ textAlign: 'right' }}><h1 style={{ margin: 0, color: 'var(--forest)', font: '500 38px Georgia,serif' }}>Packing slip</h1><b>{order.invoiceNumber}</b><br /><span>{order.createdAt.toLocaleDateString('en-US', { dateStyle: 'long' })}</span></div>
         </header>
         <div className="print-columns">
