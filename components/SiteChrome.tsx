@@ -7,6 +7,7 @@ import { Facebook, Instagram, Menu, Minus, Plus, Search, ShoppingBag, Trash2, X 
 import NewsletterForm from '@/components/NewsletterForm';
 import ResilientImage from '@/components/ResilientImage';
 import { useCart } from '@/components/CartProvider';
+import { focusableElements, trapTabKey } from '@/lib/focus-trap';
 import {
   DEFAULT_BUSINESS_EMAIL,
   FALLBACK_PRODUCT_IMAGE,
@@ -38,24 +39,6 @@ const SOCIAL_LINKS = [
   { label: 'Instagram', href: process.env.NEXT_PUBLIC_INSTAGRAM_URL, Icon: Instagram },
   { label: 'Facebook', href: process.env.NEXT_PUBLIC_FACEBOOK_URL, Icon: Facebook }
 ].filter((link): link is { label: string; href: string; Icon: typeof Instagram } => Boolean(link.href));
-
-const focusableSelector = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled]):not([type="hidden"])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])'
-].join(',');
-
-function focusableElements(container: HTMLElement | null) {
-  if (!container) return [];
-  return Array.from(container.querySelectorAll<HTMLElement>(focusableSelector)).filter((element) => {
-    const style = window.getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
-    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-  });
-}
 
 function FreeShippingMeter({ subtotalCents }: { subtotalCents: number }) {
   const threshold = publicFreeShippingThresholdCents();
@@ -166,24 +149,7 @@ function CartDrawer() {
       }
 
       if (event.key !== 'Tab') return;
-      const focusables = focusableElements(dialogRef.current);
-      if (!focusables.length) {
-        event.preventDefault();
-        closeButtonRef.current?.focus();
-        return;
-      }
-
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      const active = document.activeElement;
-
-      if (event.shiftKey && (active === first || !dialogRef.current?.contains(active))) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
+      if (trapTabKey(event, dialogRef.current, closeButtonRef.current)) event.preventDefault();
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -382,8 +348,9 @@ export function SiteHeader() {
       }
 
       if (event.key !== 'Tab') return;
-      const menuLinks = focusableElements(mobileMenuRef.current);
-      const focusables = [menuButtonRef.current, ...menuLinks].filter(
+      // The toggle button is part of this cycle on purpose — it sits outside the
+      // menu panel but is the control that opened it, so Tab should reach it.
+      const focusables = [menuButtonRef.current, ...focusableElements(mobileMenuRef.current)].filter(
         (element): element is HTMLElement => Boolean(element)
       );
       if (!focusables.length) return;
@@ -391,7 +358,11 @@ export function SiteHeader() {
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
       const active = document.activeElement;
-      if (event.shiftKey && active === first) {
+
+      if (!focusables.includes(active as HTMLElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && active === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && active === last) {

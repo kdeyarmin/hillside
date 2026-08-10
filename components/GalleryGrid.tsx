@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, X, ZoomIn } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
+import { trapTabKey } from '@/lib/focus-trap';
 
 type GalleryItem = {
   id: string;
@@ -14,12 +15,6 @@ type GalleryItem = {
   linkUrl: string | null;
   linkLabel: string | null;
 };
-
-const focusableSelector = [
-  'a[href]',
-  'button:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])'
-].join(',');
 
 export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
   const [selected, setSelected] = useState<GalleryItem | null>(null);
@@ -46,26 +41,7 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
       // behind it, which is still scroll-locked and visually covered. The cart
       // drawer already traps focus; this dialog needs the same.
       if (event.key !== 'Tab') return;
-      const focusables = Array.from(
-        dialogRef.current?.querySelectorAll<HTMLElement>(focusableSelector) || []
-      );
-      if (!focusables.length) {
-        event.preventDefault();
-        closeButtonRef.current?.focus();
-        return;
-      }
-
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      const active = document.activeElement;
-
-      if (event.shiftKey && (active === first || !dialogRef.current?.contains(active))) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
+      if (trapTabKey(event, dialogRef.current, closeButtonRef.current)) event.preventDefault();
     };
 
     window.addEventListener('keydown', handleKeyDown);
