@@ -1,8 +1,9 @@
 # Brand photography spec
 
-The storefront ships with illustrated placeholder artwork. This document is the brief for
-replacing it with real photography, and the reference for anyone regenerating a single image
-later. Hand the finished files over and they drop straight into `public/images/`.
+The storefront ships with licensed stock photography (see `docs/image-credits.md`). This document
+is the brief for replacing it with The Hillside Gardens' own photography, and the reference for
+anyone reshooting or regenerating a single image later. Hand the finished files over and they drop
+straight into `public/images/`.
 
 ## Deliverables
 
@@ -12,7 +13,7 @@ Thirteen images. Filenames matter — the component resolves artwork by path.
 
 | File | Subject |
 | --- | --- |
-| `house-plants.*` | Leafy indoor plants in ceramic and terracotta pots on a wooden surface |
+| `house-plants.webp` | Leafy indoor plants in ceramic and terracotta pots on a wooden surface |
 | `carnivorous-plants.*` | Venus flytraps, sarracenia trumpets and a hanging nepenthes pitcher |
 | `live-plant-planters.*` | A planted trough or bowl arrangement, mixed foliage and small blooms |
 | `succulents.*` | Echeveria and haworthia rosettes in a shallow stone bowl |
@@ -87,7 +88,7 @@ Image generators reliably garble small lettering — the mockup this brief came 
 
 1. **Preferred — generate blank packaging.** Ask for the kraft pouch, jar label and tin with a
    *blank* cream label panel. The real logo then gets composited onto that panel from
-   `public/logo.svg`, so the wordmark is pixel-accurate every time.
+   `public/logo.png`, so the wordmark is pixel-accurate every time.
 2. If you do prompt for the logo, keep the leaf-arch mark large and check the wordmark letter by
    letter before accepting the image.
 
@@ -110,7 +111,7 @@ corner, 4:3. Then per image, for example:
 
 ## Integration
 
-Once the files exist, artwork paths are set in one place — the `catalogArtwork` and
-`variantArtwork` maps in `components/BrandMockupScene.tsx`. Update the `src` values and the `alt`
-text; nothing else needs to change. Owner-uploaded photographs from the admin dashboard continue to
+Artwork paths are set in one place — the `catalogArtwork` and `variantArtwork` maps in
+`components/BrandMockupScene.tsx`. Keeping the same filename means a replacement needs no code
+change at all; only the `alt` text has to be updated to describe the new picture. Owner-uploaded photographs from the admin dashboard continue to
 take precedence over all of this on a per-product basis.

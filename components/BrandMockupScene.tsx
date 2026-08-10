@@ -38,66 +38,66 @@ type BrandMockupSceneProps = {
 
 type BrandArtwork = { src: string; alt: string };
 
-/** Category artwork, one illustration per collection, under public/images/catalog/. */
+/** Category photography, one image per collection, under public/images/catalog/. */
 const catalogArtwork: Record<HillsideCatalogImage, BrandArtwork> = {
   'house-plants': {
-    src: '/images/catalog/house-plants.svg',
-    alt: 'Illustration of leafy house plants, a trailing pothos and a snake plant in pots'
+    src: '/images/catalog/house-plants.webp',
+    alt: 'Potted green house plants in white ceramic pots lined up on a pale sideboard'
   },
   'carnivorous-plants': {
-    src: '/images/catalog/carnivorous-plants.svg',
-    alt: 'Illustration of venus flytraps, sarracenia trumpets and hanging pitcher plants'
+    src: '/images/catalog/carnivorous-plants.webp',
+    alt: 'Venus flytraps with their traps open, lit against a dark background'
   },
   'live-plant-planters': {
-    src: '/images/catalog/live-plant-planters.svg',
-    alt: 'Illustration of a long stoneware trough planted with mixed greenery, blooms and trailing ivy'
+    src: '/images/catalog/live-plant-planters.webp',
+    alt: 'Potted plants arranged along wooden shelving beside a window'
   },
   'homemade-soaps': {
-    src: '/images/catalog/homemade-soaps.svg',
-    alt: 'Illustration of stacked botanical soap bars with a kraft label and dried lavender'
+    src: '/images/catalog/homemade-soaps.webp',
+    alt: 'Handmade soap bars lined up on a wooden board with dried lavender'
   },
   moss: {
-    src: '/images/catalog/moss.svg',
-    alt: 'Illustration of cushion moss mounds on a wooden tray beside a rolled sheet of moss'
+    src: '/images/catalog/moss.webp',
+    alt: 'Green moss growing in soft cushions across a stone surface'
   },
   succulents: {
-    src: '/images/catalog/succulents.svg',
-    alt: 'Illustration of succulent rosettes planted in a shallow stone bowl'
+    src: '/images/catalog/succulents.webp',
+    alt: 'Small succulents in terracotta pots arranged on a white surface'
   },
   driftwood: {
-    src: '/images/catalog/driftwood.svg',
-    alt: 'Illustration of weathered driftwood branches on sand with moss and an air plant'
+    src: '/images/catalog/driftwood.webp',
+    alt: 'Weathered driftwood branches stacked together, grain bleached pale'
   },
   apothecary: {
-    src: '/images/catalog/apothecary.svg',
-    alt: 'Illustration of an amber dropper bottle, a corked stoneware jar and a bundle of dried herbs'
+    src: '/images/catalog/apothecary.webp',
+    alt: 'Two amber glass apothecary bottles resting on natural linen'
   },
   'air-plants': {
-    src: '/images/catalog/air-plants.svg',
-    alt: 'Illustration of tillandsia air plants in hanging glass globes and on driftwood'
+    src: '/images/catalog/air-plants.webp',
+    alt: 'A tillandsia air plant inside a hanging glass globe'
   },
   'terrarium-supplies': {
-    src: '/images/catalog/terrarium-supplies.svg',
-    alt: 'Illustration of a layered glass terrarium beside planting tools and a sack of pebbles'
+    src: '/images/catalog/terrarium-supplies.webp',
+    alt: 'Succulents planted inside a clear glass terrarium'
   }
 };
 
 /**
  * Artwork chosen by placement. The wide storytelling surfaces get their own scenes;
- * the merchandising variants fall back to the matching category illustration.
+ * the merchandising variants fall back to the matching category photograph.
  */
 const variantArtwork: Record<BrandMockupVariant, BrandArtwork> = {
   hero: {
-    src: '/images/scenes/hillside-hero.svg',
-    alt: 'Illustration of a sunlit greenhouse shelf of potted plants, a hanging plant and a watering can'
+    src: '/images/scenes/hillside-hero.webp',
+    alt: 'Sunlight through a timber-framed greenhouse filled with growing plants'
   },
   about: {
-    src: '/images/scenes/potting-bench.svg',
-    alt: 'Illustration of a potting bench with a plant being repotted, terracotta pots and hanging garden tools'
+    src: '/images/scenes/potting-bench.webp',
+    alt: 'Terracotta pots, garden twine and seedlings on a potting bench'
   },
   class: {
-    src: '/images/scenes/workshop-table.svg',
-    alt: 'Illustration of a workshop table set with terrariums in progress, planting tools and seedlings'
+    src: '/images/scenes/workshop-table.webp',
+    alt: 'A glass terrarium being planted with moss and greenery on a wooden table'
   },
   care: catalogArtwork['terrarium-supplies'],
   shipping: catalogArtwork.moss,
@@ -157,7 +157,7 @@ export default function BrandMockupScene({
       <span className="brand-mockup-wash" aria-hidden="true" />
       {badge && (
         <span className="brand-photo-badge" aria-hidden="true">
-          <img src="/logo-mark.svg" alt="" width={132} height={114} loading="lazy" decoding="async" />
+          <img src="/logo-badge.png" alt="" width={949} height={768} loading="lazy" decoding="async" />
         </span>
       )}
     </div>

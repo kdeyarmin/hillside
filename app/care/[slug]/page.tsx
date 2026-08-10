@@ -109,7 +109,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     publisher: {
       '@type': 'Organization',
       name: 'The Hillside Gardens',
-      logo: absoluteUrl('/logo.svg')
+      logo: absoluteUrl('/logo.png')
     },
     datePublished: sheet.createdAt.toISOString(),
     dateModified: sheet.updatedAt.toISOString(),

@@ -260,21 +260,21 @@ async function main() {
     {
       id: 'seed-gallery-porch',
       title: 'Layered porch planter',
-      imageUrl: 'https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&w=1200&q=85',
+      imageUrl: '/images/gallery/porch-planter.webp',
       caption: 'A balanced mix of height, soft texture and trailing growth.',
       sortOrder: 1
     },
     {
       id: 'seed-gallery-foliage',
       title: 'Soft greens and texture',
-      imageUrl: 'https://images.unsplash.com/photo-1497250681960-ef046c08a56e?auto=format&fit=crop&w=1200&q=85',
+      imageUrl: '/images/gallery/soft-greens.webp',
       caption: 'A foliage-first arrangement designed to stay interesting all season.',
       sortOrder: 2
     },
     {
       id: 'seed-gallery-patio',
       title: 'Patio color story',
-      imageUrl: 'https://images.unsplash.com/photo-1509423350716-97f2360af8e4?auto=format&fit=crop&w=1200&q=85',
+      imageUrl: '/images/gallery/patio-containers.webp',
       caption: 'Color repeated in a simple, cohesive container combination.',
       sortOrder: 3
     }

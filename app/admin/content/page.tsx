@@ -129,7 +129,7 @@ export default async function ContentManager() {
   return (
     <div className="adminshell">
       <aside className="sidebar">
-        <img src="/logo.svg" alt="The Hillside Gardens" />
+        <img src="/logo.png" alt="The Hillside Gardens" />
         <b>Website Content Manager</b>
         <Link href="/admin">← Business dashboard</Link>
         <a href="#classes">Classes</a>
