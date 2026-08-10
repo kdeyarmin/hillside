@@ -30,15 +30,17 @@ export default function ShopClient({
   products,
   initialCategory = 'ALL',
   initialSearch = '',
-  initialSort = 'featured'
+  initialSort = 'featured',
+  initialOnSaleOnly = false
 }: {
   products: Product[];
   initialCategory?: string;
   initialSearch?: string;
   initialSort?: string;
+  initialOnSaleOnly?: boolean;
 }) {
   const [search, setSearch] = useState(initialSearch);
-  const [onSaleOnly, setOnSaleOnly] = useState(false);
+  const [onSaleOnly, setOnSaleOnly] = useState(initialOnSaleOnly);
   const [category, setCategory] = useState(() => {
     const requested = initialCategory.toUpperCase();
     if (requested === 'ALL') return 'ALL';
@@ -51,6 +53,39 @@ export default function ShopClient({
     const term = initialSearch.trim();
     if (term) trackSearch(term);
   }, [initialSearch]);
+
+  /**
+   * Filtering happens entirely in this component, so a shopper who narrowed the
+   * shop down to "Teas & Herbals, on sale, price low to high" had nothing to
+   * send anyone, nothing to bookmark, and a Back button that left the page.
+   * Mirroring the state into the query string fixes all three.
+   *
+   * `replaceState` rather than a router push: every keystroke would otherwise
+   * become a history entry, and Back would walk back through the search letter
+   * by letter. The debounce keeps typing from thrashing the URL.
+   */
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const apply = (key: string, value: string, isDefault: boolean) => {
+        if (isDefault) params.delete(key);
+        else params.set(key, value);
+      };
+
+      apply('q', search.trim(), !search.trim());
+      apply('category', category, category === 'ALL');
+      apply('sort', sort, sort === 'featured');
+      apply('sale', 'true', !onSaleOnly);
+
+      const query = params.toString();
+      const next = `${window.location.pathname}${query ? `?${query}` : ''}`;
+      if (next !== `${window.location.pathname}${window.location.search}`) {
+        window.history.replaceState(null, '', next);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [category, onSaleOnly, search, sort]);
 
   /**
    * Category chips are merchandising groups rather than raw enum values, so
@@ -162,7 +197,7 @@ export default function ShopClient({
 
       <div className="toolbar">
         <b>{visibleProducts.length} {visibleProducts.length === 1 ? 'product' : 'products'}</b>
-        <span className="muted">Live inventory from our owner dashboard</span>
+        <span className="muted">Stock counts update as each piece is potted and sold</span>
       </div>
 
       {visibleProducts.length === 0 ? (

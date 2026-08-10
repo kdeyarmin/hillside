@@ -7,7 +7,13 @@ import { Facebook, Instagram, Menu, Minus, Plus, Search, ShoppingBag, Trash2, X 
 import NewsletterForm from '@/components/NewsletterForm';
 import ResilientImage from '@/components/ResilientImage';
 import { useCart } from '@/components/CartProvider';
-import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
+import {
+  DEFAULT_BUSINESS_EMAIL,
+  FALLBACK_PRODUCT_IMAGE,
+  formatMoney,
+  formatMoneyCompact,
+  publicFreeShippingThresholdCents
+} from '@/lib/store';
 
 /**
  * Every merchandising link is a real path, not a query string. Collections are
@@ -52,7 +58,7 @@ function focusableElements(container: HTMLElement | null) {
 }
 
 function FreeShippingMeter({ subtotalCents }: { subtotalCents: number }) {
-  const threshold = Number(process.env.NEXT_PUBLIC_FREE_SHIPPING_THRESHOLD_CENTS || 7500);
+  const threshold = publicFreeShippingThresholdCents();
   if (threshold <= 0 || subtotalCents <= 0) return null;
 
   const remaining = threshold - subtotalCents;
@@ -323,6 +329,7 @@ function CartDrawer() {
 export function SiteHeader() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const freeShippingThreshold = publicFreeShippingThresholdCents();
   const { count, drawerOpen, openCart } = useCart();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -414,7 +421,15 @@ export function SiteHeader() {
   return (
     <>
       <div className="topbar editorial-topbar">
-        <span>❧ &nbsp; Free shipping on orders $75+</span>
+        {/* Announcing a threshold the shop no longer honours is worse than
+            announcing nothing, so this reads the configured figure and steps
+            aside entirely when free shipping is switched off. */}
+        <span>
+          ❧ &nbsp;
+          {freeShippingThreshold > 0
+            ? `Free shipping on orders ${formatMoneyCompact(freeShippingThreshold)}+`
+            : 'Plants, teas and botanicals, potted and packed by hand'}
+        </span>
         <div>
           <Link href="/about">About Us</Link>
           <Link href="/contact">Contact</Link>
@@ -538,7 +553,12 @@ export function SiteHeader() {
   );
 }
 
-export function SiteFooter() {
+/**
+ * `contactEmail` arrives as a prop because `BUSINESS_EMAIL` is a server-only
+ * variable — reading `process.env` here would compile to `undefined` in the
+ * browser bundle and quietly drop the address from the footer.
+ */
+export function SiteFooter({ contactEmail = DEFAULT_BUSINESS_EMAIL }: { contactEmail?: string }) {
   const pathname = usePathname();
   const showNewsletter = pathname !== '/';
 
@@ -560,7 +580,7 @@ export function SiteFooter() {
             Plants, teas and botanicals chosen with care, plus approachable education to help you grow
             with confidence.
           </p>
-          <a href="mailto:hello@thehillsidegardens.com">hello@thehillsidegardens.com</a>
+          <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
           {SOCIAL_LINKS.length > 0 && (
             <div className="footer-social">
               {SOCIAL_LINKS.map(({ label, href, Icon }) => (

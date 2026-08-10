@@ -107,7 +107,7 @@ export async function POST(request: Request) {
         custom_text: {
           submit: {
             message: online
-              ? 'After payment, your private Hillside Telnyx classroom link will be emailed to you.'
+              ? 'After payment, your private Hillside classroom link will be emailed to you.'
               : 'Your class confirmation will be emailed after payment.'
           }
         },

@@ -366,3 +366,161 @@
   line-height: 1.45;
 }
 .save-cart-consent input { margin-top: 3px; }
+
+/* ---- storefront polish ----
+   Layout corrections found by measuring the rendered pages rather than by
+   reading the markup: cards that ended level but whose contents did not, a
+   product page that stranded 400+ pixels of white space, and overlay text
+   sitting above the gradient that was supposed to be carrying it. */
+
+/* Product cards already stretch to the tallest in their row, but their contents
+   did not, so one card carrying a star rating pushed its price and buttons out
+   of line with its neighbours. Pinning the action row to the bottom lands every
+   "Add to cart" on the same line. */
+.product-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.product-card .product-copy {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.product-card .product-copy > p:last-of-type,
+.product-card .product-copy .stock {
+  margin-bottom: 0;
+}
+
+.product-card .product-copy .product-actions {
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+/* The Amazon picks reuse `.product-card` with a single call-to-action instead of
+   an actions row. Same treatment, without letting the flex column stretch an
+   inline-flex button across the whole card. */
+.product-card .product-copy > .btn {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+/* Class and gallery cards sit in a grid with `align-items: start`, so they were
+   free to end at different heights across one row. */
+.class-list-grid > .card,
+.class-list-grid > .card > .cardbody {
+  display: flex;
+  flex-direction: column;
+}
+
+.class-list-grid > .card {
+  height: 100%;
+}
+
+.class-list-grid > .card > .cardbody {
+  flex: 1;
+}
+
+.class-list-grid .class-booking-wrap,
+.class-list-grid .free-class-registration,
+.class-list-grid .status-badge {
+  margin-top: auto;
+}
+
+.class-list-grid .status-badge {
+  align-self: flex-start;
+}
+
+/* A short product photograph beside a long description left a tall band of
+   empty page. Letting the gallery travel with the reader uses it instead. */
+@media (min-width: 901px) {
+  .product-detail-image-wrap {
+    position: sticky;
+    top: 24px;
+  }
+}
+
+/* The tile gradient only began at 38% of the tile, which put the eyebrow line
+   over bare photograph. On the paler images that measured 3.75:1 against white
+   — below the 4.5:1 AA floor for small text. */
+.editorial-collection::after {
+  inset: 22% 0 0;
+  background: linear-gradient(
+    transparent,
+    rgba(12, 29, 18, 0.5) 46%,
+    rgba(12, 29, 18, 0.9)
+  );
+}
+
+.editorial-collection > div {
+  text-shadow: 0 1px 3px rgba(10, 24, 15, 0.55);
+}
+
+/* Headings that were carrying an inline `font` shorthand, which outranked the
+   stylesheet and locked them to Georgia while the rest of the site had moved to
+   the brand display face. */
+.cart-page-line-title {
+  margin: 0 0 5px;
+  color: var(--forest);
+  font-family: var(--hillside-display);
+  font-size: 25px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+.print-document-title {
+  margin: 0;
+  color: var(--forest);
+  font-family: var(--hillside-display);
+  font-size: 38px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+/* Phones showed a single product per screen, so reaching the sixth item meant
+   six full scrolls. Two-up is the density shoppers expect on a phone. */
+@media (max-width: 620px) {
+  .product-grid,
+  .product-grid.sparse {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    justify-content: stretch;
+  }
+
+  .product-copy {
+    padding: 14px;
+  }
+
+  .product-copy h2,
+  .product-copy h3 {
+    font-size: 19px;
+  }
+
+  .product-copy .pill {
+    font-size: 9px;
+  }
+
+  .product-copy p {
+    font-size: 13px;
+  }
+
+  .price {
+    font-size: 19px !important;
+  }
+
+  .product-card .product-copy .product-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .product-card .product-copy .product-actions .btn {
+    width: 100%;
+  }
+
+  .product-card .product-copy .product-actions .text-link {
+    text-align: center;
+  }
+}

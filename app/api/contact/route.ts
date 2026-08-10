@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
-import { normalizeHillsideDomain } from '@/lib/store';
+import { businessEmail as hillsideBusinessEmail } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -36,9 +36,7 @@ export async function POST(request: Request) {
       data: { name, email, phone, subject, message }
     });
 
-    const businessEmail = normalizeHillsideDomain(
-      process.env.BUSINESS_EMAIL || 'hello@thehillsidegardens.com'
-    );
+    const businessEmail = hillsideBusinessEmail();
     await Promise.all([
       sendEmail({
         to: businessEmail,

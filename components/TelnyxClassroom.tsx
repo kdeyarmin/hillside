@@ -258,7 +258,7 @@ export default function TelnyxClassroom({
   async function join() {
     if (status === 'joining' || status === 'connected') return;
     setStatus('joining');
-    setMessage('Preparing your secure Telnyx classroom…');
+    setMessage('Preparing your secure classroom…');
     setListeningOnly(false);
     setAudioEnabled(true);
     setVideoEnabled(true);
@@ -270,7 +270,7 @@ export default function TelnyxClassroom({
       const credentials = await requestCredentials();
       const sdk = (await import(/* webpackIgnore: true */ credentials.sdkUrl)) as unknown as TelnyxModule;
       if (!sdk.Room || !sdk.createLocalParticipant) {
-        throw new Error('The Telnyx Video library could not be loaded.');
+        throw new Error('The video classroom could not be loaded. Please refresh and try again.');
       }
 
       const localParticipant = sdk.createLocalParticipant({
@@ -529,9 +529,9 @@ export default function TelnyxClassroom({
     <section className="telnyx-classroom" aria-label={`${title} online classroom`}>
       <div className="classroom-heading">
         <div>
-          <span className="eyebrow">Secure Telnyx Video classroom</span>
+          <span className="eyebrow">Secure Hillside classroom</span>
           <h1>{title}</h1>
-          <p><ShieldCheck size={16} /> Your Telnyx credentials are issued only after access is verified.</p>
+          <p><ShieldCheck size={16} /> Your place is verified before the classroom opens.</p>
         </div>
         {recording && <span className="classroom-recording-notice">Recording enabled</span>}
       </div>

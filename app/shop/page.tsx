@@ -7,7 +7,7 @@ import { categoryLabel } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
-type ShopParams = { category?: string; q?: string; sort?: string };
+type ShopParams = { category?: string; q?: string; sort?: string; sale?: string };
 
 export async function generateMetadata({
   searchParams
@@ -85,6 +85,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
             initialCategory={params.category || 'ALL'}
             initialSearch={params.q || ''}
             initialSort={params.sort || 'featured'}
+            initialOnSaleOnly={params.sale === 'true'}
           />
         </div>
       </section>

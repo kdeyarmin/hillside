@@ -15,9 +15,16 @@ type GalleryItem = {
   linkLabel: string | null;
 };
 
+const focusableSelector = [
+  'a[href]',
+  'button:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])'
+].join(',');
+
 export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
   const [selected, setSelected] = useState<GalleryItem | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -29,9 +36,36 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
     const timer = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      setSelected(null);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setSelected(null);
+        return;
+      }
+
+      // Without this, Tab walked straight out of the lightbox and into the page
+      // behind it, which is still scroll-locked and visually covered. The cart
+      // drawer already traps focus; this dialog needs the same.
+      if (event.key !== 'Tab') return;
+      const focusables = Array.from(
+        dialogRef.current?.querySelectorAll<HTMLElement>(focusableSelector) || []
+      );
+      if (!focusables.length) {
+        event.preventDefault();
+        closeButtonRef.current?.focus();
+        return;
+      }
+
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && (active === first || !dialogRef.current?.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -96,6 +130,7 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
           />
           <div
             className="gallery-dialog"
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="gallery-dialog-title"

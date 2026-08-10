@@ -4,9 +4,12 @@ import BrandMockupScene from '@/components/BrandMockupScene';
 import ClassBookingButton from '@/components/ClassBookingButton';
 import FreeClassRegistrationForm from '@/components/FreeClassRegistrationForm';
 import {
+  classDateLabel,
   classFormatLabel,
   classLocationLabel,
-  isOnlineClass
+  classTimeLabel,
+  isOnlineClass,
+  seatsRemainingLabel
 } from '@/lib/class-access';
 import { seatsRemaining } from '@/lib/class-seats';
 import { db } from '@/lib/db';
@@ -17,7 +20,7 @@ export const dynamic = 'force-dynamic';
 export const metadata = {
   title: 'Plant & Planter Classes',
   description:
-    'Join us for approachable planter workshops in person or online through Telnyx Video.'
+    'Join us for approachable planter workshops, in person at The Hillside Gardens or live online from your own table.'
 };
 
 export default async function Classes({
@@ -88,8 +91,9 @@ export default async function Classes({
           <div className="eyebrow">Learn with us</div>
           <h1>Plant and planter classes.</h1>
           <p>
-            Join us in person or from home through a secure Telnyx Video classroom. Learn what
-            works together, why it works and how to keep your plants thriving.
+            Join us in person, or from your own table through a private online classroom that opens
+            right in your browser. Learn what works together, why it works and how to keep your
+            plants thriving.
           </p>
         </div>
       </section>
@@ -120,6 +124,7 @@ export default async function Classes({
                     <BrandMockupScene
                       variant="class"
                       backgroundSrc={event.imageUrl || undefined}
+                      seed={event.id}
                       alt={`${event.title} at The Hillside Gardens`}
                       badge={false}
                     />
@@ -129,23 +134,11 @@ export default async function Classes({
                       <p>{event.description}</p>
                       <div className="class-meta">
                         <span>
-                          <CalendarDays size={15} />{' '}
-                          <b>
-                            {event.startsAt.toLocaleDateString('en-US', {
-                              weekday: 'long',
-                              month: 'long',
-                              day: 'numeric',
-                              year: 'numeric'
-                            })}
-                          </b>
+                          <CalendarDays size={15} /> <b>{classDateLabel(event.startsAt)}</b>
                         </span>
                         <span>
-                          <Clock3 size={15} />{' '}
-                          {event.startsAt.toLocaleTimeString('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit'
-                          })}{' '}
-                          • About {event.durationMinutes} minutes
+                          <Clock3 size={15} /> {classTimeLabel(event.startsAt)} • About{' '}
+                          {event.durationMinutes} minutes
                         </span>
                         <span>
                           {online ? <Video size={15} /> : <MapPin size={15} />}{' '}
@@ -160,8 +153,8 @@ export default async function Classes({
                           <div>
                             <b>Your private classroom link is emailed after registration.</b>
                             <span>
-                              The secure Hillside link opens the Telnyx Video classroom; no Telnyx
-                              account is required for attendees.
+                              It opens straight in your browser — there is no app to install and no
+                              account to create.
                             </span>
                           </div>
                         </div>
@@ -210,12 +203,13 @@ export default async function Classes({
                   Learn to grow with confidence.
                 </h2>
                 <p>
-                  We offer hands-on planter workshops and online classes through Telnyx Video.
-                  New dates are being planned now.
+                  We offer hands-on planter workshops in person and live online classes you can
+                  join from home. New dates are being planned now.
                 </p>
-                <a className="btn" href="mailto:hello@thehillsidegardens.com?subject=Class%20Interest">
-                  Ask about the next class
-                </a>
+                <div className="actions">
+                  <Link className="btn" href="/contact">Ask about the next class</Link>
+                  <Link className="btn outline" href="/care">Browse the care library</Link>
+                </div>
               </div>
             </div>
           )}

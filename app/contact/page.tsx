@@ -1,5 +1,6 @@
 import { Clock3, Mail, MapPin, Sprout } from 'lucide-react';
 import ContactForm from '@/components/ContactForm';
+import { businessEmail } from '@/lib/store';
 
 export const metadata = {
   title: 'Contact us',
@@ -7,6 +8,7 @@ export const metadata = {
 };
 
 export default function ContactPage() {
+  const email = businessEmail();
   return (
     <>
       <section className="pagehero">
@@ -27,7 +29,7 @@ export default function ContactPage() {
               Messages from this form come straight to us, and we respond directly to the email address you provide.
             </p>
             <div className="info-list">
-              <div className="info-item"><Mail size={20} /><b>Email</b><a href="mailto:hello@thehillsidegardens.com">hello@thehillsidegardens.com</a></div>
+              <div className="info-item"><Mail size={20} /><b>Email</b><a className="text-link" href={`mailto:${email}`}>{email}</a></div>
               <div className="info-item"><Clock3 size={20} /><b>Response time</b><span>Most messages are answered within two business days.</span></div>
               <div className="info-item"><Sprout size={20} /><b>Plant questions</b><span>Include the plant name, lighting conditions and a clear photo when possible.</span></div>
               <div className="info-item"><MapPin size={20} /><b>Classes and pickup</b><span>Exact class and pickup details are shared with registered customers.</span></div>

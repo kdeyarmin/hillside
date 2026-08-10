@@ -289,8 +289,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         {relatedProducts.length > 0 && (
           <div className="product-details-section">
             <div className="sectionhead">
+              {/* The query behind this list matches on product type, not on the
+                  collections above, so the heading says type. */}
               <div className="eyebrow">You may also like</div>
-              <h2>More from this collection.</h2>
+              <h2>More in {productTypeLabel(product.type).toLowerCase()}.</h2>
             </div>
             <ProductGrid products={relatedProducts} />
           </div>

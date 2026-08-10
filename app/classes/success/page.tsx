@@ -40,7 +40,7 @@ export default async function ClassSuccess({
           <div className="admin-card" style={{ textAlign: 'left', margin: '28px 0' }}>
             <h2 style={{ marginTop: 0 }}>{event.title}</h2>
             <div className="summary-row"><span>Format</span><strong>{classFormatLabel(event.format)}</strong></div>
-            <div className="summary-row"><span>Date</span><strong>{event.startsAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</strong></div>
+            <div className="summary-row"><span>Date</span><strong>{event.startsAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short', timeZoneName: 'short' })}</strong></div>
             <div className="summary-row"><span>Location</span><strong>{classLocationLabel(event)}</strong></div>
             <div className="summary-row"><span>Seats</span><strong>{seats}</strong></div>
             <div className="summary-row"><span>Paid</span><strong>{formatMoney(session?.amount_total || event.priceCents * seats)}</strong></div>
@@ -56,8 +56,8 @@ export default async function ClassSuccess({
             <div>
               <h2>Check your email for the private classroom link.</h2>
               <p>
-                The confirmation email contains a secure Hillside link that opens your Telnyx Video
-                classroom. Keep that email and do not forward the link.
+                The confirmation email contains a secure Hillside link that opens your classroom
+                right in your browser. Keep that email and do not forward the link.
               </p>
               <p><Video size={16} /> The classroom opens shortly before the scheduled class time.</p>
             </div>

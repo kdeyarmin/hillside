@@ -87,6 +87,18 @@ because those resolve to the visitor's own machine rather than the shop, and log
 warning naming the ignored value. Set the variable only to point a build at a genuine
 public origin, such as a Railway preview domain.
 
+## Class times and the server timezone
+
+Class dates are entered in the dashboard and displayed to customers against the
+same clock — the server's. Set `TZ` to the shop's IANA timezone (for example
+`TZ=America/New_York`) on the Railway service so that a class entered as 6:00 PM
+is shown as 6:00 PM, labelled with the matching abbreviation.
+
+Every class time on the site is printed with its timezone, because someone
+joining an online class from another state cannot otherwise tell what "6:00 PM"
+means. With `TZ` unset the label reads `UTC`: still truthful, but it will not
+match the times Tammy has in mind.
+
 ## Stripe setup
 
 Create a Stripe webhook endpoint at:

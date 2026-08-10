@@ -1,9 +1,12 @@
+import { businessEmail } from '@/lib/store';
+
 export const metadata = {
   title: 'Privacy Policy',
   description: 'Privacy policy for The Hillside Gardens website, shop, classes and contact forms.'
 };
 
 export default function PrivacyPage() {
+  const email = businessEmail();
   return (
     <>
       <section className="pagehero">
@@ -38,7 +41,7 @@ export default function PrivacyPage() {
           <p>This website is not directed to children under 13, and The Hillside Gardens does not knowingly collect personal information from children under 13.</p>
 
           <h2>Contact</h2>
-          <p>Privacy questions can be sent to <a className="text-link" href="mailto:hello@thehillsidegardens.com">hello@thehillsidegardens.com</a>.</p>
+          <p>Privacy questions can be sent to <a className="text-link" href={`mailto:${email}`}>{email}</a>.</p>
         </article>
       </section>
     </>

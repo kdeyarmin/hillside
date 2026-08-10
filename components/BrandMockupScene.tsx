@@ -1,6 +1,7 @@
 'use client';
 
 import ResilientImage from '@/components/ResilientImage';
+import { pickForKey } from '@/lib/store';
 
 export type BrandMockupVariant =
   | 'hero'
@@ -38,6 +39,12 @@ type BrandMockupSceneProps = {
    * `isOwnerProvidedPhoto` heuristic entirely.
    */
   imageSrc?: string | null;
+  /**
+   * A stable value — a class id, say — used to spread repeated placements across
+   * the alternates for their variant. Without it, a page listing three classes
+   * that have no photograph yet showed the same workshop scene three times.
+   */
+  seed?: string;
   /**
    * Overlays the Hillside mark. Off by default: repeated on every tile it read as
    * stock-photo watermarking and competed with the header logo. Reserved for the
@@ -118,6 +125,20 @@ const variantArtwork: Record<BrandMockupVariant, BrandArtwork> = {
   picks: catalogArtwork['air-plants']
 };
 
+/**
+ * Alternates for the variants that get placed several times on one page. Only
+ * scenes that genuinely depict the same activity are listed, so a class card can
+ * never advertise something the class is not.
+ */
+const variantAlternates: Partial<Record<BrandMockupVariant, BrandArtwork[]>> = {
+  class: [
+    variantArtwork.class,
+    catalogArtwork['live-plant-planters'],
+    catalogArtwork['terrarium-supplies'],
+    catalogArtwork['house-plants']
+  ]
+};
+
 function isOwnerProvidedPhoto(source?: string | null) {
   if (!source?.trim()) return false;
 
@@ -140,9 +161,15 @@ export default function BrandMockupScene({
   alt,
   catalogImage,
   imageSrc,
+  seed,
   badge = false
 }: BrandMockupSceneProps) {
-  const artwork = catalogImage ? catalogArtwork[catalogImage] : variantArtwork[variant];
+  const alternates = seed ? variantAlternates[variant] : undefined;
+  const artwork = catalogImage
+    ? catalogArtwork[catalogImage]
+    : alternates
+      ? pickForKey(alternates, seed as string)
+      : variantArtwork[variant];
   const ownerProvided = isOwnerProvidedPhoto(backgroundSrc);
   const resolvedSrc = imageSrc?.trim() || (ownerProvided ? backgroundSrc! : artwork.src);
   const imageAlt = alt || artwork.alt;

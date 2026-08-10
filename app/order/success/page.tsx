@@ -65,7 +65,8 @@ export default async function Success({
         </p>
         {!order && sessionId && (
           <p className="muted" style={{ fontSize: 13 }}>
-            The order is still syncing to the owner dashboard. This normally finishes within a few seconds.
+            Your payment is confirmed. The full order details take a few seconds to finish
+            recording — refresh this page, or look them up any time on the order-status page.
           </p>
         )}
         <OrderSuccessClient invoiceUrl={invoiceUrl} />
