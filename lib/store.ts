@@ -61,7 +61,28 @@ export function clampQuantity(value: number, inventory: number) {
   return Math.max(1, Math.min(Math.max(1, inventory), Math.floor(value || 1)));
 }
 
+/**
+ * The origin every absolute link the site advertises is built from: canonical
+ * tags, og:url, og:image, the sitemap, robots.txt, and the private classroom
+ * link emailed to online-class customers.
+ *
+ * This used to fall back to http://localhost:3000, and the deployed site was
+ * using that fallback — the sitemap listed localhost URLs, robots.txt pointed
+ * search engines at a localhost sitemap, and class confirmation emails sent
+ * customers a localhost link. Setting the variable in Railway's runtime
+ * environment would not have fixed it either: Next inlines NEXT_PUBLIC_* at
+ * build time, so a value that is absent when `next build` runs is compiled
+ * away as undefined no matter what the container is given later.
+ *
+ * So the fallback is the real public domain, which is correct for any deployed
+ * build. localhost is only ever right when a dev server is the thing serving.
+ */
+export function siteBaseUrl() {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+  if (configured) return normalizeHillsideDomain(configured);
+  return process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : CANONICAL_SITE_URL;
+}
+
 export function absoluteUrl(path = '/') {
-  const base = normalizeHillsideDomain(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000');
-  return new URL(path, base).toString();
+  return new URL(path, siteBaseUrl()).toString();
 }
