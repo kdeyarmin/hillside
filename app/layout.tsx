@@ -93,8 +93,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${hillsideSans.variable} ${hillsideDisplay.variable}`}>
       <head>
-        <link rel="preconnect" href="https://images.unsplash.com" />
-        <link rel="dns-prefetch" href="https://images.unsplash.com" />
       </head>
       <body>
         <a className="skip-link" href="#main-content">

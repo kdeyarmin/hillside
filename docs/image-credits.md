@@ -17,7 +17,7 @@ broken images on the storefront.
 | File | Unsplash photo |
 | --- | --- |
 | `house-plants.webp` | [photo-1604762524889](https://unsplash.com/photos/1604762524889-3e2fcc145683) |
-| `carnivorous-plants.webp` | [photo-1623171752524](https://unsplash.com/photos/1623171752524-cd2177c92f16) |
+| `carnivorous-plants.webp` | [photo-1645577361246](https://unsplash.com/photos/1645577361246-6296c2147126) |
 | `live-plant-planters.webp` | [photo-1613375772563](https://unsplash.com/photos/1613375772563-af532af5cef9) |
 | `succulents.webp` | [photo-1459156212016](https://unsplash.com/photos/1459156212016-c812468e2115) |
 | `air-plants.webp` | [photo-1669655546865](https://unsplash.com/photos/1669655546865-7ca0c89f3c50) |
