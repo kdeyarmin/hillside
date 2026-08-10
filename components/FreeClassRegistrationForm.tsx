@@ -69,7 +69,7 @@ export default function FreeClassRegistrationForm({
         <UserRound size={20} />
         <div>
           <b>Reserve your place</b>
-          <span>{online ? 'The private classroom link will be emailed to you.' : 'Tammy will email your class confirmation.'}</span>
+          <span>{online ? 'The private classroom link will be emailed to you.' : 'We will email your class confirmation.'}</span>
         </div>
       </div>
       <div className="free-class-registration-grid">

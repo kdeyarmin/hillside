@@ -21,7 +21,7 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
       <div className="empty-state">
         <ShoppingBag size={42} />
         <h3>Your cart is empty.</h3>
-        <p>Explore Tammy’s current plants, teas and handmade botanical goods.</p>
+        <p>Explore our current plants, teas and handmade botanical goods.</p>
         <Link className="btn" href="/shop">Browse the shop</Link>
       </div>
     );

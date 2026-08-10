@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     template: '%s | The Hillside Gardens'
   },
   description:
-    'Shop potted plants, loose-leaf teas, handmade soaps and lotions, explore practical plant-care sheets, and join Tammy Hill for in-person or online plant classes.',
+    'Shop potted plants, loose-leaf teas, handmade soaps and lotions, explore practical plant-care sheets, and join us for in-person or online plant classes.',
   keywords: [
     'houseplants',
     'potted plants',
@@ -67,13 +67,13 @@ export const metadata: Metadata = {
     url: '/',
     siteName: 'The Hillside Gardens',
     title: 'The Hillside Gardens',
-    description: 'Plants, teas, botanicals and practical plant education from Tammy Hill.',
+    description: 'Plants, teas, botanicals and practical plant education.',
     images: [{ url: '/logo.png', width: 949, height: 917, alt: 'The Hillside Gardens logo' }]
   },
   twitter: {
     card: 'summary_large_image',
     title: 'The Hillside Gardens',
-    description: 'Plants, teas, botanicals and practical plant education from Tammy Hill.',
+    description: 'Plants, teas, botanicals and practical plant education.',
     images: ['/logo.png']
   }
 };
@@ -84,7 +84,7 @@ const organizationJsonLd = {
   name: 'The Hillside Gardens',
   url: absoluteUrl('/'),
   logo: absoluteUrl('/logo.png'),
-  description: 'Plants, teas, botanicals and plant education from Tammy Hill.',
+  description: 'Plants, teas, botanicals and plant education.',
   founder: { '@type': 'Person', name: 'Tammy Hill' },
   email: normalizeHillsideDomain(process.env.BUSINESS_EMAIL || 'hello@thehillsidegardens.com')
 };

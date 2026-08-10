@@ -30,7 +30,7 @@ export default function ContactForm() {
       const result = (await response.json()) as { message?: string; error?: string };
       if (!response.ok) throw new Error(result.error || 'Unable to send your message.');
       setStatus('success');
-      setMessage(result.message || 'Thanks — Tammy received your message.');
+      setMessage(result.message || 'Thanks — we received your message.');
       form.reset();
     } catch (error) {
       setStatus('error');
@@ -54,7 +54,7 @@ export default function ContactForm() {
           <input className="form-input" id="contact-phone" name="phone" type="tel" autoComplete="tel" />
         </div>
         <div className="form-group">
-          <label htmlFor="contact-subject">What can Tammy help with?</label>
+          <label htmlFor="contact-subject">What can we help with?</label>
           <select className="form-input" id="contact-subject" name="subject" defaultValue="General question" required>
             <option>General question</option>
             <option>Plant care question</option>
@@ -71,7 +71,7 @@ export default function ContactForm() {
             className="form-input"
             id="contact-message"
             name="message"
-            placeholder="Tell Tammy a little about what you need."
+            placeholder="Tell us a little about what you need."
             required
             minLength={10}
           />

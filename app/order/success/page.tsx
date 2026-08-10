@@ -46,7 +46,7 @@ export default async function Success({
           Thank you for shopping small.
         </h1>
         <p style={{ fontSize: 18 }}>
-          Your payment was successful. Tammy will begin preparing your Hillside order.
+          Your payment was successful. We will begin preparing your Hillside order.
         </p>
         <div className="admin-card" style={{ textAlign: 'left', margin: '28px 0' }}>
           <div className="summary-row"><span>Order / invoice</span><strong>{invoiceNumber}</strong></div>

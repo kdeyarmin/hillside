@@ -207,7 +207,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
           {(sheet.guideType === CareGuideType.GENERAL || sheet.guideType === CareGuideType.SEASONAL) && (
             <section className="care-lesson-layout">
               <div className="care-lesson-main">
-                <span className="eyebrow">Tammy’s practical guidance</span>
+                <span className="eyebrow">Our practical guidance</span>
                 <h2>The approach that works.</h2>
                 <p>{sheet.tips}</p>
                 {sheet.treatment && (
@@ -237,7 +237,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
             <>
               <section className="grid two care-advice-grid">
                 <div className="admin-card">
-                  <div className="eyebrow">Tammy’s best advice</div>
+                  <div className="eyebrow">Our best advice</div>
                   <h2 className="display-title">The care tip that matters most.</h2>
                   <p>{sheet.tips}</p>
                 </div>
@@ -285,7 +285,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
           {sheet.guideType === CareGuideType.PROBLEM && (
             <section className="care-problem-closing">
               <div>
-                <span className="eyebrow">Tammy’s reminder</span>
+                <span className="eyebrow">Our reminder</span>
                 <h2>Diagnose before you treat.</h2>
                 <p>{sheet.tips}</p>
               </div>

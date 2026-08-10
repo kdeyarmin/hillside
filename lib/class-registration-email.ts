@@ -49,7 +49,7 @@ export async function sendClassRegistrationEmails({
       : '';
   const recordingNotice =
     online && event.telnyxRecordingEnabled
-      ? '<p><strong>Recording notice:</strong> Tammy has enabled recording for this class. By joining, participants acknowledge that audio and video may be recorded.</p>'
+      ? '<p><strong>Recording notice:</strong> We have enabled recording for this class. By joining, participants acknowledge that audio and video may be recorded.</p>'
       : '';
   const bring = event.whatToBring
     ? `<p><strong>What to bring / what is included:</strong> ${escapeHtml(event.whatToBring)}</p>`
@@ -61,7 +61,7 @@ export async function sendClassRegistrationEmails({
         subject: `You’re registered for ${event.title}`,
         html: emailShell(
           'Your class registration is confirmed',
-          `<p>Hi ${escapeHtml(registration.name)},</p><p>Your registration for <strong>${escapeHtml(event.title)}</strong> is confirmed for ${registration.seats} ${registration.seats === 1 ? 'seat' : 'seats'}.</p><p><strong>Format:</strong> ${escapeHtml(format)}<br><strong>Date:</strong> ${escapeHtml(date)}<br><strong>Duration:</strong> About ${event.durationMinutes} minutes<br><strong>Location:</strong> ${escapeHtml(location)}<br><strong>Amount paid:</strong> ${formatMoney(registration.amountCents)}</p>${joinBlock}${onlineNotes}${recordingNotice}${bring}<p>Please keep this email. The online classroom link is private and should not be forwarded.</p><p>Tammy looks forward to planting with you.</p>`
+          `<p>Hi ${escapeHtml(registration.name)},</p><p>Your registration for <strong>${escapeHtml(event.title)}</strong> is confirmed for ${registration.seats} ${registration.seats === 1 ? 'seat' : 'seats'}.</p><p><strong>Format:</strong> ${escapeHtml(format)}<br><strong>Date:</strong> ${escapeHtml(date)}<br><strong>Duration:</strong> About ${event.durationMinutes} minutes<br><strong>Location:</strong> ${escapeHtml(location)}<br><strong>Amount paid:</strong> ${formatMoney(registration.amountCents)}</p>${joinBlock}${onlineNotes}${recordingNotice}${bring}<p>Please keep this email. The online classroom link is private and should not be forwarded.</p><p>We look forward to planting with you.</p>`
         ),
         idempotencyKey: `class-confirmation/${registration.id}/${registration.joinTokenHash?.slice(0, 12) || 'in-person'}`
       })

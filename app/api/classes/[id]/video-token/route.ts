@@ -28,7 +28,7 @@ export async function POST(
   }
   if (!telnyxVideoConfigured()) {
     return NextResponse.json(
-      { error: 'Telnyx Video is not configured yet. Tammy has been notified.' },
+      { error: 'Telnyx Video is not configured yet. We have been notified.' },
       { status: 503 }
     );
   }

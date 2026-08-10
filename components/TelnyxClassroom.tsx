@@ -539,7 +539,7 @@ export default function TelnyxClassroom({
       {canJoin && (
         <div className="classroom-prejoin">
           <Video size={42} />
-          <h2>{host ? 'Open Tammy’s host studio' : 'Ready to join Tammy?'}</h2>
+          <h2>{host ? 'Open your host studio' : 'Ready to join us?'}</h2>
           <p>
             Select join, then allow camera and microphone access. You can still join in listening-only
             mode when browser permissions are unavailable.

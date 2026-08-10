@@ -140,7 +140,7 @@ async function fulfillProductOrder(session: Stripe.Checkout.Session) {
     .join('');
   const customerHtml = emailShell(
     `Order ${order.invoiceNumber} received`,
-    `<p>Hi ${escapeHtml(order.customerName)},</p><p>Thank you for shopping with The Hillside Gardens. Your payment was successful and Tammy will begin preparing your order.</p><table style="width:100%;border-collapse:collapse;margin:20px 0">${itemRows}<tr><td style="padding-top:12px"><strong>Total</strong></td><td style="padding-top:12px;text-align:right"><strong>${formatMoney(order.totalCents)}</strong></td></tr></table><p><strong>Ship to</strong><br>${escapeHtml(order.address1)}${order.address2 ? `<br>${escapeHtml(order.address2)}` : ''}<br>${escapeHtml(order.city)}, ${escapeHtml(order.state)} ${escapeHtml(order.postalCode)}</p><p>You’ll receive another update when the order ships.</p>`
+    `<p>Hi ${escapeHtml(order.customerName)},</p><p>Thank you for shopping with The Hillside Gardens. Your payment was successful and we will begin preparing your order.</p><table style="width:100%;border-collapse:collapse;margin:20px 0">${itemRows}<tr><td style="padding-top:12px"><strong>Total</strong></td><td style="padding-top:12px;text-align:right"><strong>${formatMoney(order.totalCents)}</strong></td></tr></table><p><strong>Ship to</strong><br>${escapeHtml(order.address1)}${order.address2 ? `<br>${escapeHtml(order.address2)}` : ''}<br>${escapeHtml(order.city)}, ${escapeHtml(order.state)} ${escapeHtml(order.postalCode)}</p><p>You’ll receive another update when the order ships.</p>`
   );
   if (order.email) {
     await sendEmail({

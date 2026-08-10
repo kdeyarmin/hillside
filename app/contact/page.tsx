@@ -3,8 +3,8 @@ import BrandMockupScene from '@/components/BrandMockupScene';
 import ContactForm from '@/components/ContactForm';
 
 export const metadata = {
-  title: 'Contact Tammy',
-  description: 'Contact Tammy Hill about plants, planter workshops, products, orders or custom arrangements from The Hillside Gardens.'
+  title: 'Contact us',
+  description: 'Contact The Hillside Gardens about plants, planter workshops, products, orders or custom arrangements.'
 };
 
 export default function ContactPage() {
@@ -13,7 +13,7 @@ export default function ContactPage() {
       <section className="pagehero">
         <div className="container">
           <div className="eyebrow">Let’s talk plants</div>
-          <h1>Contact Tammy.</h1>
+          <h1>Contact us.</h1>
           <p>Questions about a plant, an order, a class or a custom planter? Send a note directly to The Hillside Gardens.</p>
         </div>
       </section>
@@ -25,7 +25,7 @@ export default function ContactPage() {
               Friendly help from a real plant person.
             </h2>
             <p className="muted">
-              Messages from this form appear in Tammy’s private owner dashboard. She can respond directly to the email address you provide.
+              Messages from this form come straight to us, and we respond directly to the email address you provide.
             </p>
             <BrandMockupScene variant="gifts" className="contact-brand-scene" />
             <div className="info-list">

@@ -15,7 +15,7 @@ export const dynamic = 'force-dynamic';
 export const metadata = {
   title: 'Plant & Planter Classes',
   description:
-    'Join Tammy Hill for approachable planter workshops in person or online through Telnyx Video.'
+    'Join us for approachable planter workshops in person or online through Telnyx Video.'
 };
 
 export default async function Classes({
@@ -34,10 +34,10 @@ export default async function Classes({
     <>
       <section className="pagehero">
         <div className="container">
-          <div className="eyebrow">Learn with Tammy</div>
+          <div className="eyebrow">Learn with us</div>
           <h1>Plant and planter classes.</h1>
           <p>
-            Join Tammy in person or from home through a secure Telnyx Video classroom. Learn what
+            Join us in person or from home through a secure Telnyx Video classroom. Learn what
             works together, why it works and how to keep your plants thriving.
           </p>
         </div>
@@ -47,12 +47,12 @@ export default async function Classes({
           {access === 'invalid' && (
             <div className="class-access-alert error" role="alert">
               That private classroom link is not valid. Use the most recent confirmation email or
-              contact Tammy for a new link.
+              contact us for a new link.
             </div>
           )}
           {access === 'expired' && (
             <div className="class-access-alert" role="alert">
-              That online classroom has closed. Contact Tammy if you need class follow-up.
+              That online classroom has closed. Contact us if you need class follow-up.
             </div>
           )}
 
@@ -162,7 +162,7 @@ export default async function Classes({
                   Learn to grow with confidence.
                 </h2>
                 <p>
-                  Tammy offers hands-on planter workshops and online classes through Telnyx Video.
+                  We offer hands-on planter workshops and online classes through Telnyx Video.
                   New dates are being planned now.
                 </p>
                 <a className="btn" href="mailto:hello@thehillsidegardens.com?subject=Class%20Interest">
@@ -177,7 +177,7 @@ export default async function Classes({
               <div className="eyebrow">Private groups</div>
               <h3>Plan an in-person or online class for your group.</h3>
             </div>
-            <Link className="btn gold" href="/contact">Ask Tammy about a private class</Link>
+            <Link className="btn gold" href="/contact">Ask us about a private class</Link>
           </div>
         </div>
       </section>

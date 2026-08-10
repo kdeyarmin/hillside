@@ -6,8 +6,8 @@ import { FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
-  title: 'Tammy’s Amazon Picks',
-  description: 'A curated collection of plant tools, planter supplies and tea favorites recommended by Tammy Hill.'
+  title: 'Our Amazon Picks',
+  description: 'A curated collection of plant tools, planter supplies and tea favorites we recommend.'
 };
 
 export default async function AmazonPage() {
@@ -19,7 +19,7 @@ export default async function AmazonPage() {
   return (
     <>
       <section className="pagehero">
-        <div className="container"><div className="eyebrow">Tammy recommends</div><h1>Tammy’s Amazon picks.</h1><p>A curated shelf of useful tools and supplies for plants, planters and tea.</p></div>
+        <div className="container"><div className="eyebrow">We recommend</div><h1>Our Amazon picks.</h1><p>A curated shelf of useful tools and supplies for plants, planters and tea.</p></div>
       </section>
       <section className="content">
         <div className="container">
@@ -48,7 +48,7 @@ export default async function AmazonPage() {
               ))}
             </div>
           ) : (
-            <div className="empty-state"><h3>Tammy’s picks are being added.</h3><p>Recommended products will appear here as Tammy builds her influencer collection.</p></div>
+            <div className="empty-state"><h3>Our picks are being added.</h3><p>Recommended products will appear here as we build our influencer collection.</p></div>
           )}
         </div>
       </section>
