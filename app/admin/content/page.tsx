@@ -51,7 +51,7 @@ function ClassFields({ event }: { event?: ClassEvent }) {
         <label className="admin-label">Online room closes minutes after class<input className="admin-input" name="joinClosesMinutesAfter" type="number" min="0" max="1440" defaultValue={event?.joinClosesMinutesAfter ?? 60} /></label>
         <label className="admin-label full">Online class instructions<textarea className="admin-input" name="onlineInstructions" rows={3} defaultValue={event?.onlineInstructions || ''} placeholder="Supplies, camera setup, what customers should have ready, or other online-class notes" /></label>
         <label className="admin-label full">What to bring / what is included<textarea className="admin-input" name="whatToBring" rows={2} defaultValue={event?.whatToBring || ''} /></label>
-        <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="url" defaultValue={event?.imageUrl || ''} /></label>
+        <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={event?.imageUrl || ''} /></label>
       </div>
       <div className="admin-actions">
         <label className="admin-checkbox"><input name="active" type="checkbox" defaultChecked={event?.active ?? true} /> Published and open for registration</label>
@@ -68,7 +68,7 @@ function GalleryFields({ item }: { item?: GalleryItem }) {
       <div className="admin-form-grid">
         <label className="admin-label">Arrangement title<input className="admin-input" name="title" defaultValue={item?.title} required /></label>
         <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={item?.sortOrder ?? 0} /></label>
-        <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="url" defaultValue={item?.imageUrl} required /></label>
+        <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={item?.imageUrl} required /></label>
         <label className="admin-label full">Caption<textarea className="admin-input" name="caption" rows={3} defaultValue={item?.caption || ''} /></label>
       </div>
     </>
@@ -83,7 +83,7 @@ function AmazonFields({ item }: { item?: AmazonPick }) {
         <label className="admin-label">Product title<input className="admin-input" name="title" defaultValue={item?.title} required /></label>
         <label className="admin-label">Category<input className="admin-input" name="category" defaultValue={item?.category || ''} placeholder="Plant tools" /></label>
         <label className="admin-label full">Amazon affiliate URL<input className="admin-input" name="amazonUrl" type="url" defaultValue={item?.amazonUrl} required /></label>
-        <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="url" defaultValue={item?.imageUrl || ''} /></label>
+        <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={item?.imageUrl || ''} /></label>
         <label className="admin-label full">Why Tammy recommends it<textarea className="admin-input" name="description" rows={3} defaultValue={item?.description || ''} /></label>
         <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={item?.sortOrder ?? 0} /></label>
       </div>
@@ -100,7 +100,7 @@ function CareFields({ sheet }: { sheet?: CareSheet }) {
         <label className="admin-label">Plant name<input className="admin-input" name="plantName" defaultValue={sheet?.plantName} required /></label>
         <label className="admin-label">URL slug<input className="admin-input" name="slug" defaultValue={sheet?.slug} placeholder="created-from-name" /></label>
         <label className="admin-label">Botanical name<input className="admin-input" name="botanical" defaultValue={sheet?.botanical || ''} /></label>
-        <label className="admin-label">Photo URL<input className="admin-input" name="imageUrl" type="url" defaultValue={sheet?.imageUrl || ''} /></label>
+        <label className="admin-label">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={sheet?.imageUrl || ''} /></label>
         <label className="admin-label full">Short introduction<textarea className="admin-input" name="summary" rows={3} defaultValue={sheet?.summary} required /></label>
         <label className="admin-label">Light<input className="admin-input" name="light" defaultValue={sheet?.light} required /></label>
         <label className="admin-label">Water<input className="admin-input" name="water" defaultValue={sheet?.water} required /></label>

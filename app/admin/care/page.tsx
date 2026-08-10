@@ -51,7 +51,7 @@ function CareGuideFields({ guide }: { guide?: CareSheet }) {
           <input className="admin-input" name="sortOrder" type="number" defaultValue={guide?.sortOrder ?? 0} />
         </label>
         <label className="admin-label">Photo URL
-          <input className="admin-input" name="imageUrl" type="url" defaultValue={guide?.imageUrl || ''} />
+          <input className="admin-input" name="imageUrl" type="text" defaultValue={guide?.imageUrl || ''} />
         </label>
         <label className="admin-label full">Short introduction
           <textarea className="admin-input" name="summary" rows={3} defaultValue={guide?.summary || ''} required />
