@@ -1,13 +1,13 @@
 import { CareGuideType, Prisma } from '@prisma/client';
 
 const houseplantImage =
-  'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=1400&q=88';
+  '/images/catalog/house-plants.webp';
 const foliageImage =
-  'https://images.unsplash.com/photo-1497250681960-ef046c08a56e?auto=format&fit=crop&w=1400&q=88';
+  '/images/catalog/live-plant-planters.webp';
 const pottingImage =
-  'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=1400&q=88';
+  '/images/scenes/potting-bench.webp';
 const gardenImage =
-  'https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&w=1400&q=88';
+  '/images/scenes/hillside-hero.webp';
 
 export const starterCareGuides = [
   {
@@ -31,7 +31,7 @@ export const starterCareGuides = [
     treatment: 'Check soil moisture and roots before watering again, improve light gradually, and secure the main stem to a support without tying petioles tightly.',
     prevention: 'Use a draining pot, avoid watering by calendar alone, wipe leaves periodically and inspect new growth for pests.',
     checklist: 'Bright indirect light\nWater after the top 2 inches dry\nUse a chunky, well-draining mix\nProvide support for mature growth\nKeep away from chewing pets',
-    imageUrl: 'https://images.unsplash.com/photo-1614594575810-51b862c2d7b6?auto=format&fit=crop&w=1400&q=88',
+    imageUrl: '/images/catalog/house-plants.webp',
     featured: true,
     sortOrder: 1,
     published: true
@@ -57,7 +57,7 @@ export const starterCareGuides = [
     treatment: 'Remove damaged leaves, correct watering, move gradually to brighter indirect light and trim long bare vines.',
     prevention: 'Use drainage, rotate the plant and check soil rather than relying on a fixed watering day.',
     checklist: 'Indirect light\nDry the top 1–2 inches between watering\nTrim vines for fullness\nRoot cuttings to fill the pot\nKeep away from chewing pets',
-    imageUrl: 'https://images.unsplash.com/photo-1593691509543-c55fb32e5cee?auto=format&fit=crop&w=1400&q=88',
+    imageUrl: '/images/catalog/house-plants.webp',
     featured: true,
     sortOrder: 2,
     published: true
@@ -83,7 +83,7 @@ export const starterCareGuides = [
     treatment: 'Remove rotted sections, inspect rhizomes, repot into dry fast-draining mix and delay watering after repotting.',
     prevention: 'Use a snug draining pot, water less during winter and never leave the pot standing in water.',
     checklist: 'Let soil dry deeply\nUse succulent-style soil\nChoose a draining pot\nWater less in winter\nProtect from cold drafts',
-    imageUrl: 'https://images.unsplash.com/photo-1593482892290-f54927ae2bb0?auto=format&fit=crop&w=1400&q=88',
+    imageUrl: '/images/catalog/live-plant-planters.webp',
     featured: true,
     sortOrder: 3,
     published: true
@@ -109,7 +109,7 @@ export const starterCareGuides = [
     treatment: 'Remove rot, allow healthy rhizomes to dry briefly, repot into fresh draining mix and reduce watering frequency.',
     prevention: 'Use a moisture check several inches deep and avoid oversized pots that stay wet too long.',
     checklist: 'Indirect light\nDry most of the pot between watering\nUse a draining mix\nAvoid oversized pots\nKeep away from pets',
-    imageUrl: 'https://images.unsplash.com/photo-1632207691143-643e2a9a9361?auto=format&fit=crop&w=1400&q=88',
+    imageUrl: '/images/catalog/house-plants.webp',
     sortOrder: 4,
     published: true
   },
@@ -159,7 +159,7 @@ export const starterCareGuides = [
     treatment: 'Flush the pot, switch to filtered water if needed, improve indirect light and remove severely damaged leaves.',
     prevention: 'Avoid overfertilizing and keep watering reasonably consistent.',
     checklist: 'Bright indirect light\nWater when the top inch dries\nFlush salts periodically\nPropagate plantlets easily\nGenerally pet-friendlier',
-    imageUrl: 'https://images.unsplash.com/photo-1572688484438-313a6e50c333?auto=format&fit=crop&w=1400&q=88',
+    imageUrl: '/images/catalog/house-plants.webp',
     sortOrder: 6,
     published: true
   },

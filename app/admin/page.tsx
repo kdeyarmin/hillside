@@ -60,7 +60,7 @@ function ProductFields({ product }: { product?: {
         <label className="admin-label">Quantity on hand<input className="admin-input" name="inventory" type="number" min="0" defaultValue={product?.inventory ?? 0} required /></label>
         <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={product?.sortOrder ?? 0} /></label>
         <label className="admin-label">Badge<input className="admin-input" name="badge" defaultValue={product?.badge || ''} placeholder="Tammy’s pick" /></label>
-        <label className="admin-label">Photo URL<input className="admin-input" name="imageUrl" type="url" defaultValue={product?.imageUrl || ''} /></label>
+        <label className="admin-label">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={product?.imageUrl || ''} /></label>
         <label className="admin-label full">Short card description<input className="admin-input" name="shortDescription" defaultValue={product?.shortDescription || ''} /></label>
         <label className="admin-label full">Main description<textarea className="admin-input" name="description" rows={4} defaultValue={product?.description} required /></label>
         <label className="admin-label full">Product details, ingredients or contents<textarea className="admin-input" name="details" rows={4} defaultValue={product?.details || ''} /></label>

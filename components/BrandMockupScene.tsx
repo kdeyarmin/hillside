@@ -46,7 +46,7 @@ const catalogArtwork: Record<HillsideCatalogImage, BrandArtwork> = {
   },
   'carnivorous-plants': {
     src: '/images/catalog/carnivorous-plants.webp',
-    alt: 'Venus flytraps with their traps open, lit against a dark background'
+    alt: 'A Venus flytrap in a pale pot, traps open and rimmed with red'
   },
   'live-plant-planters': {
     src: '/images/catalog/live-plant-planters.webp',

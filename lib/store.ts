@@ -1,5 +1,5 @@
 export const FALLBACK_PRODUCT_IMAGE =
-  'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=1200&q=85';
+  '/images/catalog/house-plants.webp';
 
 export const CANONICAL_SITE_URL = 'https://thehillsidegardens.com';
 

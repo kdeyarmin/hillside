@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
-import { normalizeHillsideDomain } from '@/lib/store';
+import { absoluteUrl, normalizeHillsideDomain } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
           product_data: {
             name: product.name,
             description: product.shortDescription || product.description || undefined,
-            images: product.imageUrl ? [product.imageUrl] : undefined,
+            images: product.imageUrl ? [absoluteUrl(product.imageUrl)] : undefined,
             metadata: { hillsideProductId: product.id, hillsideSlug: product.slug }
           }
         }

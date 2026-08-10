@@ -12,19 +12,19 @@ const DEFAULT_FALLBACK = '/images/botanical-placeholder.svg';
 const LEGACY_IMAGE_REPLACEMENTS: Array<[string, string]> = [
   [
     'photo-1614594575810-51b862c2d7b6',
-    'https://images.unsplash.com/photo-1497250681960-ef046c08a56e?auto=format&fit=crop&w=1400&q=88'
+    '/images/catalog/house-plants.webp'
   ],
   [
     'photo-1593691509543-c55fb32e5cee',
-    'https://images.unsplash.com/photo-1485955900006-10f4d324d411?auto=format&fit=crop&w=1400&q=88'
+    '/images/catalog/house-plants.webp'
   ],
   [
     'photo-1593482892290-f54927ae2bb0',
-    'https://images.unsplash.com/photo-1497250681960-ef046c08a56e?auto=format&fit=crop&w=1400&q=88'
+    '/images/catalog/live-plant-planters.webp'
   ],
   [
     'photo-1509423350716-97f2360af8e4',
-    'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=1400&q=88'
+    '/images/scenes/potting-bench.webp'
   ]
 ];
 

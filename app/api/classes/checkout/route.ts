@@ -6,7 +6,7 @@ import {
   classLocationLabel,
   isOnlineClass
 } from '@/lib/class-access';
-import { normalizeHillsideDomain } from '@/lib/store';
+import { absoluteUrl, normalizeHillsideDomain } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
             product_data: {
               name: event.title,
               description: `${classFormatLabel(event.format)} • ${event.startsAt.toLocaleDateString('en-US')} • ${classLocationLabel(event)}`,
-              images: event.imageUrl ? [event.imageUrl] : undefined,
+              images: event.imageUrl ? [absoluteUrl(event.imageUrl)] : undefined,
               metadata: { hillsideClassId: event.id, classFormat: event.format }
             }
           }

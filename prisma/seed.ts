@@ -17,7 +17,7 @@ async function main() {
       priceCents: 3800,
       compareAtCents: null,
       inventory: 8,
-      imageUrl: 'https://images.unsplash.com/photo-1614594575810-51b862c2d7b6?auto=format&fit=crop&w=1200&q=85',
+      imageUrl: '/images/catalog/house-plants.webp',
       badge: 'Tammy’s pick',
       featured: true,
       sortOrder: 1
@@ -35,7 +35,7 @@ async function main() {
       priceCents: 2400,
       compareAtCents: null,
       inventory: 12,
-      imageUrl: 'https://images.unsplash.com/photo-1593691509543-c55fb32e5cee?auto=format&fit=crop&w=1200&q=85',
+      imageUrl: '/images/catalog/house-plants.webp',
       badge: 'Beginner friendly',
       featured: true,
       sortOrder: 2
@@ -53,7 +53,7 @@ async function main() {
       priceCents: 1600,
       compareAtCents: null,
       inventory: 20,
-      imageUrl: 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?auto=format&fit=crop&w=1200&q=85',
+      imageUrl: '/images/catalog/apothecary.webp',
       badge: 'Small batch',
       featured: true,
       sortOrder: 3
@@ -71,7 +71,7 @@ async function main() {
       priceCents: 1200,
       compareAtCents: null,
       inventory: 24,
-      imageUrl: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=1200&q=85',
+      imageUrl: '/images/catalog/apothecary.webp',
       badge: null,
       featured: false,
       sortOrder: 4
@@ -89,7 +89,7 @@ async function main() {
       priceCents: 900,
       compareAtCents: null,
       inventory: 18,
-      imageUrl: 'https://images.unsplash.com/photo-1607006483225-3f4b5308f95d?auto=format&fit=crop&w=1200&q=85',
+      imageUrl: '/images/catalog/homemade-soaps.webp',
       badge: 'Handmade',
       featured: false,
       sortOrder: 5
@@ -107,7 +107,7 @@ async function main() {
       priceCents: 1800,
       compareAtCents: null,
       inventory: 15,
-      imageUrl: 'https://images.unsplash.com/photo-1608248543803-ba4f8c70ae0b?auto=format&fit=crop&w=1200&q=85',
+      imageUrl: '/images/catalog/apothecary.webp',
       badge: 'Handmade',
       featured: false,
       sortOrder: 6
@@ -136,7 +136,7 @@ async function main() {
       temperature: '65–85°F',
       petSafety: 'Toxic if chewed',
       tips: 'Rotate regularly and give a mature plant a moss pole or other sturdy support.',
-      imageUrl: 'https://images.unsplash.com/photo-1614594575810-51b862c2d7b6?auto=format&fit=crop&w=1200&q=85'
+      imageUrl: '/images/catalog/house-plants.webp'
     },
     {
       plantName: 'Golden Pothos',
@@ -151,7 +151,7 @@ async function main() {
       temperature: '60–85°F',
       petSafety: 'Toxic if chewed',
       tips: 'Trim vines just above a node to encourage fuller growth and root the cuttings in water.',
-      imageUrl: 'https://images.unsplash.com/photo-1593691509543-c55fb32e5cee?auto=format&fit=crop&w=1200&q=85'
+      imageUrl: '/images/catalog/house-plants.webp'
     },
     {
       plantName: 'Snake Plant',
@@ -166,7 +166,7 @@ async function main() {
       temperature: '60–85°F',
       petSafety: 'Mildly toxic if eaten',
       tips: 'Too much water is the biggest risk. When in doubt, wait a little longer.',
-      imageUrl: 'https://images.unsplash.com/photo-1593482892290-f54927ae2bb0?auto=format&fit=crop&w=1200&q=85'
+      imageUrl: '/images/catalog/live-plant-planters.webp'
     },
     {
       plantName: 'ZZ Plant',
@@ -181,7 +181,7 @@ async function main() {
       temperature: '60–80°F',
       petSafety: 'Toxic if chewed',
       tips: 'Use a pot with drainage and resist the urge to water on a rigid schedule.',
-      imageUrl: 'https://images.unsplash.com/photo-1632207691143-643e2a9a9361?auto=format&fit=crop&w=1200&q=85'
+      imageUrl: '/images/catalog/house-plants.webp'
     },
     {
       plantName: 'Peace Lily',
@@ -196,7 +196,7 @@ async function main() {
       temperature: '65–80°F',
       petSafety: 'Toxic to pets',
       tips: 'Filtered water can help reduce brown leaf tips in homes with hard tap water.',
-      imageUrl: 'https://images.unsplash.com/photo-1593691509543-c55fb32e5cee?auto=format&fit=crop&w=1200&q=85'
+      imageUrl: '/images/catalog/house-plants.webp'
     },
     {
       plantName: 'Spider Plant',
@@ -211,7 +211,7 @@ async function main() {
       temperature: '60–80°F',
       petSafety: 'Generally considered non-toxic',
       tips: 'Root the plantlets in water or pin them directly into a small pot of moist soil.',
-      imageUrl: 'https://images.unsplash.com/photo-1572688484438-313a6e50c333?auto=format&fit=crop&w=1200&q=85'
+      imageUrl: '/images/catalog/house-plants.webp'
     }
   ];
 
@@ -239,7 +239,7 @@ async function main() {
       durationMinutes: 90,
       whatToBring: 'Just yourself. Plants, potting materials and tools are included.',
       active: true,
-      imageUrl: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=1200&q=85'
+      imageUrl: '/images/scenes/potting-bench.webp'
     },
     create: {
       slug: 'build-a-beautiful-planter',
@@ -252,7 +252,7 @@ async function main() {
       durationMinutes: 90,
       whatToBring: 'Just yourself. Plants, potting materials and tools are included.',
       active: true,
-      imageUrl: 'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=1200&q=85'
+      imageUrl: '/images/scenes/potting-bench.webp'
     }
   });
 
