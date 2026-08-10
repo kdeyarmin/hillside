@@ -61,26 +61,81 @@ export function clampQuantity(value: number, inventory: number) {
   return Math.max(1, Math.min(Math.max(1, inventory), Math.floor(value || 1)));
 }
 
+// IPv6 keeps its brackets here on purpose: URL.hostname serialises [::1] with
+// them, so the bracketed form is the one a parsed URL is ever compared against.
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '0.0.0.0', '[::1]']);
+
+/** All of 127.0.0.0/8 is loopback, not just 127.0.0.1. */
+const IPV4_LOOPBACK = /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+
+/**
+ * IPv4-mapped IPv6. URL normalises the embedded address to hex, so
+ * [::ffff:127.0.0.1] arrives as [::ffff:7f00:1] and 127.x as [::ffff:7fxx:…].
+ */
+const IPV6_MAPPED_IPV4_LOOPBACK = /^\[::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}\]$/;
+
+function isLoopbackHostname(hostname: string) {
+  return (
+    LOOPBACK_HOSTNAMES.has(hostname) ||
+    // RFC 6761 reserves the whole .localhost TLD for loopback.
+    hostname.endsWith('.localhost') ||
+    IPV4_LOOPBACK.test(hostname) ||
+    IPV6_MAPPED_IPV4_LOOPBACK.test(hostname)
+  );
+}
+
+/**
+ * True when a value cannot serve as the site's public origin — either it names
+ * an address that only resolves on the machine serving it, or it does not parse
+ * as a URL at all. Both are equally unusable, so they get one answer.
+ */
+function isUnusableAsPublicOrigin(value: string) {
+  try {
+    return isLoopbackHostname(new URL(value).hostname.toLowerCase());
+  } catch {
+    return true;
+  }
+}
+
+let warnedAboutBase = false;
+
 /**
  * The origin every absolute link the site advertises is built from: canonical
  * tags, og:url, og:image, the sitemap, robots.txt, and the private classroom
  * link emailed to online-class customers.
  *
- * This used to fall back to http://localhost:3000, and the deployed site was
- * using that fallback — the sitemap listed localhost URLs, robots.txt pointed
- * search engines at a localhost sitemap, and class confirmation emails sent
- * customers a localhost link. Setting the variable in Railway's runtime
- * environment would not have fixed it either: Next inlines NEXT_PUBLIC_* at
- * build time, so a value that is absent when `next build` runs is compiled
- * away as undefined no matter what the container is given later.
+ * All of these were coming out as http://localhost:3000 in production, because
+ * NEXT_PUBLIC_SITE_URL is set to a loopback address on the deployed service.
+ * The sitemap listed localhost URLs, robots.txt pointed search engines at a
+ * localhost sitemap, and class confirmation emails sent paying customers a
+ * localhost link.
  *
- * So the fallback is the real public domain, which is correct for any deployed
- * build. localhost is only ever right when a dev server is the thing serving.
+ * A production build cannot advertise a loopback address — by definition it
+ * resolves to the visitor's own machine, not ours — so such a value is refused
+ * rather than honoured, and the canonical domain is used instead. This keeps
+ * the site correct whether the variable is unset, correct, or misconfigured.
+ * Note that fixing the variable alone would not have been enough anyway: Next
+ * inlines NEXT_PUBLIC_* at build time, so the value has to be right when
+ * `next build` runs, not merely when the container starts.
+ *
+ * Under `next dev`, localhost is the truth, so anything goes.
  */
 export function siteBaseUrl() {
   const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (configured) return normalizeHillsideDomain(configured);
-  return process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : CANONICAL_SITE_URL;
+  const isDev = process.env.NODE_ENV === 'development';
+
+  if (isDev) return normalizeHillsideDomain(configured || 'http://localhost:3000');
+  if (configured && !isUnusableAsPublicOrigin(configured)) return normalizeHillsideDomain(configured);
+
+  if (configured && !warnedAboutBase) {
+    warnedAboutBase = true;
+    console.warn(
+      `[hillside] Ignoring NEXT_PUBLIC_SITE_URL="${configured}": a deployed build cannot ` +
+        `advertise a loopback or unparseable address. Using ${CANONICAL_SITE_URL} instead. ` +
+        `Set NEXT_PUBLIC_SITE_URL to the public origin at build time to override.`
+    );
+  }
+  return CANONICAL_SITE_URL;
 }
 
 export function absoluteUrl(path = '/') {

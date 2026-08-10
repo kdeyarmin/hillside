@@ -65,11 +65,16 @@ npm run db:seed
 7. After the custom domain is connected, change `NEXT_PUBLIC_SITE_URL` to `https://thehillsidegardens.com` and redeploy.
 
 `NEXT_PUBLIC_SITE_URL` is read at **build** time, not run time — Next inlines
-`NEXT_PUBLIC_*` into the compiled output, so a value added to the running container
-after the build has no effect until the next deploy. When it is unset, absolute links
-fall back to `https://thehillsidegardens.com`, so the sitemap, `robots.txt`, canonical
-tags and class emails stay correct; set it explicitly only to point a build somewhere
-else, such as a preview domain.
+`NEXT_PUBLIC_*` into the compiled output, so changing it on the running service has no
+effect until the next deploy.
+
+Absolute links (the sitemap, `robots.txt`, canonical and OG tags, and the private
+classroom link emailed to online-class customers) fall back to
+`https://thehillsidegardens.com` when the variable is unset. A deployed build also
+refuses a loopback value such as `http://localhost:3000` or `http://127.0.0.1:3000`,
+because those resolve to the visitor's own machine rather than the shop, and logs a
+warning naming the ignored value. Set the variable only to point a build at a genuine
+public origin, such as a Railway preview domain.
 
 ## Stripe setup
 
