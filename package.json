@@ -13,7 +13,9 @@
     "db:seed:care:on-deploy": "tsx prisma/seed-care-on-deploy.ts && tsx prisma/seed-collections.ts",
     "db:repair:images": "tsx prisma/repair-image-urls.ts",
     "db:repair:copy": "tsx prisma/repair-owner-copy.ts",
-    "db:seed:collections": "tsx prisma/seed-collections.ts"
+    "db:seed:collections": "tsx prisma/seed-collections.ts",
+    "images:brand": "node scripts/brand-image.mjs",
+    "images:measure": "node scripts/brand-image.mjs --measure public/images/catalog"
   },
   "dependencies": {
     "@prisma/client": "^6.14.0",

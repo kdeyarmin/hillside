@@ -87,17 +87,22 @@ because those resolve to the visitor's own machine rather than the shop, and log
 warning naming the ignored value. Set the variable only to point a build at a genuine
 public origin, such as a Railway preview domain.
 
-## Class times and the server timezone
+## Class times and the shop timezone
 
-Class dates are entered in the dashboard and displayed to customers against the
-same clock — the server's. Set `TZ` to the shop's IANA timezone (for example
-`TZ=America/New_York`) on the Railway service so that a class entered as 6:00 PM
-is shown as 6:00 PM, labelled with the matching abbreviation.
+The shop runs on **Eastern time**. `instrumentation.ts` sets `TZ` to
+`America/New_York` when the server boots, so a class entered in the dashboard as
+6:00 PM is shown to customers as `6:00 PM EDT` — on Railway, in a container, or
+on a laptop, with nothing to configure. Daylight saving is handled by the zone
+itself, so the label reads `EST` in winter and `EDT` in summer.
 
 Every class time on the site is printed with its timezone, because someone
 joining an online class from another state cannot otherwise tell what "6:00 PM"
-means. With `TZ` unset the label reads `UTC`: still truthful, but it will not
-match the times Tammy has in mind.
+means.
+
+If the business ever moves, set `TZ` to another IANA zone in the environment and
+it wins over the default. Do not set it to `UTC` unless the shop genuinely keeps
+UTC: class times are entered and read back against this one clock, so changing it
+reinterprets every date already in the database.
 
 ## Stripe setup
 

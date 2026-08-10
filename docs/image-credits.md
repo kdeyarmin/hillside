@@ -12,6 +12,16 @@ files are committed rather than hotlinked — the previous build pulled images l
 `images.unsplash.com`, and several of those IDs have since been deleted, which is what left
 broken images on the storefront.
 
+That process is now `scripts/brand-image.mjs`, so replacing or adding an image is one command
+rather than a manual edit that has to be matched by eye:
+
+```bash
+npm run images:brand -- --in <file-or-url> --out <name> [--dir catalog|scenes|gallery]
+npm run images:measure     # warmth, saturation, brightness and size across the set
+```
+
+Whatever the source, add it to the tables below with its licence before committing.
+
 ## Category photography — `public/images/catalog/`
 
 | File | Unsplash photo |
