@@ -494,6 +494,17 @@ export function SiteHeader() {
 
           {mobileOpen && (
             <div className="mobile-menu container" id="mobile-primary-menu" ref={mobileMenuRef}>
+              <form className="mobile-menu-search" action="/search" role="search">
+                <label className="sr-only" htmlFor="mobile-search">Search plants, care and classes</label>
+                <input
+                  id="mobile-search"
+                  type="search"
+                  name="q"
+                  placeholder="Search plants, care and classes"
+                  enterKeyHint="search"
+                />
+                <button type="submit">Search</button>
+              </form>
               {navigation.map(([label, href]) => (
                 <Link href={href} key={href} aria-current={isActive(href) ? 'page' : undefined}>
                   {label}

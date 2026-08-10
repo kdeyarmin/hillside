@@ -1,12 +1,52 @@
 /* Storefront components added for merchandising: search, collections, reviews,
    ratings, restock requests and the cart drawer's shipping meter. */
 
-/* ---- header search ---- */
+/* ---- header search ----
+   editorial.css hides the header search below 900px, and a media query carries no
+   extra specificity — an unconditional `display: flex` here would win from a later
+   file and squeeze the field into the phone header. The desktop layout is scoped
+   to its own breakpoint; phones get the search inside the menu instead. */
 .header-search {
-  display: flex;
   align-items: center;
   gap: 9px;
   min-width: 0;
+}
+
+@media (min-width: 901px) {
+  .header-search { display: flex; }
+}
+
+/* ---- mobile menu search ---- */
+.mobile-menu-search {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+.mobile-menu-search input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 16px;
+  background: var(--white);
+  color: var(--ink);
+}
+.mobile-menu-search input:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(185, 137, 46, 0.13);
+}
+.mobile-menu-search button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 18px;
+  background: var(--forest);
+  color: var(--white);
+  font-weight: 800;
+  cursor: pointer;
 }
 .header-search svg { flex: 0 0 auto; color: var(--forest); }
 .header-search input {
@@ -253,7 +293,6 @@
 
 @media (max-width: 900px) {
   .collection-crosslinks { grid-template-columns: 1fr; gap: 28px; }
-  .header-search input { width: 100%; }
 }
 
 @media (max-width: 760px) {
