@@ -120,7 +120,7 @@ export default function ShopClient({
 
       <div className="toolbar">
         <b>{visibleProducts.length} {visibleProducts.length === 1 ? 'product' : 'products'}</b>
-        <span className="muted">Live inventory from Tammy’s owner dashboard</span>
+        <span className="muted">Live inventory from our owner dashboard</span>
       </div>
 
       {visibleProducts.length === 0 ? (

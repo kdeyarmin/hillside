@@ -84,7 +84,7 @@ function CareGuideFields({ guide }: { guide?: CareSheet }) {
       </div>
 
       <div className="admin-form-grid" style={{ marginTop: 18 }}>
-        <label className="admin-label full">Tammy’s main guidance
+        <label className="admin-label full">Our main guidance
           <textarea className="admin-input" name="tips" rows={5} defaultValue={guide?.tips || ''} required />
         </label>
         <label className="admin-label full">Quick checklist — one item per line
@@ -139,7 +139,7 @@ export default async function CareLibraryManager({
       <main className="adminmain">
         <div className="toolbar">
           <div>
-            <div className="eyebrow">Tammy’s education center</div>
+            <div className="eyebrow">Our education center</div>
             <h1>Plant care library</h1>
             <p className="muted">Manage plant profiles, general care lessons, common problems and seasonal checklists.</p>
           </div>
@@ -167,7 +167,7 @@ export default async function CareLibraryManager({
               <div className="eyebrow">One-click starter content</div>
               <h2 style={{ margin: '5px 0 8px' }}>Load the complete starter care library.</h2>
               <p className="muted" style={{ margin: 0 }}>
-                This safely creates or refreshes {starterCareGuides.length} professionally written guides covering common houseplants, core care skills, pests, root problems, leaf symptoms and seasonal care. It does not delete Tammy’s additional guides.
+                This safely creates or refreshes {starterCareGuides.length} professionally written guides covering common houseplants, core care skills, pests, root problems, leaf symptoms and seasonal care. It does not delete your additional guides.
               </p>
             </div>
             <form action={seedStarterCareLibrary}>

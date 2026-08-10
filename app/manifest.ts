@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'The Hillside Gardens',
     short_name: 'Hillside Gardens',
-    description: 'Plants, teas, botanicals and plant education from Tammy Hill.',
+    description: 'Plants, teas, botanicals and plant education.',
     start_url: '/',
     display: 'standalone',
     background_color: '#f7f4ec',

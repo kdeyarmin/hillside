@@ -26,7 +26,7 @@ export default function PrivacyPage() {
           <p>Information may be shared with providers that help operate the business, including website hosting and database providers, Stripe, email-delivery services and shipping carriers. These providers receive only the information reasonably needed for their services.</p>
 
           <h2>Affiliate links</h2>
-          <p>Tammy’s Picks may contain Amazon or other affiliate links. An affiliate platform may use cookies or similar technologies to attribute a purchase after a visitor follows a link. Those platforms control their own tracking and privacy practices.</p>
+          <p>Our Amazon picks page may contain Amazon or other affiliate links. An affiliate platform may use cookies or similar technologies to attribute a purchase after a visitor follows a link. Those platforms control their own tracking and privacy practices.</p>
 
           <h2>Retention and security</h2>
           <p>Business records are retained for as long as reasonably needed for fulfillment, customer service, accounting, tax, legal and security purposes. Reasonable administrative and technical safeguards are used, but no online system can promise absolute security.</p>

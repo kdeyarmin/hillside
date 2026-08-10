@@ -16,7 +16,7 @@ const navigation = [
   ['Classes', '/classes'],
   ['Plant Care', '/care'],
   ['Gallery', '/gallery'],
-  ['Tammy’s Picks', '/amazon']
+  ['Our Picks', '/amazon']
 ] as const;
 
 const focusableSelector = [
@@ -449,12 +449,12 @@ export function SiteFooter() {
           <p><Link href="/order-status">Order status</Link></p>
           <p><Link href="/shipping-returns">Shipping & returns</Link></p>
           <p><Link href="/faq">Frequently asked questions</Link></p>
-          <p><Link href="/contact">Contact Tammy</Link></p>
+          <p><Link href="/contact">Contact us</Link></p>
         </div>
         <div>
           <h4>Information</h4>
-          <p><Link href="/about">About Tammy</Link></p>
-          <p><Link href="/amazon">Tammy’s Amazon picks</Link></p>
+          <p><Link href="/about">About us</Link></p>
+          <p><Link href="/amazon">Our Amazon picks</Link></p>
           <p><Link href="/privacy">Privacy</Link></p>
           <p><Link href="/terms">Terms</Link></p>
           <p><Link href="/admin">Owner admin</Link></p>

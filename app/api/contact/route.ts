@@ -52,16 +52,16 @@ export async function POST(request: Request) {
       }),
       sendEmail({
         to: email,
-        subject: 'Tammy received your Hillside Gardens message',
+        subject: 'We received your Hillside Gardens message',
         idempotencyKey: `contact-customer/${saved.id}`,
         html: emailShell(
           'Thanks for reaching out',
-          `<p>Hi ${escapeHtml(name)},</p><p>Your message reached The Hillside Gardens. Tammy will review it and respond as soon as she can.</p><p><strong>Your topic:</strong> ${escapeHtml(subject)}</p><p>In the meantime, the website’s plant care library may have a quick answer for common houseplant questions.</p>`
+          `<p>Hi ${escapeHtml(name)},</p><p>Your message reached The Hillside Gardens. We will review it and respond as soon as we can.</p><p><strong>Your topic:</strong> ${escapeHtml(subject)}</p><p>In the meantime, the website’s plant care library may have a quick answer for common houseplant questions.</p>`
         )
       })
     ]);
 
-    return NextResponse.json({ message: 'Thanks — Tammy received your message.' });
+    return NextResponse.json({ message: 'Thanks — we received your message.' });
   } catch (error) {
     console.error('Contact form failed', error);
     return NextResponse.json({ error: 'The message could not be sent. Please try again.' }, { status: 500 });

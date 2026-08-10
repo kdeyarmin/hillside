@@ -130,7 +130,7 @@ export default async function Home() {
               Shop now <ArrowRight size={17} />
             </Link>
             <Link className="editorial-link" href="/classes">
-              Explore Tammy’s classes →
+              Explore our classes →
             </Link>
           </div>
         </div>
@@ -203,7 +203,7 @@ export default async function Home() {
             <div className="editorial-heading-row">
               <div>
                 <div className="eyebrow">New & noteworthy</div>
-                <h2>Tammy’s current favorites.</h2>
+                <h2>Our current favorites.</h2>
               </div>
               <Link className="editorial-link" href="/shop">
                 Shop all products →
@@ -254,8 +254,8 @@ export default async function Home() {
               for.”
             </p>
             <p>
-              Tammy Hill created The Hillside Gardens around her love of plants and her love of
-              teaching. Her in-person and online classes make choosing, arranging and caring for
+              Tammy Hill created The Hillside Gardens around a love of plants and a love of
+              teaching. Our in-person and online classes make choosing, arranging and caring for
               plants approachable — even if you’re just getting started.
             </p>
             <div className="actions">
@@ -274,7 +274,7 @@ export default async function Home() {
         <section className="section editorial-classes home-classes-section">
           <div className="container">
             <div className="sectionhead">
-              <div className="eyebrow">Learn with Tammy</div>
+              <div className="eyebrow">Learn with us</div>
               <h2>Make something beautiful, in person or online.</h2>
               <p>
                 Relaxed, practical plant classes offered at The Hillside Gardens and through secure
@@ -339,7 +339,7 @@ export default async function Home() {
             <div className="eyebrow">Plant help, without the guesswork</div>
             <h2>Keep your plants happy.</h2>
             <p>
-              Use Tammy’s practical care sheets for light, watering, soil, feeding, pet safety and
+              Use our practical care sheets for light, watering, soil, feeding, pet safety and
               the little details that make a difference.
             </p>
           </div>
@@ -354,7 +354,7 @@ export default async function Home() {
           <div>
             <div className="eyebrow">The Hillside Notes</div>
             <h3>Seasonal tips, class dates & fresh arrivals.</h3>
-            <p>A thoughtful note from Tammy, sent occasionally.</p>
+            <p>A thoughtful note from us, sent occasionally.</p>
           </div>
           <NewsletterForm />
         </div>

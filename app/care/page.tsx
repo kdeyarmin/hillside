@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export const metadata = {
   title: 'Plant Care Library & Plant Problem Guide',
   description:
-    'Practical plant profiles, watering and light guidance, seasonal checklists, pest help and troubleshooting for common houseplant problems from Tammy Hill.'
+    'Practical plant profiles, watering and light guidance, seasonal checklists, pest help and troubleshooting for common houseplant problems from The Hillside Gardens.'
 };
 
 const quickStarts = [
@@ -96,7 +96,7 @@ export default async function Care() {
       <section className="pagehero care-pagehero">
         <div className="container care-hero-grid">
           <div>
-            <div className="eyebrow">Tammy’s plant care library</div>
+            <div className="eyebrow">Our plant care library</div>
             <h1>Plant care that makes sense in a real home.</h1>
             <p>
               Start with a plant profile, learn the basics, or troubleshoot a symptom with practical
@@ -157,7 +157,7 @@ export default async function Care() {
           ) : (
             <div className="care-empty-state">
               <Leaf size={42} />
-              <h3>Tammy’s care library is growing.</h3>
+              <h3>Our care library is growing.</h3>
               <p>The starter care library has not been loaded into the database yet.</p>
               <Link className="btn" href="/admin/care">Open care-library manager</Link>
             </div>

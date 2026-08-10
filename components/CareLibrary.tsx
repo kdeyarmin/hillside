@@ -122,7 +122,7 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
 
       <div className="care-results-heading" aria-live="polite">
         <div>
-          <span className="eyebrow">Tammy’s practical library</span>
+          <span className="eyebrow">Our practical library</span>
           <h2>{visible.length} {visible.length === 1 ? 'guide' : 'guides'} found</h2>
         </div>
         {(query || filter !== 'ALL') && (
@@ -144,7 +144,7 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
           {visible.map((guide) => (
             <article className={`care-guide-card care-type-${guide.guideType.toLowerCase()}`} key={guide.id}>
               <Link className="care-guide-image" href={`/care/${guide.slug}`}>
-                {guide.featured && <span className="care-featured-badge">Tammy’s essential</span>}
+                {guide.featured && <span className="care-featured-badge">Our essential</span>}
                 <ResilientImage
                   src={guide.imageUrl || FALLBACK_PRODUCT_IMAGE}
                   fallbackSrc="/images/botanical-placeholder.svg"

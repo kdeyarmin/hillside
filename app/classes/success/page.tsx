@@ -34,7 +34,7 @@ export default async function ClassSuccess({
       <div className="container" style={{ maxWidth: 760, textAlign: 'center', paddingTop: 45 }}>
         <div className="eyebrow">Registration confirmed</div>
         <h1 className="display-title" style={{ fontSize: 58, color: 'var(--forest)', margin: '10px 0' }}>
-          Tammy saved your seat.
+          We saved your seat.
         </h1>
         {event ? (
           <div className="admin-card" style={{ textAlign: 'left', margin: '28px 0' }}>

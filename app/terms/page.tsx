@@ -23,7 +23,7 @@ export default function TermsPage() {
           <p>Stripe processes online payments. Customers agree to provide accurate payment, contact and shipping information. Applicable taxes, shipping charges and discounts are shown during checkout. The customer is responsible for address errors, unavailable delivery locations and promptly retrieving packages after delivery.</p>
 
           <h2>Plant care and results</h2>
-          <p>Care sheets and classes provide general educational information. Plant health depends on light, temperature, water, soil, pests, local conditions and ongoing care outside Tammy’s control. The Hillside Gardens cannot guarantee that a plant will continue to thrive after delivery or pickup.</p>
+          <p>Care sheets and classes provide general educational information. Plant health depends on light, temperature, water, soil, pests, local conditions and ongoing care outside our control. The Hillside Gardens cannot guarantee that a plant will continue to thrive after delivery or pickup.</p>
 
           <h2>Tea and body-care information</h2>
           <p>Product descriptions are not medical advice and are not intended to diagnose, treat, cure or prevent disease. Customers should review ingredients and consult an appropriate professional about allergies, pregnancy, medication interactions, sensitive skin or other health concerns. Discontinue use if irritation or an adverse reaction occurs.</p>

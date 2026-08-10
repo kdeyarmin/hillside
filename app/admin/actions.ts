@@ -135,7 +135,7 @@ export async function updateOrder(formData: FormData) {
       idempotencyKey: `shipping-update/${order.id}/${trackingNumber || 'fulfilled'}`,
       html: emailShell(
         'Your order is on the way',
-        `<p>Hi ${escapeHtml(order.customerName)},</p><p>Tammy has marked order <strong>${escapeHtml(order.invoiceNumber)}</strong> as shipped.</p>${tracking}<p>You can also check the current order status on The Hillside Gardens website using your order number and checkout email.</p>`
+        `<p>Hi ${escapeHtml(order.customerName)},</p><p>We have marked order <strong>${escapeHtml(order.invoiceNumber)}</strong> as shipped.</p>${tracking}<p>You can also check the current order status on The Hillside Gardens website using your order number and checkout email.</p>`
       )
     });
   }

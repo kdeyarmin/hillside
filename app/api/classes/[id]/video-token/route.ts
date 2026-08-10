@@ -28,7 +28,7 @@ export async function POST(
   }
   if (!telnyxVideoConfigured()) {
     return NextResponse.json(
-      { error: 'Telnyx Video is not configured yet. Tammy has been notified.' },
+      { error: 'The online classroom is not available yet. Please contact us for help joining this class.' },
       { status: 503 }
     );
   }

@@ -80,7 +80,7 @@ export default async function OnlineClassStudio({
             <span><Clock3 size={16} /> About {event.durationMinutes} minutes</span>
             <span><Video size={16} /> {classLocationLabel(event)}</span>
           </div>
-          {event.onlineInstructions && <p><b>From Tammy:</b> {event.onlineInstructions}</p>}
+          {event.onlineInstructions && <p><b>From us:</b> {event.onlineInstructions}</p>}
           {event.telnyxRecordingEnabled && (
             <p className="classroom-recording-disclosure">
               This class may be recorded. Joining the room acknowledges the recording notice.
@@ -102,7 +102,7 @@ export default async function OnlineClassStudio({
           <div className="classroom-access-card">
             <Video size={36} />
             <h1>This online classroom has closed.</h1>
-            <p>Contact Tammy if you need follow-up information from the class.</p>
+            <p>Contact us if you need follow-up information from the class.</p>
             <Link className="btn" href="/classes">Browse other classes</Link>
           </div>
         ) : (

@@ -68,7 +68,7 @@ export default function OrderStatusLookup() {
             <div>
               <div className="eyebrow">Order {order.invoiceNumber}</div>
               <h2 className="display-title" style={{ color: 'var(--forest)', fontSize: 38, margin: '5px 0' }}>
-                {order.status === 'FULFILLED' ? 'Your order has shipped.' : order.status === 'PAID' ? 'Tammy is preparing your order.' : `Order status: ${order.status.toLowerCase()}`}
+                {order.status === 'FULFILLED' ? 'Your order has shipped.' : order.status === 'PAID' ? 'We are preparing your order.' : `Order status: ${order.status.toLowerCase()}`}
               </h2>
             </div>
             <span className={`status-badge ${order.status}`}>{order.status}</span>

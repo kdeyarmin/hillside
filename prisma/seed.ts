@@ -18,7 +18,7 @@ async function main() {
       compareAtCents: null,
       inventory: 8,
       imageUrl: '/images/catalog/house-plants.webp',
-      badge: 'Tammy’s pick',
+      badge: 'Our pick',
       featured: true,
       sortOrder: 1
     },
@@ -142,7 +142,7 @@ async function main() {
       plantName: 'Golden Pothos',
       slug: 'golden-pothos',
       botanical: 'Epipremnum aureum',
-      summary: 'A forgiving trailing classic and one of Tammy’s favorite beginner houseplants.',
+      summary: 'A forgiving trailing classic and one of our favorite beginner houseplants.',
       light: 'Low to bright indirect light',
       water: 'Let the top 1–2 inches dry',
       humidity: 'Average household humidity',
@@ -231,7 +231,7 @@ async function main() {
     where: { slug: 'build-a-beautiful-planter' },
     update: {
       title: 'Build a Beautiful Planter',
-      description: 'Tammy guides you through choosing compatible plants, balancing color and texture, potting correctly and caring for your finished arrangement.',
+      description: 'We guide you through choosing compatible plants, balancing color and texture, potting correctly and caring for your finished arrangement.',
       startsAt: classDate,
       location: 'The Hillside Gardens',
       priceCents: 4500,
@@ -244,7 +244,7 @@ async function main() {
     create: {
       slug: 'build-a-beautiful-planter',
       title: 'Build a Beautiful Planter',
-      description: 'Tammy guides you through choosing compatible plants, balancing color and texture, potting correctly and caring for your finished arrangement.',
+      description: 'We guide you through choosing compatible plants, balancing color and texture, potting correctly and caring for your finished arrangement.',
       startsAt: classDate,
       location: 'The Hillside Gardens',
       priceCents: 4500,

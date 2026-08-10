@@ -47,7 +47,7 @@ export default async function HostClassStudio({
         <div className="classroom-event-summary">
           <div className="toolbar">
             <div>
-              <span className="pill">Tammy’s private host studio</span>
+              <span className="pill">Your private host studio</span>
               <h2>{event.title}</h2>
             </div>
             <Link className="btn outline small" href="/admin/content#classes">Manage class</Link>

@@ -65,7 +65,7 @@ export async function POST(request: Request) {
     });
     if (existing) {
       return NextResponse.json(
-        { error: 'This email is already registered for the class. Contact Tammy if you need to change the reservation.' },
+        { error: 'This email is already registered for the class. Contact us if you need to change the reservation.' },
         { status: 409 }
       );
     }
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       emailSent: emailResult.sent,
       message: emailResult.sent
         ? 'Your registration is confirmed. Check your email for the class details.'
-        : 'Your registration is confirmed. Email delivery is not configured, so please contact Tammy for the class link.'
+        : 'Your registration is confirmed. Email delivery is not configured, so please contact us for the class link.'
     });
   } catch (error) {
     console.error('Unable to register for free class', error);

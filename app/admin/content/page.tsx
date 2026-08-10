@@ -84,7 +84,7 @@ function AmazonFields({ item }: { item?: AmazonPick }) {
         <label className="admin-label">Category<input className="admin-input" name="category" defaultValue={item?.category || ''} placeholder="Plant tools" /></label>
         <label className="admin-label full">Amazon affiliate URL<input className="admin-input" name="amazonUrl" type="url" defaultValue={item?.amazonUrl} required /></label>
         <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={item?.imageUrl || ''} /></label>
-        <label className="admin-label full">Why Tammy recommends it<textarea className="admin-input" name="description" rows={3} defaultValue={item?.description || ''} /></label>
+        <label className="admin-label full">Why we recommend it<textarea className="admin-input" name="description" rows={3} defaultValue={item?.description || ''} /></label>
         <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={item?.sortOrder ?? 0} /></label>
       </div>
       <label className="admin-checkbox" style={{ marginTop: 12 }}><input name="active" type="checkbox" defaultChecked={item?.active ?? true} /> Show on public page</label>
@@ -109,7 +109,7 @@ function CareFields({ sheet }: { sheet?: CareSheet }) {
         <label className="admin-label">Feeding<input className="admin-input" name="feeding" defaultValue={sheet?.feeding} required /></label>
         <label className="admin-label">Temperature<input className="admin-input" name="temperature" defaultValue={sheet?.temperature} required /></label>
         <label className="admin-label full">Pet safety<input className="admin-input" name="petSafety" defaultValue={sheet?.petSafety || ''} /></label>
-        <label className="admin-label full">Tammy’s best tips<textarea className="admin-input" name="tips" rows={4} defaultValue={sheet?.tips} required /></label>
+        <label className="admin-label full">Our best tips<textarea className="admin-input" name="tips" rows={4} defaultValue={sheet?.tips} required /></label>
       </div>
       <label className="admin-checkbox" style={{ marginTop: 12 }}><input name="published" type="checkbox" defaultChecked={sheet?.published ?? true} /> Published in care library</label>
     </>
@@ -208,7 +208,7 @@ export default async function ContentManager() {
         </section>
 
         <section className="admin-section" id="gallery">
-          <div className="toolbar"><div><h2>Planter gallery</h2><p className="muted">Use Tammy’s real arrangement photos and a short helpful caption.</p></div><Link className="btn outline small" href="/gallery">View gallery</Link></div>
+          <div className="toolbar"><div><h2>Planter gallery</h2><p className="muted">Use our real arrangement photos and a short helpful caption.</p></div><Link className="btn outline small" href="/gallery">View gallery</Link></div>
           <div className="admin-list">
             {gallery.map((item) => (
               <details key={item.id}><summary><span>{item.title}</span><span className="status-badge PAID">Published</span></summary><div><form action={saveGalleryItem}><GalleryFields item={item} /><div className="admin-actions"><button className="btn small">Save gallery item</button></div></form><form action={archiveContent} style={{ marginTop: 10 }}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="kind" value="gallery" /><button className="text-button danger">Delete gallery photo</button></form></div></details>
@@ -218,7 +218,7 @@ export default async function ContentManager() {
         </section>
 
         <section className="admin-section" id="amazon">
-          <div className="toolbar"><div><h2>Amazon influencer picks</h2><p className="muted">Affiliate disclosure remains visible on the public page.</p></div><Link className="btn outline small" href="/amazon">View Tammy’s Picks</Link></div>
+          <div className="toolbar"><div><h2>Amazon influencer picks</h2><p className="muted">Affiliate disclosure remains visible on the public page.</p></div><Link className="btn outline small" href="/amazon">View our Picks</Link></div>
           <div className="admin-list">
             {picks.map((item) => (
               <details key={item.id}><summary><span>{item.title}</span><span className={`status-badge ${item.active ? 'PAID' : 'CANCELLED'}`}>{item.active ? 'Published' : 'Archived'}</span></summary><div><form action={saveAmazonPick}><AmazonFields item={item} /><div className="admin-actions"><button className="btn small">Save Amazon pick</button></div></form>{item.active && <form action={archiveContent} style={{ marginTop: 10 }}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="kind" value="amazon" /><button className="text-button danger">Archive pick</button></form>}</div></details>
