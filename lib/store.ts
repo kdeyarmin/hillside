@@ -63,7 +63,26 @@ export function clampQuantity(value: number, inventory: number) {
 
 // IPv6 keeps its brackets here on purpose: URL.hostname serialises [::1] with
 // them, so the bracketed form is the one a parsed URL is ever compared against.
-const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]']);
+const LOOPBACK_HOSTNAMES = new Set(['localhost', '0.0.0.0', '[::1]']);
+
+/** All of 127.0.0.0/8 is loopback, not just 127.0.0.1. */
+const IPV4_LOOPBACK = /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+
+/**
+ * IPv4-mapped IPv6. URL normalises the embedded address to hex, so
+ * [::ffff:127.0.0.1] arrives as [::ffff:7f00:1] and 127.x as [::ffff:7fxx:…].
+ */
+const IPV6_MAPPED_IPV4_LOOPBACK = /^\[::ffff:7f[0-9a-f]{2}:[0-9a-f]{1,4}\]$/;
+
+function isLoopbackHostname(hostname: string) {
+  return (
+    LOOPBACK_HOSTNAMES.has(hostname) ||
+    // RFC 6761 reserves the whole .localhost TLD for loopback.
+    hostname.endsWith('.localhost') ||
+    IPV4_LOOPBACK.test(hostname) ||
+    IPV6_MAPPED_IPV4_LOOPBACK.test(hostname)
+  );
+}
 
 /**
  * True when a value cannot serve as the site's public origin — either it names
@@ -72,7 +91,7 @@ const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '0.0.0.0', '[::1]'
  */
 function isUnusableAsPublicOrigin(value: string) {
   try {
-    return LOOPBACK_HOSTNAMES.has(new URL(value).hostname.toLowerCase());
+    return isLoopbackHostname(new URL(value).hostname.toLowerCase());
   } catch {
     return true;
   }
