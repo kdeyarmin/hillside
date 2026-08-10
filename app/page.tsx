@@ -1,98 +1,18 @@
 import Link from 'next/link';
 import { ArrowRight, Heart, Leaf, Package, Sparkles, Sprout } from 'lucide-react';
-import BrandMockupScene, {
-  type BrandMockupVariant,
-  type HillsideCatalogImage
-} from '@/components/BrandMockupScene';
-import BrandedProductVisual from '@/components/BrandedProductVisual';
+import BrandMockupScene from '@/components/BrandMockupScene';
 import NewsletterForm from '@/components/NewsletterForm';
+import ProductGrid from '@/components/ProductGrid';
 import { classFormatLabel, classLocationLabel, isOnlineClass } from '@/lib/class-access';
+import { seatsRemaining } from '@/lib/class-seats';
 import { db } from '@/lib/db';
-import { formatMoney, productTypeLabel } from '@/lib/store';
+import { ratingsByProduct } from '@/lib/reviews';
+import { formatMoney } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
-const collections: Array<{
-  title: string;
-  subtitle: string;
-  variant: BrandMockupVariant;
-  catalogImage: HillsideCatalogImage;
-  href: string;
-}> = [
-  {
-    title: 'House Plants',
-    subtitle: 'Living beauty for every room',
-    variant: 'plants',
-    catalogImage: 'house-plants',
-    href: '/shop?category=PLANT'
-  },
-  {
-    title: 'Carnivorous Plants',
-    subtitle: 'Wild, unusual & wonderfully alive',
-    variant: 'plants',
-    catalogImage: 'carnivorous-plants',
-    href: '/shop?category=PLANT'
-  },
-  {
-    title: 'Live Plant Planters',
-    subtitle: 'Arrangements made to feel at home',
-    variant: 'plants',
-    catalogImage: 'live-plant-planters',
-    href: '/shop?category=PLANT'
-  },
-  {
-    title: 'Succulents',
-    subtitle: 'Sculptural greens in easygoing forms',
-    variant: 'plants',
-    catalogImage: 'succulents',
-    href: '/shop?category=PLANT'
-  },
-  {
-    title: 'Air Plants',
-    subtitle: 'Small plants with big personality',
-    variant: 'plants',
-    catalogImage: 'air-plants',
-    href: '/shop?category=PLANT'
-  },
-  {
-    title: 'Homemade Soaps',
-    subtitle: 'Small-batch botanical bars',
-    variant: 'botanicals',
-    catalogImage: 'homemade-soaps',
-    href: '/shop?category=SOAP'
-  },
-  {
-    title: 'Moss',
-    subtitle: 'Natural texture for creative projects',
-    variant: 'picks',
-    catalogImage: 'moss',
-    href: '/shop'
-  },
-  {
-    title: 'Driftwood',
-    subtitle: 'One-of-a-kind natural forms',
-    variant: 'picks',
-    catalogImage: 'driftwood',
-    href: '/shop'
-  },
-  {
-    title: 'Apothecary',
-    subtitle: 'Thoughtful botanical goods & rituals',
-    variant: 'botanicals',
-    catalogImage: 'apothecary',
-    href: '/shop'
-  },
-  {
-    title: 'Terrarium Supplies',
-    subtitle: 'Everything for a tiny living world',
-    variant: 'picks',
-    catalogImage: 'terrarium-supplies',
-    href: '/shop'
-  }
-];
-
 export default async function Home() {
-  const [featured, upcomingClasses] = await Promise.all([
+  const [featuredProducts, upcomingClasses, collections] = await Promise.all([
     db.product.findMany({
       where: { active: true, featured: true },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -100,11 +20,31 @@ export default async function Home() {
     }),
     db.classEvent.findMany({
       where: { active: true, startsAt: { gte: new Date() } },
-      include: { registrations: { where: { status: 'PAID' }, select: { seats: true } } },
       orderBy: { startsAt: 'asc' },
       take: 2
+    }),
+    // Only collections that actually hold something are advertised, so a tile on
+    // the homepage always leads to real stock.
+    db.collection.findMany({
+      where: { active: true, featured: true, products: { some: { active: true } } },
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      include: { _count: { select: { products: { where: { active: true } } } } }
     })
   ]);
+
+  const ratings = await ratingsByProduct(featuredProducts.map((product) => product.id));
+  const featured = featuredProducts.map((product) => ({
+    ...product,
+    averageRating: ratings.get(product.id)?.average ?? null,
+    reviewCount: ratings.get(product.id)?.count ?? 0
+  }));
+  const classSeats = new Map<string, number>(
+    await Promise.all(
+      upcomingClasses.map(
+        async (event) => [event.id, await seatsRemaining(event.id, event.capacity)] as const
+      )
+    )
+  );
 
   return (
     <>
@@ -134,7 +74,7 @@ export default async function Home() {
             </Link>
           </div>
         </div>
-        <BrandMockupScene variant="hero" className="editorial-hero-image" />
+        <BrandMockupScene variant="hero" className="editorial-hero-image" badge />
       </section>
 
       <section className="trust-strip" aria-label="Why shop The Hillside Gardens">
@@ -168,83 +108,67 @@ export default async function Home() {
         </div>
       </section>
 
-      <section className="section editorial-section home-collections-section">
-        <div className="container">
-          <div className="sectionhead">
-            <div className="eyebrow">Shop the garden</div>
-            <h2>Bring a little Hillside home.</h2>
-            <p>
-              Discover the plants, handmade goods and natural supplies that make The Hillside
-              Gardens collection distinctive.
-            </p>
+      <div className="home-merch">
+      {collections.length > 0 && (
+        <section className="section editorial-section home-collections-section">
+          <div className="container">
+            <div className="sectionhead">
+              <div className="eyebrow">Shop the garden</div>
+              <h2>Bring a little Hillside home.</h2>
+              <p>
+                Discover the plants, handmade goods and natural supplies that make The Hillside
+                Gardens collection distinctive.
+              </p>
+            </div>
+            <div className="editorial-collections">
+              {collections.map((collection) => (
+                <Link
+                  className="editorial-collection"
+                  href={`/collections/${collection.slug}`}
+                  key={collection.id}
+                >
+                  <BrandMockupScene
+                    variant="plants"
+                    imageSrc={collection.imageUrl}
+                    alt={collection.title}
+                  />
+                  <div>
+                    <span>{collection.tagline || `${collection._count.products} to browse`}</span>
+                    <h3>{collection.title}</h3>
+                    <b>Shop collection →</b>
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <div className="collections-all">
+              <Link className="editorial-link" href="/collections">See every collection →</Link>
+            </div>
           </div>
-          <div className="editorial-collections">
-            {collections.map((collection) => (
-              <Link className="editorial-collection" href={collection.href} key={collection.title}>
-                <BrandMockupScene
-                  variant={collection.variant}
-                  catalogImage={collection.catalogImage}
-                  alt={`${collection.title} from The Hillside Gardens in branded product photography`}
-                />
-                <div>
-                  <span>{collection.subtitle}</span>
-                  <h3>{collection.title}</h3>
-                  <b>Shop collection →</b>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {featured.length > 0 && (
         <section className="section editorial-products home-products-section">
           <div className="container">
             <div className="editorial-heading-row">
               <div>
-                <div className="eyebrow">New & noteworthy</div>
+                <div className="eyebrow">New &amp; noteworthy</div>
                 <h2>Our current favorites.</h2>
               </div>
               <Link className="editorial-link" href="/shop">
                 Shop all products →
               </Link>
             </div>
-            <div className="product-grid editorial-product-grid">
-              {featured.map((product) => (
-                <article className="product-card editorial-product" key={product.id}>
-                  <Link className="product-image-wrap" href={`/shop/${product.slug}`}>
-                    {product.badge && <span className="product-badge">{product.badge}</span>}
-                    <BrandedProductVisual
-                      slug={product.slug}
-                      name={product.name}
-                      type={product.type}
-                      imageUrl={product.imageUrl}
-                    />
-                  </Link>
-                  <div className="product-copy">
-                    <span className="product-kicker">{productTypeLabel(product.type)}</span>
-                    <h3>
-                      <Link href={`/shop/${product.slug}`}>{product.name}</Link>
-                    </h3>
-                    <p>{product.shortDescription || product.description}</p>
-                    <div className="product-actions">
-                      <strong className="price">{formatMoney(product.priceCents)}</strong>
-                      <Link className="editorial-link" href={`/shop/${product.slug}`}>
-                        View →
-                      </Link>
-                    </div>
-                  </div>
-                </article>
-              ))}
-            </div>
+            <ProductGrid products={featured} />
           </div>
         </section>
       )}
+      </div>
 
       <section className="section tammy-story home-story-section">
         <div className="container split">
           <div className="story-photo">
-            <BrandMockupScene variant="about" />
+            <BrandMockupScene variant="about" alt="Terracotta pots, twine and seedlings on the Hillside potting bench" />
           </div>
           <div>
             <div className="eyebrow">Grow with confidence</div>
@@ -281,13 +205,9 @@ export default async function Home() {
                 Telnyx Video rooms.
               </p>
             </div>
-            <div className="grid two">
+            <div className={`grid auto${upcomingClasses.length === 1 ? ' single' : ''}`}>
               {upcomingClasses.map((event) => {
-                const reserved = event.registrations.reduce(
-                  (total, registration) => total + registration.seats,
-                  0
-                );
-                const seatsLeft = Math.max(0, event.capacity - reserved);
+                const seatsLeft = classSeats.get(event.id) ?? event.capacity;
                 const online = isOnlineClass(event.format);
 
                 return (
@@ -295,7 +215,8 @@ export default async function Home() {
                     <BrandMockupScene
                       variant="class"
                       backgroundSrc={event.imageUrl || undefined}
-                      alt={`${event.title} workshop materials branded for The Hillside Gardens`}
+                      alt={`${event.title} at The Hillside Gardens`}
+                      badge={false}
                     />
                     <div>
                       <span className="product-kicker">{classFormatLabel(event.format)}</span>

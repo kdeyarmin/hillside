@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   CalendarRange,
@@ -55,9 +55,13 @@ function GuideIcon({ type }: { type: GuideType }) {
   return <Leaf size={16} />;
 }
 
+/** Rendering all 36 guides at once made a 12,000px page and 36 image requests. */
+const PAGE_SIZE = 12;
+
 export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('ALL');
+  const [limit, setLimit] = useState(PAGE_SIZE);
 
   const counts = useMemo(() => {
     const count: Record<FilterType, number> = {
@@ -70,6 +74,10 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
     for (const guide of guides) count[guide.guideType] += 1;
     return count;
   }, [guides]);
+
+  useEffect(() => {
+    setLimit(PAGE_SIZE);
+  }, [filter, query]);
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -141,14 +149,14 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
 
       {visible.length > 0 ? (
         <div className="care-library-grid">
-          {visible.map((guide) => (
+          {visible.slice(0, limit).map((guide) => (
             <article className={`care-guide-card care-type-${guide.guideType.toLowerCase()}`} key={guide.id}>
               <Link className="care-guide-image" href={`/care/${guide.slug}`}>
                 {guide.featured && <span className="care-featured-badge">Our essential</span>}
                 <ResilientImage
                   src={guide.imageUrl || FALLBACK_PRODUCT_IMAGE}
                   fallbackSrc="/images/botanical-placeholder.svg"
-                  alt={guide.plantName}
+                  alt={`${guide.plantName} — ${guideLabel(guide.guideType).toLowerCase()}`}
                   width={900}
                   height={675}
                   loading="lazy"
@@ -199,6 +207,15 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
             }}
           >
             Show all guides
+          </button>
+        </div>
+      )}
+
+      {visible.length > limit && (
+        <div className="care-load-more">
+          <p className="muted">Showing {limit} of {visible.length} guides.</p>
+          <button className="btn outline" type="button" onClick={() => setLimit(visible.length)}>
+            Show all {visible.length} guides
           </button>
         </div>
       )}

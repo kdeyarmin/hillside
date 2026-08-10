@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import BrandMockupScene from '@/components/BrandMockupScene';
 
 export const metadata = {
   title: 'Shipping, Pickup & Returns',
@@ -18,7 +17,6 @@ export default function ShippingReturnsPage() {
       </section>
       <section className="content">
         <div className="container">
-          <BrandMockupScene variant="shipping" className="policy-brand-scene" />
           <article className="narrow prose">
             <p><strong>Last updated: August 9, 2026.</strong></p>
             <h2>Order preparation</h2>

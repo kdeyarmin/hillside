@@ -8,11 +8,12 @@
     "start": "next start -p ${PORT:-3000}",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seed.ts && tsx prisma/seed-care.ts",
+    "db:seed": "tsx prisma/seed.ts && tsx prisma/seed-care.ts && tsx prisma/seed-collections.ts",
     "db:seed:care": "tsx prisma/seed-care.ts",
-    "db:seed:care:on-deploy": "tsx prisma/seed-care-on-deploy.ts",
+    "db:seed:care:on-deploy": "tsx prisma/seed-care-on-deploy.ts && tsx prisma/seed-collections.ts",
     "db:repair:images": "tsx prisma/repair-image-urls.ts",
-    "db:repair:copy": "tsx prisma/repair-owner-copy.ts"
+    "db:repair:copy": "tsx prisma/repair-owner-copy.ts",
+    "db:seed:collections": "tsx prisma/seed-collections.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.14.0",

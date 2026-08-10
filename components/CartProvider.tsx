@@ -8,6 +8,7 @@ import {
   useMemo,
   useState
 } from 'react';
+import { toGtagItem, trackAddToCart, trackBeginCheckout } from '@/lib/analytics';
 import { clampQuantity } from '@/lib/store';
 
 export type CartProduct = {
@@ -27,6 +28,8 @@ type CartContextValue = {
   subtotalCents: number;
   drawerOpen: boolean;
   checkoutLoading: boolean;
+  checkoutError: string | null;
+  checkoutNotice: string | null;
   addItem: (product: CartProduct, quantity?: number) => void;
   setQuantity: (slug: string, quantity: number) => void;
   removeItem: (slug: string) => void;
@@ -44,6 +47,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -80,6 +85,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [items, ready]);
 
   const addItem = useCallback((product: CartProduct, quantity = 1) => {
+    trackAddToCart(toGtagItem(product, quantity));
     setItems((current) => {
       const existing = current.find((item) => item.slug === product.slug);
       if (existing) {
@@ -121,9 +127,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const openCart = useCallback(() => setDrawerOpen(true), []);
   const closeCart = useCallback(() => setDrawerOpen(false), []);
 
+  /**
+   * Checkout used to silently reprice the basket: the server clamps each line to
+   * the stock on hand and drops sold-out items, and the customer met a different
+   * total at Stripe with no explanation. Adjustments now come back from the API,
+   * get applied to the local cart, and are shown before the redirect.
+   */
   const checkout = useCallback(async () => {
     if (!items.length || checkoutLoading) return;
     setCheckoutLoading(true);
+    setCheckoutError(null);
+    setCheckoutNotice(null);
+    trackBeginCheckout(
+      items.map((item) => toGtagItem(item, item.quantity)),
+      items.reduce((total, item) => total + item.priceCents * item.quantity, 0)
+    );
     try {
       const response = await fetch('/api/checkout', {
         method: 'POST',
@@ -132,11 +150,39 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           items: items.map((item) => ({ id: item.slug, quantity: item.quantity }))
         })
       });
-      const result = (await response.json()) as { url?: string; error?: string };
+      const result = (await response.json()) as {
+        url?: string;
+        error?: string;
+        adjustments?: Array<{ slug: string; name: string; requested: number; available: number }>;
+      };
+
+      if (result.adjustments?.length) {
+        const adjustments = result.adjustments;
+        setItems((current) =>
+          current.flatMap((item) => {
+            const change = adjustments.find((entry) => entry.slug === item.slug);
+            if (!change) return [item];
+            if (change.available <= 0) return [];
+            return [{ ...item, inventory: change.available, quantity: change.available }];
+          })
+        );
+        setCheckoutNotice(
+          adjustments
+            .map((change) =>
+              change.available <= 0
+                ? `${change.name} sold out and was removed.`
+                : `Only ${change.available} of ${change.name} left — quantity updated.`
+            )
+            .join(' ')
+        );
+        setCheckoutLoading(false);
+        return;
+      }
+
       if (!response.ok || !result.url) throw new Error(result.error || 'Unable to open checkout.');
       window.location.assign(result.url);
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : 'Unable to open checkout.');
+      setCheckoutError(error instanceof Error ? error.message : 'Unable to open checkout.');
       setCheckoutLoading(false);
     }
   }, [checkoutLoading, items]);
@@ -154,6 +200,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       subtotalCents,
       drawerOpen,
       checkoutLoading,
+      checkoutError,
+      checkoutNotice,
       addItem,
       setQuantity,
       removeItem,
@@ -168,6 +216,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       subtotalCents,
       drawerOpen,
       checkoutLoading,
+      checkoutError,
+      checkoutNotice,
       addItem,
       setQuantity,
       removeItem,

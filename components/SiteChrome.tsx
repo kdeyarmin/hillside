@@ -3,21 +3,35 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Menu, Minus, Plus, Search, ShoppingBag, Trash2, X } from 'lucide-react';
+import { Facebook, Instagram, Menu, Minus, Plus, Search, ShoppingBag, Trash2, X } from 'lucide-react';
 import NewsletterForm from '@/components/NewsletterForm';
 import ResilientImage from '@/components/ResilientImage';
 import { useCart } from '@/components/CartProvider';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
 
+/**
+ * Every merchandising link is a real path, not a query string. Collections are
+ * owner-managed rows, so "Plants" leads somewhere that can be curated, and
+ * `usePathname` alone is enough to mark the current section without pulling
+ * `useSearchParams` (and a Suspense boundary) into the root layout.
+ *
+ * These three slugs are locked in the content manager (see
+ * `lib/collections.ts`) so the header can never point at a deleted collection.
+ */
 const navigation = [
-  ['Plants', '/shop?category=PLANT'],
-  ['Teas & Herbals', '/shop?category=TEA'],
-  ['Botanicals', '/shop?category=SOAP'],
+  ['Plants', '/collections/plants'],
+  ['Teas & Herbals', '/collections/teas-herbals'],
+  ['Botanicals', '/collections/botanicals'],
   ['Classes', '/classes'],
   ['Plant Care', '/care'],
   ['Gallery', '/gallery'],
   ['Our Picks', '/amazon']
 ] as const;
+
+const SOCIAL_LINKS = [
+  { label: 'Instagram', href: process.env.NEXT_PUBLIC_INSTAGRAM_URL, Icon: Instagram },
+  { label: 'Facebook', href: process.env.NEXT_PUBLIC_FACEBOOK_URL, Icon: Facebook }
+].filter((link): link is { label: string; href: string; Icon: typeof Instagram } => Boolean(link.href));
 
 const focusableSelector = [
   'a[href]',
@@ -37,12 +51,91 @@ function focusableElements(container: HTMLElement | null) {
   });
 }
 
+function FreeShippingMeter({ subtotalCents }: { subtotalCents: number }) {
+  const threshold = Number(process.env.NEXT_PUBLIC_FREE_SHIPPING_THRESHOLD_CENTS || 7500);
+  if (threshold <= 0 || subtotalCents <= 0) return null;
+
+  const remaining = threshold - subtotalCents;
+  const progress = Math.min(100, Math.round((subtotalCents / threshold) * 100));
+
+  return (
+    <div className="drawer-shipping">
+      <p>
+        {remaining > 0
+          ? <>Add <b>{formatMoney(remaining)}</b> more for free standard shipping.</>
+          : <>You&rsquo;ve earned <b>free standard shipping</b>.</>}
+      </p>
+      <div className="progress-track" role="presentation">
+        <span style={{ width: `${progress}%` }} />
+      </div>
+    </div>
+  );
+}
+
+type Suggestion = {
+  slug: string;
+  name: string;
+  priceCents: number;
+  imageUrl: string | null;
+  inventory: number;
+  type: string;
+};
+
+function CartDrawerSuggestions() {
+  const { items, addItem } = useCart();
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const slugs = items.map((item) => item.slug).join(',');
+
+  useEffect(() => {
+    if (!slugs) {
+      setSuggestions([]);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`/api/recommendations?exclude=${encodeURIComponent(slugs)}`, { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : { products: [] }))
+      .then((data: { products?: Suggestion[] }) => setSuggestions(data.products?.slice(0, 2) || []))
+      .catch(() => setSuggestions([]));
+    return () => controller.abort();
+  }, [slugs]);
+
+  if (!suggestions.length) return null;
+
+  return (
+    <div className="drawer-suggestions">
+      <span className="eyebrow">Goes well with</span>
+      {suggestions.map((product) => (
+        <div className="drawer-suggestion" key={product.slug}>
+          <ResilientImage
+            src={product.imageUrl || FALLBACK_PRODUCT_IMAGE}
+            fallbackSrc="/images/botanical-placeholder.svg"
+            alt={product.name}
+            width={54}
+            height={54}
+            loading="lazy"
+            decoding="async"
+          />
+          <div>
+            <b>{product.name}</b>
+            <span>{formatMoney(product.priceCents)}</span>
+          </div>
+          <button className="btn small" type="button" onClick={() => addItem(product)}>
+            Add
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function CartDrawer() {
   const {
     items,
     subtotalCents,
     drawerOpen,
     checkoutLoading,
+    checkoutError,
+    checkoutNotice,
     closeCart,
     setQuantity,
     removeItem,
@@ -193,12 +286,20 @@ function CartDrawer() {
                 </div>
               ))}
             </div>
+            <CartDrawerSuggestions />
             <div className="drawer-total">
+              <FreeShippingMeter subtotalCents={subtotalCents} />
               <div>
                 <span>Subtotal</span>
                 <strong>{formatMoney(subtotalCents)}</strong>
               </div>
               <p>Shipping and any applicable tax are calculated securely in Stripe Checkout.</p>
+              {checkoutError && (
+                <p className="drawer-error" role="alert">{checkoutError}</p>
+              )}
+              {checkoutNotice && (
+                <p className="drawer-notice" role="status">{checkoutNotice}</p>
+              )}
               <button
                 className="btn full"
                 type="button"
@@ -299,7 +400,11 @@ export function SiteHeader() {
     };
   }, [mobileOpen]);
 
-  const isActive = (href: string) => !href.includes('?') && pathname === href;
+  const isActive = (href: string) => {
+    const path = href.split('?')[0];
+    if (path === '/') return pathname === '/';
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
 
   const openMobileCart = () => {
     setMobileOpen(false);
@@ -319,10 +424,18 @@ export function SiteHeader() {
 
       <header className="editorial-header">
         <div className="container editorial-head-main">
-          <Link className="header-search" href="/shop" aria-label="Search The Hillside Gardens shop">
-            <Search size={22} />
-            <span>Search our shop</span>
-          </Link>
+          <form className="header-search" action="/search" role="search">
+            <label className="sr-only" htmlFor="site-search">Search plants, teas and botanicals</label>
+            <Search size={20} aria-hidden="true" />
+            <input
+              id="site-search"
+              type="search"
+              name="q"
+              placeholder="Search plants, care and classes"
+              enterKeyHint="search"
+            />
+            <button type="submit">Search</button>
+          </form>
 
           <Link href="/" className="brand editorial-brand" aria-label="The Hillside Gardens home">
             <img src="/logo.png" alt="The Hillside Gardens" width="949" height="917" />
@@ -377,19 +490,31 @@ export function SiteHeader() {
                 {label}
               </Link>
             ))}
-            <Link className="sale-link" href="/shop" aria-current={pathname === '/shop' ? 'page' : undefined}>
+            <Link className="sale-link" href="/shop?sort=new">
               New Arrivals
             </Link>
           </div>
 
           {mobileOpen && (
             <div className="mobile-menu container" id="mobile-primary-menu" ref={mobileMenuRef}>
+              <form className="mobile-menu-search" action="/search" role="search">
+                <label className="sr-only" htmlFor="mobile-search">Search plants, care and classes</label>
+                <input
+                  id="mobile-search"
+                  type="search"
+                  name="q"
+                  placeholder="Search plants, care and classes"
+                  enterKeyHint="search"
+                />
+                <button type="submit">Search</button>
+              </form>
               {navigation.map(([label, href]) => (
                 <Link href={href} key={href} aria-current={isActive(href) ? 'page' : undefined}>
                   {label}
                 </Link>
               ))}
-              <Link href="/shop" aria-current={pathname === '/shop' ? 'page' : undefined}>New Arrivals</Link>
+              <Link href="/shop">Shop everything</Link>
+              <Link href="/shop?sort=new">New Arrivals</Link>
               <Link href="/order-status" aria-current={pathname === '/order-status' ? 'page' : undefined}>Order Status</Link>
               <Link href="/about" aria-current={pathname === '/about' ? 'page' : undefined}>About Us</Link>
               <Link href="/contact" aria-current={pathname === '/contact' ? 'page' : undefined}>Contact</Link>
@@ -436,6 +561,15 @@ export function SiteFooter() {
             with confidence.
           </p>
           <a href="mailto:hello@thehillsidegardens.com">hello@thehillsidegardens.com</a>
+          {SOCIAL_LINKS.length > 0 && (
+            <div className="footer-social">
+              {SOCIAL_LINKS.map(({ label, href, Icon }) => (
+                <a href={href} key={label} aria-label={label} target="_blank" rel="me noopener noreferrer">
+                  <Icon size={19} />
+                </a>
+              ))}
+            </div>
+          )}
         </div>
         <div>
           <h4>Explore</h4>
@@ -457,7 +591,6 @@ export function SiteFooter() {
           <p><Link href="/amazon">Our Amazon picks</Link></p>
           <p><Link href="/privacy">Privacy</Link></p>
           <p><Link href="/terms">Terms</Link></p>
-          <p><Link href="/admin">Owner admin</Link></p>
         </div>
       </div>
       <div className="container footer-bottom">

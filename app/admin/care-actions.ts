@@ -60,6 +60,8 @@ export async function saveCareGuide(formData: FormData) {
     prevention: text(formData, 'prevention') || null,
     checklist: text(formData, 'checklist') || null,
     imageUrl: text(formData, 'imageUrl') || null,
+    // Links the guide to the plant it describes so the care library can sell it.
+    productId: text(formData, 'productId') || null,
     featured: checked(formData, 'featured'),
     sortOrder: integer(formData, 'sortOrder'),
     published: checked(formData, 'published')

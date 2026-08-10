@@ -8,8 +8,10 @@ import {
   classLocationLabel,
   isOnlineClass
 } from '@/lib/class-access';
+import { seatsRemaining } from '@/lib/class-seats';
 import { db } from '@/lib/db';
-import { formatMoney } from '@/lib/store';
+import { absoluteUrl, formatMoney } from '@/lib/store';
+import { jsonLd } from '@/lib/json-ld';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -26,12 +28,61 @@ export default async function Classes({
   const { access } = await searchParams;
   const classes = await db.classEvent.findMany({
     where: { active: true, startsAt: { gte: new Date() } },
-    include: { registrations: { where: { status: 'PAID' }, select: { seats: true } } },
     orderBy: { startsAt: 'asc' }
   });
 
+  const seatsByClass = new Map<string, number>(
+    await Promise.all(
+      classes.map(async (event) => [event.id, await seatsRemaining(event.id, event.capacity)] as const)
+    )
+  );
+
+  /**
+   * Event markup makes classes eligible for Google's event listings, which is
+   * where people actually look for a local workshop.
+   */
+  const eventsJsonLd = classes.map((event) => ({
+    '@context': 'https://schema.org',
+    '@type': 'Event',
+    name: event.title,
+    description: event.description,
+    startDate: event.startsAt.toISOString(),
+    endDate: new Date(event.startsAt.getTime() + event.durationMinutes * 60_000).toISOString(),
+    eventAttendanceMode: isOnlineClass(event.format)
+      ? 'https://schema.org/OnlineEventAttendanceMode'
+      : 'https://schema.org/OfflineEventAttendanceMode',
+    eventStatus: 'https://schema.org/EventScheduled',
+    url: absoluteUrl(`/classes#class-${event.id}`),
+    ...(isOnlineClass(event.format)
+      ? { location: { '@type': 'VirtualLocation', url: absoluteUrl('/classes') } }
+      : {
+          location: {
+            '@type': 'Place',
+            name: event.location || 'The Hillside Gardens',
+            address: event.location || 'The Hillside Gardens'
+          }
+        }),
+    organizer: { '@type': 'Organization', name: 'The Hillside Gardens', url: absoluteUrl('/') },
+    offers: {
+      '@type': 'Offer',
+      url: absoluteUrl(`/classes#class-${event.id}`),
+      price: (event.priceCents / 100).toFixed(2),
+      priceCurrency: 'USD',
+      availability:
+        (seatsByClass.get(event.id) ?? 0) > 0
+          ? 'https://schema.org/InStock'
+          : 'https://schema.org/SoldOut'
+    }
+  }));
+
   return (
     <>
+      {eventsJsonLd.length > 0 && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLd(eventsJsonLd) }}
+        />
+      )}
       <section className="pagehero">
         <div className="container">
           <div className="eyebrow">Learn with us</div>
@@ -57,13 +108,9 @@ export default async function Classes({
           )}
 
           {classes.length > 0 ? (
-            <div className="grid two class-list-grid">
+            <div className={`grid auto class-list-grid${classes.length === 1 ? ' single' : ''}`}>
               {classes.map((event) => {
-                const reserved = event.registrations.reduce(
-                  (total, registration) => total + registration.seats,
-                  0
-                );
-                const seatsLeft = Math.max(0, event.capacity - reserved);
+                const seatsLeft = seatsByClass.get(event.id) ?? event.capacity;
                 const registrationClosed =
                   Boolean(event.registrationDeadline && event.registrationDeadline <= new Date());
                 const online = isOnlineClass(event.format);
@@ -73,7 +120,8 @@ export default async function Classes({
                     <BrandMockupScene
                       variant="class"
                       backgroundSrc={event.imageUrl || undefined}
-                      alt={`${event.title} workshop image with The Hillside Gardens class materials`}
+                      alt={`${event.title} at The Hillside Gardens`}
+                      badge={false}
                     />
                     <div className="cardbody">
                       <span className="pill">{classFormatLabel(event.format)}</span>

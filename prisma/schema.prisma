@@ -43,6 +43,12 @@ enum ClassFormat {
   HYBRID
 }
 
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum CareGuideType {
   PLANT
   GENERAL
@@ -51,10 +57,10 @@ enum CareGuideType {
 }
 
 model Product {
-  id               String      @id @default(cuid())
+  id               String       @id @default(cuid())
   name             String
-  slug             String      @unique
-  sku              String?     @unique
+  slug             String       @unique
+  sku              String?      @unique
   shortDescription String?
   description      String
   details          String?
@@ -63,45 +69,52 @@ model Product {
   type             ProductType
   priceCents       Int
   compareAtCents   Int?
-  inventory        Int         @default(0)
+  inventory        Int          @default(0)
   imageUrl         String?
   badge            String?
-  active           Boolean     @default(true)
-  featured         Boolean     @default(false)
-  sortOrder        Int         @default(0)
-  createdAt        DateTime    @default(now())
-  updatedAt        DateTime    @updatedAt
+  active           Boolean      @default(true)
+  featured         Boolean      @default(false)
+  sortOrder        Int          @default(0)
+  galleryImages    String[]     @default([])
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
   items            OrderItem[]
+  collections      Collection[] @relation("ProductCollections")
+  reviews          Review[]
+  stockAlerts      StockAlert[]
+  careSheets       CareSheet[]
 }
 
 model Order {
-  id                String      @id @default(cuid())
-  invoiceNumber     String      @unique
-  stripeSessionId   String?     @unique
-  paymentIntentId   String?     @unique
-  stripeInvoiceId   String?
-  status            OrderStatus @default(PENDING)
-  customerName      String
-  email             String
-  phone             String?
-  address1          String
-  address2          String?
-  city              String
-  state             String
-  postalCode        String
-  country           String      @default("US")
-  subtotalCents     Int
-  shippingCents     Int         @default(0)
-  taxCents          Int         @default(0)
-  totalCents        Int
-  shippingMethod    String?
-  trackingCarrier   String?
-  trackingNumber    String?
-  internalNotes     String?
-  fulfilledAt       DateTime?
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
-  items             OrderItem[]
+  id                      String      @id @default(cuid())
+  invoiceNumber           String      @unique
+  stripeSessionId         String?     @unique
+  paymentIntentId         String?     @unique
+  stripeInvoiceId         String?
+  status                  OrderStatus @default(PENDING)
+  customerName            String
+  email                   String
+  phone                   String?
+  address1                String
+  address2                String?
+  city                    String
+  state                   String
+  postalCode              String
+  country                 String      @default("US")
+  subtotalCents           Int
+  shippingCents           Int         @default(0)
+  taxCents                Int         @default(0)
+  totalCents              Int
+  shippingMethod          String?
+  trackingCarrier         String?
+  trackingNumber          String?
+  internalNotes           String?
+  confirmationEmailSentAt DateTime?
+  confirmationEmailError  String?
+  fulfilledAt             DateTime?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+  items                   OrderItem[]
 }
 
 model OrderItem {
@@ -141,8 +154,12 @@ model CareSheet {
   featured    Boolean       @default(false)
   sortOrder   Int           @default(0)
   published   Boolean       @default(true)
+  productId   String?
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
+  product     Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([productId])
 }
 
 model ClassEvent {
@@ -180,6 +197,7 @@ model ClassRegistration {
   amountCents             Int
   status                  RegistrationStatus @default(PENDING)
   joinTokenHash           String?            @unique
+  holdExpiresAt           DateTime?
   confirmationEmailSentAt DateTime?
   lastJoinedAt            DateTime?
   createdAt               DateTime           @default(now())
@@ -192,6 +210,8 @@ model GalleryItem {
   title     String
   imageUrl  String
   caption   String?
+  linkUrl   String?
+  linkLabel String?
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 }
@@ -208,14 +228,14 @@ model AmazonPick {
 }
 
 model NewsletterSubscriber {
-  id             String   @id @default(cuid())
-  email          String   @unique
+  id             String    @id @default(cuid())
+  email          String    @unique
   name           String?
-  source         String?  @default("website")
-  active         Boolean  @default(true)
+  source         String?   @default("website")
+  active         Boolean   @default(true)
   unsubscribedAt DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 model ContactMessage {
@@ -228,4 +248,58 @@ model ContactMessage {
   status    MessageStatus @default(NEW)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+}
+
+model Collection {
+  id          String    @id @default(cuid())
+  slug        String    @unique
+  title       String
+  tagline     String?
+  description String?
+  imageUrl    String?
+  featured    Boolean   @default(true)
+  active      Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[] @relation("ProductCollections")
+}
+
+model Review {
+  id               String       @id @default(cuid())
+  productId        String
+  authorName       String
+  email            String?
+  rating           Int
+  title            String?
+  body             String
+  status           ReviewStatus @default(PENDING)
+  verifiedPurchase Boolean      @default(false)
+  ownerReply       String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  product          Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, status])
+}
+
+model StockAlert {
+  id         String    @id @default(cuid())
+  productId  String
+  email      String
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+  product    Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, email])
+}
+
+model CartLead {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  itemsJson     String?
+  subtotalCents Int       @default(0)
+  recoveredAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }

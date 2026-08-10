@@ -143,12 +143,23 @@ async function fulfillProductOrder(session: Stripe.Checkout.Session) {
     `<p>Hi ${escapeHtml(order.customerName)},</p><p>Thank you for shopping with The Hillside Gardens. Your payment was successful and we will begin preparing your order.</p><table style="width:100%;border-collapse:collapse;margin:20px 0">${itemRows}<tr><td style="padding-top:12px"><strong>Total</strong></td><td style="padding-top:12px;text-align:right"><strong>${formatMoney(order.totalCents)}</strong></td></tr></table><p><strong>Ship to</strong><br>${escapeHtml(order.address1)}${order.address2 ? `<br>${escapeHtml(order.address2)}` : ''}<br>${escapeHtml(order.city)}, ${escapeHtml(order.state)} ${escapeHtml(order.postalCode)}</p><p>You’ll receive another update when the order ships.</p>`
   );
   if (order.email) {
-    await sendEmail({
+    const delivery = await sendEmail({
       to: order.email,
       subject: `We received your Hillside order ${order.invoiceNumber}`,
       html: customerHtml,
       idempotencyKey: `order-confirmation/${order.id}`
     });
+    // A confirmation that never sent used to vanish without a trace. The outcome
+    // is stored on the order so the dashboard can show it and Tammy can follow up.
+    await db.order.update({
+      where: { id: order.id },
+      data: delivery.sent
+        ? { confirmationEmailSentAt: new Date(), confirmationEmailError: null }
+        : { confirmationEmailError: delivery.reason || 'unknown-error' }
+    });
+    if (!delivery.sent) {
+      console.error(`Order ${order.invoiceNumber} confirmation email not sent: ${delivery.reason}`);
+    }
   }
 
   const businessEmail = process.env.BUSINESS_EMAIL;
@@ -170,38 +181,45 @@ async function fulfillClassRegistration(session: Stripe.Checkout.Session) {
   const event = await db.classEvent.findUnique({ where: { id: classEventId } });
   if (!event) throw new Error(`Class ${classEventId} was not found for Stripe session ${session.id}`);
 
-  const existing = await db.classRegistration.findUnique({ where: { stripeSessionId: session.id } });
-  if (existing) {
-    if (existing.confirmationEmailSentAt) return;
-    const credential = isOnlineClass(event.format) ? createClassJoinCredential() : null;
-    const registration = credential
-      ? await db.classRegistration.update({
-          where: { id: existing.id },
-          data: { joinTokenHash: credential.hash }
-        })
-      : existing;
-    await sendClassRegistrationEmails({ event, registration, accessToken: credential?.token });
-    return;
-  }
-
   const seats = Math.max(1, Math.min(6, Number(session.metadata?.seats) || 1));
   const name = session.customer_details?.name || 'Class guest';
   const email = (session.customer_details?.email || session.customer_email || '').toLowerCase();
   const credential = isOnlineClass(event.format) ? createClassJoinCredential() : null;
-  const registration = await db.classRegistration.create({
-    data: {
-      classEventId: event.id,
-      stripeSessionId: session.id,
-      paymentIntentId: objectId(session.payment_intent),
-      name,
-      email,
-      phone: session.customer_details?.phone || null,
-      seats,
-      amountCents: session.amount_total || event.priceCents * seats,
-      status: 'PAID',
-      joinTokenHash: credential?.hash || null
-    }
-  });
+
+  // The checkout route reserves the seats as a PENDING hold. Payment converts
+  // that same row rather than adding a second registration.
+  const existing = await db.classRegistration.findUnique({ where: { stripeSessionId: session.id } });
+  if (existing?.status === 'PAID' && existing.confirmationEmailSentAt) return;
+
+  const registration = existing
+    ? await db.classRegistration.update({
+        where: { id: existing.id },
+        data: {
+          status: 'PAID',
+          holdExpiresAt: null,
+          paymentIntentId: objectId(session.payment_intent),
+          name,
+          email,
+          phone: session.customer_details?.phone || null,
+          seats,
+          amountCents: session.amount_total || event.priceCents * seats,
+          joinTokenHash: credential?.hash || existing.joinTokenHash
+        }
+      })
+    : await db.classRegistration.create({
+        data: {
+          classEventId: event.id,
+          stripeSessionId: session.id,
+          paymentIntentId: objectId(session.payment_intent),
+          name,
+          email,
+          phone: session.customer_details?.phone || null,
+          seats,
+          amountCents: session.amount_total || event.priceCents * seats,
+          status: 'PAID',
+          joinTokenHash: credential?.hash || null
+        }
+      });
 
   await subscribeFromCheckout(session);
   await sendClassRegistrationEmails({

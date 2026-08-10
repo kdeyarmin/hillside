@@ -3,16 +3,17 @@ import './editorial.css';
 import './refinement.css';
 import './classroom.css';
 import './care-library.css';
-import './homepage-fixes.css';
+import './homepage.css';
 import './brand-mockups.css';
-import './brand-mockups-pages.css';
 import './responsive-hardening.css';
-import './responsive-audit-fixes.css';
+import './commerce.css';
 import type { Metadata, Viewport } from 'next';
 import { Cormorant_Garamond, Manrope } from 'next/font/google';
+import Analytics from '@/components/Analytics';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
 import { absoluteUrl, normalizeHillsideDomain, siteBaseUrl } from '@/lib/store';
+import { jsonLd } from '@/lib/json-ld';
 
 const hillsideSans = Manrope({
   subsets: ['latin'],
@@ -68,26 +69,75 @@ export const metadata: Metadata = {
     siteName: 'The Hillside Gardens',
     title: 'The Hillside Gardens',
     description: 'Plants, teas, botanicals and practical plant education.',
-    images: [{ url: '/logo.png', width: 949, height: 917, alt: 'The Hillside Gardens logo' }]
+    images: [
+      {
+        url: '/og-image.jpg',
+        width: 1200,
+        height: 630,
+        alt: 'Plants growing in a sunlit greenhouse at The Hillside Gardens'
+      }
+    ]
   },
   twitter: {
     card: 'summary_large_image',
     title: 'The Hillside Gardens',
     description: 'Plants, teas, botanicals and practical plant education.',
-    images: ['/logo.png']
+    images: ['/og-image.jpg']
   }
 };
 
-const organizationJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'Store',
-  name: 'The Hillside Gardens',
-  url: absoluteUrl('/'),
-  logo: absoluteUrl('/logo.png'),
-  description: 'Plants, teas, botanicals and plant education.',
-  founder: { '@type': 'Person', name: 'Tammy Hill' },
-  email: normalizeHillsideDomain(process.env.BUSINESS_EMAIL || 'hello@thehillsidegardens.com')
-};
+/**
+ * LocalBusiness rather than a bare Store: this is a business that runs in-person
+ * classes and local pickup, so address, telephone and opening hours are what make
+ * it eligible for local search results and Google's business panel. Every field
+ * is environment driven so nothing is published until it is real.
+ */
+function businessJsonLd() {
+  const streetAddress = process.env.BUSINESS_STREET_ADDRESS?.trim();
+  const locality = process.env.BUSINESS_CITY?.trim();
+  const region = process.env.BUSINESS_STATE?.trim();
+  const postalCode = process.env.BUSINESS_POSTAL_CODE?.trim();
+  const telephone = process.env.BUSINESS_PHONE?.trim();
+  const openingHours = process.env.BUSINESS_OPENING_HOURS?.trim();
+  const hasAddress = Boolean(streetAddress && locality && region && postalCode);
+
+  return {
+    '@context': 'https://schema.org',
+    '@type': hasAddress ? 'LocalBusiness' : 'Store',
+    '@id': absoluteUrl('/#business'),
+    name: 'The Hillside Gardens',
+    url: absoluteUrl('/'),
+    logo: absoluteUrl('/logo.png'),
+    image: absoluteUrl('/og-image.jpg'),
+    description: 'Plants, teas, botanicals and plant education.',
+    founder: { '@type': 'Person', name: 'Tammy Hill' },
+    email: normalizeHillsideDomain(process.env.BUSINESS_EMAIL || 'hello@thehillsidegardens.com'),
+    priceRange: '$$',
+    ...(telephone ? { telephone } : {}),
+    ...(hasAddress
+      ? {
+          address: {
+            '@type': 'PostalAddress',
+            streetAddress,
+            addressLocality: locality,
+            addressRegion: region,
+            postalCode,
+            addressCountry: 'US'
+          }
+        }
+      : {}),
+    ...(openingHours
+      ? { openingHours: openingHours.split('|').map((entry) => entry.trim()).filter(Boolean) }
+      : {}),
+    ...(process.env.NEXT_PUBLIC_INSTAGRAM_URL || process.env.NEXT_PUBLIC_FACEBOOK_URL
+      ? {
+          sameAs: [process.env.NEXT_PUBLIC_INSTAGRAM_URL, process.env.NEXT_PUBLIC_FACEBOOK_URL].filter(
+            Boolean
+          )
+        }
+      : {})
+  };
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -98,13 +148,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd(businessJsonLd()) }}
         />
         <CartProvider>
           <SiteHeader />
           <main id="main-content">{children}</main>
           <SiteFooter />
         </CartProvider>
+        <Analytics />
       </body>
     </html>
   );

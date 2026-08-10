@@ -83,9 +83,9 @@ export default function BrandedProductVisual({
       <BrandMockupScene
         variant={variantForType(type)}
         catalogImage={catalogImageForProduct(slug, name, type)}
-        badge={detail}
+        badge={false}
         backgroundSrc={imageUrl || undefined}
-        alt={`${name}, illustrated in The Hillside Gardens house style`}
+        alt={name}
         className={`${detail ? 'branded-product-detail' : 'branded-product-card'} ${className}`.trim()}
       />
     );
