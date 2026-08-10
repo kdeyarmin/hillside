@@ -64,6 +64,13 @@ npm run db:seed
 6. Generate a Railway public domain, then set `NEXT_PUBLIC_SITE_URL` to that full URL.
 7. After the custom domain is connected, change `NEXT_PUBLIC_SITE_URL` to `https://thehillsidegardens.com` and redeploy.
 
+`NEXT_PUBLIC_SITE_URL` is read at **build** time, not run time — Next inlines
+`NEXT_PUBLIC_*` into the compiled output, so a value added to the running container
+after the build has no effect until the next deploy. When it is unset, absolute links
+fall back to `https://thehillsidegardens.com`, so the sitemap, `robots.txt`, canonical
+tags and class emails stay correct; set it explicitly only to point a build somewhere
+else, such as a preview domain.
+
 ## Stripe setup
 
 Create a Stripe webhook endpoint at:

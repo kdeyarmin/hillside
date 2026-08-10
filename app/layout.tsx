@@ -12,7 +12,7 @@ import type { Metadata, Viewport } from 'next';
 import { Cormorant_Garamond, Manrope } from 'next/font/google';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
-import { absoluteUrl, normalizeHillsideDomain } from '@/lib/store';
+import { absoluteUrl, normalizeHillsideDomain, siteBaseUrl } from '@/lib/store';
 
 const hillsideSans = Manrope({
   subsets: ['latin'],
@@ -36,7 +36,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL(normalizeHillsideDomain(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000')),
+  metadataBase: new URL(siteBaseUrl()),
   title: {
     default: 'The Hillside Gardens | Plants, Teas & Botanicals',
     template: '%s | The Hillside Gardens'
