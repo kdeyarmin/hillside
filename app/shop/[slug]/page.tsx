@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import AddToCartButton from '@/components/AddToCartButton';
 import BrandedProductVisual from '@/components/BrandedProductVisual';
 import { db } from '@/lib/db';
-import { absoluteUrl, FALLBACK_PRODUCT_IMAGE, formatMoney, productTypeLabel } from '@/lib/store';
+import { FALLBACK_PRODUCT_IMAGE, absoluteUrl, formatMoney, productTypeLabel, resolveImageUrl } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       title: product.name,
       description: product.shortDescription || product.description,
       url: `/shop/${product.slug}`,
-      images: [{ url: product.imageUrl || FALLBACK_PRODUCT_IMAGE, alt: product.name }]
+      images: [{ url: absoluteUrl(resolveImageUrl(product.imageUrl)), alt: product.name }]
     }
   };
 }
@@ -41,7 +41,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     '@type': 'Product',
     name: product.name,
     description: product.shortDescription || product.description,
-    image: product.imageUrl || FALLBACK_PRODUCT_IMAGE,
+    image: absoluteUrl(resolveImageUrl(product.imageUrl)),
     sku: product.sku || undefined,
     brand: { '@type': 'Brand', name: 'The Hillside Gardens' },
     offers: {
