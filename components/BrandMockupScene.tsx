@@ -32,6 +32,8 @@ type BrandMockupSceneProps = {
   backgroundSrc?: string | null;
   alt?: string;
   catalogImage?: HillsideCatalogImage;
+  /** Overlays the Hillside mark on the image. Off for the small product tiles. */
+  badge?: boolean;
 };
 
 type BrandArtwork = { src: string; alt: string };
@@ -126,7 +128,8 @@ export default function BrandMockupScene({
   className = '',
   backgroundSrc,
   alt,
-  catalogImage
+  catalogImage,
+  badge = true
 }: BrandMockupSceneProps) {
   const artwork = catalogImage ? catalogArtwork[catalogImage] : variantArtwork[variant];
   const ownerProvided = isOwnerProvidedPhoto(backgroundSrc);
@@ -152,6 +155,11 @@ export default function BrandMockupScene({
         decoding="async"
       />
       <span className="brand-mockup-wash" aria-hidden="true" />
+      {badge && (
+        <span className="brand-photo-badge" aria-hidden="true">
+          <img src="/logo-mark.svg" alt="" width={132} height={114} loading="lazy" decoding="async" />
+        </span>
+      )}
     </div>
   );
 }
