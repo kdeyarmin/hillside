@@ -1,5 +1,6 @@
 import { ExternalLink, ShieldCheck } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
+import ResilientImage from '@/components/ResilientImage';
 import { db } from '@/lib/db';
 import { FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
 
@@ -29,7 +30,13 @@ export default async function AmazonPage() {
               {picks.map((pick) => (
                 <article className="product-card" key={pick.id}>
                   <a className="product-image-wrap" href={pick.amazonUrl} target="_blank" rel="sponsored nofollow noopener noreferrer">
-                    <img src={pick.imageUrl || FALLBACK_PRODUCT_IMAGE} alt={pick.title} />
+                    <ResilientImage
+                      src={pick.imageUrl}
+                      fallbackSrc={FALLBACK_PRODUCT_IMAGE}
+                      alt={pick.title}
+                      loading="lazy"
+                      decoding="async"
+                    />
                   </a>
                   <div className="product-copy">
                     <span className="pill">{pick.category || 'Amazon favorite'}</span>

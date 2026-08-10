@@ -21,7 +21,7 @@ import {
 import PrintButton from '@/components/PrintButton';
 import ResilientImage from '@/components/ResilientImage';
 import { db } from '@/lib/db';
-import { absoluteUrl, FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
+import { FALLBACK_PRODUCT_IMAGE, absoluteUrl, resolveImageUrl } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,7 +68,7 @@ export async function generateMetadata({
       title,
       description: sheet.summary,
       url: `/care/${sheet.slug}`,
-      images: [{ url: sheet.imageUrl || FALLBACK_PRODUCT_IMAGE, alt: sheet.plantName }]
+      images: [{ url: absoluteUrl(resolveImageUrl(sheet.imageUrl)), alt: sheet.plantName }]
     }
   };
 }
@@ -103,7 +103,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     '@type': 'Article',
     headline: title,
     description: sheet.summary,
-    image: sheet.imageUrl || FALLBACK_PRODUCT_IMAGE,
+    image: absoluteUrl(resolveImageUrl(sheet.imageUrl)),
     url: absoluteUrl(`/care/${sheet.slug}`),
     author: { '@type': 'Person', name: 'Tammy Hill' },
     publisher: {
@@ -155,7 +155,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
           <div className="care-guide-hero">
             <ResilientImage
               className="care-hero-image"
-              src={sheet.imageUrl || FALLBACK_PRODUCT_IMAGE}
+              src={resolveImageUrl(sheet.imageUrl)}
               fallbackSrc="/images/botanical-placeholder.svg"
               alt={sheet.plantName}
               width={1200}

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, type ImgHTMLAttributes, type SyntheticEvent } from 'react';
+import { resolveImageUrl } from '@/lib/store';
 
 type ResilientImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
   src?: string | null;
@@ -9,31 +10,10 @@ type ResilientImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
 
 const DEFAULT_FALLBACK = '/images/botanical-placeholder.svg';
 
-const LEGACY_IMAGE_REPLACEMENTS: Array<[string, string]> = [
-  [
-    'photo-1614594575810-51b862c2d7b6',
-    '/images/catalog/house-plants.webp'
-  ],
-  [
-    'photo-1593691509543-c55fb32e5cee',
-    '/images/catalog/house-plants.webp'
-  ],
-  [
-    'photo-1593482892290-f54927ae2bb0',
-    '/images/catalog/live-plant-planters.webp'
-  ],
-  [
-    'photo-1509423350716-97f2360af8e4',
-    '/images/scenes/potting-bench.webp'
-  ]
-];
-
 function normalizeSource(source: string, fallbackSrc: string) {
   const trimmed = source.trim();
   if (!trimmed) return fallbackSrc;
-
-  const replacement = LEGACY_IMAGE_REPLACEMENTS.find(([legacyId]) => trimmed.includes(legacyId));
-  return replacement?.[1] || trimmed;
+  return resolveImageUrl(trimmed);
 }
 
 export default function ResilientImage({
