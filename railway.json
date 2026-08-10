@@ -5,7 +5,7 @@
     "buildCommand": "npm run build"
   },
   "deploy": {
-    "preDeployCommand": "npx prisma db push --accept-data-loss && npm run db:seed:care:on-deploy && npm run db:repair:images",
+    "preDeployCommand": "npx prisma db push --accept-data-loss && npm run db:seed:care:on-deploy && npm run db:repair:images && npm run db:repair:copy",
     "startCommand": "npm run start",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 100,
