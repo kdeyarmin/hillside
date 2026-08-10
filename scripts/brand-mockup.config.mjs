@@ -82,5 +82,31 @@ export const SHOTS = [
         stamp: true
       }
     ]
+  },
+  {
+    name: 'bench',
+    base: 'assets/photography/potting-bench.webp',
+    out: 'public/images/scenes/potting-bench.webp',
+    labels: [
+      {
+        // The kraft tag on the ball of twine. It shipped carrying another
+        // company's branding, legible at full size on the About page. The band
+        // wraps a cylinder, so it is placed by its corners rather than rotated:
+        // the top edge is 24 degrees off horizontal, the sides only 4 off
+        // vertical. The bottom runs out of frame and is clipped.
+        name: 'twine tag',
+        quad: {
+          topLeft: [1230, 936],
+          topRight: [1419, 957],
+          bottomLeft: [1256, 1216]
+        },
+        paper: '#d7caac',
+        radius: 0,
+        logoScale: 0.44,
+        badge: true,
+        strength: 0.66,
+        blur: 7
+      }
+    ]
   }
 ];

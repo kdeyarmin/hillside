@@ -47,14 +47,25 @@ Whatever the source, add it to the tables below with its licence before committi
 
 ## Branded product photography
 
-`apothecary.webp` and `homemade-soaps.webp` carry the Hillside mark on the packaging inside the
-photograph — a printed label on the amber bottles, an inked stamp on the kraft soap wraps. This is
-the ordinary product-mockup technique, and it is why the logo was supplied as transparent artwork.
+`apothecary.webp`, `homemade-soaps.webp` and `potting-bench.webp` carry the Hillside mark on the
+packaging inside the photograph — a printed label on the amber bottles, an inked stamp on the kraft
+soap wraps, a tag on the ball of twine. This is the ordinary product-mockup technique, and it is
+why the logo was supplied as transparent artwork.
 
-The mark is not pasted on flat. Each placement is rotated onto its object's axis and then relit
-from the luminance of the pixels it covers, so the bottle's own highlight runs across the label and
-its shadow side stays dark. The soap stamps are composited in multiply, so the kraft grain reads
+The twine tag is not only branding. The stock photograph shipped with **another company's label on
+it** — "Juteschnur 225g, Great British Garden Company" — legible at full size on the homepage story
+block and the About page, which is a poor look on a page about Tammy's own bench.
+
+The mark is not pasted on flat. Each placement is fitted to its object and then relit from the
+luminance of the pixels it covers, so the bottle's own highlight runs across the label and its
+shadow side stays dark. The soap stamps are composited in multiply, so the kraft grain reads
 through the ink the way it would on absorbent paper.
+
+Two placement modes, because a rotation is not always enough. Bottles and soap take `x`/`y`/`angle`.
+The twine tag takes a `quad` of three corners: it is a band wrapping a cylinder, so its top edge
+sits 24 degrees off horizontal while its sides are only 4 degrees off vertical, and a rotated
+rectangle visibly disagrees with the object it is printed on. A placement that runs out of frame,
+as that tag does, is clipped rather than refused.
 
 ```bash
 npm run images:mockup                               # rebuild every branded shot

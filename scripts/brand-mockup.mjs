@@ -100,20 +100,23 @@ async function labelArtwork({
 async function relight(labelPng, tile, { strength = 0.5, curve = 0, blur = 9 } = {}) {
   const { width, height } = await sharp(labelPng).metadata();
 
-  const grey = sharp(tile).removeAlpha().greyscale();
-  const { channels } = await grey.clone().stats();
-  const mean = channels[0].mean;
-
   // Blur first, and hard. Printed paper takes the light falling on the object,
   // not the object's surface detail — without this the linen weave and the glass
   // texture print straight through the label and it reads as tracing paper.
-  const shape = grey.blur(blur);
+  const grey = await sharp(tile).removeAlpha().greyscale().blur(blur).png().toBuffer();
+
+  // Measured from the greyscale buffer, not from a chained pipeline: sharp's
+  // stats() reports the *input* image and ignores operations queued before it,
+  // so reading it off the chain returned the tile's red channel and normalised
+  // every label against the wrong midpoint.
+  const { channels } = await sharp(grey).stats();
+  const mean = channels[0].mean;
 
   // out = slope*in + intercept, chosen so the average pixel maps to near-white
   // (leaving the paper its own colour) while relative light and shade survive.
   const slope = strength;
   const intercept = 248 - slope * mean;
-  let shading = await shape.linear(slope, intercept).toColourspace('b-w').png().toBuffer();
+  let shading = await sharp(grey).linear(slope, intercept).toColourspace('b-w').png().toBuffer();
 
   if (curve > 0) {
     // Cylindrical falloff across the label's short axis, for a bottle or jar.
@@ -148,25 +151,101 @@ async function relight(labelPng, tile, { strength = 0.5, curve = 0, blur = 9 } =
   return sharp(shaded).joinChannel(alpha).png().toBuffer();
 }
 
-async function applyLabel(baseBuffer, placement, debug) {
-  const { x, y, width, height, angle = 0 } = placement;
+/**
+ * Places a label on a parallelogram given three of its corners, so a band
+ * wrapping a cylinder can be matched exactly. A rotation alone cannot: on the
+ * twine tag the top edge sits 24 degrees off horizontal while the side edges are
+ * only 4 degrees off vertical, and a rotated rectangle visibly disagrees with
+ * the object it is supposed to be printed on.
+ *
+ * sharp's affine matrix is [[a, b], [c, d]] with x' = a·x + b·y, y' = c·x + d·y,
+ * so the columns are the destination vectors for the label's own axes.
+ */
+async function transformToQuad(flatPng, quad) {
+  const [tlx, tly] = quad.topLeft;
+  const [trx, try_] = quad.topRight;
+  const [blx, bly] = quad.bottomLeft;
 
-  const flat = await labelArtwork(placement);
-  const rotated = await sharp(flat)
-    .rotate(angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+  const u = [trx - tlx, try_ - tly];
+  const v = [blx - tlx, bly - tly];
+  const width = Math.hypot(u[0], u[1]);
+  const height = Math.hypot(v[0], v[1]);
+  const unitU = [u[0] / width, u[1] / width];
+  const unitV = [v[0] / height, v[1] / height];
+
+  const transformed = await sharp(flatPng)
+    .affine([[unitU[0], unitV[0]], [unitU[1], unitV[1]]], {
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+      interpolator: 'bicubic'
+    })
     .png()
     .toBuffer();
+
+  // Where the label's own origin ended up inside the transformed bounding box.
+  const minX = Math.min(0, u[0], v[0], u[0] + v[0]);
+  const minY = Math.min(0, u[1], v[1], u[1] + v[1]);
+
+  return { buffer: transformed, left: Math.round(tlx + minX), top: Math.round(tly + minY), width, height };
+}
+
+async function applyLabel(baseBuffer, placement, debug) {
+  const { x, y, angle = 0, quad } = placement;
+
+  let rotated;
+  let rawLeft;
+  let rawTop;
+
+  if (quad) {
+    const [tlx, tly] = quad.topLeft;
+    const [trx, try_] = quad.topRight;
+    const [blx, bly] = quad.bottomLeft;
+    const flat = await labelArtwork({
+      ...placement,
+      width: Math.round(Math.hypot(trx - tlx, try_ - tly)),
+      height: Math.round(Math.hypot(blx - tlx, bly - tly))
+    });
+    const placed = await transformToQuad(flat, quad);
+    rotated = placed.buffer;
+    rawLeft = placed.left;
+    rawTop = placed.top;
+  } else {
+    const flat = await labelArtwork(placement);
+    rotated = await sharp(flat)
+      .rotate(angle, { background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer();
+    const meta = await sharp(rotated).metadata();
+    rawLeft = Math.round(x - meta.width / 2);
+    rawTop = Math.round(y - meta.height / 2);
+  }
+
   const rotatedMeta = await sharp(rotated).metadata();
 
-  const left = Math.round(x - rotatedMeta.width / 2);
-  const top = Math.round(y - rotatedMeta.height / 2);
-
+  // A label on a real object frequently runs off the edge of the frame, so the
+  // placement is clipped to the photograph rather than refused. Only the part
+  // that overlaps is composited, and it keeps its position.
   const baseMeta = await sharp(baseBuffer).metadata();
-  if (left < 0 || top < 0 || left + rotatedMeta.width > baseMeta.width || top + rotatedMeta.height > baseMeta.height) {
+  const cropLeft = Math.max(0, -rawLeft);
+  const cropTop = Math.max(0, -rawTop);
+  const left = Math.max(0, rawLeft);
+  const top = Math.max(0, rawTop);
+  const visibleWidth = Math.min(rotatedMeta.width - cropLeft, baseMeta.width - left);
+  const visibleHeight = Math.min(rotatedMeta.height - cropTop, baseMeta.height - top);
+
+  if (visibleWidth <= 0 || visibleHeight <= 0) {
     throw new Error(
-      `Label "${placement.name}" at ${x},${y} (${rotatedMeta.width}x${rotatedMeta.height} once rotated) falls outside the ${baseMeta.width}x${baseMeta.height} photograph.`
+      `Label "${placement.name}" at ${x},${y} lands entirely outside the ${baseMeta.width}x${baseMeta.height} photograph.`
     );
   }
+
+  const clipped =
+    cropLeft || cropTop || visibleWidth !== rotatedMeta.width || visibleHeight !== rotatedMeta.height;
+  const visible = clipped
+    ? await sharp(rotated)
+        .extract({ left: cropLeft, top: cropTop, width: visibleWidth, height: visibleHeight })
+        .png()
+        .toBuffer()
+    : rotated;
 
   // A stamp is ink on the object, so multiply does the relighting for free: the
   // wrapper's own shading and grain survive underneath it. A paper label sits on
@@ -174,14 +253,14 @@ async function applyLabel(baseBuffer, placement, debug) {
   let layer;
   let blend;
   if (placement.stamp) {
-    layer = rotated;
+    layer = visible;
     blend = 'multiply';
   } else {
     const tile = await sharp(baseBuffer)
-      .extract({ left, top, width: rotatedMeta.width, height: rotatedMeta.height })
+      .extract({ left, top, width: visibleWidth, height: visibleHeight })
       .png()
       .toBuffer();
-    layer = await relight(rotated, tile, placement);
+    layer = await relight(visible, tile, placement);
     blend = placement.blend || 'over';
   }
 
@@ -189,10 +268,9 @@ async function applyLabel(baseBuffer, placement, debug) {
   if (debug) {
     layers.push({
       input: Buffer.from(
-        `<svg width="${rotatedMeta.width}" height="${rotatedMeta.height}" xmlns="http://www.w3.org/2000/svg">
-           <rect x="1" y="1" width="${rotatedMeta.width - 2}" height="${rotatedMeta.height - 2}"
+        `<svg width="${visibleWidth}" height="${visibleHeight}" xmlns="http://www.w3.org/2000/svg">
+           <rect x="1" y="1" width="${visibleWidth - 2}" height="${visibleHeight - 2}"
                  fill="none" stroke="#ff0050" stroke-width="3"/>
-           <circle cx="${rotatedMeta.width / 2}" cy="${rotatedMeta.height / 2}" r="6" fill="#ff0050"/>
          </svg>`
       ),
       left,
