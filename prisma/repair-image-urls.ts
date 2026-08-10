@@ -58,9 +58,15 @@ async function main() {
     const rows = await model.findMany();
     let count = 0;
     for (const row of rows) {
-      if (!row.imageUrl?.trim()) continue;
-      const resolved = resolveImageUrl(row.imageUrl);
-      if (resolved === row.imageUrl) continue;
+      // Compare against the trimmed value, because resolveImageUrl trims too.
+      // Comparing with the raw column would also rewrite rows that differ only
+      // by surrounding whitespace, which is not what this script is for. A
+      // padded dead id still gets repaired: it resolves to the local path,
+      // which differs from the trimmed original either way.
+      const current = row.imageUrl?.trim();
+      if (!current) continue;
+      const resolved = resolveImageUrl(current);
+      if (resolved === current) continue;
       await model.update(row.id, resolved);
       count += 1;
     }
