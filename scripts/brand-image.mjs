@@ -236,7 +236,14 @@ async function build(args) {
     });
 
   const bytes = await readSource(source);
-  const meta = await sharp(bytes).metadata();
+
+  // Bake in EXIF orientation before anything measures the image. A phone held
+  // sideways writes a 1200x1600 frame with an orientation flag that displays it
+  // as 1600x1200 — so metadata() reported portrait, the crop was computed in
+  // that coordinate system, and a perfectly good 1600x1200 photograph was
+  // rejected for being too small. Everything below now works in display space.
+  const oriented = await sharp(bytes).rotate().toBuffer();
+  const meta = await sharp(oriented).metadata();
   if (!meta.width || !meta.height) throw new Error('Could not read the source image.');
   if (meta.width < WIDTH || meta.height < HEIGHT) {
     // The spec is explicit: downscaled, never upscaled. An upscaled photograph
@@ -253,8 +260,7 @@ async function build(args) {
   const mix = (value, neutral) => neutral + (value - neutral) * strength;
 
   const box = cropBox(meta.width, meta.height, focusX, focusY);
-  const pipeline = sharp(bytes)
-    .rotate() // honour EXIF orientation before cropping, or the box is wrong
+  const pipeline = sharp(oriented)
     .extract(box)
     .resize(WIDTH, HEIGHT, { fit: 'fill', kernel: 'lanczos3' })
     .modulate({
