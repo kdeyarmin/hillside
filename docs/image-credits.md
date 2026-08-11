@@ -47,10 +47,17 @@ Whatever the source, add it to the tables below with its licence before committi
 
 ## Branded product photography
 
-`apothecary.webp`, `homemade-soaps.webp` and `potting-bench.webp` carry the Hillside mark on the
-packaging inside the photograph — a printed label on the amber bottles, an inked stamp on the kraft
-soap wraps, a tag on the ball of twine. This is the ordinary product-mockup technique, and it is
-why the logo was supplied as transparent artwork.
+**Every photograph in the set carries the Hillside mark**, in one of two ways.
+
+Where the shot contains packaging, the mark goes on it: a printed label on the amber bottles, an
+inked stamp on the kraft soap wraps, a tag on the ball of twine. This is the ordinary
+product-mockup technique, and it is why the logo was supplied as transparent artwork.
+
+The rest — moss on a rock, driftwood, a close-up of leaves — contain no packaging to print on, so
+they take a shop tag placed in the calmest part of the frame. Those positions come from
+`scripts/brand-place.mjs`, which scores every candidate position on local detail, exposure and
+distance from the subject, then prints a config block to paste in. The numbers stay explicit in
+`brand-mockup.config.mjs` so they can be nudged by hand.
 
 The twine tag is not only branding. The stock photograph shipped with **another company's label on
 it** — "Juteschnur 225g, Great British Garden Company" — legible at full size on the homepage story
