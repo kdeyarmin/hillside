@@ -169,23 +169,37 @@ table below with the model and the prompt.
 
 ### Generated images
 
+All three gallery images are generated. The gallery is the page that claims to show Hillside's own
+arrangements, and not one of the licensed frames filed there was an arrangement: the "layered porch
+planter" was a shop interior, the "foliage-first arrangement" was a single rubber plant against a
+wall, and the "patio color story" was another shop's indoor shelving. Each is now a photograph of
+what its caption says.
+
 | File | Model | Prompt | Notes |
 | --- | --- | --- | --- |
-| `gallery/patio-containers.webp` | `gpt-image-1` | "A group of three weathered terracotta and cream containers arranged on a sunlit pale stone patio, planted with a repeated palette of soft coral geranium, sage-grey dichondra trailing over the rims, and airy white cosmos. Bright open overcast daylight, pale limestone paving, light airy background, generous negative space" | Best of 3 candidates. Upscaled from 1536×1024 (see below). Exported at `--grade 0`. |
+| `gallery/patio-containers.webp` | `gpt-image-1` | "A group of three weathered terracotta and cream containers arranged on a sunlit pale stone patio, planted with a repeated palette of soft coral geranium, sage-grey dichondra trailing over the rims, and airy white cosmos. Bright open overcast daylight, pale limestone paving, light airy background, generous negative space" | Best of 3. `--grade 0` (warmth 32.3 / sat 0.216 ungraded). |
+| `gallery/porch-planter.webp` | `gpt-image-1` | "A large layered porch planter on painted wooden porch boards beside a column: a tall upright dracaena spike at the back, mounded white begonias and soft grey licorice plant in the middle, and variegated ivy spilling over the front rim. Bright shaded daylight, painted porch railing softly out of focus behind" | Best of 2. `--grade 1`; measured 20.2 / 0.085 / 52.3%, the closest match to the set targets of anything in it. |
+| `gallery/soft-greens.webp` | `gpt-image-1` | "A foliage-only container arrangement in a wide shallow stone bowl, built entirely from greens and textures with no flowers: a soft blue-green hosta, feathery asparagus fern, silver-veined heuchera and creeping jenny trailing over the edge. Set on a garden table in bright shaded daylight, plain soft background" | Best of 2. `--grade 0`. |
 
-Two things about that row are worth keeping in mind for the next one.
+All three are upscaled from 1536×1024. Two things about these rows are worth keeping in mind for
+the next one.
 
-**It is upscaled.** `gpt-image-1` maxes out at 1536×1024, which is 1365×1024 once cropped to 4:3
-and therefore under the 1600×1200 spec — a 1.17× enlargement. Tolerable on a generated frame,
+**They are upscaled.** `gpt-image-1` maxes out at 1536×1024, which is 1365×1024 once cropped to
+4:3 and therefore under the 1600×1200 spec — a 1.17× enlargement. Tolerable on a generated frame,
 which has no real sensor detail to lose, and it is why `--allow-upscale` has to be passed
 explicitly. Gemini's Imagen returns 2K at 4:3 and needs none of this.
 
-**It is exported ungraded.** Measured straight out of the model it was already warmth 32.3 /
-saturation 0.216 — in the same territory as `moss.webp` (31.9 / 0.221) — and the full grade pushed
-it to 44.0 / 0.301, warmer and more saturated than anything else in the set. Coral geraniums
-against pale stone are simply a warm subject. The grade exists to pull disparate photographs
-together, not to warm an image that already sits in range, so `--grade` is worth measuring per
-generated image rather than defaulting to 1. `npm run images:measure` prints the comparison.
+**The grade is per-image, not automatic.** Two of the three are exported ungraded. The patio shot
+came out of the model at warmth 32.3 / saturation 0.216 — already the same territory as `moss.webp`
+(31.9 / 0.221) — and the full grade pushed it to 44.0 / 0.301, warmer and more saturated than
+anything else in the set; coral geraniums on pale stone are simply a warm subject. The porch
+planter, mostly white flowers and grey timber, took the full grade and landed at 20.2 / 0.085 /
+52.3%, almost exactly on target.
+
+So the rule is: generate, then measure. The grade exists to pull disparate photographs together,
+not to warm one that already sits in range. Being able to re-crop and re-grade from the kept
+original in `assets/photography/generated/` — rather than paying to generate again — is the whole
+reason the raw is kept. `npm run images:measure` prints the comparison.
 
 ## What these images are, and are not
 

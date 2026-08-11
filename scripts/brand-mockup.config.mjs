@@ -411,23 +411,23 @@ export const SHOTS = [
     out: 'public/images/gallery/porch-planter.webp',
     labels: [
       {
-        // On the front of the tall ribbed pot, which is the one clean vessel
-        // face in a frame otherwise full of window and chair backs.
+        // On the charcoal pot, left of where the ivy falls. The darkest vessel
+        // in the set, so cream paper reads on it at any size.
         name: 'pot label',
-        x: 1102,
-        y: 1035,
-        width: 156,
-        height: 94,
+        x: 652,
+        y: 958,
+        width: 158,
+        height: 96,
         angle: 0,
         radius: 6,
         paper: '#f2ebdd',
         logoScale: 0.82,
         badge: true,
         shape: 'plate',
-        curve: 0.16,
-        strength: 0.55,
+        curve: 0.14,
+        strength: 0.6,
         blur: 8,
-        shadow: { offset: 3, blur: 5, opacity: 0.3 }
+        shadow: { offset: 3, blur: 5, opacity: 0.28 }
       }
     ]
   },
@@ -437,25 +437,25 @@ export const SHOTS = [
     out: 'public/images/gallery/soft-greens.webp',
     labels: [
       {
-        // Nothing in this frame is a surface — it is a rubber plant against a
-        // bare wall — so the tag hangs off the main stem the way a nursery ties
-        // one on. The knot is on the stem's right edge at the node (727,702);
-        // the tag swings down and to the right, in front of the stem.
-        name: 'brand tag',
-        x: 761,
-        y: 826,
-        width: 206,
-        height: 140,
-        angle: 8,
-        radius: 10,
+        // On the front of the stone bowl. The frame this replaced was a single
+        // rubber plant against a bare wall — no surface anywhere in it — and
+        // needed a tag tied to the stem to sit anywhere believable. A bowl has a
+        // face, so this is a label again.
+        name: 'bowl label',
+        x: 858,
+        y: 952,
+        width: 200,
+        height: 118,
+        angle: 0,
+        radius: 7,
         paper: '#f2ebdd',
-        logoScale: 0.84,
+        logoScale: 0.82,
         badge: true,
-        shape: 'tag',
-        tie: { to: [727, 702], width: 4 },
-        strength: 0.5,
-        blur: 15,
-        shadow: { offset: 7, blur: 8, opacity: 0.48 }
+        shape: 'plate',
+        curve: 0.2,
+        strength: 0.58,
+        blur: 9,
+        shadow: { offset: 4, blur: 6, opacity: 0.3 }
       }
     ]
   }
