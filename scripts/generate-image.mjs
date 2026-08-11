@@ -54,9 +54,18 @@ import { assertHeaderSafe, postJson } from './lib/http.mjs';
 /**
  * Appended to every prompt unless overridden.
  *
- * Two jobs. It aims the model at the look the grade was measured from — daylight,
- * shallow depth of field, muted and warm rather than punchy — so the generated
- * frame sits beside the twelve licensed ones instead of shouting over them.
+ * It asks for a *neutral* photograph, not a branded one — and that is the whole
+ * point. The licensed images in the set are ordinary photographs; the shared
+ * grade in `photo.mjs` is what gives them the warm, muted, matte house look.
+ * Asking the model for that look as well applies it twice: the first version of
+ * this string said "muted warm palette, cream, matte, editorial" and the result
+ * measured warmth 56.8 and saturation 0.242 against set targets of 21.8 and
+ * 0.134 — visibly sepia beside its neighbours. One source of the look, and it is
+ * the grade.
+ *
+ * What it does specify is camera, not colour: daylight, shallow depth of field,
+ * a 50mm frame. Those survive the grade and are what make a generated frame sit
+ * in the same shoot as the rest.
  *
  * And it forbids lettering. The mark is composited afterwards by
  * `brand-mockup.mjs` from the real logo artwork; a model asked for a plant shop
@@ -65,10 +74,10 @@ import { assertHeaderSafe, postJson } from './lib/http.mjs';
  * the same reason in a different register.
  */
 const HOUSE_STYLE =
-  'Natural window light, soft shadows, shallow depth of field, 50mm lens. ' +
-  'Muted warm palette: cream, sage, terracotta, weathered wood. Matte, unsaturated, ' +
-  'editorial rather than glossy. No text, no lettering, no signage, no logos, no ' +
-  'packaging labels, no watermarks. No people, no hands.';
+  'Photorealistic photograph. Natural daylight, soft shadows, shallow depth of field, ' +
+  '50mm lens, sharp focus on the subject. Neutral white balance and true-to-life colour — ' +
+  'not warm-toned, not sepia, not filtered. No text, no lettering, no signage, no logos, ' +
+  'no packaging labels, no watermarks. No people, no hands.';
 
 /**
  * Both providers take a base-URL override from the environment, the same

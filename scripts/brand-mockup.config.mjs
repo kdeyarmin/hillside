@@ -373,59 +373,35 @@ export const SHOTS = [
     name: 'patio-containers',
     base: 'assets/photography/patio-containers.webp',
     out: 'public/images/gallery/patio-containers.webp',
-    // This shot was taken in somebody else's shop and it shows: four candle
-    // brands, a soap brand, a pot brand and a plant retailer are all readable in
-    // it, on a page that is supposed to be Hillside's own gallery. Each entry is
-    // one legible wordmark, measured off the grid.
-    // Each box covers the printing and nothing else. A patch drawn generously
-    // around an object softens the object too, and a softened jar beside a sharp
-    // one is more conspicuous than the label was; a patch that covers only the
-    // text band reads as the printing being out of focus, which in a frame with
-    // this much depth is unremarkable.
-    patches: [
-      { x: 590, y: 116, width: 54, height: 78, blur: 7 }, // pot wordmark, upper centre
-      { x: 792, y: 198, width: 50, height: 62, blur: 6 }, // the same brand, second pot
-      { x: 192, y: 196, width: 92, height: 32, blur: 6 }, // printed card, left shelf
-      { x: 184, y: 248, width: 154, height: 56, blur: 6 }, // two candle labels, left shelf
-      { x: 204, y: 374, width: 96, height: 92, blur: 6 }, // printed cards, mid left
-      { x: 1116, y: 292, width: 76, height: 38, blur: 6 }, // soap tin lid
-      { x: 1242, y: 184, width: 72, height: 30, blur: 6 }, // handwritten plant sign
-      { x: 1310, y: 244, width: 70, height: 50, blur: 6 }, // bottle label, right shelf
-      { x: 1456, y: 190, width: 88, height: 80, blur: 7 }, // kraft box, top right
-      { x: 1486, y: 300, width: 84, height: 26, blur: 6 }, // retailer name below it
-      // The soap cartons are one continuous row, but a single 330px patch reads
-      // as a wipe. One per carton keeps the gaps between them sharp.
-      { x: 1196, y: 596, width: 74, height: 62, blur: 6 },
-      { x: 1272, y: 596, width: 74, height: 62, blur: 6 },
-      { x: 1348, y: 596, width: 74, height: 62, blur: 6 },
-      { x: 1424, y: 592, width: 78, height: 62, blur: 6 },
-      { x: 1032, y: 742, width: 138, height: 40, blur: 7 }, // handwritten price on the pot
-      { x: 108, y: 868, width: 114, height: 78, blur: 6 }, // candle label, front left
-      { x: 436, y: 862, width: 98, height: 68, blur: 6 }, // candle label, front centre
-      { x: 1182, y: 828, width: 88, height: 82, blur: 6 }, // candle labels, front right
-      { x: 1286, y: 834, width: 104, height: 86, blur: 6 },
-      { x: 1422, y: 818, width: 114, height: 86, blur: 6 }
-    ],
+    // Generated rather than licensed, which is why this shot carries no
+    // `patches`. The frame it replaced was photographed inside another shop —
+    // four candle brands, a soap brand, a pot brand and a plant retailer all
+    // readable on our own gallery page — and had to have each wordmark blurred
+    // out one at a time. A frame made for the purpose has nothing to remove, and
+    // it actually matches its caption ("Patio color story"), which a picture of
+    // indoor shelving never did.
     labels: [
       {
-        // Tied to the monstera's stem at (1090,585) so it hangs down the front
-        // of its pot — the one place in a very busy frame where a tag has both a
-        // stem above it and a plain surface behind it.
-        name: 'monstera tag',
-        x: 1085,
-        y: 739,
-        width: 200,
-        height: 136,
-        angle: 6,
-        radius: 10,
+        // On the front of the large terracotta pot, below the leaf line and
+        // above where the body curves away.
+        name: 'pot label',
+        x: 452,
+        y: 902,
+        width: 208,
+        height: 122,
+        angle: 0,
+        radius: 7,
         paper: '#f2ebdd',
-        logoScale: 0.84,
+        logoScale: 0.82,
         badge: true,
-        shape: 'tag',
-        tie: { to: [1090, 585], width: 4 },
-        strength: 0.5,
-        blur: 14,
-        shadow: { offset: 7, blur: 8, opacity: 0.48 }
+        shape: 'plate',
+        // The pot is lit hard from the right, so a strong cylinder falloff
+        // darkens both edges at once and the label reads as grey metal rather
+        // than paper. The relight already carries the pot's own shading.
+        curve: 0.1,
+        strength: 0.62,
+        blur: 9,
+        shadow: { offset: 4, blur: 6, opacity: 0.3 }
       }
     ]
   },

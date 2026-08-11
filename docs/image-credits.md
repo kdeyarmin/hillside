@@ -107,19 +107,18 @@ tag does, is clipped rather than refused.
 
 ### Removing other shops' branding
 
-`patio-containers.webp` was photographed inside somebody else's shop, and four candle brands, a
-soap brand, a pot brand and a plant retailer are all readable in it — on a page that is supposed
-to be Hillside's own gallery. Adding our mark does not fix that; theirs has to go.
-
 A shot can carry a `patches` array, applied before any label: each entry is a rectangle that gets
 a local, feathered blur. A blur rather than a patch of flat colour, because these are cluttered
 scenes with real depth of field, so softened printing reads as something behind the plane of focus
 while a painted rectangle reads as a redaction. Each box covers the text band and nothing else —
 softening a whole jar beside a sharp one is more conspicuous than the label was.
 
-This is a mitigation, not a fix. The frame is still a photograph of another shop's shelves, and it
-still does not match its own gallery caption ("Patio color story"). Replacing it with a real patio
-container shot is the better answer whenever one exists.
+It exists because `patio-containers.webp` used to be a photograph taken inside somebody else's
+shop, with four candle brands, a soap brand, a pot brand and a plant retailer all readable on our
+own gallery page. Twenty patches made those illegible, and the frame was still a picture of another
+shop's shelving filed under the caption *Patio color story*. It has since been replaced by a
+generated photograph, so nothing in the set currently needs patching — but the capability stays,
+because the next licensed frame may.
 
 ```bash
 npm run images:mockup                               # rebuild every branded shot
@@ -134,8 +133,8 @@ recorded in `scripts/brand-mockup.config.mjs` rather than re-measured by hand.
 ## Generating a photograph — `scripts/generate-image.mjs`
 
 Licensed stock solves "a photograph exists" and not "it is a photograph of the right thing". The
-gallery is where that bites: `patio-containers.webp` is captioned *Patio color story* and shows a
-shop's indoor shelving, because no frame in the licensed set is a patio. Generating one closes the
+gallery is where that bit: `patio-containers.webp` was captioned *Patio color story* and showed a
+shop's indoor shelving, because no frame in the licensed set was a patio. Generating one closes the
 gap from the other end — make the photograph, then brand it.
 
 ```bash
@@ -172,7 +171,21 @@ table below with the model and the prompt.
 
 | File | Model | Prompt | Notes |
 | --- | --- | --- | --- |
-| _none yet_ | | | |
+| `gallery/patio-containers.webp` | `gpt-image-1` | "A group of three weathered terracotta and cream containers arranged on a sunlit pale stone patio, planted with a repeated palette of soft coral geranium, sage-grey dichondra trailing over the rims, and airy white cosmos. Bright open overcast daylight, pale limestone paving, light airy background, generous negative space" | Best of 3 candidates. Upscaled from 1536×1024 (see below). Exported at `--grade 0`. |
+
+Two things about that row are worth keeping in mind for the next one.
+
+**It is upscaled.** `gpt-image-1` maxes out at 1536×1024, which is 1365×1024 once cropped to 4:3
+and therefore under the 1600×1200 spec — a 1.17× enlargement. Tolerable on a generated frame,
+which has no real sensor detail to lose, and it is why `--allow-upscale` has to be passed
+explicitly. Gemini's Imagen returns 2K at 4:3 and needs none of this.
+
+**It is exported ungraded.** Measured straight out of the model it was already warmth 32.3 /
+saturation 0.216 — in the same territory as `moss.webp` (31.9 / 0.221) — and the full grade pushed
+it to 44.0 / 0.301, warmer and more saturated than anything else in the set. Coral geraniums
+against pale stone are simply a warm subject. The grade exists to pull disparate photographs
+together, not to warm an image that already sits in range, so `--grade` is worth measuring per
+generated image rather than defaulting to 1. `npm run images:measure` prints the comparison.
 
 ## What these images are, and are not
 
