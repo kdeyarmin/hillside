@@ -5,7 +5,9 @@ import TelnyxClassroom from '@/components/TelnyxClassroom';
 import {
   classAccessCookieName,
   classJoinWindow,
+  classDateLabel,
   classLocationLabel,
+  classTimeLabel,
   isOnlineClass,
   verifyClassAccessCookie
 } from '@/lib/class-access';
@@ -73,10 +75,10 @@ export default async function OnlineClassStudio({
     <section className="classroom-page">
       <div className="container">
         <div className="classroom-event-summary">
-          <span className="pill">Online through Telnyx Video</span>
+          <span className="pill">Live online class</span>
           <h2>{event.title}</h2>
           <div>
-            <span><CalendarDays size={16} /> {event.startsAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</span>
+            <span><CalendarDays size={16} /> {classDateLabel(event.startsAt)} at {classTimeLabel(event.startsAt)}</span>
             <span><Clock3 size={16} /> About {event.durationMinutes} minutes</span>
             <span><Video size={16} /> {classLocationLabel(event)}</span>
           </div>
@@ -94,7 +96,7 @@ export default async function OnlineClassStudio({
             <h1>Your classroom is ready, but not open yet.</h1>
             <p>
               The room opens {event.joinOpensMinutesBefore} minutes before class at{' '}
-              <strong>{opensAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</strong>.
+              <strong>{classDateLabel(opensAt)} at {classTimeLabel(opensAt)}</strong>.
             </p>
             <p>You can leave this page open and refresh when the room opens.</p>
           </div>

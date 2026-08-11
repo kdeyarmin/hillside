@@ -1,8 +1,11 @@
 import Link from 'next/link';
+import { jsonLd } from '@/lib/json-ld';
+import { absoluteUrl } from '@/lib/store';
 
 export const metadata = {
   title: 'Frequently Asked Questions',
-  description: 'Answers about Hillside Gardens plants, shipping, local pickup, planter classes, teas and handmade botanical goods.'
+  description: 'Answers about Hillside Gardens plants, shipping, local pickup, planter classes, teas and handmade botanical goods.',
+  alternates: { canonical: '/faq' }
 };
 
 const questions = [
@@ -18,9 +21,27 @@ const questions = [
   ['Are Amazon links affiliate links?', 'Some links on our Amazon picks page may be affiliate links. The Hillside Gardens may earn a commission from qualifying purchases without increasing the customer’s price.']
 ];
 
+/**
+ * A page that is nothing but questions and answers should say so in its markup.
+ * FAQPage is what makes these eligible to appear as expandable answers in search
+ * results, which is where most of these questions actually get asked.
+ */
+const faqJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  '@id': absoluteUrl('/faq#faq'),
+  url: absoluteUrl('/faq'),
+  mainEntity: questions.map(([question, answer]) => ({
+    '@type': 'Question',
+    name: question,
+    acceptedAnswer: { '@type': 'Answer', text: answer }
+  }))
+};
+
 export default function FaqPage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(faqJsonLd) }} />
       <section className="pagehero">
         <div className="container">
           <div className="eyebrow">Helpful answers</div>

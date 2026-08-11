@@ -158,8 +158,14 @@ export default async function Care() {
             <div className="care-empty-state">
               <Leaf size={42} />
               <h3>Our care library is growing.</h3>
-              <p>The starter care library has not been loaded into the database yet.</p>
-              <Link className="btn" href="/admin/care">Open care-library manager</Link>
+              <p>
+                Guides are being written and photographed now. In the meantime, send us your plant
+                question and we will answer it directly.
+              </p>
+              <div className="actions" style={{ justifyContent: 'center' }}>
+                <Link className="btn" href="/contact">Ask a plant question</Link>
+                <Link className="btn outline" href="/shop">Browse the shop</Link>
+              </div>
             </div>
           )}
         </div>

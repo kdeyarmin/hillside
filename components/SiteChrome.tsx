@@ -7,7 +7,14 @@ import { Facebook, Instagram, Menu, Minus, Plus, Search, ShoppingBag, Trash2, X 
 import NewsletterForm from '@/components/NewsletterForm';
 import ResilientImage from '@/components/ResilientImage';
 import { useCart } from '@/components/CartProvider';
-import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
+import { focusableElements, trapTabKey } from '@/lib/focus-trap';
+import {
+  DEFAULT_BUSINESS_EMAIL,
+  FALLBACK_PRODUCT_IMAGE,
+  formatMoney,
+  formatMoneyCompact,
+  publicFreeShippingThresholdCents
+} from '@/lib/store';
 
 /**
  * Every merchandising link is a real path, not a query string. Collections are
@@ -33,26 +40,8 @@ const SOCIAL_LINKS = [
   { label: 'Facebook', href: process.env.NEXT_PUBLIC_FACEBOOK_URL, Icon: Facebook }
 ].filter((link): link is { label: string; href: string; Icon: typeof Instagram } => Boolean(link.href));
 
-const focusableSelector = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled]):not([type="hidden"])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[tabindex]:not([tabindex="-1"])'
-].join(',');
-
-function focusableElements(container: HTMLElement | null) {
-  if (!container) return [];
-  return Array.from(container.querySelectorAll<HTMLElement>(focusableSelector)).filter((element) => {
-    const style = window.getComputedStyle(element);
-    const rect = element.getBoundingClientRect();
-    return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
-  });
-}
-
 function FreeShippingMeter({ subtotalCents }: { subtotalCents: number }) {
-  const threshold = Number(process.env.NEXT_PUBLIC_FREE_SHIPPING_THRESHOLD_CENTS || 7500);
+  const threshold = publicFreeShippingThresholdCents();
   if (threshold <= 0 || subtotalCents <= 0) return null;
 
   const remaining = threshold - subtotalCents;
@@ -160,24 +149,7 @@ function CartDrawer() {
       }
 
       if (event.key !== 'Tab') return;
-      const focusables = focusableElements(dialogRef.current);
-      if (!focusables.length) {
-        event.preventDefault();
-        closeButtonRef.current?.focus();
-        return;
-      }
-
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      const active = document.activeElement;
-
-      if (event.shiftKey && (active === first || !dialogRef.current?.contains(active))) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && active === last) {
-        event.preventDefault();
-        first.focus();
-      }
+      if (trapTabKey(event, dialogRef.current, closeButtonRef.current)) event.preventDefault();
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -323,6 +295,7 @@ function CartDrawer() {
 export function SiteHeader() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const freeShippingThreshold = publicFreeShippingThresholdCents();
   const { count, drawerOpen, openCart } = useCart();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -375,8 +348,9 @@ export function SiteHeader() {
       }
 
       if (event.key !== 'Tab') return;
-      const menuLinks = focusableElements(mobileMenuRef.current);
-      const focusables = [menuButtonRef.current, ...menuLinks].filter(
+      // The toggle button is part of this cycle on purpose — it sits outside the
+      // menu panel but is the control that opened it, so Tab should reach it.
+      const focusables = [menuButtonRef.current, ...focusableElements(mobileMenuRef.current)].filter(
         (element): element is HTMLElement => Boolean(element)
       );
       if (!focusables.length) return;
@@ -384,7 +358,11 @@ export function SiteHeader() {
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
       const active = document.activeElement;
-      if (event.shiftKey && active === first) {
+
+      if (!focusables.includes(active as HTMLElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && active === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && active === last) {
@@ -414,7 +392,15 @@ export function SiteHeader() {
   return (
     <>
       <div className="topbar editorial-topbar">
-        <span>❧ &nbsp; Free shipping on orders $75+</span>
+        {/* Announcing a threshold the shop no longer honours is worse than
+            announcing nothing, so this reads the configured figure and steps
+            aside entirely when free shipping is switched off. */}
+        <span>
+          ❧ &nbsp;
+          {freeShippingThreshold > 0
+            ? `Free shipping on orders ${formatMoneyCompact(freeShippingThreshold)}+`
+            : 'Plants, teas and botanicals, potted and packed by hand'}
+        </span>
         <div>
           <Link href="/about">About Us</Link>
           <Link href="/contact">Contact</Link>
@@ -538,7 +524,12 @@ export function SiteHeader() {
   );
 }
 
-export function SiteFooter() {
+/**
+ * `contactEmail` arrives as a prop because `BUSINESS_EMAIL` is a server-only
+ * variable — reading `process.env` here would compile to `undefined` in the
+ * browser bundle and quietly drop the address from the footer.
+ */
+export function SiteFooter({ contactEmail = DEFAULT_BUSINESS_EMAIL }: { contactEmail?: string }) {
   const pathname = usePathname();
   const showNewsletter = pathname !== '/';
 
@@ -560,7 +551,7 @@ export function SiteFooter() {
             Plants, teas and botanicals chosen with care, plus approachable education to help you grow
             with confidence.
           </p>
-          <a href="mailto:hello@thehillsidegardens.com">hello@thehillsidegardens.com</a>
+          <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
           {SOCIAL_LINKS.length > 0 && (
             <div className="footer-social">
               {SOCIAL_LINKS.map(({ label, href, Icon }) => (

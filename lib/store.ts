@@ -46,6 +46,21 @@ export function formatMoney(cents: number) {
 }
 
 /**
+ * Money for headlines rather than for totals: a round figure drops its cents, so
+ * an announcement bar reads "orders $75+" instead of "orders $75.00+". Anything
+ * that is not a whole dollar keeps both decimals.
+ */
+export function formatMoneyCompact(cents: number) {
+  const fractionDigits = cents % 100 === 0 ? 0 : 2;
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits
+  }).format(cents / 100);
+}
+
+/**
  * Navigation categories are merchandising groups, not database enums. A shopper
  * looking for "Botanicals" expects soaps, lotions and anything else handmade —
  * mapping each nav link to a single ProductType hid part of the catalog from the
@@ -83,6 +98,59 @@ export function discountPercent(priceCents: number, compareAtCents?: number | nu
 
 export function freeShippingThresholdCents() {
   return Math.max(0, Number(process.env.FREE_SHIPPING_THRESHOLD_CENTS || 7500));
+}
+
+/**
+ * The same threshold, readable from a client component. Only `NEXT_PUBLIC_*` is
+ * inlined into the browser bundle, so the announcement bar and the cart drawer's
+ * progress meter have to read this one. It is the value the shop *promises*;
+ * `freeShippingThresholdCents` is the one Stripe Checkout actually charges by.
+ */
+export function publicFreeShippingThresholdCents() {
+  return Math.max(0, Number(process.env.NEXT_PUBLIC_FREE_SHIPPING_THRESHOLD_CENTS || 7500));
+}
+
+/**
+ * Picks one of `options` from a stable key. Used to spread placeholder artwork
+ * so a shop row or a class list does not show the same photograph three times.
+ *
+ * Deterministic on purpose — a product that changed picture between renders
+ * would be worse than one that repeats. FNV-1a with a final avalanche step,
+ * because the obvious `hash * 31` variant leaves the low bits correlated and
+ * sent half of a realistic set of plant slugs to the same image.
+ */
+export function pickForKey<T>(options: readonly T[], key: string): T {
+  // An empty list is a mistake at the call site, not a case to paper over: the
+  // signature promises a T, and quietly handing back `undefined` would surface
+  // much later as a missing image with nothing pointing at the cause.
+  if (!options.length) throw new Error('pickForKey needs at least one option to choose from.');
+  if (options.length === 1) return options[0];
+
+  let hash = 0x811c9dc5;
+  for (let position = 0; position < key.length; position += 1) {
+    hash ^= key.charCodeAt(position);
+    hash = Math.imul(hash, 0x01000193);
+  }
+
+  // MurmurHash3 fmix32: without it the low bits barely move between keys.
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash ^= hash >>> 16;
+
+  return options[(hash >>> 0) % options.length];
+}
+
+export const DEFAULT_BUSINESS_EMAIL = 'hello@thehillsidegardens.com';
+
+/**
+ * The address customers are told to write to. Every page used to hardcode it,
+ * so changing inboxes meant hunting through the footer, the contact page, the
+ * privacy policy and a mailto in the classes empty state.
+ */
+export function businessEmail() {
+  return normalizeHillsideDomain(process.env.BUSINESS_EMAIL?.trim() || DEFAULT_BUSINESS_EMAIL);
 }
 
 export function productTypeLabel(type: string) {

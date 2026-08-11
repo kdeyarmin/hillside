@@ -39,7 +39,14 @@ export default async function CollectionsIndex() {
                     alt={collection.title}
                   />
                   <div>
-                    <span>{collection.tagline || `${collection._count.products} to browse`}</span>
+                    {/* A collection with nothing in it and no tagline used to
+                        advertise "0 to browse". */}
+                    <span>
+                      {collection.tagline ||
+                        (collection._count.products > 0
+                          ? `${collection._count.products} to browse`
+                          : 'Being restocked')}
+                    </span>
                     <h3>{collection.title}</h3>
                     <b>Shop collection →</b>
                   </div>

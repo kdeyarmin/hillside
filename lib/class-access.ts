@@ -100,9 +100,37 @@ export function classFormatLabel(format: ClassFormat | string) {
 }
 
 export function classLocationLabel(event: Pick<ClassEvent, 'format' | 'location'>) {
-  if (event.format === 'ONLINE') return 'Online through Telnyx Video';
-  if (event.format === 'HYBRID') return `${event.location} or online through Telnyx Video`;
+  if (event.format === 'ONLINE') return 'Online, live in your browser';
+  if (event.format === 'HYBRID') return `${event.location}, or online in your browser`;
   return event.location;
+}
+
+/**
+ * Class times are entered and stored against the server's clock, so the same
+ * zone formats them back. Naming that zone is the point: an unlabelled "6:00 PM"
+ * is a real question for anyone joining an online class from another state.
+ * Deployments should set `TZ` to the shop's timezone so this reads, say, "EDT"
+ * rather than "UTC".
+ */
+export function classDateLabel(startsAt: Date, options: { year?: boolean } = {}) {
+  return startsAt.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    ...(options.year === false ? {} : { year: 'numeric' })
+  });
+}
+
+export function classTimeLabel(startsAt: Date) {
+  return startsAt.toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short'
+  });
+}
+
+export function seatsRemainingLabel(seatsLeft: number) {
+  return `${seatsLeft} ${seatsLeft === 1 ? 'seat' : 'seats'} remaining`;
 }
 
 export function classJoinWindow(event: WindowEvent) {

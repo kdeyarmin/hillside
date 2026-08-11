@@ -12,7 +12,7 @@ import { Cormorant_Garamond, Manrope } from 'next/font/google';
 import Analytics from '@/components/Analytics';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
-import { absoluteUrl, normalizeHillsideDomain, siteBaseUrl } from '@/lib/store';
+import { absoluteUrl, businessEmail, siteBaseUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
 
 const hillsideSans = Manrope({
@@ -111,7 +111,7 @@ function businessJsonLd() {
     image: absoluteUrl('/og-image.jpg'),
     description: 'Plants, teas, botanicals and plant education.',
     founder: { '@type': 'Person', name: 'Tammy Hill' },
-    email: normalizeHillsideDomain(process.env.BUSINESS_EMAIL || 'hello@thehillsidegardens.com'),
+    email: businessEmail(),
     priceRange: '$$',
     ...(telephone ? { telephone } : {}),
     ...(hasAddress
@@ -153,7 +153,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <CartProvider>
           <SiteHeader />
           <main id="main-content">{children}</main>
-          <SiteFooter />
+          <SiteFooter contactEmail={businessEmail()} />
         </CartProvider>
         <Analytics />
       </body>

@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { rateLimited } from '@/lib/rate-limit';
-import { normalizeHillsideDomain } from '@/lib/store';
+import { businessEmail as hillsideBusinessEmail } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -57,9 +57,7 @@ export async function POST(request: Request) {
       }
     });
 
-    const businessEmail = normalizeHillsideDomain(
-      process.env.BUSINESS_EMAIL || 'hello@thehillsidegardens.com'
-    );
+    const businessEmail = hillsideBusinessEmail();
     await sendEmail({
       to: businessEmail,
       subject: `New review awaiting approval: ${product.name}`,

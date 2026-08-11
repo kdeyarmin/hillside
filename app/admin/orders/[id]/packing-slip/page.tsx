@@ -19,7 +19,7 @@ export default async function PackingSlip({ params }: { params: Promise<{ id: st
       <article className="print-document">
         <header className="print-header">
           <img src="/logo.png" alt="The Hillside Gardens" />
-          <div style={{ textAlign: 'right' }}><h1 style={{ margin: 0, color: 'var(--forest)', font: '500 38px Georgia,serif' }}>Packing slip</h1><b>{order.invoiceNumber}</b><br /><span>{order.createdAt.toLocaleDateString('en-US', { dateStyle: 'long' })}</span></div>
+          <div style={{ textAlign: 'right' }}><h1 className="print-document-title">Packing slip</h1><b>{order.invoiceNumber}</b><br /><span>{order.createdAt.toLocaleDateString('en-US', { dateStyle: 'long' })}</span></div>
         </header>
         <div className="print-columns">
           <div><div className="eyebrow">Ship to</div><b>{order.customerName}</b><br />{order.address1}{order.address2 && <><br />{order.address2}</>}<br />{order.city}, {order.state} {order.postalCode}<br />{order.country}<br /><br />{order.email}{order.phone && <><br />{order.phone}</>}</div>

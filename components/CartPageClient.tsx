@@ -87,7 +87,10 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
               />
             </Link>
             <div>
-              <h2 style={{ margin: '0 0 5px', color: 'var(--forest)', font: '500 25px Georgia,serif' }}>
+              {/* Styled by class, not by an inline `font` shorthand: inline styles
+                  outrank the stylesheet, so hardcoding Georgia here opted the cart
+                  out of the brand display face every other heading uses. */}
+              <h2 className="cart-page-line-title">
                 <Link href={`/shop/${item.slug}`}>{item.name}</Link>
               </h2>
               <p className="muted" style={{ marginTop: 0 }}>{formatMoney(item.priceCents)} each</p>

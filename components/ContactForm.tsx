@@ -77,7 +77,14 @@ export default function ContactForm() {
           />
         </div>
       </div>
-      <input className="honeypot" name="website" type="text" tabIndex={-1} autoComplete="off" />
+      <input
+        className="honeypot"
+        name="website"
+        type="text"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+      />
       <button className="btn" type="submit" disabled={status === 'loading'}>
         <Send size={17} /> {status === 'loading' ? 'Sending…' : 'Send message'}
       </button>

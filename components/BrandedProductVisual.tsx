@@ -5,7 +5,7 @@ import BrandMockupScene, {
   type HillsideCatalogImage
 } from '@/components/BrandMockupScene';
 import ResilientImage from '@/components/ResilientImage';
-import { FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
+import { FALLBACK_PRODUCT_IMAGE, pickForKey } from '@/lib/store';
 
 type BrandedProductVisualProps = {
   slug: string;
@@ -41,21 +41,34 @@ const artworkKeywords: Array<[HillsideCatalogImage, string[]]> = [
   ['apothecary', ['tea', 'tisane', 'herbal', 'blend', 'lotion', 'salve', 'balm', 'tincture', 'essential oil']]
 ];
 
-const artworkForType: Record<string, HillsideCatalogImage> = {
-  PLANT: 'house-plants',
-  TEA: 'apothecary',
-  TEA_SUPPLY: 'apothecary',
-  SOAP: 'homemade-soaps',
-  LOTION: 'apothecary',
-  OTHER: 'terrarium-supplies'
+/**
+ * Each type gets a shortlist rather than a single image. Mapping a type to one
+ * photograph meant a shop row of three unphotographed plants showed the identical
+ * picture three times, which reads as a broken page rather than a catalogue.
+ *
+ * Only types whose alternates are all honest are spread. There is no tea
+ * photograph in the set, so teas and lotions keep the one image that does not
+ * misrepresent them and are left to real product photography to fix.
+ */
+const artworkForType: Record<string, HillsideCatalogImage[]> = {
+  PLANT: ['house-plants', 'live-plant-planters', 'succulents', 'air-plants'],
+  TEA: ['apothecary'],
+  TEA_SUPPLY: ['apothecary'],
+  SOAP: ['homemade-soaps'],
+  LOTION: ['apothecary'],
+  OTHER: ['terrarium-supplies', 'driftwood', 'moss']
 };
 
 function catalogImageForProduct(slug: string, name: string, type: string): HillsideCatalogImage {
   const haystack = `${name} ${slug}`.toLowerCase();
+  // A keyword match is a statement about what the product actually is, so it
+  // always beats the spread-by-type fallback below.
   const matched = artworkKeywords.find(([, keywords]) =>
     keywords.some((keyword) => haystack.includes(keyword))
   );
-  return matched?.[0] || artworkForType[type] || artworkForType.OTHER;
+  if (matched) return matched[0];
+
+  return pickForKey(artworkForType[type] || artworkForType.OTHER, slug);
 }
 
 function isStarterOrPlaceholderImage(imageUrl?: string | null) {

@@ -39,6 +39,35 @@ Thirteen images. Filenames matter — the component resolves artwork by path.
 - Consistent light, palette and depth of field across all thirteen — they appear side by side in a
   grid, so a single mismatched shot is obvious.
 
+## Shoot it, then run one command
+
+`scripts/brand-image.mjs` does the crop, the grade and the export, so a new photograph matches
+the existing set without anyone opening an image editor or guessing at settings:
+
+```bash
+# A photograph straight off the camera or phone becomes a catalog image
+npm run images:brand -- --in ~/shots/tea.jpg --out tea
+
+# The subject sits left of centre and a bit high, so name the point to keep
+npm run images:brand -- --in ~/shots/tea.jpg --out tea --focus 0.38,0.44
+
+# Replace an existing image, or write a scene rather than a catalog image
+npm run images:brand -- --in ~/shots/bench.jpg --out potting-bench --dir scenes --force
+
+# Check the whole set still hangs together
+npm run images:measure
+```
+
+The script crops 4:3 around the focal point, resizes to 1600 × 1200, applies the shared grade and
+exports WebP, stepping the quality down until the file is under 400 KB. It **refuses a source
+smaller than 1600 × 1200** rather than upscaling it, because an upscaled frame beside twelve native
+ones is exactly the mismatch this grid exposes.
+
+The grade is not invented — it is measured from the thirteen images already shipping: mean RGB
+143.0/141.8/121.2, a warm bias of about +22 red over blue, and mean saturation 0.134. `--measure`
+prints those figures for any directory so a new image can be checked against them, and `--grade 0`
+exports the straight photograph when a shot already has the look.
+
 ## Composition — the safe area
 
 These images are cropped hard by `object-fit: cover` at several different aspect ratios. The numbers

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, X, ZoomIn } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
+import { trapTabKey } from '@/lib/focus-trap';
 
 type GalleryItem = {
   id: string;
@@ -18,6 +19,7 @@ type GalleryItem = {
 export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
   const [selected, setSelected] = useState<GalleryItem | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -29,9 +31,17 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
     const timer = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      setSelected(null);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setSelected(null);
+        return;
+      }
+
+      // Without this, Tab walked straight out of the lightbox and into the page
+      // behind it, which is still scroll-locked and visually covered. The cart
+      // drawer already traps focus; this dialog needs the same.
+      if (event.key !== 'Tab') return;
+      if (trapTabKey(event, dialogRef.current, closeButtonRef.current)) event.preventDefault();
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -96,6 +106,7 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
           />
           <div
             className="gallery-dialog"
+            ref={dialogRef}
             role="dialog"
             aria-modal="true"
             aria-labelledby="gallery-dialog-title"

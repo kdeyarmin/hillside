@@ -1,6 +1,7 @@
 'use client';
 
 import ResilientImage from '@/components/ResilientImage';
+import { pickForKey } from '@/lib/store';
 
 export type BrandMockupVariant =
   | 'hero'
@@ -39,6 +40,12 @@ type BrandMockupSceneProps = {
    */
   imageSrc?: string | null;
   /**
+   * A stable value — a class id, say — used to spread repeated placements across
+   * the alternates for their variant. Without it, a page listing three classes
+   * that have no photograph yet showed the same workshop scene three times.
+   */
+  seed?: string;
+  /**
    * Overlays the Hillside mark. Off by default: repeated on every tile it read as
    * stock-photo watermarking and competed with the header logo. Reserved for the
    * hero and the occasional storytelling scene.
@@ -52,19 +59,19 @@ type BrandArtwork = { src: string; alt: string };
 const catalogArtwork: Record<HillsideCatalogImage, BrandArtwork> = {
   'house-plants': {
     src: '/images/catalog/house-plants.webp',
-    alt: 'Potted green house plants in white ceramic pots lined up on a pale sideboard'
+    alt: 'Potted green house plants in pale ceramic pots lined up along a light wood sideboard'
   },
   'carnivorous-plants': {
     src: '/images/catalog/carnivorous-plants.webp',
-    alt: 'A Venus flytrap in a pale pot, traps open and rimmed with red'
+    alt: 'A Venus flytrap in a white ceramic bowl of dark peat, its traps open'
   },
   'live-plant-planters': {
     src: '/images/catalog/live-plant-planters.webp',
-    alt: 'Potted plants arranged along wooden shelving beside a window'
+    alt: 'Potted plants in terracotta and stoneware arranged along two wooden shelves'
   },
   'homemade-soaps': {
     src: '/images/catalog/homemade-soaps.webp',
-    alt: 'Handmade soap bars lined up on a wooden board with dried lavender'
+    alt: 'Handmade soap bars in kraft paper bands stacked on a wooden board with dried lavender'
   },
   moss: {
     src: '/images/catalog/moss.webp',
@@ -118,6 +125,20 @@ const variantArtwork: Record<BrandMockupVariant, BrandArtwork> = {
   picks: catalogArtwork['air-plants']
 };
 
+/**
+ * Alternates for the variants that get placed several times on one page. Only
+ * scenes that genuinely depict the same activity are listed, so a class card can
+ * never advertise something the class is not.
+ */
+const variantAlternates: Partial<Record<BrandMockupVariant, BrandArtwork[]>> = {
+  class: [
+    variantArtwork.class,
+    catalogArtwork['live-plant-planters'],
+    catalogArtwork['terrarium-supplies'],
+    catalogArtwork['house-plants']
+  ]
+};
+
 function isOwnerProvidedPhoto(source?: string | null) {
   if (!source?.trim()) return false;
 
@@ -140,9 +161,15 @@ export default function BrandMockupScene({
   alt,
   catalogImage,
   imageSrc,
+  seed,
   badge = false
 }: BrandMockupSceneProps) {
-  const artwork = catalogImage ? catalogArtwork[catalogImage] : variantArtwork[variant];
+  const alternates = seed ? variantAlternates[variant] : undefined;
+  const artwork = catalogImage
+    ? catalogArtwork[catalogImage]
+    : alternates
+      ? pickForKey(alternates, seed as string)
+      : variantArtwork[variant];
   const ownerProvided = isOwnerProvidedPhoto(backgroundSrc);
   const resolvedSrc = imageSrc?.trim() || (ownerProvided ? backgroundSrc! : artwork.src);
   const imageAlt = alt || artwork.alt;

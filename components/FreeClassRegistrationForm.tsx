@@ -24,7 +24,11 @@ export default function FreeClassRegistrationForm({
     setError('');
     setMessage('');
 
-    const form = new FormData(event.currentTarget);
+    // React nulls `event.currentTarget` once the handler returns, and this one
+    // awaits — so the element has to be captured before the fetch or the reset
+    // below throws and a successful registration lands in the catch.
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     try {
       const response = await fetch('/api/classes/register', {
         method: 'POST',
@@ -42,7 +46,7 @@ export default function FreeClassRegistrationForm({
       if (!response.ok) throw new Error(result.error || 'Unable to register.');
       setComplete(true);
       setMessage(result.message || 'Your registration is confirmed.');
-      event.currentTarget.reset();
+      formElement.reset();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to register.');
     } finally {
@@ -96,10 +100,17 @@ export default function FreeClassRegistrationForm({
           </select>
         </label>
       </div>
-      <label className="honeypot" aria-hidden="true">
-        Website
-        <input name="website" tabIndex={-1} autoComplete="off" />
-      </label>
+      {/* The offscreen class belongs on the input itself. On the wrapping label
+          it left a real 8×33 field in the layout, which is what the responsive
+          audit flags as an undersized control on every phone and tablet. */}
+      <input
+        className="honeypot"
+        name="website"
+        type="text"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+      />
       {error && <p className="form-status error" role="alert">{error}</p>}
       <button className="btn" type="submit" disabled={submitting}>
         <Mail size={17} /> {submitting ? 'Registering…' : 'Register and email my details'}

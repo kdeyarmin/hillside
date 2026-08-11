@@ -1,18 +1,26 @@
 import Link from 'next/link';
-import { ArrowRight, Heart, Leaf, Package, Sparkles, Sprout } from 'lucide-react';
+import { ArrowRight, BookOpen, Leaf, Package, Sparkles, Sprout, Truck } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import NewsletterForm from '@/components/NewsletterForm';
 import ProductGrid from '@/components/ProductGrid';
-import { classFormatLabel, classLocationLabel, isOnlineClass } from '@/lib/class-access';
+import {
+  classDateLabel,
+  classFormatLabel,
+  classLocationLabel,
+  classTimeLabel,
+  isOnlineClass,
+  seatsRemainingLabel
+} from '@/lib/class-access';
 import { seatsRemaining } from '@/lib/class-seats';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
-import { formatMoney } from '@/lib/store';
+import { formatMoney, formatMoneyCompact, freeShippingThresholdCents } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-  const [featuredProducts, upcomingClasses, collections] = await Promise.all([
+  const freeShippingThreshold = freeShippingThresholdCents();
+  const [featuredProducts, upcomingClasses, collections, careGuideCount] = await Promise.all([
     db.product.findMany({
       where: { active: true, featured: true },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -29,7 +37,8 @@ export default async function Home() {
       where: { active: true, featured: true, products: { some: { active: true } } },
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
       include: { _count: { select: { products: { where: { active: true } } } } }
-    })
+    }),
+    db.careSheet.count({ where: { published: true } })
   ]);
 
   const ratings = await ratingsByProduct(featuredProducts.map((product) => product.id));
@@ -77,33 +86,36 @@ export default async function Home() {
         <BrandMockupScene variant="hero" className="editorial-hero-image" badge />
       </section>
 
+      {/* Four promises a shopper can actually check, rather than four ways of
+          saying "we care" — the free-shipping figure tracks the configured
+          threshold so the homepage cannot contradict the cart. */}
       <section className="trust-strip" aria-label="Why shop The Hillside Gardens">
         <div>
-          <Leaf />
+          <Truck />
           <span>
-            <b>Natural & thoughtful</b>
-            <small>Plants and goods chosen with care.</small>
-          </span>
-        </div>
-        <div>
-          <Sparkles />
-          <span>
-            <b>Premium quality</b>
-            <small>Small batches and considered details.</small>
+            <b>{freeShippingThreshold > 0 ? `Free shipping over ${formatMoneyCompact(freeShippingThreshold)}` : 'Packed by hand'}</b>
+            <small>Flat-rate standard shipping on everything else.</small>
           </span>
         </div>
         <div>
           <Package />
           <span>
-            <b>Careful fulfillment</b>
-            <small>Secure packaging and order tracking.</small>
+            <b>Packed to arrive well</b>
+            <small>Plants secured for transit and held back in unsafe weather.</small>
           </span>
         </div>
         <div>
-          <Heart />
+          <BookOpen />
           <span>
-            <b>Made with care</b>
-            <small>Small business, big plant passion.</small>
+            <b>Free care guides</b>
+            <small>{careGuideCount > 0 ? `${careGuideCount} plant and problem guides` : 'Watering, light and troubleshooting'}, written for real homes.</small>
+          </span>
+        </div>
+        <div>
+          <Sparkles />
+          <span>
+            <b>Potted and made here</b>
+            <small>Small batches, arranged by Tammy on the Hillside bench.</small>
           </span>
         </div>
       </section>
@@ -201,8 +213,8 @@ export default async function Home() {
               <div className="eyebrow">Learn with us</div>
               <h2>Make something beautiful, in person or online.</h2>
               <p>
-                Relaxed, practical plant classes offered at The Hillside Gardens and through secure
-                Telnyx Video rooms.
+                Relaxed, practical plant classes at The Hillside Gardens, or live online in a
+                private classroom you join straight from your browser.
               </p>
             </div>
             <div className={`grid auto${upcomingClasses.length === 1 ? ' single' : ''}`}>
@@ -215,6 +227,7 @@ export default async function Home() {
                     <BrandMockupScene
                       variant="class"
                       backgroundSrc={event.imageUrl || undefined}
+                      seed={event.id}
                       alt={`${event.title} at The Hillside Gardens`}
                       badge={false}
                     />
@@ -223,23 +236,14 @@ export default async function Home() {
                       <h3>{event.title}</h3>
                       <p>{event.description}</p>
                       <p>
-                        <b>
-                          {event.startsAt.toLocaleDateString('en-US', {
-                            weekday: 'long',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
-                        </b>{' '}
-                        ·{' '}
-                        {event.startsAt.toLocaleTimeString('en-US', {
-                          hour: 'numeric',
-                          minute: '2-digit'
-                        })}
+                        <b>{classDateLabel(event.startsAt, { year: false })}</b> ·{' '}
+                        {classTimeLabel(event.startsAt)}
                       </p>
                       <p>{classLocationLabel(event)}</p>
                       {online && <p><b>Private classroom link emailed after registration.</b></p>}
                       <p>
-                        {seatsLeft} seats remaining · {event.priceCents > 0 ? `${formatMoney(event.priceCents)} per person` : 'Free'}
+                        {seatsRemainingLabel(seatsLeft)} ·{' '}
+                        {event.priceCents > 0 ? `${formatMoney(event.priceCents)} per person` : 'Free'}
                       </p>
                       <Link className="btn editorial-btn" href="/classes">
                         View class
