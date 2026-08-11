@@ -23,39 +23,37 @@ export const SHOTS = [
     base: 'assets/photography/apothecary.webp',
     out: 'public/images/catalog/apothecary.webp',
     labels: [
+      // Both bottles were generated carrying blank cream labels, so there is no
+      // paper to add — only ink to print on paper that is already in the
+      // photograph. That is what `stamp` does: it composites the mark alone, in
+      // multiply, so the label's own curvature, highlight and shadow read
+      // straight through it. Laying a fresh plate over a label that already
+      // exists would double the paper and show a seam.
       {
-        // Foreground bottle: cap at ~(540,745), base at ~(1240,960), so the body
-        // axis runs 17 degrees below horizontal and its centre sits at ~(950,875).
-        name: 'front bottle',
-        x: 972,
-        y: 882,
-        width: 268,
-        height: 172,
-        angle: 17,
-        radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.8,
-        curve: 0.14,
-        strength: 0.5,
-        blur: 12
+        // Upright bottle. Label runs x 372-660, y 466-838 on the glass.
+        name: 'upright bottle',
+        x: 516,
+        y: 648,
+        width: 288,
+        height: 372,
+        angle: 0,
+        badge: true,
+        logoScale: 0.78,
+        stamp: true
       },
       {
-        // Rear bottle: shoulder ~(1130,330) to base ~(1390,640) — much steeper,
-        // and small enough in frame that the tagline line would not resolve, so
-        // it takes the badge lockup instead.
-        name: 'rear bottle',
-        x: 1322,
-        y: 474,
-        width: 168,
-        height: 116,
-        angle: 40,
-        radius: 7,
-        paper: '#f1eade',
-        logoScale: 0.8,
+        // The bottle on its side. Its label is sheared by the roll of the glass
+        // — the top edge runs 12 degrees below horizontal while the left edge
+        // leans the other way — so it takes three corners rather than an angle.
+        name: 'lying bottle',
+        quad: {
+          topLeft: [978, 572],
+          topRight: [1318, 648],
+          bottomLeft: [912, 792]
+        },
         badge: true,
-        curve: 0.16,
-        strength: 0.5,
-        blur: 9
+        logoScale: 0.8,
+        stamp: true
       }
     ]
   },
@@ -64,29 +62,30 @@ export const SHOTS = [
     base: 'assets/photography/homemade-soaps.webp',
     out: 'public/images/catalog/homemade-soaps.webp',
     labels: [
+      // The kraft bands wrap the bars and are photographed on their left faces,
+      // which recede from camera — the band's top edge climbs to the right while
+      // its sides stay vertical. A rotation cannot express that, so both take
+      // three corners.
       {
-        // Kraft face of the third bar, the largest clear run of paper between
-        // its top edge and the twine. Stamped, not labelled.
-        name: 'third bar',
-        x: 878,
-        y: 452,
-        width: 208,
-        height: 162,
-        angle: 24,
+        name: 'second bar',
+        quad: {
+          topLeft: [472, 428],
+          topRight: [668, 392],
+          bottomLeft: [472, 596]
+        },
         badge: true,
-        logoScale: 0.92,
+        logoScale: 0.86,
         stamp: true
       },
       {
-        // Front-left bar, flatter to camera and smaller in frame.
-        name: 'left bar',
-        x: 178,
-        y: 533,
-        width: 178,
-        height: 100,
-        angle: 12,
+        name: 'bottom bar',
+        quad: {
+          topLeft: [472, 786],
+          topRight: [668, 754],
+          bottomLeft: [472, 944]
+        },
         badge: true,
-        logoScale: 0.92,
+        logoScale: 0.86,
         stamp: true
       }
     ]
@@ -97,23 +96,26 @@ export const SHOTS = [
     out: 'public/images/scenes/potting-bench.webp',
     labels: [
       {
-        // The kraft tag on the ball of twine. It shipped carrying another
-        // company's branding, legible at full size on the About page. The band
-        // wraps a cylinder, so it is placed by its corners rather than rotated:
-        // the top edge is 24 degrees off horizontal, the sides only 4 off
-        // vertical. The bottom runs out of frame and is clipped.
+        // Tied to the ball of jute twine and leaning against it on the bench
+        // boards. The frame this replaced carried another company's twine label
+        // — "Juteschnur 225g, Great British Garden Company" — legible at full
+        // size on the About page. Generating the bench removed the label and the
+        // company along with it; the tag is now ours because everything is.
         name: 'twine tag',
-        quad: {
-          topLeft: [1230, 936],
-          topRight: [1419, 957],
-          bottomLeft: [1256, 1216]
-        },
-        paper: '#d7caac',
-        radius: 0,
-        logoScale: 0.44,
+        x: 700,
+        y: 665,
+        width: 200,
+        height: 138,
+        angle: -6,
+        radius: 10,
+        paper: '#f2ebdd',
+        logoScale: 0.84,
         badge: true,
-        strength: 0.66,
-        blur: 7
+        shape: 'tag',
+        tie: { to: [745, 545], width: 4 },
+        strength: 0.5,
+        blur: 13,
+        shadow: { offset: 7, blur: 8, opacity: 0.45 }
       }
     ]
   },
@@ -123,13 +125,15 @@ export const SHOTS = [
     out: 'public/images/catalog/carnivorous-plants.webp',
     labels: [
       {
-        // A nursery tag resting on the soil, upper-left where the bed is clear.
+        // A nursery tag resting on the peat, lower-left below the traps where
+        // the bed is clear. Dark soil under cream paper is the strongest
+        // contrast in the frame.
         name: 'soil tag',
-        x: 330,
-        y: 180,
-        width: 300,
-        height: 200,
-        angle: -11,
+        x: 272,
+        y: 828,
+        width: 210,
+        height: 144,
+        angle: -14,
         radius: 9,
         paper: '#f2ebdd',
         logoScale: 0.84,
@@ -147,25 +151,28 @@ export const SHOTS = [
     out: 'public/images/catalog/air-plants.webp',
     labels: [
       {
-        // The globe hangs against a seamless white sweep — there is no surface
-        // in the frame and no visible cord to tie to, so the glass itself is the
-        // only honest object. Treated like the jar and the terrarium: a label
-        // adhered to the vessel, curved to the sphere.
-        name: 'globe label',
-        x: 420,
-        y: 870,
-        width: 210,
+        // The frame this replaced had a globe with no visible means of support,
+        // so its mark had to be a label stuck on the glass. This one is
+        // generated hanging from a wire through a glass loop, which is what a
+        // shop actually sells — so the tag ties to the loop and hangs in front
+        // of the globe, the way it would on the shelf.
+        name: 'hanging tag',
+        x: 786,
+        y: 376,
+        width: 190,
         height: 128,
-        angle: -3,
-        radius: 8,
+        angle: 5,
+        radius: 9,
         paper: '#f2ebdd',
-        logoScale: 0.82,
+        logoScale: 0.84,
         badge: true,
-        shape: 'plate',
-        curve: 0.2,
-        strength: 0.52,
+        shape: 'tag',
+        tie: { to: [788, 215], width: 4 },
+        strength: 0.5,
         blur: 10,
-        shadow: { offset: 4, blur: 6, opacity: 0.3 }
+        // The background here is a pale seamless sweep, so the shadow is doing
+        // most of the work of separating cream paper from cream wall.
+        shadow: { offset: 8, blur: 9, opacity: 0.42 }
       }
     ]
   },
@@ -175,21 +182,23 @@ export const SHOTS = [
     out: 'public/images/catalog/driftwood.webp',
     labels: [
       {
-        // Lying across the driftwood in the lower left.
+        // Lying across the long lower log. Bleached wood and pale shingle make
+        // this the lowest-contrast frame in the set, so the shadow is carrying
+        // the separation rather than the tone difference.
         name: 'brand tag',
-        x: 340,
-        y: 1030,
-        width: 220,
-        height: 150,
-        angle: 5,
+        x: 600,
+        y: 950,
+        width: 200,
+        height: 138,
+        angle: -3,
         radius: 10,
         paper: '#f2ebdd',
         logoScale: 0.84,
         badge: true,
         shape: 'tag',
         strength: 0.5,
-        blur: 15,
-        shadow: { offset: 7, blur: 8, opacity: 0.48 }
+        blur: 13,
+        shadow: { offset: 9, blur: 10, opacity: 0.55 }
       }
     ]
   },
@@ -199,21 +208,24 @@ export const SHOTS = [
     out: 'public/images/catalog/house-plants.webp',
     labels: [
       {
-        // Standing on the sideboard in the gap between two pots.
-        name: 'brand tag',
-        x: 870,
-        y: 878,
-        width: 130,
-        height: 180,
-        angle: -3,
-        radius: 10,
+        // On the second pot. The pots are a mid grey-beige, which is the only
+        // thing in the frame darker than the paper — the wall and the sideboard
+        // are both lighter than cream.
+        name: 'pot label',
+        x: 555,
+        y: 855,
+        width: 152,
+        height: 92,
+        angle: 0,
+        radius: 6,
         paper: '#f2ebdd',
-        logoScale: 0.84,
+        logoScale: 0.82,
         badge: true,
-        shape: 'tag',
-        strength: 0.5,
-        blur: 15,
-        shadow: { offset: 7, blur: 8, opacity: 0.48 }
+        shape: 'plate',
+        curve: 0.2,
+        strength: 0.6,
+        blur: 8,
+        shadow: { offset: 3, blur: 5, opacity: 0.3 }
       }
     ]
   },
@@ -223,21 +235,31 @@ export const SHOTS = [
     out: 'public/images/catalog/live-plant-planters.webp',
     labels: [
       {
-        // On the shelf above the display.
-        name: 'brand tag',
-        x: 1240,
-        y: 150,
-        width: 200,
-        height: 140,
-        angle: -5,
-        radius: 10,
+        // A stake card pushed into the soil of the lower-left pot, standing
+        // against its leaves.
+        //
+        // The first version of this frame had wooden shelves and terracotta
+        // pots, which gave a label superb contrast and made the image the
+        // warmest thing in the set by a wide margin (50.2 against a set average
+        // of 26.9). Cooling the scene fixed the colour and removed every surface
+        // a cream label could read against — the pots, the shelves and the wall
+        // are now all lighter than the paper. The dark foliage is the only thing
+        // left that is darker, so the mark stands in front of it instead of
+        // lying on a pot.
+        name: 'soil stake',
+        x: 200,
+        y: 860,
+        width: 152,
+        height: 150,
+        angle: -3,
+        radius: 6,
         paper: '#f2ebdd',
-        logoScale: 0.84,
+        logoScale: 0.86,
         badge: true,
-        shape: 'tag',
-        strength: 0.5,
-        blur: 15,
-        shadow: { offset: 7, blur: 8, opacity: 0.48 }
+        shape: 'stake',
+        strength: 0.55,
+        blur: 10,
+        shadow: { offset: 5, blur: 7, opacity: 0.4 }
       }
     ]
   },
@@ -251,11 +273,11 @@ export const SHOTS = [
         // The top of the frame is out-of-focus background, so a tag up there had
         // nothing under it; this band of stone is the one surface in focus.
         name: 'stone tag',
-        x: 390,
-        y: 770,
-        width: 250,
-        height: 170,
-        angle: 12,
+        x: 640,
+        y: 960,
+        width: 215,
+        height: 148,
+        angle: 8,
         radius: 10,
         paper: '#f2ebdd',
         logoScale: 0.84,
@@ -275,13 +297,14 @@ export const SHOTS = [
     out: 'public/images/catalog/succulents.webp',
     labels: [
       {
-        // Lying on the surface beside the pots, shot from above.
+        // Lying on the surface in the gap the grid leaves at centre right,
+        // shot from above with the pots.
         name: 'brand tag',
-        x: 1330,
-        y: 1000,
-        width: 240,
-        height: 165,
-        angle: 10,
+        x: 1010,
+        y: 620,
+        width: 210,
+        height: 145,
+        angle: -16,
         radius: 10,
         paper: '#f2ebdd',
         logoScale: 0.84,
@@ -299,21 +322,24 @@ export const SHOTS = [
     out: 'public/images/catalog/terrarium-supplies.webp',
     labels: [
       {
-        // A label on the glass of the terrarium bowl.
-        name: 'brand plate',
-        x: 300,
-        y: 260,
-        width: 300,
-        height: 200,
-        angle: -2,
-        radius: 12,
+        // On the glass, low and left, where the gravel and the big pebble sit
+        // behind it. Higher up the bowl the background is the pale wall and
+        // cream paper has nothing to read against.
+        name: 'bowl label',
+        x: 395,
+        y: 720,
+        width: 180,
+        height: 106,
+        angle: 0,
+        radius: 7,
         paper: '#f2ebdd',
-        logoScale: 0.84,
+        logoScale: 0.82,
         badge: true,
         shape: 'plate',
-        strength: 0.5,
-        blur: 15,
-        shadow: { offset: 4, blur: 6, opacity: 0.32 }
+        curve: 0.26,
+        strength: 0.58,
+        blur: 9,
+        shadow: { offset: 4, blur: 6, opacity: 0.3 }
       }
     ]
   },
@@ -323,25 +349,29 @@ export const SHOTS = [
     out: 'public/images/scenes/hillside-hero.webp',
     labels: [
       {
-        // Hung from the eaves plate at (250,668) on the left-hand run, so it
-        // falls into the dark blurred aisle behind the benches. Cream paper
-        // against that shade is the most legible the mark gets in this frame,
-        // and it is the shot the homepage leads with.
+        // Hung from the front edge of the left-hand bench at (300,850), so it
+        // falls into the shade under the bench — the darkest ground in the
+        // frame, and the most legible the mark gets here.
+        //
+        // It stays on the left on purpose: the homepage renders this variant
+        // with `badge`, and `.editorial-hero-image .brand-photo-badge` pins that
+        // overlay to the bottom right. A mark composited there would collide
+        // with it.
         name: 'hanging tag',
-        x: 254,
-        y: 818,
-        width: 230,
-        height: 155,
-        angle: -4,
+        x: 304,
+        y: 960,
+        width: 185,
+        height: 125,
+        angle: -5,
         radius: 10,
         paper: '#f2ebdd',
         logoScale: 0.84,
         badge: true,
         shape: 'tag',
-        tie: { to: [250, 668], width: 4 },
+        tie: { to: [300, 850], width: 4 },
         strength: 0.5,
-        blur: 14,
-        shadow: { offset: 7, blur: 8, opacity: 0.45 }
+        blur: 13,
+        shadow: { offset: 6, blur: 8, opacity: 0.45 }
       }
     ]
   },
@@ -351,21 +381,24 @@ export const SHOTS = [
     out: 'public/images/scenes/workshop-table.webp',
     labels: [
       {
-        // A label on the clear upper panel of the jar.
-        name: 'brand plate',
-        x: 700,
-        y: 390,
-        width: 340,
-        height: 230,
-        angle: -1,
-        radius: 12,
+        // On the clear glass above the moss line. Everything below y≈540 inside
+        // the jar is planting, so this is the only run of glass a label can
+        // read against.
+        name: 'jar label',
+        x: 800,
+        y: 395,
+        width: 195,
+        height: 116,
+        angle: 0,
+        radius: 7,
         paper: '#f2ebdd',
-        logoScale: 0.84,
+        logoScale: 0.82,
         badge: true,
         shape: 'plate',
-        strength: 0.5,
-        blur: 15,
-        shadow: { offset: 4, blur: 6, opacity: 0.32 }
+        curve: 0.22,
+        strength: 0.58,
+        blur: 9,
+        shadow: { offset: 4, blur: 6, opacity: 0.3 }
       }
     ]
   },

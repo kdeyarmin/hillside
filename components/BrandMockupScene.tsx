@@ -59,19 +59,19 @@ type BrandArtwork = { src: string; alt: string };
 const catalogArtwork: Record<HillsideCatalogImage, BrandArtwork> = {
   'house-plants': {
     src: '/images/catalog/house-plants.webp',
-    alt: 'Potted green house plants in white ceramic pots lined up on a pale sideboard'
+    alt: 'Potted green house plants in pale ceramic pots lined up along a light wood sideboard'
   },
   'carnivorous-plants': {
     src: '/images/catalog/carnivorous-plants.webp',
-    alt: 'A Venus flytrap in a pale pot, traps open and rimmed with red'
+    alt: 'A Venus flytrap in a white ceramic bowl of dark peat, its traps open'
   },
   'live-plant-planters': {
     src: '/images/catalog/live-plant-planters.webp',
-    alt: 'Potted plants arranged along wooden shelving beside a window'
+    alt: 'Potted plants in terracotta and stoneware arranged along two wooden shelves'
   },
   'homemade-soaps': {
     src: '/images/catalog/homemade-soaps.webp',
-    alt: 'Handmade soap bars lined up on a wooden board with dried lavender'
+    alt: 'Handmade soap bars in kraft paper bands stacked on a wooden board with dried lavender'
   },
   moss: {
     src: '/images/catalog/moss.webp',
