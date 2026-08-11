@@ -16,9 +16,13 @@ That process is now `scripts/brand-image.mjs`, so replacing or adding an image i
 rather than a manual edit that has to be matched by eye:
 
 ```bash
-npm run images:brand -- --in <file-or-url> --out <name> [--dir catalog|scenes|gallery]
+npm run images:brand -- --in <file-or-url> --out <name> [--dir catalog|scenes|gallery|assets]
 npm run images:measure     # warmth, saturation, brightness and size across the set
 ```
+
+The spec itself — the crop, the grade, the size budget — lives in `scripts/lib/photo.mjs`, shared
+with the generator below so both produce identically graded files. Two copies of a colour grade is
+how a set stops matching.
 
 Whatever the source, add it to the tables below with its licence before committing.
 
@@ -126,6 +130,49 @@ The unbranded originals live in `assets/photography/`, outside `public/` so they
 Every run reads from there and rewrites the file in `public/images/catalog/`, so the step is
 idempotent — the mark can never be composited onto an already-branded image. Placement geometry is
 recorded in `scripts/brand-mockup.config.mjs` rather than re-measured by hand.
+
+## Generating a photograph — `scripts/generate-image.mjs`
+
+Licensed stock solves "a photograph exists" and not "it is a photograph of the right thing". The
+gallery is where that bites: `patio-containers.webp` is captioned *Patio color story* and shows a
+shop's indoor shelving, because no frame in the licensed set is a patio. Generating one closes the
+gap from the other end — make the photograph, then brand it.
+
+```bash
+npm run images:generate -- --prompt "A cedar patio planter on a stone terrace" --out patio --count 4
+```
+
+Output lands in `assets/photography/`, which is where `brand-mockup.config.mjs` reads from, so a
+generated frame joins the same two-step flow as every other image: generate, add a `SHOTS` entry,
+run the mockup. `--count` writes numbered candidates so you can pick one; picking is most of the
+work, so generating four and discarding three is the expected way to use it.
+
+**Credentials.** `GEMINI_API_KEY` or `OPENAI_API_KEY`, read from the environment at run time. They
+are build-time tooling — the running app never reads them. The key is handed to curl through a
+private config file rather than on the command line, because anything in argv is readable from the
+process table.
+
+**Prefer Gemini.** Imagen returns 2K at 4:3, comfortably over the 1600×1200 spec. `gpt-image-1`
+tops out at 1536×1024, which is *under* spec once cropped to 4:3, so it needs `--allow-upscale`
+and produces a softer frame than the rest of the set. The script says so rather than quietly
+upscaling.
+
+**Every prompt gets a house style appended** (override with `--style`, disable with `--no-style`).
+It aims at the look the grade was measured from, and it forbids lettering — the mark is composited
+afterwards from the real logo artwork, and a model asked for a plant shop will invent signage and
+packaging text, which is both wrong and a good way to accidentally reproduce somebody's trademark.
+No people, for the same reason in a different register.
+
+**Generated images must be listed as generated.** Everything else in this document is licensed
+photography with a traceable source; a generated frame has neither a photographer nor a licence,
+and recording it as though it did would make the rest of these tables untrustworthy. Add it to the
+table below with the model and the prompt.
+
+### Generated images
+
+| File | Model | Prompt | Notes |
+| --- | --- | --- | --- |
+| _none yet_ | | | |
 
 ## What these images are, and are not
 

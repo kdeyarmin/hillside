@@ -15,6 +15,7 @@
     "db:repair:copy": "tsx prisma/repair-owner-copy.ts",
     "db:seed:collections": "tsx prisma/seed-collections.ts",
     "images:brand": "node scripts/brand-image.mjs",
+    "images:generate": "node scripts/generate-image.mjs",
     "images:measure": "node scripts/brand-image.mjs --measure public/images/catalog",
     "images:mockup": "node scripts/brand-mockup.mjs",
     "images:place": "node scripts/brand-place.mjs"
