@@ -8,3 +8,9 @@ tsconfig.tsbuildinfo
 .DS_Store
 coverage
 .data
+
+# Written by scripts/responsive-audit.mjs on every run: a report plus a
+# screenshot per viewport. Build output, not source — CI uploads it as an
+# artifact, and locally it is rewritten (the script rm -rf's the directory
+# first) each time the audit runs.
+responsive-audit-output/
