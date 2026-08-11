@@ -132,9 +132,21 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
             <img src="/logo.png" alt="The Hillside Gardens" style={{ width: 260, margin: '0 auto 25px' }} />
             <h1 className="display-title" style={{ color: 'var(--forest)', fontSize: 42, textAlign: 'center' }}>Owner sign in</h1>
             <p style={{ textAlign: 'center' }}>Use the private password configured in Railway.</p>
-            {params.error && <p style={{ color: 'var(--danger)', textAlign: 'center' }}><b>That password wasn’t correct.</b></p>}
+            {params.error && (
+              <p role="alert" style={{ color: 'var(--danger)', textAlign: 'center' }}>
+                <b>
+                  {params.error === 'throttled'
+                    ? 'Too many sign-in attempts. Please wait a few minutes and try again.'
+                    : 'That password wasn’t correct.'}
+                </b>
+              </p>
+            )}
             <form action={loginAdmin}>
-              <input name="password" type="password" required placeholder="Admin password" style={{ ...input, marginBottom: 14 }} />
+              {/* A placeholder is not a label: it disappears on the first keystroke
+                  and is not reliably announced, so this field had no accessible
+                  name at all. */}
+              <label className="sr-only" htmlFor="admin-password">Admin password</label>
+              <input id="admin-password" name="password" type="password" required autoComplete="current-password" placeholder="Admin password" style={{ ...input, marginBottom: 14 }} />
               <button className="btn full">Sign in</button>
             </form>
           </div></div>

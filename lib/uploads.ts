@@ -11,8 +11,32 @@ const allowedTypes = {
 
 export type AllowedImageType = keyof typeof allowedTypes;
 
+/**
+ * Where owner-uploaded photographs live.
+ *
+ * The default is inside the container's working directory, which on Railway is
+ * ephemeral — it is replaced on every deploy. Product rows keep pointing at
+ * `/media/<uuid>`, so the database stayed consistent while the files underneath
+ * it silently vanished, and every photo Tammy had uploaded 404'd after the next
+ * deploy with nothing to explain why.
+ *
+ * In production that is a data-loss default, so it is refused rather than
+ * honoured: `UPLOAD_DIR` must name a mounted volume (see `.env.example`). The
+ * working-directory fallback remains for local development, where losing the
+ * folder costs nothing.
+ */
 export function uploadDirectory() {
-  return process.env.UPLOAD_DIR || path.join(process.cwd(), '.data', 'uploads');
+  const configured = process.env.UPLOAD_DIR?.trim();
+  if (configured) return configured;
+
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'UPLOAD_DIR is not set. Uploaded images would be written to the container filesystem ' +
+        'and lost on the next deploy. Mount a Railway Volume and set UPLOAD_DIR to its path.'
+    );
+  }
+
+  return path.join(process.cwd(), '.data', 'uploads');
 }
 
 export function validMediaFilename(filename: string) {
