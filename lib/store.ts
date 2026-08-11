@@ -120,7 +120,11 @@ export function publicFreeShippingThresholdCents() {
  * sent half of a realistic set of plant slugs to the same image.
  */
 export function pickForKey<T>(options: readonly T[], key: string): T {
-  if (options.length <= 1) return options[0];
+  // An empty list is a mistake at the call site, not a case to paper over: the
+  // signature promises a T, and quietly handing back `undefined` would surface
+  // much later as a missing image with nothing pointing at the cause.
+  if (!options.length) throw new Error('pickForKey needs at least one option to choose from.');
+  if (options.length === 1) return options[0];
 
   let hash = 0x811c9dc5;
   for (let position = 0; position < key.length; position += 1) {

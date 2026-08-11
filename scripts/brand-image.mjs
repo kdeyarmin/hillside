@@ -158,6 +158,39 @@ async function readSource(source) {
   return bytes;
 }
 
+/** Below this the artefacts show, so it is a floor rather than a starting point. */
+const MIN_QUALITY = 50;
+const START_QUALITY = 82;
+
+/**
+ * Encodes WebP, stepping quality down until the file fits the budget, and fails
+ * if it never does.
+ *
+ * The budget is a promise the docs make — every image in the set is committed to
+ * the repo — so quietly writing an oversized file is the one outcome that must
+ * not happen. Returns the quality actually used, which is not the same as the
+ * loop counter after the loop ends.
+ */
+async function encodeWithinBudget(pipeline, budgetKb) {
+  let quality = START_QUALITY;
+  let buffer = await pipeline.clone().webp({ quality, effort: 6 }).toBuffer();
+
+  while (buffer.length / 1024 > budgetKb && quality > MIN_QUALITY) {
+    quality = Math.max(MIN_QUALITY, quality - 6);
+    buffer = await pipeline.clone().webp({ quality, effort: 6 }).toBuffer();
+  }
+
+  if (buffer.length / 1024 > budgetKb) {
+    throw new Error(
+      `Cannot fit this image under ${budgetKb} kb: it is ${(buffer.length / 1024).toFixed(0)} kb ` +
+        `even at quality ${MIN_QUALITY}. Crop tighter, choose a less detailed frame, or raise the ` +
+        `budget with --max-kb.`
+    );
+  }
+
+  return { buffer, quality };
+}
+
 /**
  * Crops to 4:3 around the focal point. `sharp`'s own cover-fit always crops to
  * the centre (or an entropy guess), which is no use when the subject sits off to
@@ -234,13 +267,7 @@ async function build(args) {
     );
 
   const budgetKb = Number(args['max-kb'] ?? 400);
-  let quality = 82;
-  let output = null;
-  while (quality >= 50) {
-    output = await pipeline.clone().webp({ quality, effort: 6 }).toBuffer();
-    if (output.length / 1024 <= budgetKb) break;
-    quality -= 6;
-  }
+  const { buffer: output, quality } = await encodeWithinBudget(pipeline, budgetKb);
 
   await mkdir(directory, { recursive: true });
   await writeFile(outFile, output);

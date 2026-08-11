@@ -28,6 +28,11 @@ import { SHOTS } from './brand-mockup.config.mjs';
 const LOGO = 'public/logo.png';
 const LOGO_BADGE = 'public/logo-badge.png';
 
+/** Matches the rest of the committed set; below MIN_QUALITY the artefacts show. */
+const BUDGET_KB = 400;
+const START_QUALITY = 84;
+const MIN_QUALITY = 50;
+
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i += 1) {
@@ -233,8 +238,16 @@ async function applyLabel(baseBuffer, placement, debug) {
   const visibleHeight = Math.min(rotatedMeta.height - cropTop, baseMeta.height - top);
 
   if (visibleWidth <= 0 || visibleHeight <= 0) {
+    // A quad placement carries no x/y, so naming them here printed
+    // "undefined,undefined" — useless for the one thing this error exists to
+    // help with, which is finding the mis-measured coordinate.
+    const where = quad
+      ? `quad topLeft ${quad.topLeft}, topRight ${quad.topRight}, bottomLeft ${quad.bottomLeft}`
+      : `centre ${x},${y}`;
     throw new Error(
-      `Label "${placement.name}" at ${x},${y} lands entirely outside the ${baseMeta.width}x${baseMeta.height} photograph.`
+      `Label "${placement.name}" (${where}) resolves to ${rawLeft},${rawTop} ` +
+        `${rotatedMeta.width}x${rotatedMeta.height}, entirely outside the ` +
+        `${baseMeta.width}x${baseMeta.height} photograph.`
     );
   }
 
@@ -294,13 +307,23 @@ async function buildShot(shot, { debug }) {
   if (debug) {
     await writeFile(outPath, buffer);
   } else {
-    // Match the rest of the set: WebP, under the 400 KB budget.
-    let quality = 84;
+    // Match the rest of the set: WebP, under the budget. The budget is a promise
+    // the docs make about every committed image, so failing to meet it has to be
+    // an error rather than an oversized file nobody notices.
+    let quality = START_QUALITY;
     let output = await sharp(buffer).webp({ quality, effort: 6 }).toBuffer();
-    while (output.length / 1024 > 400 && quality > 50) {
-      quality -= 6;
+    while (output.length / 1024 > BUDGET_KB && quality > MIN_QUALITY) {
+      quality = Math.max(MIN_QUALITY, quality - 6);
       output = await sharp(buffer).webp({ quality, effort: 6 }).toBuffer();
     }
+
+    if (output.length / 1024 > BUDGET_KB) {
+      throw new Error(
+        `${shot.name} comes out at ${(output.length / 1024).toFixed(0)} kb even at quality ` +
+          `${MIN_QUALITY}, over the ${BUDGET_KB} kb budget. Use a less detailed source photograph.`
+      );
+    }
+
     await writeFile(outPath, output);
     console.log(`${outPath}  ${(output.length / 1024).toFixed(0)} kb  q${quality}  ${shot.labels.length} label(s)`);
     return;
