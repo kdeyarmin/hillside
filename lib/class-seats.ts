@@ -111,6 +111,86 @@ export async function reserveSeats({
   });
 }
 
+export type FreeSeatResult =
+  | { ok: true; registrationId: string }
+  | { ok: false; reason: 'duplicate' }
+  | { ok: false; reason: 'sold-out'; seatsLeft: number };
+
+/**
+ * Claims seats on a free class in one atomic step.
+ *
+ * The free path used to read `seatsRemaining`, then create the registration in a
+ * separate statement — the same read-then-write window `reserveSeats` was written
+ * to close for paid classes, just never applied here. Concurrent submissions for
+ * the last seats all passed the check and all committed. The duplicate-email
+ * check had the same shape, so one person double-clicking got two registrations.
+ *
+ * Both checks now run inside the transaction that holds the advisory lock, which
+ * is what makes them decisive. A `@@unique([classEventId, email])` constraint
+ * would be the more obvious fix, but it would also reject a *paid* customer's
+ * second, legitimate purchase for the same class — after their card was charged.
+ * The lock gets the guarantee without that cost.
+ */
+export async function claimFreeSeat({
+  classEventId,
+  capacity,
+  seats,
+  name,
+  email,
+  phone,
+  joinTokenHash
+}: {
+  classEventId: string;
+  capacity: number;
+  seats: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  joinTokenHash: string | null;
+}): Promise<FreeSeatResult> {
+  return db.$transaction(async (transaction) => {
+    await transaction.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(1, hashtext(${classEventId}))`
+    );
+
+    await transaction.classRegistration.deleteMany({
+      where: { classEventId, status: 'PENDING', holdExpiresAt: { lt: new Date() } }
+    });
+
+    const duplicate = await transaction.classRegistration.findFirst({
+      where: { classEventId, email, status: { in: ['PENDING', 'PAID'] } }
+    });
+    if (duplicate) return { ok: false, reason: 'duplicate' } as const;
+
+    const totals = await transaction.classRegistration.aggregate({
+      where: {
+        classEventId,
+        OR: [{ status: 'PAID' }, { status: 'PENDING', holdExpiresAt: { gte: new Date() } }]
+      },
+      _sum: { seats: true }
+    });
+
+    const seatsLeft = Math.max(0, capacity - (totals._sum.seats || 0));
+    if (seats > seatsLeft) return { ok: false, reason: 'sold-out', seatsLeft } as const;
+
+    const created = await transaction.classRegistration.create({
+      data: {
+        classEventId,
+        stripeSessionId: `free_${crypto.randomUUID()}`,
+        name,
+        email,
+        phone,
+        seats,
+        amountCents: 0,
+        status: 'PAID',
+        joinTokenHash
+      }
+    });
+
+    return { ok: true, registrationId: created.id } as const;
+  });
+}
+
 /** Attaches the real Stripe session to a hold once checkout has been created. */
 export async function attachSessionToHold(holdId: string, stripeSessionId: string) {
   await db.classRegistration.update({

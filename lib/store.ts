@@ -249,3 +249,39 @@ export function siteBaseUrl() {
 export function absoluteUrl(path = '/') {
   return new URL(path, siteBaseUrl()).toString();
 }
+
+/**
+ * The origin Stripe sends the customer back to after Checkout.
+ *
+ * This exists as its own function because both checkout routes used to build it
+ * from `process.env.NEXT_PUBLIC_SITE_URL` directly, bypassing `siteBaseUrl()` and
+ * its loopback guard. The deployed service has that variable set to a loopback
+ * address — which is the whole reason `siteBaseUrl` was written — so paying
+ * customers were redirected to `http://localhost:3000/order/success`. The payment
+ * succeeded; the customer saw a connection error.
+ *
+ * `absoluteUrl` is not usable here: Stripe's `{CHECKOUT_SESSION_ID}` placeholder
+ * has to survive into the URL literally, and `new URL()` percent-encodes the
+ * braces. So this returns a bare origin for callers to concatenate, with any
+ * trailing slash removed so `${origin}/order/success` cannot double up.
+ */
+export function checkoutReturnOrigin() {
+  return siteBaseUrl().replace(/\/+$/, '');
+}
+
+/**
+ * `Order.invoiceNumber` is `@unique`, and this used to be the last 8 digits of
+ * `Date.now()` — millisecond-aligned, so two orders placed in the same
+ * millisecond collide. A collision makes the webhook's `order.create` throw, and
+ * a throw there means Stripe retries, gives up, and the paid order is never
+ * recorded anywhere. The random suffix makes that effectively impossible while
+ * keeping the number short enough to read over the phone.
+ */
+export function newInvoiceNumber() {
+  const stamp = Date.now().toString(36).toUpperCase().slice(-6);
+  const suffix = Math.floor(Math.random() * 36 ** 3)
+    .toString(36)
+    .toUpperCase()
+    .padStart(3, '0');
+  return `HG-${stamp}${suffix}`;
+}

@@ -12,12 +12,27 @@ import {
   releaseHold,
   reserveSeats
 } from '@/lib/class-seats';
-import { absoluteUrl, normalizeHillsideDomain } from '@/lib/store';
+import { rateLimited } from '@/lib/rate-limit';
+import { absoluteUrl, checkoutReturnOrigin } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   try {
+    /**
+     * Rate limited before anything else, because `reserveSeats` below writes a
+     * PENDING hold that occupies the seat for 35 minutes *before* Stripe is ever
+     * contacted. Unthrottled, two anonymous POSTs asking for six seats each sell
+     * out a twelve-seat class at no cost to the caller, repeatable forever — the
+     * class page then reads sold out and the booking button disables itself.
+     */
+    if (rateLimited(request, { name: 'class-checkout', limit: 6, windowMs: 10 * 60_000 })) {
+      return NextResponse.json(
+        { error: 'Too many booking attempts. Please wait a few minutes and try again.' },
+        { status: 429 }
+      );
+    }
+
     const secret = process.env.STRIPE_SECRET_KEY;
     if (!secret) return NextResponse.json({ error: 'Online registration is not configured yet.' }, { status: 503 });
 
@@ -62,9 +77,7 @@ export async function POST(request: Request) {
     }
 
     const stripe = new Stripe(secret);
-    const site = normalizeHillsideDomain(
-      process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
-    );
+    const site = checkoutReturnOrigin();
     const online = isOnlineClass(event.format);
 
     let session: Stripe.Checkout.Session;

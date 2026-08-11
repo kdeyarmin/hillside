@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
-import { absoluteUrl, normalizeHillsideDomain, resolveImageUrl } from '@/lib/store';
+import { rateLimited } from '@/lib/rate-limit';
+import { absoluteUrl, checkoutReturnOrigin, newInvoiceNumber, resolveImageUrl } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -22,6 +23,15 @@ function readItems(body: unknown): RequestedItem[] {
 
 export async function POST(request: Request) {
   try {
+    // Each call creates a real Stripe Checkout Session. Unthrottled, that is an
+    // unbounded write into the shop's Stripe account from an anonymous caller.
+    if (rateLimited(request, { name: 'checkout', limit: 12, windowMs: 10 * 60_000 })) {
+      return NextResponse.json(
+        { error: 'Too many checkout attempts. Please wait a few minutes and try again.' },
+        { status: 429 }
+      );
+    }
+
     const secret = process.env.STRIPE_SECRET_KEY;
     if (!secret) return NextResponse.json({ error: 'Stripe is not configured yet.' }, { status: 503 });
 
@@ -79,10 +89,8 @@ export async function POST(request: Request) {
     const flatShippingCents = Math.max(0, Number(process.env.FLAT_SHIPPING_CENTS || 895));
     const shippingCents =
       freeShippingThreshold > 0 && subtotalCents >= freeShippingThreshold ? 0 : flatShippingCents;
-    const invoiceNumber = `HG-${Date.now().toString().slice(-8)}`;
-    const site = normalizeHillsideDomain(
-      process.env.NEXT_PUBLIC_SITE_URL || new URL(request.url).origin
-    );
+    const invoiceNumber = newInvoiceNumber();
+    const site = checkoutReturnOrigin();
     const stripe = new Stripe(secret);
 
     const session = await stripe.checkout.sessions.create({
@@ -137,7 +145,15 @@ export async function POST(request: Request) {
       metadata: {
         kind: 'PRODUCT_ORDER',
         invoiceNumber,
-        items: JSON.stringify(items.map(({ product, quantity }) => ({ id: product.slug, q: quantity })))
+        /**
+         * The product's id, not its slug. Slugs are regenerated from the product
+         * name on every dashboard save, so renaming a product between checkout
+         * and webhook delivery used to leave the webhook unable to resolve a
+         * single line item: it threw, Stripe retried for three days and gave up,
+         * and a paid order was never recorded. The webhook still accepts a slug
+         * here so sessions already in flight during this deploy fulfil normally.
+         */
+        items: JSON.stringify(items.map(({ product, quantity }) => ({ id: product.id, q: quantity })))
       }
     });
 

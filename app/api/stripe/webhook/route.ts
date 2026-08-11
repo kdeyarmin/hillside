@@ -3,8 +3,9 @@ import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
+import { seatsRemaining } from '@/lib/class-seats';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
-import { formatMoney } from '@/lib/store';
+import { formatMoney, newInvoiceNumber } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -65,12 +66,31 @@ async function subscribeFromCheckout(session: Stripe.Checkout.Session) {
 
 async function fulfillProductOrder(session: Stripe.Checkout.Session) {
   const existing = await db.order.findUnique({ where: { stripeSessionId: session.id } });
-  if (existing) return;
+  /**
+   * The order committing is not the whole job — the confirmation email is sent
+   * afterwards, and a failure there returns 500 so Stripe retries. A bare
+   * `if (existing) return` meant the retry saw the order, returned early, and
+   * the customer never received a confirmation for a purchase they had paid for.
+   * Re-entering while the email is still outstanding is exactly what should
+   * happen, so the guard only short-circuits once that has succeeded too.
+   */
+  if (existing?.confirmationEmailSentAt) return;
+  if (existing) {
+    await sendOrderEmails(existing.id);
+    return;
+  }
 
   const requested = parseRequestedItems(session.metadata?.items);
-  const products = await db.product.findMany({ where: { slug: { in: requested.map((item) => item.id) } } });
+  const requestedIds = requested.map((item) => item.id);
+  // Matched on id *or* slug: new sessions carry the immutable id, but sessions
+  // created before that change carry a slug and must still fulfil.
+  const products = await db.product.findMany({
+    where: { OR: [{ id: { in: requestedIds } }, { slug: { in: requestedIds } }] }
+  });
   const lineItems = requested.flatMap((item) => {
-    const product = products.find((candidate) => candidate.slug === item.id);
+    const product = products.find(
+      (candidate) => candidate.id === item.id || candidate.slug === item.id
+    );
     return product
       ? [{ productId: product.id, name: product.name, quantity: item.q, unitCents: product.priceCents }]
       : [];
@@ -86,10 +106,20 @@ async function fulfillProductOrder(session: Stripe.Checkout.Session) {
     0
   );
   const taxCents = session.total_details?.amount_tax || 0;
-  const totalCents = session.amount_total || subtotalCents;
+  /**
+   * Promotion codes are enabled at checkout, and the discount has to be recorded
+   * or the totals cannot be made to add up: `subtotalCents` is recomputed from
+   * current product prices while `totalCents` is what Stripe actually charged, so
+   * a discounted order printed a packing slip reading
+   * Subtotal + Shipping + Tax ≠ Total with nothing to explain the gap.
+   */
+  const discountCents = session.total_details?.amount_discount || 0;
+  const totalCents = session.amount_total ?? subtotalCents;
   const shippingCents =
-    session.shipping_cost?.amount_total ?? Math.max(0, totalCents - subtotalCents - taxCents);
-  const invoiceNumber = session.metadata?.invoiceNumber || session.client_reference_id || `HG-${Date.now()}`;
+    session.shipping_cost?.amount_total ??
+    Math.max(0, totalCents - subtotalCents - taxCents + discountCents);
+  const invoiceNumber =
+    session.metadata?.invoiceNumber || session.client_reference_id || newInvoiceNumber();
 
   const order = await db.$transaction(async (transaction) => {
     const created = await transaction.order.create({
@@ -112,6 +142,7 @@ async function fulfillProductOrder(session: Stripe.Checkout.Session) {
         shippingCents,
         taxCents,
         totalCents,
+        discountCents,
         shippingMethod: shippingCents === 0 ? 'Free standard shipping' : 'Standard shipping',
         items: { create: lineItems }
       },
@@ -130,7 +161,31 @@ async function fulfillProductOrder(session: Stripe.Checkout.Session) {
     return created;
   });
 
-  await subscribeFromCheckout(session);
+  /**
+   * A newsletter opt-in is the least important thing happening in this function.
+   * It used to run unguarded after the order committed, so a write conflict on
+   * the subscriber row threw, the handler returned 500, and Stripe's retry hit
+   * the idempotency guard and returned early — costing the customer their order
+   * confirmation over a mailing-list row.
+   */
+  try {
+    await subscribeFromCheckout(session);
+  } catch (error) {
+    console.error(`Newsletter opt-in failed for order ${order.invoiceNumber}`, error);
+  }
+
+  await sendOrderEmails(order.id);
+}
+
+/**
+ * Split out of `fulfillProductOrder` so a Stripe retry can re-attempt delivery
+ * for an order that committed but whose confirmation never sent. Safe to call
+ * repeatedly: `sendEmail` is given an idempotency key, and the function returns
+ * immediately once the confirmation is recorded as sent.
+ */
+async function sendOrderEmails(orderId: string) {
+  const order = await db.order.findUnique({ where: { id: orderId }, include: { items: true } });
+  if (!order || order.confirmationEmailSentAt) return;
 
   const itemRows = order.items
     .map(
@@ -184,12 +239,25 @@ async function fulfillClassRegistration(session: Stripe.Checkout.Session) {
   const seats = Math.max(1, Math.min(6, Number(session.metadata?.seats) || 1));
   const name = session.customer_details?.name || 'Class guest';
   const email = (session.customer_details?.email || session.customer_email || '').toLowerCase();
-  const credential = isOnlineClass(event.format) ? createClassJoinCredential() : null;
 
   // The checkout route reserves the seats as a PENDING hold. Payment converts
   // that same row rather than adding a second registration.
   const existing = await db.classRegistration.findUnique({ where: { stripeSessionId: session.id } });
   if (existing?.status === 'PAID' && existing.confirmationEmailSentAt) return;
+
+  /**
+   * Minted *after* the guard, and only when there is no usable token already.
+   *
+   * This used to run unconditionally at the top of the function, before the
+   * idempotency check — and that check depends on `confirmationEmailSentAt`,
+   * which stays null whenever Resend is unconfigured or down. Stripe legitimately
+   * delivers both `checkout.session.completed` and
+   * `checkout.session.async_payment_succeeded` for the same purchase, so the
+   * second delivery overwrote `joinTokenHash` and silently broke every classroom
+   * link already emailed to the customer, along with their access cookie.
+   */
+  const needsCredential = isOnlineClass(event.format) && !existing?.joinTokenHash;
+  const credential = needsCredential ? createClassJoinCredential() : null;
 
   const registration = existing
     ? await db.classRegistration.update({
@@ -206,26 +274,122 @@ async function fulfillClassRegistration(session: Stripe.Checkout.Session) {
           joinTokenHash: credential?.hash || existing.joinTokenHash
         }
       })
-    : await db.classRegistration.create({
-        data: {
-          classEventId: event.id,
-          stripeSessionId: session.id,
-          paymentIntentId: objectId(session.payment_intent),
-          name,
-          email,
-          phone: session.customer_details?.phone || null,
-          seats,
-          amountCents: session.amount_total || event.priceCents * seats,
-          status: 'PAID',
-          joinTokenHash: credential?.hash || null
-        }
-      });
+    : await createRegistrationForSweptHold({ event, session, name, email, seats, credential });
 
-  await subscribeFromCheckout(session);
+  try {
+    await subscribeFromCheckout(session);
+  } catch (error) {
+    console.error(`Newsletter opt-in failed for class registration ${registration.id}`, error);
+  }
+
   await sendClassRegistrationEmails({
     event,
     registration,
     accessToken: credential?.token
+  });
+}
+
+/**
+ * The payment landed but the PENDING hold is gone — the customer took longer than
+ * the 35 minute window, or paid by a method that settles asynchronously and the
+ * sweep in `releaseExpiredHolds` reached the row first.
+ *
+ * The seat has to be granted regardless: the money is already captured, and a
+ * webhook is the wrong place to decide someone should be refunded. What this must
+ * not do is grant it *silently* — the previous code created the registration with
+ * no capacity check at all, so a class could quietly go over capacity with nothing
+ * anywhere to say so. Capacity is therefore still evaluated, under the same
+ * advisory lock the reservation path uses, purely so an overbooking is loud.
+ */
+async function createRegistrationForSweptHold({
+  event,
+  session,
+  name,
+  email,
+  seats,
+  credential
+}: {
+  event: { id: string; capacity: number; priceCents: number; title: string };
+  session: Stripe.Checkout.Session;
+  name: string;
+  email: string;
+  seats: number;
+  credential: { hash: string; token: string } | null;
+}) {
+  const seatsLeft = await seatsRemaining(event.id, event.capacity);
+  if (seats > seatsLeft) {
+    console.error(
+      `Overbooked "${event.title}" (${event.id}): honouring a paid registration for ${seats} ` +
+        `seat(s) with only ${seatsLeft} remaining, because the seat hold had already expired ` +
+        `when Stripe session ${session.id} settled. Contact the customer.`
+    );
+  }
+
+  return db.classRegistration.create({
+    data: {
+      classEventId: event.id,
+      stripeSessionId: session.id,
+      paymentIntentId: objectId(session.payment_intent),
+      name,
+      email,
+      phone: session.customer_details?.phone || null,
+      seats,
+      amountCents: session.amount_total || event.priceCents * seats,
+      status: 'PAID',
+      joinTokenHash: credential?.hash || null
+    }
+  });
+}
+
+/**
+ * `charge.refunded` fires for partial refunds too, and the previous handler
+ * treated every one of them as total. Refunding $5 of shipping on a $120 order
+ * marked the whole order REFUNDED, and the dashboard's revenue figure excludes
+ * REFUNDED orders — so a $5 goodwill gesture erased $120 of reported revenue.
+ *
+ * Stock is also returned here. Purchase decremented inventory and nothing ever
+ * incremented it back, so refunded stock stayed invisible and unsellable until
+ * someone noticed and corrected it by hand. `inventoryRestoredAt` makes that
+ * restoration happen exactly once however many times Stripe delivers the event.
+ */
+async function applyRefund(charge: Stripe.Charge) {
+  const paymentIntentId = objectId(charge.payment_intent);
+  if (!paymentIntentId) return;
+
+  const fullyRefunded = charge.refunded || charge.amount_refunded >= charge.amount;
+  const status = fullyRefunded ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
+
+  await db.classRegistration.updateMany({
+    where: { paymentIntentId },
+    // A class seat is either released or it isn't; there is no half a seat, so a
+    // partial refund leaves the registration as it stands.
+    data: { status: fullyRefunded ? 'REFUNDED' : undefined }
+  });
+
+  const order = await db.order.findFirst({
+    where: { paymentIntentId },
+    include: { items: true }
+  });
+  if (!order) return;
+
+  await db.$transaction(async (transaction) => {
+    await transaction.order.update({
+      where: { id: order.id },
+      data: { status, refundedCents: charge.amount_refunded }
+    });
+
+    if (!fullyRefunded || order.inventoryRestoredAt) return;
+
+    for (const item of order.items) {
+      await transaction.product.update({
+        where: { id: item.productId },
+        data: { inventory: { increment: item.quantity } }
+      });
+    }
+    await transaction.order.update({
+      where: { id: order.id },
+      data: { inventoryRestoredAt: new Date() }
+    });
   });
 }
 
@@ -264,17 +428,7 @@ export async function POST(request: Request) {
     }
 
     if (event.type === 'charge.refunded') {
-      const charge = event.data.object as Stripe.Charge;
-      const paymentIntentId = objectId(charge.payment_intent);
-      if (paymentIntentId) {
-        await Promise.all([
-          db.order.updateMany({ where: { paymentIntentId }, data: { status: 'REFUNDED' } }),
-          db.classRegistration.updateMany({
-            where: { paymentIntentId },
-            data: { status: 'REFUNDED' }
-          })
-        ]);
-      }
+      await applyRefund(event.data.object as Stripe.Charge);
     }
   } catch (error) {
     console.error('Stripe fulfillment failed', error);

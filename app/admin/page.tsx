@@ -149,7 +149,20 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
       include: { collections: { select: { id: true } } }
     }),
     db.order.findMany({ orderBy: { createdAt: 'desc' }, take: 75, include: { items: true } }),
-    db.order.aggregate({ _sum: { totalCents: true }, where: { status: { in: [OrderStatus.PAID, OrderStatus.FULFILLED] } } }),
+    /**
+     * Net revenue: partially refunded orders still earned everything that was not
+     * given back, so they belong in the figure with their refund subtracted rather
+     * than dropped from it. Previously any refund at all — including a few dollars
+     * of shipping — marked the order REFUNDED and removed its whole value here.
+     */
+    db.order.aggregate({
+      _sum: { totalCents: true, refundedCents: true },
+      where: {
+        status: {
+          in: [OrderStatus.PAID, OrderStatus.FULFILLED, OrderStatus.PARTIALLY_REFUNDED]
+        }
+      }
+    }),
     db.classRegistration.findMany({ orderBy: { createdAt: 'desc' }, take: 75, include: { classEvent: true } }),
     db.contactMessage.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
     db.newsletterSubscriber.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }),
@@ -227,7 +240,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         </div>
 
         <div className="statgrid">
-          <div className="stat"><span>Paid revenue</span><strong>{formatMoney(revenue._sum.totalCents || 0)}</strong></div>
+          <div className="stat"><span>Paid revenue</span><strong>{formatMoney(Math.max(0, (revenue._sum.totalCents || 0) - (revenue._sum.refundedCents || 0)))}</strong></div>
           <div className="stat"><span>Orders to ship</span><strong>{openOrders}</strong></div>
           <div className="stat"><span>Active products</span><strong>{products.filter((product) => product.active).length}</strong></div>
           <div className="stat"><span>Low stock</span><strong>{lowStock}</strong></div>

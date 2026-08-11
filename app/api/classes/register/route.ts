@@ -1,9 +1,8 @@
-import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
-import { seatsRemaining } from '@/lib/class-seats';
+import { claimFreeSeat } from '@/lib/class-seats';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { rateLimited } from '@/lib/rate-limit';
 
@@ -45,55 +44,59 @@ export async function POST(request: Request) {
     }
 
     const email = input.email.toLowerCase();
-    const existing = await db.classRegistration.findFirst({
-      where: {
-        classEventId: event.id,
-        email,
-        status: { in: ['PENDING', 'PAID'] }
-      }
+    const credential = isOnlineClass(event.format) ? createClassJoinCredential() : null;
+    const claim = await claimFreeSeat({
+      classEventId: event.id,
+      capacity: event.capacity,
+      seats: input.seats,
+      name: input.name,
+      email,
+      phone: input.phone || null,
+      joinTokenHash: credential?.hash || null
     });
-    if (existing) {
-      return NextResponse.json(
-        { error: 'This email is already registered for the class. Contact us if you need to change the reservation.' },
-        { status: 409 }
-      );
-    }
 
-    const seatsLeft = await seatsRemaining(event.id, event.capacity);
-    if (input.seats > seatsLeft) {
+    if (!claim.ok) {
+      if (claim.reason === 'duplicate') {
+        return NextResponse.json(
+          { error: 'This email is already registered for the class. Contact us if you need to change the reservation.' },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
-        { error: seatsLeft ? `Only ${seatsLeft} seats remain.` : 'This class is sold out.' },
+        { error: claim.seatsLeft ? `Only ${claim.seatsLeft} seats remain.` : 'This class is sold out.' },
         { status: 400 }
       );
     }
 
-    const credential = isOnlineClass(event.format) ? createClassJoinCredential() : null;
-    const registration = await db.classRegistration.create({
-      data: {
-        classEventId: event.id,
-        stripeSessionId: `free_${crypto.randomUUID()}`,
-        name: input.name,
-        email,
-        phone: input.phone || null,
-        seats: input.seats,
-        amountCents: 0,
-        status: 'PAID',
-        joinTokenHash: credential?.hash || null
-      }
+    /**
+     * The seat is taken from here on, so nothing below may return an error.
+     *
+     * This used to sit inside the outer try/catch: a failure while recording the
+     * email send threw, the route answered 500 "Unable to complete the
+     * registration", and the customer retried straight into the duplicate-email
+     * rejection — holding a seat they had been told they did not get.
+     */
+    const registration = await db.classRegistration.findUniqueOrThrow({
+      where: { id: claim.registrationId }
     });
 
-    const emailResult = await sendClassRegistrationEmails({
-      event,
-      registration,
-      accessToken: credential?.token
-    });
+    let emailSent = false;
+    try {
+      emailSent = (await sendClassRegistrationEmails({
+        event,
+        registration,
+        accessToken: credential?.token
+      })).sent;
+    } catch (error) {
+      console.error(`Class registration ${registration.id} saved, but its email failed`, error);
+    }
 
     return NextResponse.json({
       ok: true,
-      emailSent: emailResult.sent,
-      message: emailResult.sent
+      emailSent,
+      message: emailSent
         ? 'Your registration is confirmed. Check your email for the class details.'
-        : 'Your registration is confirmed. Email delivery is not configured, so please contact us for the class link.'
+        : 'Your registration is confirmed. We could not send the confirmation email, so please contact us for the class details.'
     });
   } catch (error) {
     console.error('Unable to register for free class', error);
