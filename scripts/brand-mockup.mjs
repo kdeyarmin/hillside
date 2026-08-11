@@ -49,6 +49,66 @@ function parseArgs(argv) {
  * centred. Kept as an SVG so the corner radius and the paper tone stay crisp at
  * whatever size the shot needs.
  */
+/**
+ * The paper the mark is printed on.
+ *
+ * `plate` is a label stuck to a vessel — a bottle, a jar, a pot. `tag` is a
+ * swing tag with a punched hole and a chamfered top, the thing a nursery ties to
+ * a plant. `stake` is a tag on a spike, pushed into the soil. Shape matters more
+ * than it sounds: a plain rectangle lying in a photograph reads as a watermark
+ * no matter how well it is lit, because nothing in a plant shop is a plain
+ * floating rectangle.
+ */
+function paperShape(shape, width, height, radius, paper, inset) {
+  const w = width - inset * 2;
+  const h = height - inset * 2;
+  const x = inset;
+  const y = inset;
+
+  if (shape === 'tag') {
+    // The swing-tag silhouette: the top corners are cut off on a straight
+    // diagonal, not rounded. Rounding them produces a lozenge, which is what a
+    // sticker looks like — the two clipped corners are the whole reason a tag is
+    // recognisable as a tag at thumbnail size.
+    const chamfer = Math.min(w, h) * 0.22;
+    const hole = Math.max(2.5, Math.min(w, h) * 0.05);
+    const holeX = x + w / 2;
+    const holeY = y + chamfer * 0.62;
+
+    // The hole is cut out of the card, not drawn on it: a second subpath wound
+    // the same way as the first, resolved with the even-odd rule, so the
+    // photograph shows through it and the twine has somewhere to go. Painting a
+    // grey disc instead looks like a printed dot, which is worse than no hole.
+    return `
+      <path fill-rule="evenodd" fill="${paper}"
+            d="M ${x + chamfer} ${y}
+               L ${x + w - chamfer} ${y}
+               L ${x + w} ${y + chamfer}
+               L ${x + w} ${y + h - radius}
+               Q ${x + w} ${y + h} ${x + w - radius} ${y + h}
+               L ${x + radius} ${y + h}
+               Q ${x} ${y + h} ${x} ${y + h - radius}
+               L ${x} ${y + chamfer} Z
+               M ${holeX - hole} ${holeY}
+               a ${hole} ${hole} 0 1 0 ${hole * 2} 0
+               a ${hole} ${hole} 0 1 0 ${-hole * 2} 0 Z"/>
+      <circle cx="${holeX}" cy="${holeY}" r="${hole}"
+              fill="none" stroke="rgba(96,80,58,0.45)" stroke-width="1.4"/>`;
+  }
+
+  if (shape === 'stake') {
+    // A label on a spike: the card, then a narrow stem running off the bottom.
+    const cardH = h * 0.72;
+    const stemW = Math.max(3, w * 0.055);
+    return `
+      <rect x="${x}" y="${y}" width="${w}" height="${cardH}" rx="${radius}" ry="${radius}" fill="${paper}"/>
+      <rect x="${x + w / 2 - stemW / 2}" y="${y + cardH - 2}" width="${stemW}" height="${h - cardH + 2}"
+            fill="${paper}" fill-opacity="0.92"/>`;
+  }
+
+  return `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${radius}" ry="${radius}" fill="${paper}"/>`;
+}
+
 async function labelArtwork({
   width,
   height,
@@ -57,7 +117,8 @@ async function labelArtwork({
   logoScale = 0.72,
   badge = false,
   inset = 0,
-  stamp = false
+  stamp = false,
+  shape = 'plate'
 }) {
   // A stamp has no paper of its own: the mark is inked straight onto the kraft,
   // so it is composited in multiply and the wrapper's grain reads through it.
@@ -66,19 +127,29 @@ async function labelArtwork({
     stamp
       ? `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"></svg>`
       : `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-           <rect x="${inset}" y="${inset}" width="${width - inset * 2}" height="${height - inset * 2}"
-                 rx="${radius}" ry="${radius}" fill="${paper}"/>
+           ${paperShape(shape, width, height, radius, paper, inset)}
          </svg>`
   );
 
   const source = badge ? LOGO_BADGE : LOGO;
   const meta = await sharp(source).metadata();
-  const boxHeight = Math.round(height * logoScale);
+
+  // The mark prints on the card, not on the hole or the spike, so those shapes
+  // hand it a smaller area to sit in and a centre of their own.
+  const printable =
+    shape === 'tag'
+      ? { top: height * 0.3, height: height * 0.62 }
+      : shape === 'stake'
+        ? { top: height * 0.06, height: height * 0.6 }
+        : { top: 0, height };
+
+  const boxHeight = Math.round(printable.height * logoScale);
   const boxWidth = Math.round(boxHeight * (meta.width / meta.height));
   const fitted =
-    boxWidth > width * 0.9
-      ? { w: Math.round(width * 0.9), h: Math.round((width * 0.9) * (meta.height / meta.width)) }
+    boxWidth > width * 0.82
+      ? { w: Math.round(width * 0.82), h: Math.round((width * 0.82) * (meta.height / meta.width)) }
       : { w: boxWidth, h: boxHeight };
+  const markTop = Math.round(printable.top + (printable.height - fitted.h) / 2);
 
   let mark = sharp(source).resize(fitted.w, fitted.h, { fit: 'inside' });
   if (stamp) {
@@ -89,11 +160,148 @@ async function labelArtwork({
   const markBuffer = await mark.png().toBuffer();
 
   return sharp(plate)
+    .composite([{ input: markBuffer, left: Math.round((width - fitted.w) / 2), top: markTop }])
+    .png()
+    .toBuffer();
+}
+
+/**
+ * Drops a soft shadow under the placed label so it reads as a physical object
+ * resting on the scene rather than a graphic pasted over it. Built from the
+ * label's own alpha, so it follows a tag's chamfer and hole exactly.
+ */
+async function shadowFor(layerPng, { offset = 6, blur = 7, opacity = 0.4 }) {
+  const { width, height } = await sharp(layerPng).metadata();
+  const alpha = await sharp(layerPng).ensureAlpha().extractChannel('alpha').blur(blur).toBuffer();
+
+  const pad = Math.ceil(blur * 2 + offset);
+  const shadow = await sharp({
+    create: {
+      width: width + pad * 2,
+      height: height + pad * 2,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 }
+    }
+  })
     .composite([
-      { input: markBuffer, left: Math.round((width - fitted.w) / 2), top: Math.round((height - fitted.h) / 2) }
+      {
+        input: await sharp({
+          create: { width, height, channels: 3, background: { r: 24, g: 30, b: 20 } }
+        })
+          .joinChannel(alpha)
+          .png()
+          .toBuffer(),
+        left: pad + Math.round(offset * 0.4),
+        top: pad + offset
+      }
     ])
     .png()
     .toBuffer();
+
+  return {
+    buffer: await sharp(shadow)
+      .ensureAlpha()
+      .linear([1, 1, 1, opacity], [0, 0, 0, 0])
+      .png()
+      .toBuffer(),
+    pad
+  };
+}
+
+/**
+ * Softens a rectangle of the photograph until whatever is printed there stops
+ * being readable.
+ *
+ * The licensed shots were taken in real shops, and some of them are full of
+ * other companies' wordmarks — a shelf of somebody else's candles and soap,
+ * photographed at a legible size, sitting on our own gallery page. Branding the
+ * frame does not fix that; the other marks have to go.
+ *
+ * A local blur rather than a patch of flat colour: these are cluttered scenes
+ * with real depth of field, so a softened label reads as something behind the
+ * plane of focus, while a rectangle of paint reads as a redaction. The mask is
+ * feathered for the same reason — a hard-edged blur has a visible seam.
+ */
+async function softenRegion(baseBuffer, region) {
+  const { x, y, width, height, blur = 7, feather = 12, radius = 8 } = region;
+  const meta = await sharp(baseBuffer).metadata();
+
+  const left = Math.max(0, Math.round(x));
+  const top = Math.max(0, Math.round(y));
+  const w = Math.min(Math.round(width), meta.width - left);
+  const h = Math.min(Math.round(height), meta.height - top);
+  if (w <= 0 || h <= 0) {
+    throw new Error(`Patch at ${x},${y} ${width}x${height} falls outside the photograph.`);
+  }
+
+  const blurred = await sharp(baseBuffer).extract({ left, top, width: w, height: h }).blur(blur).png().toBuffer();
+
+  // White where the blur applies, fading to black at the edge. Blurring the
+  // mask is what feathers it, so the rect is inset by the same amount to keep
+  // the soft edge inside the region rather than spilling past it.
+  const mask = await sharp(
+    Buffer.from(
+      `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+         <rect width="${w}" height="${h}" fill="#000"/>
+         <rect x="${feather}" y="${feather}" width="${Math.max(1, w - feather * 2)}"
+               height="${Math.max(1, h - feather * 2)}" rx="${radius}" ry="${radius}" fill="#fff"/>
+       </svg>`
+    )
+  )
+    .blur(feather)
+    .toColourspace('b-w')
+    .toBuffer();
+
+  const patch = await sharp(blurred).removeAlpha().joinChannel(mask).png().toBuffer();
+  return sharp(baseBuffer).composite([{ input: patch, left, top }]).png().toBuffer();
+}
+
+/**
+ * Where the punched hole ends up in the photograph, in source pixels.
+ *
+ * `paperShape` puts the hole on the tag's centre line, a fraction of the chamfer
+ * down from the top edge. Rotation happens about the tag's centre, so the offset
+ * from that centre is what has to be rotated — clockwise, because the y axis
+ * points down and that is the direction `sharp`'s `rotate` turns.
+ */
+function holePosition({ x, y, width, height, angle = 0, inset = 0 }) {
+  const chamfer = Math.min(width - inset * 2, height - inset * 2) * 0.22;
+  const offsetY = inset + chamfer * 0.62 - height / 2;
+  const radians = (angle * Math.PI) / 180;
+  return {
+    x: x - offsetY * Math.sin(radians),
+    y: y + offsetY * Math.cos(radians)
+  };
+}
+
+/**
+ * The twine a swing tag hangs from.
+ *
+ * Without it a tag in mid-air is still a floating rectangle, however well it is
+ * lit — a photograph of a plant has no shelf to rest one on, so the tag has to
+ * be visibly tied to a stem. Drawn over the tag rather than under it, because
+ * real twine passes through the hole and lies across the top of the card.
+ *
+ * The string sags: the control point of the curve is pushed down and across the
+ * chord, so a tag hanging off to one side pulls a slack line rather than a taut
+ * straight one.
+ */
+function tieArtwork(frame, from, to, { colour = '#b9a880', width = 3, sag = 0.28, knot = true } = {}) {
+  const midX = (from[0] + to.x) / 2;
+  const midY = (from[1] + to.y) / 2;
+  const span = Math.hypot(to.x - from[0], to.y - from[1]);
+  const controlY = midY + span * sag;
+
+  return Buffer.from(
+    `<svg width="${frame.width}" height="${frame.height}" xmlns="http://www.w3.org/2000/svg">
+       <path d="M ${from[0]} ${from[1]} Q ${midX} ${controlY} ${to.x} ${to.y}"
+             fill="none" stroke="rgba(60,52,36,0.30)" stroke-width="${width + 2.4}"
+             stroke-linecap="round"/>
+       <path d="M ${from[0]} ${from[1]} Q ${midX} ${controlY} ${to.x} ${to.y}"
+             fill="none" stroke="${colour}" stroke-width="${width}" stroke-linecap="round"/>
+       ${knot ? `<circle cx="${from[0]}" cy="${from[1]}" r="${width * 1.5}" fill="${colour}"/>` : ''}
+     </svg>`
+  );
 }
 
 /**
@@ -277,7 +485,39 @@ async function applyLabel(baseBuffer, placement, debug) {
     blend = placement.blend || 'over';
   }
 
-  const layers = [{ input: layer, left, top, blend }];
+  const layers = [];
+
+  // A printed stamp is ink in the surface and casts nothing. Anything with paper
+  // of its own — a label on a jar, a tag hanging off a stem — has to sit in the
+  // light or it floats.
+  if (!placement.stamp && placement.shadow !== false) {
+    const { buffer: shadow, pad } = await shadowFor(layer, placement.shadow || {});
+    const shadowLeft = left - pad;
+    const shadowTop = top - pad;
+    const cropX = Math.max(0, -shadowLeft);
+    const cropY = Math.max(0, -shadowTop);
+    const shadowMeta = await sharp(shadow).metadata();
+    const w = Math.min(shadowMeta.width - cropX, baseMeta.width - Math.max(0, shadowLeft));
+    const h = Math.min(shadowMeta.height - cropY, baseMeta.height - Math.max(0, shadowTop));
+    if (w > 0 && h > 0) {
+      layers.push({
+        input: await sharp(shadow).extract({ left: cropX, top: cropY, width: w, height: h }).png().toBuffer(),
+        left: Math.max(0, shadowLeft),
+        top: Math.max(0, shadowTop)
+      });
+    }
+  }
+
+  layers.push({ input: layer, left, top, blend });
+
+  if (placement.tie && !quad) {
+    layers.push({
+      input: tieArtwork(baseMeta, placement.tie.to, holePosition(placement), placement.tie),
+      left: 0,
+      top: 0
+    });
+  }
+
   if (debug) {
     layers.push({
       input: Buffer.from(
@@ -298,6 +538,12 @@ async function buildShot(shot, { debug }) {
   let buffer = await readFile(shot.base);
   // Work in PNG so repeated composites never accumulate WebP artefacts.
   buffer = await sharp(buffer).png().toBuffer();
+
+  // Retouch before branding, so a Hillside label placed over a competitor's is
+  // composited onto the cleaned frame rather than being softened along with it.
+  for (const patch of shot.patches || []) {
+    buffer = await softenRegion(buffer, patch);
+  }
 
   for (const placement of shot.labels) {
     buffer = await applyLabel(buffer, placement, debug);

@@ -3,11 +3,19 @@
  *
  * Coordinates are in source pixels on the 1600x1200 image, measured off a
  * coordinate grid rather than guessed. `x,y` is the centre of the label, `angle`
- * is clockwise degrees to match the object's axis, and `curve` is how much
- * cylindrical falloff to add across the label's short side.
+ * is clockwise degrees, and `curve` is cylindrical falloff across the short side.
+ * A `quad` of three corners is used instead where the surface is sheared.
+ *
+ * `shape` decides what kind of object the mark is printed on:
+ *   plate  a label stuck to a vessel -- bottle, jar, glass
+ *   tag    a swing tag with a punched hole, resting on or tied to something
+ *   stake  a tag on a spike, pushed into soil
+ *
+ * Every placement lands on a real object in the frame. A mark floating on empty
+ * background reads as a watermark, which is not what a shop selling handmade
+ * goods should look like.
  *
  * Re-measure with:  node scripts/brand-mockup.mjs --only <name> --debug
- * which writes a .debug.png with every label outlined.
  */
 export const SHOTS = [
   {
@@ -110,48 +118,54 @@ export const SHOTS = [
     ]
   },
   {
-    name: 'air-plants',
-    base: 'assets/photography/air-plants.webp',
-    out: 'public/images/catalog/air-plants.webp',
-    labels: [
-      {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
-        name: 'brand tag',
-        x: 160,
-        y: 1090,
-        width: 300,
-        height: 190,
-        angle: 0,
-        radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
-        badge: true,
-        strength: 0.52,
-        blur: 14
-      }
-    ]
-  },
-  {
     name: 'carnivorous-plants',
     base: 'assets/photography/carnivorous-plants.webp',
     out: 'public/images/catalog/carnivorous-plants.webp',
     labels: [
       {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
-        name: 'brand tag',
-        x: 1300,
-        y: 1090,
+        // A nursery tag resting on the soil, upper-left where the bed is clear.
+        name: 'soil tag',
+        x: 330,
+        y: 180,
         width: 300,
-        height: 190,
-        angle: 0,
-        radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
+        height: 200,
+        angle: -11,
+        radius: 9,
+        paper: '#f2ebdd',
+        logoScale: 0.84,
         badge: true,
+        shape: 'tag',
+        strength: 0.5,
+        blur: 16,
+        shadow: { offset: 9, blur: 9, opacity: 0.5 }
+      }
+    ]
+  },
+  {
+    name: 'air-plants',
+    base: 'assets/photography/air-plants.webp',
+    out: 'public/images/catalog/air-plants.webp',
+    labels: [
+      {
+        // The globe hangs against a seamless white sweep — there is no surface
+        // in the frame and no visible cord to tie to, so the glass itself is the
+        // only honest object. Treated like the jar and the terrarium: a label
+        // adhered to the vessel, curved to the sphere.
+        name: 'globe label',
+        x: 420,
+        y: 870,
+        width: 210,
+        height: 128,
+        angle: -3,
+        radius: 8,
+        paper: '#f2ebdd',
+        logoScale: 0.82,
+        badge: true,
+        shape: 'plate',
+        curve: 0.2,
         strength: 0.52,
-        blur: 14
+        blur: 10,
+        shadow: { offset: 4, blur: 6, opacity: 0.3 }
       }
     ]
   },
@@ -161,20 +175,21 @@ export const SHOTS = [
     out: 'public/images/catalog/driftwood.webp',
     labels: [
       {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
+        // Lying across the driftwood in the lower left.
         name: 'brand tag',
-        x: 310,
-        y: 1090,
-        width: 300,
-        height: 190,
-        angle: 0,
+        x: 340,
+        y: 1030,
+        width: 220,
+        height: 150,
+        angle: 5,
         radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
+        paper: '#f2ebdd',
+        logoScale: 0.84,
         badge: true,
-        strength: 0.52,
-        blur: 14
+        shape: 'tag',
+        strength: 0.5,
+        blur: 15,
+        shadow: { offset: 7, blur: 8, opacity: 0.48 }
       }
     ]
   },
@@ -184,20 +199,21 @@ export const SHOTS = [
     out: 'public/images/catalog/house-plants.webp',
     labels: [
       {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
+        // Standing on the sideboard in the gap between two pots.
         name: 'brand tag',
-        x: 160,
-        y: 100,
-        width: 300,
-        height: 190,
-        angle: 0,
+        x: 870,
+        y: 878,
+        width: 130,
+        height: 180,
+        angle: -3,
         radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
+        paper: '#f2ebdd',
+        logoScale: 0.84,
         badge: true,
-        strength: 0.52,
-        blur: 14
+        shape: 'tag',
+        strength: 0.5,
+        blur: 15,
+        shadow: { offset: 7, blur: 8, opacity: 0.48 }
       }
     ]
   },
@@ -207,20 +223,21 @@ export const SHOTS = [
     out: 'public/images/catalog/live-plant-planters.webp',
     labels: [
       {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
+        // On the shelf above the display.
         name: 'brand tag',
         x: 1240,
-        y: 100,
-        width: 300,
-        height: 190,
-        angle: 0,
+        y: 150,
+        width: 200,
+        height: 140,
+        angle: -5,
         radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
+        paper: '#f2ebdd',
+        logoScale: 0.84,
         badge: true,
-        strength: 0.52,
-        blur: 14
+        shape: 'tag',
+        strength: 0.5,
+        blur: 15,
+        shadow: { offset: 7, blur: 8, opacity: 0.48 }
       }
     ]
   },
@@ -230,20 +247,25 @@ export const SHOTS = [
     out: 'public/images/catalog/moss.webp',
     labels: [
       {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
-        name: 'brand tag',
-        x: 340,
-        y: 100,
-        width: 300,
-        height: 190,
-        angle: 0,
+        // Lying on the lichened rock face, angled with its fall to the right.
+        // The top of the frame is out-of-focus background, so a tag up there had
+        // nothing under it; this band of stone is the one surface in focus.
+        name: 'stone tag',
+        x: 390,
+        y: 770,
+        width: 250,
+        height: 170,
+        angle: 12,
         radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
+        paper: '#f2ebdd',
+        logoScale: 0.84,
         badge: true,
-        strength: 0.52,
-        blur: 14
+        shape: 'tag',
+        strength: 0.5,
+        // Lichen is the busiest texture in the set; a softer blur prints it
+        // straight through the paper.
+        blur: 18,
+        shadow: { offset: 9, blur: 10, opacity: 0.5 }
       }
     ]
   },
@@ -253,20 +275,21 @@ export const SHOTS = [
     out: 'public/images/catalog/succulents.webp',
     labels: [
       {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
+        // Lying on the surface beside the pots, shot from above.
         name: 'brand tag',
-        x: 1420,
-        y: 1090,
-        width: 300,
-        height: 190,
-        angle: 0,
+        x: 1330,
+        y: 1000,
+        width: 240,
+        height: 165,
+        angle: 10,
         radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
+        paper: '#f2ebdd',
+        logoScale: 0.84,
         badge: true,
-        strength: 0.52,
-        blur: 14
+        shape: 'tag',
+        strength: 0.5,
+        blur: 15,
+        shadow: { offset: 7, blur: 8, opacity: 0.48 }
       }
     ]
   },
@@ -276,20 +299,21 @@ export const SHOTS = [
     out: 'public/images/catalog/terrarium-supplies.webp',
     labels: [
       {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
-        name: 'brand tag',
-        x: 220,
-        y: 100,
+        // A label on the glass of the terrarium bowl.
+        name: 'brand plate',
+        x: 300,
+        y: 260,
         width: 300,
-        height: 190,
-        angle: 0,
-        radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
+        height: 200,
+        angle: -2,
+        radius: 12,
+        paper: '#f2ebdd',
+        logoScale: 0.84,
         badge: true,
-        strength: 0.52,
-        blur: 14
+        shape: 'plate',
+        strength: 0.5,
+        blur: 15,
+        shadow: { offset: 4, blur: 6, opacity: 0.32 }
       }
     ]
   },
@@ -299,20 +323,25 @@ export const SHOTS = [
     out: 'public/images/scenes/hillside-hero.webp',
     labels: [
       {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
-        name: 'brand tag',
-        x: 340,
-        y: 850,
-        width: 300,
-        height: 190,
-        angle: 0,
+        // Hung from the eaves plate at (250,668) on the left-hand run, so it
+        // falls into the dark blurred aisle behind the benches. Cream paper
+        // against that shade is the most legible the mark gets in this frame,
+        // and it is the shot the homepage leads with.
+        name: 'hanging tag',
+        x: 254,
+        y: 818,
+        width: 230,
+        height: 155,
+        angle: -4,
         radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
+        paper: '#f2ebdd',
+        logoScale: 0.84,
         badge: true,
-        strength: 0.52,
-        blur: 14
+        shape: 'tag',
+        tie: { to: [250, 668], width: 4 },
+        strength: 0.5,
+        blur: 14,
+        shadow: { offset: 7, blur: 8, opacity: 0.45 }
       }
     ]
   },
@@ -322,20 +351,21 @@ export const SHOTS = [
     out: 'public/images/scenes/workshop-table.webp',
     labels: [
       {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
-        name: 'brand tag',
-        x: 160,
-        y: 580,
-        width: 300,
-        height: 190,
-        angle: 0,
-        radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
+        // A label on the clear upper panel of the jar.
+        name: 'brand plate',
+        x: 700,
+        y: 390,
+        width: 340,
+        height: 230,
+        angle: -1,
+        radius: 12,
+        paper: '#f2ebdd',
+        logoScale: 0.84,
         badge: true,
-        strength: 0.52,
-        blur: 14
+        shape: 'plate',
+        strength: 0.5,
+        blur: 15,
+        shadow: { offset: 4, blur: 6, opacity: 0.32 }
       }
     ]
   },
@@ -343,22 +373,59 @@ export const SHOTS = [
     name: 'patio-containers',
     base: 'assets/photography/patio-containers.webp',
     out: 'public/images/gallery/patio-containers.webp',
+    // This shot was taken in somebody else's shop and it shows: four candle
+    // brands, a soap brand, a pot brand and a plant retailer are all readable in
+    // it, on a page that is supposed to be Hillside's own gallery. Each entry is
+    // one legible wordmark, measured off the grid.
+    // Each box covers the printing and nothing else. A patch drawn generously
+    // around an object softens the object too, and a softened jar beside a sharp
+    // one is more conspicuous than the label was; a patch that covers only the
+    // text band reads as the printing being out of focus, which in a frame with
+    // this much depth is unremarkable.
+    patches: [
+      { x: 590, y: 116, width: 54, height: 78, blur: 7 }, // pot wordmark, upper centre
+      { x: 792, y: 198, width: 50, height: 62, blur: 6 }, // the same brand, second pot
+      { x: 192, y: 196, width: 92, height: 32, blur: 6 }, // printed card, left shelf
+      { x: 184, y: 248, width: 154, height: 56, blur: 6 }, // two candle labels, left shelf
+      { x: 204, y: 374, width: 96, height: 92, blur: 6 }, // printed cards, mid left
+      { x: 1116, y: 292, width: 76, height: 38, blur: 6 }, // soap tin lid
+      { x: 1242, y: 184, width: 72, height: 30, blur: 6 }, // handwritten plant sign
+      { x: 1310, y: 244, width: 70, height: 50, blur: 6 }, // bottle label, right shelf
+      { x: 1456, y: 190, width: 88, height: 80, blur: 7 }, // kraft box, top right
+      { x: 1486, y: 300, width: 84, height: 26, blur: 6 }, // retailer name below it
+      // The soap cartons are one continuous row, but a single 330px patch reads
+      // as a wipe. One per carton keeps the gaps between them sharp.
+      { x: 1196, y: 596, width: 74, height: 62, blur: 6 },
+      { x: 1272, y: 596, width: 74, height: 62, blur: 6 },
+      { x: 1348, y: 596, width: 74, height: 62, blur: 6 },
+      { x: 1424, y: 592, width: 78, height: 62, blur: 6 },
+      { x: 1032, y: 742, width: 138, height: 40, blur: 7 }, // handwritten price on the pot
+      { x: 108, y: 868, width: 114, height: 78, blur: 6 }, // candle label, front left
+      { x: 436, y: 862, width: 98, height: 68, blur: 6 }, // candle label, front centre
+      { x: 1182, y: 828, width: 88, height: 82, blur: 6 }, // candle labels, front right
+      { x: 1286, y: 834, width: 104, height: 86, blur: 6 },
+      { x: 1422, y: 818, width: 114, height: 86, blur: 6 }
+    ],
     labels: [
       {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
-        name: 'brand tag',
-        x: 1090,
-        y: 1090,
-        width: 300,
-        height: 190,
-        angle: 0,
+        // Tied to the monstera's stem at (1090,585) so it hangs down the front
+        // of its pot — the one place in a very busy frame where a tag has both a
+        // stem above it and a plain surface behind it.
+        name: 'monstera tag',
+        x: 1085,
+        y: 739,
+        width: 200,
+        height: 136,
+        angle: 6,
         radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
+        paper: '#f2ebdd',
+        logoScale: 0.84,
         badge: true,
-        strength: 0.52,
-        blur: 14
+        shape: 'tag',
+        tie: { to: [1090, 585], width: 4 },
+        strength: 0.5,
+        blur: 14,
+        shadow: { offset: 7, blur: 8, opacity: 0.48 }
       }
     ]
   },
@@ -368,20 +435,23 @@ export const SHOTS = [
     out: 'public/images/gallery/porch-planter.webp',
     labels: [
       {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
-        name: 'brand tag',
-        x: 1360,
-        y: 160,
-        width: 300,
-        height: 190,
+        // On the front of the tall ribbed pot, which is the one clean vessel
+        // face in a frame otherwise full of window and chair backs.
+        name: 'pot label',
+        x: 1102,
+        y: 1035,
+        width: 156,
+        height: 94,
         angle: 0,
-        radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
+        radius: 6,
+        paper: '#f2ebdd',
+        logoScale: 0.82,
         badge: true,
-        strength: 0.52,
-        blur: 14
+        shape: 'plate',
+        curve: 0.16,
+        strength: 0.55,
+        blur: 8,
+        shadow: { offset: 3, blur: 5, opacity: 0.3 }
       }
     ]
   },
@@ -391,20 +461,25 @@ export const SHOTS = [
     out: 'public/images/gallery/soft-greens.webp',
     labels: [
       {
-        // Position chosen with scripts/brand-place.mjs: the calmest, evenest
-        // patch of the frame, kept off the subject.
+        // Nothing in this frame is a surface — it is a rubber plant against a
+        // bare wall — so the tag hangs off the main stem the way a nursery ties
+        // one on. The knot is on the stem's right edge at the node (727,702);
+        // the tag swings down and to the right, in front of the stem.
         name: 'brand tag',
-        x: 1420,
-        y: 310,
-        width: 300,
-        height: 190,
-        angle: 0,
+        x: 761,
+        y: 826,
+        width: 206,
+        height: 140,
+        angle: 8,
         radius: 10,
-        paper: '#f1eade',
-        logoScale: 0.78,
+        paper: '#f2ebdd',
+        logoScale: 0.84,
         badge: true,
-        strength: 0.52,
-        blur: 14
+        shape: 'tag',
+        tie: { to: [727, 702], width: 4 },
+        strength: 0.5,
+        blur: 15,
+        shadow: { offset: 7, blur: 8, opacity: 0.48 }
       }
     ]
   }

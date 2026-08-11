@@ -54,25 +54,68 @@ inked stamp on the kraft soap wraps, a tag on the ball of twine. This is the ord
 product-mockup technique, and it is why the logo was supplied as transparent artwork.
 
 The rest — moss on a rock, driftwood, a close-up of leaves — contain no packaging to print on, so
-they take a shop tag placed in the calmest part of the frame. Those positions come from
-`scripts/brand-place.mjs`, which scores every candidate position on local detail, exposure and
-distance from the subject, then prints a config block to paste in. The numbers stay explicit in
-`brand-mockup.config.mjs` so they can be nudged by hand.
+they take a shop tag. `scripts/brand-place.mjs` scores candidate positions on local detail,
+exposure and distance from the subject and prints a config block to paste in; the numbers then
+stay explicit in `brand-mockup.config.mjs` so they can be nudged by hand, which every one of them
+has been.
 
-The twine tag is not only branding. The stock photograph shipped with **another company's label on
-it** — "Juteschnur 225g, Great British Garden Company" — legible at full size on the homepage story
-block and the About page, which is a poor look on a page about Tammy's own bench.
+**Every mark sits on an object in the frame.** That is the rule the rest of this follows from. A
+cream rectangle in a clear corner of a photograph is a watermark however well it is lit, and a
+shop selling handmade goods should not look watermarked. So each placement is a thing: a label
+adhered to a bottle, a jar or a glass globe; a stamp inked into kraft; a tag lying on stone or
+soil; a tag hanging on twine from a stem or a greenhouse beam.
+
+The twine tag on the potting bench is not only branding. That stock photograph shipped with
+**another company's label on it** — "Juteschnur 225g, Great British Garden Company" — legible at
+full size on the homepage story block and the About page, which is a poor look on a page about
+Tammy's own bench.
+
+`shape` decides what the mark is printed on:
+
+| `shape` | What it is | Where it is used |
+| --- | --- | --- |
+| `plate` | a label adhered to a vessel | amber bottles, the workshop jar, the terrarium bowl, the air-plant globe, a pot |
+| `tag` | a swing tag: chamfered top corners, a hole punched clean through | anything resting on a surface or hanging |
+| `stake` | a card on a spike | soil |
+
+The chamfer and the punched hole are what make a tag readable as a tag at thumbnail size —
+rounding those corners instead produces a lozenge, which reads as a sticker. The hole is cut out
+of the card with an even-odd subpath, so the photograph shows through it.
+
+A tag that hangs takes `tie: { to: [x, y] }`, naming the point on a stem or a beam that the twine
+is knotted to. The string is drawn from there to the hole, over the card rather than under it,
+because real twine passes through the hole and lies across the top edge. It sags. Without a tie
+a hanging tag is still a floating rectangle, so shots with no surface to rest one on — the rubber
+plant, the greenhouse — use it.
 
 The mark is not pasted on flat. Each placement is fitted to its object and then relit from the
 luminance of the pixels it covers, so the bottle's own highlight runs across the label and its
 shadow side stays dark. The soap stamps are composited in multiply, so the kraft grain reads
-through the ink the way it would on absorbent paper.
+through the ink the way it would on absorbent paper. Anything with paper of its own casts a drop
+shadow built from its own alpha, so the shadow follows the chamfer and the hole; a stamp is ink in
+the surface and casts nothing.
 
-Two placement modes, because a rotation is not always enough. Bottles and soap take `x`/`y`/`angle`.
-The twine tag takes a `quad` of three corners: it is a band wrapping a cylinder, so its top edge
-sits 24 degrees off horizontal while its sides are only 4 degrees off vertical, and a rotated
-rectangle visibly disagrees with the object it is printed on. A placement that runs out of frame,
-as that tag does, is clipped rather than refused.
+Two placement modes, because a rotation is not always enough. Most take `x`/`y`/`angle`. The
+twine tag takes a `quad` of three corners: it is a band wrapping a cylinder, so its top edge sits
+24 degrees off horizontal while its sides are only 4 degrees off vertical, and a rotated rectangle
+visibly disagrees with the object it is printed on. A placement that runs out of frame, as that
+tag does, is clipped rather than refused.
+
+### Removing other shops' branding
+
+`patio-containers.webp` was photographed inside somebody else's shop, and four candle brands, a
+soap brand, a pot brand and a plant retailer are all readable in it — on a page that is supposed
+to be Hillside's own gallery. Adding our mark does not fix that; theirs has to go.
+
+A shot can carry a `patches` array, applied before any label: each entry is a rectangle that gets
+a local, feathered blur. A blur rather than a patch of flat colour, because these are cluttered
+scenes with real depth of field, so softened printing reads as something behind the plane of focus
+while a painted rectangle reads as a redaction. Each box covers the text band and nothing else —
+softening a whole jar beside a sharp one is more conspicuous than the label was.
+
+This is a mitigation, not a fix. The frame is still a photograph of another shop's shelves, and it
+still does not match its own gallery caption ("Patio color story"). Replacing it with a real patio
+container shot is the better answer whenever one exists.
 
 ```bash
 npm run images:mockup                               # rebuild every branded shot
