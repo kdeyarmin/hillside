@@ -16,7 +16,7 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 
 - Professional botanical storefront based on the Hillside green, sage and gold logo system
 - Owner-managed collections with their own pages, assigned from the dashboard
-- Site-wide search across products, care guides and classes
+- Site-wide search across products and care guides
 - Searchable and filterable live product catalog, with sale and new-arrival sorting
 - Individual SEO-ready product pages with live inventory, multiple photographs and customer reviews
 - Back-in-stock email alerts on sold-out products
@@ -24,16 +24,13 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Configurable flat or free standard shipping
 - Customer order-confirmation page and Stripe invoice link
 - Self-service order-status lookup
-- Paid and free class registration with live seat availability
-- In-person, online and hybrid classes
-- Private emailed links to Telnyx Video classrooms
 - Printable houseplant care sheets and detailed care pages
 - Gallery of Tammy’s past planter arrangements
 - Tammy’s Amazon influencer picks with affiliate disclosure
 - Newsletter signup, cart saving and customer contact form
-- Care guides that link through to the plant they describe and to upcoming classes
+- Care guides that link through to the plant they describe
 - Google Analytics 4 ecommerce events (opt-in through an environment variable)
-- LocalBusiness and Event structured data, plus a purpose-built social share image
+- LocalBusiness structured data, plus a purpose-built social share image
 - About, FAQ, shipping/returns, privacy and terms pages
 - Sitemap, robots file, web manifest and structured data
 
@@ -118,6 +115,30 @@ adding or replacing photography, and commit the output.
 `ResilientImage` resolves `srcSet` and `sizes` from its own `src`, so call sites
 only choose a `sizeRole` (`hero`, `card`, `tile`, `detail`, `thumb`). Owner-uploaded
 photographs served from `/media/` have no variants and fall back to a plain `src`.
+
+## Classes are hidden from the public website
+
+Classes are switched off for customers by a single flag,
+`CLASSES_PUBLICLY_VISIBLE` in [`lib/class-visibility.ts`](lib/class-visibility.ts).
+While it is `false`:
+
+- the header, the footer, the homepage, site search, the care guides and the
+  sitemap say nothing about classes, and `/classes` answers 404
+- the dashboard is untouched. Classes are still created, edited, published and
+  hosted from `/admin/content` and the host studio, seats are still counted and
+  held, and the registration and Stripe endpoints still run
+- the private classroom keeps working for anyone already registered. Emailed
+  access links, `/classes/studio/<id>` and the paid-registration confirmation
+  page are reachable with a valid token or Stripe session, so a customer who has
+  already paid is not locked out. Their dead-end buttons point at `/contact`
+  while the listing is hidden
+
+Setting the flag to `true` restores all of it. The one thing it does not restore
+is copy: sentences that advertised classes on the home, about, FAQ, contact and
+search pages were rewritten rather than wrapped in a conditional, so they have to
+be written again. The class paths in `scripts/a11y-audit.mjs` and
+`scripts/responsive-audit.mjs` are commented out for the same reason and come
+back the same way.
 
 ## Class times and the shop timezone
 

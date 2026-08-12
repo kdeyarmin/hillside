@@ -7,7 +7,7 @@ export const metadata = pageMetadata({
   path: '/faq',
   title: 'Frequently Asked Questions',
   description:
-    'Answers about Hillside Gardens plants, shipping, local pickup, planter classes, teas and handmade botanical goods.'
+    'Answers about Hillside Gardens plants, shipping, local pickup, teas and handmade botanical goods.'
 });
 
 const questions = [
@@ -15,8 +15,6 @@ const questions = [
   ['How do I know when to water my plant?', 'We recommend checking the soil rather than watering by a rigid calendar. The product page and care-sheet library explain how dry the soil should feel before each plant is watered.'],
   ['Can live plants be shipped year-round?', 'Weather matters. The Hillside Gardens may temporarily hold a plant order during dangerous heat or freezing temperatures and will contact the customer if a safe-weather delay is needed. Some large or especially delicate arrangements may be limited to local pickup.'],
   ['Do you offer local pickup?', 'When local pickup is available, the product description or checkout instructions will say so. Exact pickup details are shared directly with confirmed customers rather than posted publicly.'],
-  ['How do planter classes work?', 'We list the class description, date, location, price, available seats and what to bring. Paid classes can be reserved securely through Stripe. A confirmation is emailed after payment.'],
-  ['Can you host a private planter class?', 'Yes. Friend groups, garden clubs, workplaces and special gatherings can ask about a private class through the contact page. We will discuss the group size, location, planter style and budget before scheduling.'],
   ['Will I receive an invoice?', 'Yes. Stripe emails a receipt and, when configured for the checkout, a hosted invoice. Hillside also assigns an order number beginning with HG that can be used on the order-status page.'],
   ['How do I check my shipment?', 'Use the order-status page with the HG order number and the exact email used at checkout. Once we mark the order as shipped, the carrier and tracking number appear there.'],
   ['Are the teas, soaps and lotions handmade?', 'Items described as handmade or small-batch are prepared in limited quantities. Read each product page for ingredients, net contents, directions, allergy information and other product-specific details before purchasing or using.'],
@@ -48,7 +46,7 @@ export default function FaqPage() {
         <div className="container">
           <div className="eyebrow">Helpful answers</div>
           <h1>Frequently asked questions.</h1>
-          <p>Quick answers about plants, orders, shipping, classes and Hillside products.</p>
+          <p>Quick answers about plants, orders, shipping and Hillside products.</p>
         </div>
       </section>
       <section className="content">

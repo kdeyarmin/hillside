@@ -5,6 +5,7 @@ import ProductGrid from '@/components/ProductGrid';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { classFormatLabel } from '@/lib/class-access';
+import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { formatMoney } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,7 @@ export async function generateMetadata({
   const { q } = await searchParams;
   return {
     title: q?.trim() ? `Search: ${q.trim()}` : 'Search',
-    description: 'Search plants, botanicals, plant care guides and classes at The Hillside Gardens.',
+    description: 'Search plants, botanicals and plant care guides at The Hillside Gardens.',
     robots: { index: false, follow: true }
   };
 }
@@ -51,15 +52,17 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
           orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
           take: 12
         }),
-        db.classEvent.findMany({
-          where: {
-            active: true,
-            startsAt: { gte: new Date() },
-            OR: [{ title: contains }, { description: contains }]
-          },
-          orderBy: { startsAt: 'asc' },
-          take: 6
-        })
+        CLASSES_PUBLICLY_VISIBLE
+          ? db.classEvent.findMany({
+              where: {
+                active: true,
+                startsAt: { gte: new Date() },
+                OR: [{ title: contains }, { description: contains }]
+              },
+              orderBy: { startsAt: 'asc' },
+              take: 6
+            })
+          : []
       ])
     : [[], [], []];
 
@@ -88,13 +91,13 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
                 type="search"
                 name="q"
                 defaultValue={term}
-                placeholder="Plants, symptoms, classes, care topics"
+                placeholder="Plants, symptoms, care topics"
                 enterKeyHint="search"
               />
             </div>
             <button className="btn" type="submit">Search</button>
           </form>
-          {term && <p>{total} {total === 1 ? 'result' : 'results'} across the shop, care library and classes.</p>}
+          {term && <p>{total} {total === 1 ? 'result' : 'results'} across the shop and care library.</p>}
         </div>
       </section>
 
@@ -104,7 +107,7 @@ export default async function SearchPage({ searchParams }: { searchParams: Promi
             <div className="empty-state">
               <Search size={38} />
               <h3>What are you looking for?</h3>
-              <p>Search a plant name, a symptom such as “yellow leaves”, a product or a class.</p>
+              <p>Search a plant name, a symptom such as “yellow leaves”, or a product.</p>
             </div>
           )}
 

@@ -52,7 +52,7 @@ export async function POST(request: Request) {
         idempotencyKey: `newsletter-welcome/${subscriber.id}`,
         html: emailShell(
           'Welcome to The Hillside Notes',
-          `<p>${name ? `Hi ${escapeHtml(name)},` : 'Hello,'}</p><p>You’re on our list for seasonal plant tips, class dates and new arrivals from The Hillside Gardens.</p><p>Messages will be occasional and useful — never a daily flood.</p>`
+          `<p>${name ? `Hi ${escapeHtml(name)},` : 'Hello,'}</p><p>You’re on our list for seasonal plant tips, plant care and new arrivals from The Hillside Gardens.</p><p>Messages will be occasional and useful — never a daily flood.</p>`
         )
       });
     }

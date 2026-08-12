@@ -8,8 +8,22 @@ import {
   hashClassJoinToken,
   isOnlineClass
 } from '@/lib/class-access';
+import { CLASSES_EXIT_LINK, CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 
 export const runtime = 'nodejs';
+
+/**
+ * A link that no longer resolves has to land somewhere real. While the listing
+ * page is public that is `/classes`, which renders the reason as an alert; while
+ * it is hidden and answering 404, the reason has nowhere to be shown, so the
+ * customer is sent to the page the confirmation email points them at instead.
+ */
+function accessFailure(reason: 'invalid' | 'expired', request: Request) {
+  const destination = CLASSES_PUBLICLY_VISIBLE
+    ? `/classes?access=${reason}`
+    : CLASSES_EXIT_LINK.href;
+  return NextResponse.redirect(new URL(destination, request.url));
+}
 
 export async function GET(
   request: Request,
@@ -17,7 +31,7 @@ export async function GET(
 ) {
   const { token } = await params;
   if (!token || token.length < 24 || token.length > 200) {
-    return NextResponse.redirect(new URL('/classes?access=invalid', request.url));
+    return accessFailure('invalid', request);
   }
 
   const tokenHash = hashClassJoinToken(token);
@@ -31,12 +45,12 @@ export async function GET(
     registration.status !== 'PAID' ||
     !isOnlineClass(registration.classEvent.format)
   ) {
-    return NextResponse.redirect(new URL('/classes?access=invalid', request.url));
+    return accessFailure('invalid', request);
   }
 
   const { closesAt } = classJoinWindow(registration.classEvent);
   if (closesAt <= new Date()) {
-    return NextResponse.redirect(new URL('/classes?access=expired', request.url));
+    return accessFailure('expired', request);
   }
 
   const expires = classAccessCookieExpiry(registration.classEvent);

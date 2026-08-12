@@ -8,6 +8,7 @@ import {
   classTimeLabel,
   isOnlineClass
 } from '@/lib/class-access';
+import { CLASSES_EXIT_LINK } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { formatMoney } from '@/lib/store';
 
@@ -76,7 +77,7 @@ export default async function ClassSuccess({
         )}
 
         <div className="actions" style={{ justifyContent: 'center' }}>
-          <Link className="btn" href="/classes">View all classes</Link>
+          <Link className="btn" href={CLASSES_EXIT_LINK.href}>{CLASSES_EXIT_LINK.label}</Link>
           <Link className="btn gold" href="/care">Explore plant care</Link>
         </div>
       </div>

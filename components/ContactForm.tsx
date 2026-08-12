@@ -3,6 +3,7 @@
 import { FormEvent, useState } from 'react';
 import { Send } from 'lucide-react';
 import FormStatus from '@/components/FormStatus';
+import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 
 export default function ContactForm() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -60,8 +61,8 @@ export default function ContactForm() {
             <option>General question</option>
             <option>Plant care question</option>
             <option>Product or order question</option>
-            <option>Planter class</option>
-            <option>Private group class</option>
+            {CLASSES_PUBLICLY_VISIBLE && <option>Planter class</option>}
+            {CLASSES_PUBLICLY_VISIBLE && <option>Private group class</option>}
             <option>Custom planter arrangement</option>
             <option>Wholesale or collaboration</option>
           </select>
