@@ -233,6 +233,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         <a href="#reviews">Reviews</a>
         <a href="#restock">Restock requests</a>
         <Link href="/admin/content">Website content</Link>
+        <Link href="/admin/accounts">Admin accounts</Link>
         <Link href="/">View public website</Link>
         <p className="muted" style={{ marginTop: 16, marginBottom: 0, fontSize: 14 }}>Signed in as {admin.name}</p>
         <form action={logoutAdmin}><button className="btn gold small" style={{ marginTop: 8 }}>Sign out</button></form>

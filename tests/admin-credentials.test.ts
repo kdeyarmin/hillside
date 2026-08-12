@@ -59,6 +59,25 @@ describe('verifyPassword', () => {
   });
 
   /**
+   * The parameters come out of the stored string, so an absurd N would make
+   * every sign-in attempt against that account cost hundreds of megabytes and
+   * seconds of CPU. The bound turns that into a failed verification.
+   */
+  it('refuses a cost whose working set is out of bounds instead of paying it', () => {
+    const salt = crypto.randomBytes(16).toString('base64');
+    const hash = crypto.randomBytes(64).toString('base64');
+    const started = process.hrtime.bigint();
+
+    // 128 * 2^24 * 8 is 16 GiB of working set.
+    assert.ok(!verifyPassword('anything', `scrypt$16777216$8$1$${salt}$${hash}`));
+    assert.ok(!verifyPassword('anything', `scrypt$16384$4096$1$${salt}$${hash}`));
+    assert.ok(!verifyPassword('anything', `scrypt$16384$8$99$${salt}$${hash}`));
+
+    const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+    assert.ok(elapsedMs < 100, `expected an immediate refusal, took ${elapsedMs}ms`);
+  });
+
+  /**
    * The cost is recorded in the stored string precisely so it can be raised
    * later. An account hashed under the old parameters has to keep working
    * until its owner next changes their password.

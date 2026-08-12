@@ -77,7 +77,7 @@ export async function loginAdmin(formData: FormData) {
   if (!account) {
     redirect('/admin?error=1');
   }
-  await setAdminSession(account.subject);
+  await setAdminSession(account.subject, account.passwordVersion);
   redirect('/admin');
 }
 

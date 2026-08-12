@@ -12,6 +12,18 @@ import crypto from 'crypto';
 const KEY_LENGTH = 64;
 const DEFAULT_COST = { N: 16384, r: 8, p: 1 };
 
+/**
+ * scrypt's working set is 128 * N * r, and the parameters come out of the
+ * stored string — so a row written with an absurd N would make every attempt
+ * to log in as that account cost hundreds of megabytes and seconds of CPU.
+ * Writing that row takes database access, but a bound is one comparison and
+ * turns "the login route is now a memory bomb" into a failed verification.
+ * 64 MiB is four times the default cost, so it stays out of the way of any
+ * plausible future increase.
+ */
+const MAX_WORKING_SET_BYTES = 64 * 1024 * 1024;
+const workingSetBytes = (cost: { N: number; r: number }) => 128 * cost.N * cost.r;
+
 export const MINIMUM_PASSWORD_LENGTH = 10;
 
 function derive(password: string, salt: Buffer, cost: { N: number; r: number; p: number }) {
@@ -38,6 +50,7 @@ export function verifyPassword(password: string, stored: string) {
   const [, rawN, rawR, rawP, rawSalt, rawHash] = parts;
   const cost = { N: Number(rawN), r: Number(rawR), p: Number(rawP) };
   if (!Object.values(cost).every((value) => Number.isInteger(value) && value > 0)) return false;
+  if (workingSetBytes(cost) > MAX_WORKING_SET_BYTES || cost.p > 16) return false;
 
   let expected: Buffer;
   let actual: Buffer;

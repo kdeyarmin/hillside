@@ -20,23 +20,38 @@ export async function GET() {
     analytics: Boolean(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID)
   };
 
+  try {
+    await db.$queryRaw`SELECT 1`;
+    checks.database = true;
+  } catch (error) {
+    console.error('Health check could not reach the database', error);
+  }
+
   /**
    * Signing in needs the session secret plus something to sign in *with*:
    * either a named admin account or the shared password. Reporting only on the
    * environment variables would have called the site healthy at the point
    * where nobody could get into the dashboard.
+   *
+   * The account query is its own probe, and its own failure. A reachable
+   * database whose AdminUser table is missing or unreadable — a schema push
+   * that never ran, a permissions problem — is a different fault from an
+   * unreachable one, and it leaves named accounts unable to sign in, so it is
+   * reported rather than folded into a "could not reach the database" line.
    */
-  let adminAccounts = 0;
-  try {
-    await db.$queryRaw`SELECT 1`;
-    checks.database = true;
-    adminAccounts = await db.adminUser.count({ where: { active: true } });
-  } catch (error) {
-    console.error('Health check could not reach the database', error);
+  let activeAccounts: number | null = null;
+  if (checks.database) {
+    try {
+      activeAccounts = await db.adminUser.count({ where: { active: true } });
+    } catch (error) {
+      console.error('Health check reached the database but could not read the admin accounts', error);
+    }
   }
 
   checks.adminAuth = Boolean(
-    process.env.ADMIN_SESSION_SECRET && (adminAccounts > 0 || process.env.ADMIN_PASSWORD)
+    process.env.ADMIN_SESSION_SECRET &&
+      activeAccounts !== null &&
+      (activeAccounts > 0 || process.env.ADMIN_PASSWORD)
   );
 
   const expected: Array<keyof typeof checks> = ['stripe', 'stripeWebhook', 'email', 'adminAuth'];

@@ -8,11 +8,18 @@ const sessionLengthMs = 12 * 60 * 60 * 1000;
 
 /**
  * `sub` is the AdminUser id the session belongs to, or ENV_SUBJECT for a
- * sign-in against the shared ADMIN_PASSWORD. `iat` is what lets a password
- * change end the sessions that were opened with the old one.
+ * sign-in against the shared ADMIN_PASSWORD. `pv` is the credential the
+ * session was actually authenticated against — the account's
+ * `passwordChangedAt` as it read at the moment the password was verified —
+ * which is what lets a reset end the sessions opened with the old password.
+ *
+ * It records the credential rather than the issue time on purpose. A login
+ * that verified the old password can finish *after* a reset commits, and its
+ * issue time would then be newer than the reset, so an issued-at stamp would
+ * hand out a session on a password that had just been revoked.
  */
 const ENV_SUBJECT = 'shared-password';
-type SessionPayload = { sub: string; iat: number; exp: number };
+type SessionPayload = { sub: string; pv: number; exp: number };
 
 export type AdminIdentity = { id: string; name: string; email: string } | { id: null; name: string; email: null };
 
@@ -63,18 +70,33 @@ const decoyHash = hashPassword(crypto.randomBytes(32).toString('base64url'));
  */
 export async function authenticateAdmin(email: string, password: string) {
   const normalized = normalizeAdminEmail(email);
-  const user = normalized ? await db.adminUser.findUnique({ where: { email: normalized } }) : null;
+
+  /**
+   * A failure to read the accounts table must not take the shared password
+   * down with it. That fallback exists so the shop cannot be locked out of its
+   * own dashboard, and a missing or unreadable AdminUser table — a schema push
+   * that has not run yet, a permissions problem — is exactly the situation it
+   * is for.
+   */
+  let user = null;
+  if (normalized) {
+    try {
+      user = await db.adminUser.findUnique({ where: { email: normalized } });
+    } catch (error) {
+      console.error('Could not read the admin accounts table during sign-in', error);
+    }
+  }
 
   if (user?.active) {
     if (verifyPassword(password, user.passwordHash)) {
       await db.adminUser.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-      return { subject: user.id, name: user.name };
+      return { subject: user.id, name: user.name, passwordVersion: user.passwordChangedAt.getTime() };
     }
   } else {
     verifyPassword(password, decoyHash);
   }
 
-  if (verifyAdminPassword(password)) return { subject: ENV_SUBJECT, name: 'Owner' };
+  if (verifyAdminPassword(password)) return { subject: ENV_SUBJECT, name: 'Owner', passwordVersion: 0 };
   return null;
 }
 
@@ -117,13 +139,23 @@ export async function currentAdmin(): Promise<AdminIdentity | null> {
     return process.env.ADMIN_PASSWORD ? { id: null, name: 'Owner', email: null } : null;
   }
 
-  const user = await db.adminUser.findUnique({
-    where: { id: payload.sub },
-    select: { id: true, name: true, email: true, active: true, passwordChangedAt: true }
-  });
+  // Fail closed: an account session with no credential version cannot be shown
+  // to predate a password reset, so it does not get the benefit of the doubt.
+  if (!Number.isFinite(payload.pv)) return null;
+
+  let user;
+  try {
+    user = await db.adminUser.findUnique({
+      where: { id: payload.sub },
+      select: { id: true, name: true, email: true, active: true, passwordChangedAt: true }
+    });
+  } catch (error) {
+    console.error('Could not read the admin accounts table while checking a session', error);
+    return null;
+  }
   if (!user?.active) return null;
-  // A session opened before the current password was set is no longer valid.
-  if (Number.isFinite(payload.iat) && payload.iat < user.passwordChangedAt.getTime()) return null;
+  // The password this session was authenticated against is no longer current.
+  if (payload.pv < user.passwordChangedAt.getTime()) return null;
 
   return { id: user.id, name: user.name, email: user.email };
 }
@@ -132,13 +164,12 @@ export async function isAdmin() {
   return (await currentAdmin()) !== null;
 }
 
-export async function setAdminSession(subject: string = ENV_SUBJECT) {
+export async function setAdminSession(subject: string = ENV_SUBJECT, passwordVersion = 0) {
   const key = signingKey();
   if (!key) throw new Error('ADMIN_SESSION_SECRET must be configured.');
-  const issuedAt = Date.now();
-  const expiresAt = issuedAt + sessionLengthMs;
+  const expiresAt = Date.now() + sessionLengthMs;
   const encodedPayload = Buffer.from(
-    JSON.stringify({ sub: subject, iat: issuedAt, exp: expiresAt } satisfies SessionPayload)
+    JSON.stringify({ sub: subject, pv: passwordVersion, exp: expiresAt } satisfies SessionPayload)
   ).toString('base64url');
   const token = `${encodedPayload}.${sign(encodedPayload, key)}`;
   const jar = await cookies();

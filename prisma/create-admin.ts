@@ -42,14 +42,36 @@ async function main() {
       return;
     }
     throw new Error(
-      'An email and password are required. Pass --email and --password, or set ADMIN_ACCOUNT_EMAIL and ADMIN_ACCOUNT_PASSWORD.'
+      deactivate
+        ? 'An email is required. Pass --email, or set ADMIN_ACCOUNT_EMAIL.'
+        : 'An email and password are required. Pass --email and --password, or set ADMIN_ACCOUNT_EMAIL and ADMIN_ACCOUNT_PASSWORD.'
     );
   }
 
   if (!looksLikeEmail(email)) throw new Error(`"${email}" does not look like an email address.`);
 
   if (deactivate) {
-    const disabled = await db.adminUser.update({ where: { email }, data: { active: false } });
+    const target = await db.adminUser.findUnique({ where: { email } });
+    if (!target) throw new Error(`There is no admin account for ${email}.`);
+
+    /**
+     * Nothing else stops this one. The dashboard refuses to switch off the
+     * account you are signed in with, which is enough to keep a way in from
+     * there — but this command has no session behind it and would happily
+     * revoke the last account on a site with no shared password left, locking
+     * the shop out of its own dashboard.
+     */
+    if (target.active && !process.env.ADMIN_PASSWORD && !process.argv.includes('--force')) {
+      const remaining = await db.adminUser.count({ where: { active: true, id: { not: target.id } } });
+      if (remaining === 0) {
+        throw new Error(
+          `${target.email} is the only account that can sign in, and ADMIN_PASSWORD is not set. ` +
+            'Create another admin first, or pass --force to lock the dashboard deliberately.'
+        );
+      }
+    }
+
+    const disabled = await db.adminUser.update({ where: { id: target.id }, data: { active: false } });
     console.log(`Deactivated admin account ${disabled.email}. Their sessions end on the next request.`);
     return;
   }
@@ -58,6 +80,20 @@ async function main() {
   if (complaint) throw new Error(complaint);
 
   const existing = await db.adminUser.findUnique({ where: { email } });
+
+  /**
+   * The deploy path only ever creates. ADMIN_ACCOUNT_* is documented as
+   * something you leave configured, and railway.json runs this on every
+   * deploy — so reconciling an existing account here would mean any unrelated
+   * deployment silently reset that person's password back to the variable and
+   * switched a revoked account back on. An account that already exists is the
+   * database's business, not the environment's.
+   */
+  if (existing && optional) {
+    console.log(`admin:create — ${existing.email} already exists, leaving it unchanged.`);
+    return;
+  }
+
   const account = await db.adminUser.upsert({
     where: { email },
     create: { email, name: name || email, passwordHash: hashPassword(password), passwordChangedAt: new Date() },
