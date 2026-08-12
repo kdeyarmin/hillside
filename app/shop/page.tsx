@@ -116,6 +116,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
       </section>
       <section className="content">
         <div className="container">
+          <h2 className="sr-only">Products</h2>
           <ShopClient
             products={withRatings}
             initialCategory={params.category || 'ALL'}

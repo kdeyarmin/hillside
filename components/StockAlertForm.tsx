@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { BellRing } from 'lucide-react';
+import FormStatus from '@/components/FormStatus';
 
 /**
  * A sold-out product used to offer nothing but a disabled button. This turns
@@ -64,11 +65,7 @@ export default function StockAlertForm({ slug, name }: { slug: string; name: str
           {pending ? 'Adding…' : 'Notify me'}
         </button>
       </div>
-      {status.message && (
-        <p className={`form-status ${status.type === 'ok' ? 'success' : 'error'}`} role="status">
-          {status.message}
-        </p>
-      )}
+      <FormStatus message={status.message} tone={status.type === 'ok' ? 'success' : 'error'} />
     </form>
   );
 }

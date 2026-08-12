@@ -31,6 +31,8 @@ export default async function CollectionsIndex() {
       <section className="content">
         <div className="container">
           {collections.length ? (
+            <>
+            <h2 className="sr-only">Collections</h2>
             <div className="editorial-collections">
               {collections.map((collection) => (
                 <Link className="editorial-collection" href={`/collections/${collection.slug}`} key={collection.id}>
@@ -54,6 +56,7 @@ export default async function CollectionsIndex() {
                 </Link>
               ))}
             </div>
+            </>
           ) : (
             <div className="empty-state">
               <h3>Collections are being arranged.</h3>

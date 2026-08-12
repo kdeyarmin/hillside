@@ -45,6 +45,8 @@ export default async function Gallery() {
       <section className="content">
         <div className="container">
           {items.length ? (
+            <>
+            <h2 className="sr-only">Planter arrangements</h2>
             <GalleryGrid
               items={items.map(({ id, title, imageUrl, caption, linkUrl, linkLabel }) => ({
                 id,
@@ -55,6 +57,7 @@ export default async function Gallery() {
                 linkLabel
               }))}
             />
+            </>
           ) : (
             <div className="empty-state">
               <h3>Gallery coming soon.</h3>

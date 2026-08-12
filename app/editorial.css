@@ -181,7 +181,7 @@ body:has(.adminshell) .editorial-topbar {
 }
 
 .editorial-link:hover {
-  color: var(--gold);
+  color: var(--gold-strong);
 }
 
 .trust-strip {
@@ -319,7 +319,7 @@ body:has(.adminshell) .editorial-topbar {
 }
 
 .product-kicker {
-  color: var(--sage);
+  color: var(--sage-ink);
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.12em;

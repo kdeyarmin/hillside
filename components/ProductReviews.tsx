@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Star } from 'lucide-react';
+import FormStatus from '@/components/FormStatus';
 
 export type PublicReview = {
   id: string;
@@ -14,13 +15,17 @@ export type PublicReview = {
   createdAt: string;
 };
 
-function StarRow({ rating, size = 15 }: { rating: number; size?: number }) {
+function StarRow({ rating, size = 15, label }: { rating: number; size?: number; label?: string }) {
   return (
-    <span className="rating-stars" aria-hidden="true">
+    <span className="rating-stars">
+      {/* Without this each individual review's score was unannounced: the icons
+          are decorative and the row had no text alternative. */}
+      {label !== undefined && <span className="sr-only">{label}</span>}
       {[1, 2, 3, 4, 5].map((step) => (
         <Star
           size={size}
           key={step}
+          aria-hidden="true"
           className={step <= Math.round(rating) ? 'star on' : 'star'}
         />
       ))}
@@ -83,19 +88,28 @@ function ReviewForm({ productSlug }: { productSlug: string }) {
   return (
     <form className="review-form form-card" onSubmit={submit}>
       <h3>Write a review</h3>
+      {/*
+        Radios, not toggle buttons. As `aria-pressed` buttons only the exact value
+        reported pressed while every star up to it rendered filled, so what a
+        screen reader announced contradicted what the page showed. Choosing one of
+        five mutually exclusive values is what a radio group is, and it brings
+        arrow-key selection with it.
+      */}
       <fieldset className="rating-picker">
         <legend>Your rating</legend>
         {[1, 2, 3, 4, 5].map((value) => (
-          <button
-            type="button"
-            key={value}
-            className={value <= rating ? 'on' : ''}
-            aria-label={`${value} ${value === 1 ? 'star' : 'stars'}`}
-            aria-pressed={value === rating}
-            onClick={() => setRating(value)}
-          >
-            <Star size={22} />
-          </button>
+          <label key={value} className={value <= rating ? 'on' : ''}>
+            <input
+              className="sr-only"
+              type="radio"
+              name="rating"
+              value={value}
+              checked={value === rating}
+              onChange={() => setRating(value)}
+            />
+            <span className="sr-only">{`${value} ${value === 1 ? 'star' : 'stars'}`}</span>
+            <Star size={22} aria-hidden="true" />
+          </label>
         ))}
       </fieldset>
       <div className="form-grid">
@@ -123,11 +137,7 @@ function ReviewForm({ productSlug }: { productSlug: string }) {
         </button>
         <button className="text-button" type="button" onClick={() => setOpen(false)}>Cancel</button>
       </div>
-      {status.message && (
-        <p className={`form-status ${status.type === 'ok' ? 'success' : 'error'}`} role="status">
-          {status.message}
-        </p>
-      )}
+      <FormStatus message={status.message} tone={status.type === 'ok' ? 'success' : 'error'} />
     </form>
   );
 }
@@ -153,7 +163,7 @@ export default function ProductReviews({
           <h2>What people say about {productName}.</h2>
           {count > 0 ? (
             <p className="reviews-summary">
-              <StarRow rating={average} size={18} />
+              <StarRow rating={average} size={18} label={`Average rating ${average.toFixed(1)} out of 5`} />
               <b>{average.toFixed(1)}</b> out of 5 · {count} {count === 1 ? 'review' : 'reviews'}
             </p>
           ) : (
@@ -168,7 +178,7 @@ export default function ProductReviews({
           {reviews.map((review) => (
             <li className="review" key={review.id}>
               <div className="review-head">
-                <StarRow rating={review.rating} />
+                <StarRow rating={review.rating} label={`Rated ${review.rating} out of 5`} />
                 <b>{review.authorName}</b>
                 {review.verifiedPurchase && <span className="pill">Verified purchase</span>}
                 <time dateTime={review.createdAt}>

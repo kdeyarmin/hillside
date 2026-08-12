@@ -30,6 +30,8 @@ type CartContextValue = {
   checkoutLoading: boolean;
   checkoutError: string | null;
   checkoutNotice: string | null;
+  /** Last "added to basket" message, for the header's live region. */
+  lastAdded: string | null;
   addItem: (product: CartProduct, quantity?: number) => void;
   setQuantity: (slug: string, quantity: number) => void;
   removeItem: (slug: string) => void;
@@ -43,6 +45,7 @@ const CartContext = createContext<CartContextValue | null>(null);
 const STORAGE_KEY = 'hillside-cart-v2';
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
+  const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [items, setItems] = useState<CartLine[]>([]);
   const [ready, setReady] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -86,6 +89,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addItem = useCallback((product: CartProduct, quantity = 1) => {
     trackAddToCart(toGtagItem(product, quantity));
+    /**
+     * Adding to the basket was silent to a screen reader. Focus does move into the
+     * drawer, which is a reasonable cue on its own, but nothing ever said what had
+     * been added — so the confirmation existed only visually.
+     */
+    setLastAdded(`${product.name} added to your basket.`);
     setItems((current) => {
       const existing = current.find((item) => item.slug === product.slug);
       if (existing) {
@@ -202,6 +211,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       checkoutLoading,
       checkoutError,
       checkoutNotice,
+      lastAdded,
       addItem,
       setQuantity,
       removeItem,
@@ -218,6 +228,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       checkoutLoading,
       checkoutError,
       checkoutNotice,
+      lastAdded,
       addItem,
       setQuantity,
       removeItem,

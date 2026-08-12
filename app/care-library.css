@@ -1,15 +1,6 @@
-/* Plant care library, troubleshooting guides and care manager */
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
+/* Plant care library, troubleshooting guides and care manager.
+   `.sr-only` lives in responsive-hardening.css, which is global; the duplicate
+   that used to sit here is gone. */
 
 .care-pagehero {
   position: relative;
@@ -58,7 +49,7 @@
 }
 
 .care-library-stats b {
-  color: var(--gold);
+  color: var(--gold-strong);
   font-size: 16px;
 }
 
@@ -219,7 +210,6 @@
   background: var(--white);
   color: var(--ink);
   font: inherit;
-  outline: none;
 }
 
 .care-search input:focus {
@@ -266,7 +256,7 @@
 }
 
 .care-filter-row button.active span {
-  background: var(--gold);
+  background: var(--gold-strong);
   color: var(--white);
 }
 
@@ -333,7 +323,7 @@
   left: 14px;
   padding: 6px 10px;
   border-radius: 999px;
-  background: var(--gold);
+  background: var(--gold-strong);
   color: var(--white);
   font-size: 10px;
   font-weight: 900;
@@ -391,7 +381,7 @@
 
 .care-guide-copy .botanical {
   margin: 0 0 8px;
-  color: var(--sage);
+  color: var(--sage-ink);
   font-style: italic;
 }
 
@@ -444,7 +434,7 @@
 }
 
 .care-guide-footer > span {
-  color: var(--sage);
+  color: var(--sage-ink);
   font-size: 11px;
   font-weight: 800;
 }
@@ -521,7 +511,7 @@
 
 .care-botanical-name {
   margin: 0 0 12px;
-  color: var(--sage);
+  color: var(--sage-ink);
   font-size: 18px;
   font-style: italic;
 }

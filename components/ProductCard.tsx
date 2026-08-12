@@ -25,7 +25,16 @@ export type ProductCardProduct = {
 function Stars({ rating, count }: { rating: number; count: number }) {
   const rounded = Math.round(rating * 2) / 2;
   return (
-    <span className="rating-inline" aria-label={`Rated ${rating.toFixed(1)} out of 5 from ${count} reviews`}>
+    /**
+     * The accessible name is carried by visually hidden text, not by `aria-label`
+     * on the wrapper. That wrapper is a bare `<span>` — implicit role `generic` —
+     * and `aria-label` is not exposed on generic elements, so with both children
+     * `aria-hidden` every star rating on the site announced as nothing at all.
+     */
+    <span className="rating-inline">
+      <span className="sr-only">
+        Rated {rating.toFixed(1)} out of 5 from {count} {count === 1 ? 'review' : 'reviews'}
+      </span>
       <span className="rating-stars" aria-hidden="true">
         {[1, 2, 3, 4, 5].map((step) => (
           <span className={step <= rounded ? 'on' : step - 0.5 === rounded ? 'half' : ''} key={step}>

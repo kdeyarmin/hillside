@@ -158,7 +158,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <CartProvider>
           <SiteHeader />
-          <main id="main-content">{children}</main>
+          {/* tabIndex={-1} so the skip link actually moves focus. Without it Safari
+            scrolls to the target and leaves focus where it was. */}
+          <main id="main-content" tabIndex={-1}>
+            {children}
+          </main>
           <SiteFooter contactEmail={businessEmail()} />
         </CartProvider>
         <Analytics />

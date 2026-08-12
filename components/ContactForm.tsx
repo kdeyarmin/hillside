@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { Send } from 'lucide-react';
+import FormStatus from '@/components/FormStatus';
 
 export default function ContactForm() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -88,11 +89,7 @@ export default function ContactForm() {
       <button className="btn" type="submit" disabled={status === 'loading'}>
         <Send size={17} /> {status === 'loading' ? 'Sending…' : 'Send message'}
       </button>
-      {message && (
-        <p className={`form-status ${status}`} role="status" aria-live="polite" style={{ marginBottom: 0 }}>
-          {message}
-        </p>
-      )}
+      <FormStatus message={message} tone={status === 'error' ? 'error' : 'success'} className="tight" />
     </form>
   );
 }

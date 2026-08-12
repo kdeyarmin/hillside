@@ -1,9 +1,4 @@
 /* Cross-device robustness, accessibility and small-screen hardening. */
-:root {
-  --gold-strong: #8a641b;
-  --sage-ink: #5f6d52;
-}
-
 html,
 body {
   width: 100%;

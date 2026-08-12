@@ -16,7 +16,9 @@ export default function AddToCartButton({ product }: { product: CartProduct }) {
 
   return (
     <div className="add-to-cart-panel">
-      <div className="quantity-picker" aria-label="Quantity">
+      {/* role="group" so the label is exposed — a bare div is `generic`,
+          where aria-label is ignored. The cart drawer already does this. */}
+      <div className="quantity-picker" role="group" aria-label="Quantity">
         <button
           type="button"
           onClick={() => setQuantity((value) => Math.max(1, value - 1))}
