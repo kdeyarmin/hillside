@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { MessageStatus, OrderStatus, ProductType, RegistrationStatus, ReviewStatus } from '@prisma/client';
 import { db } from '@/lib/db';
-import { isAdmin } from '@/lib/admin';
+import { currentAdmin } from '@/lib/admin';
 import { REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
 import { formatMoney, productTypeLabel } from '@/lib/store';
 import {
@@ -122,23 +122,23 @@ function ProductFields({
 }
 
 export default async function Admin({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
-  const authenticated = await isAdmin();
+  const admin = await currentAdmin();
   const params = await searchParams;
 
-  if (!authenticated) {
+  if (!admin) {
     return (
       <section className="content">
         <div className="container" style={{ maxWidth: 520 }}>
           <div className="card"><div className="cardbody">
             <img src="/logo.webp" alt="The Hillside Gardens" style={{ width: 260, margin: '0 auto 25px' }} />
             <h1 className="display-title" style={{ color: 'var(--forest)', fontSize: 42, textAlign: 'center' }}>Owner sign in</h1>
-            <p style={{ textAlign: 'center' }}>Use the private password configured in Railway.</p>
+            <p style={{ textAlign: 'center' }}>Sign in with your admin email address and password.</p>
             {params.error && (
               <p role="alert" style={{ color: 'var(--danger)', textAlign: 'center' }}>
                 <b>
                   {params.error === 'throttled'
                     ? 'Too many sign-in attempts. Please wait a few minutes and try again.'
-                    : 'That password wasn’t correct.'}
+                    : 'That email address and password didn’t match an admin account.'}
                 </b>
               </p>
             )}
@@ -146,8 +146,10 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
               {/* A placeholder is not a label: it disappears on the first keystroke
                   and is not reliably announced, so this field had no accessible
                   name at all. */}
+              <label className="sr-only" htmlFor="admin-email">Admin email address</label>
+              <input id="admin-email" name="email" type="email" required autoComplete="username" placeholder="Email address" style={{ ...input, marginBottom: 12 }} />
               <label className="sr-only" htmlFor="admin-password">Admin password</label>
-              <input id="admin-password" name="password" type="password" required autoComplete="current-password" placeholder="Admin password" style={{ ...input, marginBottom: 14 }} />
+              <input id="admin-password" name="password" type="password" required autoComplete="current-password" placeholder="Password" style={{ ...input, marginBottom: 14 }} />
               <button className="btn full">Sign in</button>
             </form>
           </div></div>
@@ -231,8 +233,10 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         <a href="#reviews">Reviews</a>
         <a href="#restock">Restock requests</a>
         <Link href="/admin/content">Website content</Link>
+        <Link href="/admin/accounts">Admin accounts</Link>
         <Link href="/">View public website</Link>
-        <form action={logoutAdmin}><button className="btn gold small" style={{ marginTop: 16 }}>Sign out</button></form>
+        <p className="muted" style={{ marginTop: 16, marginBottom: 0, fontSize: 14 }}>Signed in as {admin.name}</p>
+        <form action={logoutAdmin}><button className="btn gold small" style={{ marginTop: 8 }}>Sign out</button></form>
       </aside>
 
       <main className="adminmain">

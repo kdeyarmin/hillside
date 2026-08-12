@@ -11,7 +11,7 @@ import {
   RegistrationStatus,
   ReviewStatus
 } from '@prisma/client';
-import { clearAdminSession, isAdmin, setAdminSession, verifyAdminPassword } from '@/lib/admin';
+import { authenticateAdmin, clearAdminSession, isAdmin, setAdminSession } from '@/lib/admin';
 import { rateLimitedByKey } from '@/lib/rate-limit';
 import { isNavigationCollection } from '@/lib/collections';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
@@ -48,16 +48,19 @@ function refresh(...paths: string[]) {
 }
 
 /**
- * This one password protects every order, every customer address, the whole
+ * This login protects every order, every customer address, the whole
  * subscriber list and the CSV exports of all three. It previously had no
  * throttle at all — unlimited guesses, as fast as they could be posted — and
  * compared with `!==`, which short-circuits on the first differing byte and so
  * leaks the length and prefix of the real password through response timing.
  *
- * `verifyAdminPassword` had been written with a constant-time comparison for
- * exactly this purpose and was never called from anywhere.
+ * Both comparisons behind `authenticateAdmin` are constant-time, and the
+ * failure below is deliberately identical whether the email is unknown or the
+ * password is wrong: telling the two apart would confirm which addresses have
+ * accounts.
  */
 export async function loginAdmin(formData: FormData) {
+  const email = text(formData, 'email');
   const password = text(formData, 'password');
   const requestHeaders = await headers();
   const forwarded = requestHeaders.get('x-forwarded-for') || '';
@@ -70,10 +73,11 @@ export async function loginAdmin(formData: FormData) {
     redirect('/admin?error=throttled');
   }
 
-  if (!verifyAdminPassword(password)) {
+  const account = await authenticateAdmin(email, password);
+  if (!account) {
     redirect('/admin?error=1');
   }
-  await setAdminSession();
+  await setAdminSession(account.subject, account.passwordVersion);
   redirect('/admin');
 }
 
