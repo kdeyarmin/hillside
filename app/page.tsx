@@ -14,9 +14,18 @@ import {
 import { seatsRemaining } from '@/lib/class-seats';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
+import { pageMetadata } from '@/lib/seo';
 import { formatMoney, formatMoneyCompact, freeShippingThresholdCents } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
+export const metadata = pageMetadata({
+  path: '/',
+  title: 'The Hillside Gardens | Plants, Teas & Botanicals',
+  description:
+    'Shop potted plants, loose-leaf teas, handmade soaps and lotions, explore practical plant-care sheets, and join us for in-person or online plant classes.',
+  image: '/images/scenes/hillside-hero.webp',
+  imageAlt: 'Plants growing in a sunlit greenhouse at The Hillside Gardens'
+});
 
 export default async function Home() {
   const freeShippingThreshold = freeShippingThresholdCents();

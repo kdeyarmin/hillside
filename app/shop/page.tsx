@@ -4,6 +4,7 @@ import ShopClient from '@/components/ShopClient';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { categoryLabel } from '@/lib/store';
+import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,24 +18,29 @@ export async function generateMetadata({
   const { q, category } = await searchParams;
   if (q?.trim()) {
     return {
-      title: `Search: ${q.trim()}`,
-      description: `Products matching “${q.trim()}” at The Hillside Gardens.`,
+      ...pageMetadata({
+        path: '/shop',
+        title: `Search: ${q.trim()}`,
+        description: `Products matching “${q.trim()}” at The Hillside Gardens.`
+      }),
       robots: { index: false, follow: true }
     };
   }
+  // A filtered view is the shop with a narrower selection, not a page of its own,
+  // so it keeps the shop's canonical while carrying its own title and card.
   if (category && category.toUpperCase() !== 'ALL') {
-    return {
+    return pageMetadata({
+      path: '/shop',
       title: `${categoryLabel(category)} — Shop`,
-      description: `Shop ${categoryLabel(category).toLowerCase()} from The Hillside Gardens.`,
-      alternates: { canonical: '/shop' }
-    };
+      description: `Shop ${categoryLabel(category).toLowerCase()} from The Hillside Gardens.`
+    });
   }
-  return {
+  return pageMetadata({
+    path: '/shop',
     title: 'Shop Plants, Teas & Botanicals',
     description:
-      'Shop potted plants, loose-leaf tea, tea supplies, handmade soap and botanical lotion from The Hillside Gardens.',
-    alternates: { canonical: '/shop' }
-  };
+      'Shop potted plants, loose-leaf tea, tea supplies, handmade soap and botanical lotion from The Hillside Gardens.'
+  });
 }
 
 export default async function Shop({ searchParams }: { searchParams: Promise<ShopParams> }) {

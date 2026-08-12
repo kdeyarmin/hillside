@@ -100,6 +100,22 @@ export function freeShippingThresholdCents() {
   return Math.max(0, Number(process.env.FREE_SHIPPING_THRESHOLD_CENTS || 7500));
 }
 
+/** The standard shipping rate, read from the same value Stripe Checkout charges. */
+export function flatShippingCents() {
+  return Math.max(0, Number(process.env.FLAT_SHIPPING_CENTS || 895));
+}
+
+/**
+ * How long a product's advertised price should be treated as good for. Google
+ * warns about an Offer without it and may stop showing the price outright. A year
+ * out is the usual convention for a shop that does not run time-boxed pricing.
+ */
+export function priceValidUntil(from = new Date()) {
+  const until = new Date(from);
+  until.setFullYear(until.getFullYear() + 1);
+  return until.toISOString().slice(0, 10);
+}
+
 /**
  * The same threshold, readable from a client component. Only `NEXT_PUBLIC_*` is
  * inlined into the browser bundle, so the announcement bar and the cart drawer's

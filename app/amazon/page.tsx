@@ -5,13 +5,15 @@ import ResilientImage from '@/components/ResilientImage';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
+import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/amazon',
   title: 'Our Amazon Picks',
-  description: 'A curated collection of plant tools, planter supplies and tea favorites we recommend.',
-  alternates: { canonical: '/amazon' }
-};
+  description:
+    'A curated collection of plant tools, planter supplies and tea favorites we recommend.'
+});
 
 export default async function AmazonPage() {
   const [picks, ourProducts] = await Promise.all([

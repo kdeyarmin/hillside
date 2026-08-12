@@ -1,12 +1,29 @@
 import type { MetadataRoute } from 'next';
-import { absoluteUrl } from '@/lib/store';
+import { absoluteUrl, siteBaseUrl } from '@/lib/store';
 
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
-      { userAgent: '*', allow: '/', disallow: ['/admin', '/api', '/cart', '/search'] }
+      {
+        userAgent: '*',
+        allow: '/',
+        // The two confirmation pages carry a customer's email address and order
+        // total against a session id in the URL. They are also noindex, but a
+        // crawler should not be fetching them at all.
+        disallow: [
+          '/admin',
+          '/api',
+          '/cart',
+          '/search',
+          '/order/success',
+          '/classes/success',
+          '/classes/studio'
+        ]
+      }
     ],
     sitemap: absoluteUrl('/sitemap.xml'),
-    host: absoluteUrl('/')
+    // A bare hostname. This directive is a Yandex extension that expects
+    // `example.com`, not a full URL — it was emitting scheme and trailing slash.
+    host: new URL(siteBaseUrl()).host
   };
 }

@@ -1,9 +1,12 @@
 import { businessEmail } from '@/lib/store';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/privacy',
   title: 'Privacy Policy',
-  description: 'Privacy policy for The Hillside Gardens website, shop, classes and contact forms.'
-};
+  description:
+    'Privacy policy for The Hillside Gardens website, shop, classes and contact forms.'
+});
 
 export default function PrivacyPage() {
   const email = businessEmail();

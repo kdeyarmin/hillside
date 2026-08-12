@@ -11,11 +11,14 @@ import StockAlertForm from '@/components/StockAlertForm';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { jsonLd } from '@/lib/json-ld';
+import { pageMetadata } from '@/lib/seo';
 import {
   absoluteUrl,
   discountPercent,
+  flatShippingCents,
   formatMoney,
   freeShippingThresholdCents,
+  priceValidUntil,
   productTypeLabel,
   resolveImageUrl
 } from '@/lib/store';
@@ -26,25 +29,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const product = await db.product.findFirst({ where: { slug, active: true } });
   if (!product) return { title: 'Product not found' };
-  return {
+  return pageMetadata({
+    path: `/shop/${product.slug}`,
     title: product.name,
     description: product.shortDescription || product.description,
-    alternates: { canonical: `/shop/${product.slug}` },
-    openGraph: {
-      type: 'website',
-      title: product.name,
-      description: product.shortDescription || product.description,
-      url: `/shop/${product.slug}`,
-      images: [
-        {
-          url: absoluteUrl(resolveImageUrl(product.imageUrl)),
-          alt: product.name,
-          width: 1200,
-          height: 1050
-        }
-      ]
-    }
-  };
+    image: resolveImageUrl(product.imageUrl),
+    imageAlt: product.name
+  });
 }
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -115,12 +106,48 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           }))
         }
       : {}),
+    /**
+     * `itemCondition`, `priceValidUntil` and the shipping and returns details are
+     * all fields Search Console warns about when they are absent from an Offer.
+     * The shipping figures come from the same configuration the cart charges by,
+     * so the rich result cannot advertise a rate the checkout does not honour.
+     */
     offers: {
       '@type': 'Offer',
       url: absoluteUrl(`/shop/${product.slug}`),
       priceCurrency: 'USD',
       price: (product.priceCents / 100).toFixed(2),
-      availability: soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock'
+      priceValidUntil: priceValidUntil(),
+      itemCondition: 'https://schema.org/NewCondition',
+      availability: soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
+      seller: { '@id': absoluteUrl('/#business') },
+      shippingDetails: {
+        '@type': 'OfferShippingDetails',
+        shippingRate: {
+          '@type': 'MonetaryAmount',
+          value: (
+            (threshold > 0 && product.priceCents >= threshold ? 0 : flatShippingCents()) / 100
+          ).toFixed(2),
+          currency: 'USD'
+        },
+        shippingDestination: {
+          '@type': 'DefinedRegion',
+          addressCountry: 'US'
+        },
+        deliveryTime: {
+          '@type': 'ShippingDeliveryTime',
+          handlingTime: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 3, unitCode: 'DAY' },
+          transitTime: { '@type': 'QuantitativeValue', minValue: 3, maxValue: 7, unitCode: 'DAY' }
+        }
+      },
+      hasMerchantReturnPolicy: {
+        '@type': 'MerchantReturnPolicy',
+        applicableCountry: 'US',
+        returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+        merchantReturnDays: 14,
+        returnMethod: 'https://schema.org/ReturnByMail',
+        returnFees: 'https://schema.org/ReturnShippingFees'
+      }
     }
   };
 

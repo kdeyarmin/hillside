@@ -14,6 +14,7 @@ import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
 import { absoluteUrl, businessEmail, siteBaseUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
+import { websiteJsonLd } from '@/lib/seo';
 
 const hillsideSans = Manrope({
   subsets: ['latin'],
@@ -55,35 +56,23 @@ export const metadata: Metadata = {
     'plant care'
   ],
   applicationName: 'The Hillside Gardens',
-  alternates: { canonical: '/' },
   icons: { icon: '/logo.png', apple: '/logo.png' },
   formatDetection: {
     telephone: false,
     address: false,
     email: false
-  },
-  openGraph: {
-    type: 'website',
-    locale: 'en_US',
-    url: '/',
-    siteName: 'The Hillside Gardens',
-    title: 'The Hillside Gardens',
-    description: 'Plants, teas, botanicals and practical plant education.',
-    images: [
-      {
-        url: '/og-image.jpg',
-        width: 1200,
-        height: 630,
-        alt: 'Plants growing in a sunlit greenhouse at The Hillside Gardens'
-      }
-    ]
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: 'The Hillside Gardens',
-    description: 'Plants, teas, botanicals and practical plant education.',
-    images: ['/og-image.jpg']
   }
+  /**
+   * No `alternates`, `openGraph` or `twitter` here on purpose.
+   *
+   * Next merges metadata by top-level field, so anything declared at this level
+   * is inherited whole by every page that does not redefine it. A
+   * `canonical: '/'` set here for the homepage's benefit was therefore inherited
+   * by fourteen pages — including the care library and the classes page — each of
+   * which then told search engines its canonical address was the homepage.
+   *
+   * Pages build all three together through `pageMetadata()` in `lib/seo.ts`.
+   */
 };
 
 /**
@@ -149,6 +138,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLd(businessJsonLd()) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLd(websiteJsonLd()) }}
         />
         <CartProvider>
           <SiteHeader />

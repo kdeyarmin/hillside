@@ -2,14 +2,15 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import { db } from '@/lib/db';
+import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
+  path: '/collections',
   title: 'Shop by collection',
   description:
-    'Browse The Hillside Gardens by collection — house plants, carnivorous plants, planters, succulents, air plants, soaps, moss, driftwood, apothecary and terrarium supplies.',
-  alternates: { canonical: '/collections' }
-};
+    'Browse The Hillside Gardens by collection — house plants, carnivorous plants, planters, succulents, air plants, soaps, moss, driftwood, apothecary and terrarium supplies.'
+});
 
 export default async function CollectionsIndex() {
   const collections = await db.collection.findMany({

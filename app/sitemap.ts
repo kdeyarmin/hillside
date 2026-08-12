@@ -37,9 +37,38 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
   ]);
 
+  /**
+   * `lastModified` on the static pages is derived from the newest thing each one
+   * actually shows, not from `new Date()`. Stamping "modified right now" on every
+   * fetch is worse than omitting the field: a crawler that checks twice and sees
+   * the timestamp move without the content changing learns to disregard lastmod
+   * across the whole sitemap, including the product and guide entries where it is
+   * accurate and useful.
+   */
+  const newest = (dates: Date[]) =>
+    dates.length ? new Date(Math.max(...dates.map((date) => date.getTime()))) : undefined;
+
+  const productsModified = newest(products.map((product) => product.updatedAt));
+  const guidesModified = newest(careGuides.map((guide) => guide.updatedAt));
+  const collectionsModified = newest(collections.map((collection) => collection.updatedAt));
+  const anyModified = newest(
+    [productsModified, guidesModified, collectionsModified].filter(
+      (date): date is Date => Boolean(date)
+    )
+  );
+
+  const staticModified: Record<string, Date | undefined> = {
+    '': anyModified,
+    '/shop': productsModified,
+    '/collections': collectionsModified,
+    '/care': guidesModified
+  };
+
   const staticPages: MetadataRoute.Sitemap = pages.map((path, index) => ({
     url: absoluteUrl(path || '/'),
-    lastModified: new Date(),
+    // Undefined for the policy and contact pages: they are edited in the source,
+    // and there is nothing here that honestly knows when that last happened.
+    lastModified: staticModified[path],
     changeFrequency: index === 0 ? 'weekly' : 'monthly',
     priority: index === 0 ? 1 : path === '/shop' || path === '/care' ? 0.9 : 0.7
   }));

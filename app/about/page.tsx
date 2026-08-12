@@ -1,11 +1,15 @@
 import Link from 'next/link';
 import { BookOpen, Heart, Leaf, Users } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/about',
   title: 'About Tammy Hill',
-  description: 'Meet Tammy Hill, the plant lover and teacher behind The Hillside Gardens.'
-};
+  description:
+    'Meet Tammy Hill, the plant lover and teacher behind The Hillside Gardens.',
+  image: '/images/scenes/potting-bench.webp'
+});
 
 export default function About() {
   return (

@@ -25,6 +25,7 @@ import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { FALLBACK_PRODUCT_IMAGE, absoluteUrl, resolveImageUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
+import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -63,17 +64,15 @@ export async function generateMetadata({
   const sheet = await db.careSheet.findFirst({ where: { slug, published: true } });
   if (!sheet) return { title: 'Care guide not found' };
   const title = guideTitle(sheet.plantName, sheet.guideType);
-  return {
+  return pageMetadata({
+    path: `/care/${sheet.slug}`,
     title,
     description: sheet.summary,
-    alternates: { canonical: `/care/${sheet.slug}` },
-    openGraph: {
-      title,
-      description: sheet.summary,
-      url: `/care/${sheet.slug}`,
-      images: [{ url: absoluteUrl(resolveImageUrl(sheet.imageUrl)), alt: sheet.plantName }]
-    }
-  };
+    image: resolveImageUrl(sheet.imageUrl),
+    imageAlt: sheet.plantName,
+    // These are editorial guides, not storefront pages.
+    type: 'article'
+  });
 }
 
 export default async function CareSheetPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -179,6 +178,18 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: jsonLd(articleJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLd(
+            breadcrumbJsonLd([
+              { name: 'Home', path: '/' },
+              { name: 'Plant care', path: '/care' },
+              { name: sheet.plantName, path: `/care/${sheet.slug}` }
+            ])
+          )
+        }}
       />
       <div className="container">
         <div className="breadcrumbs no-print">

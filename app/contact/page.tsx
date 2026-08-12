@@ -1,11 +1,14 @@
 import { Clock3, Mail, MapPin, Sprout } from 'lucide-react';
 import ContactForm from '@/components/ContactForm';
 import { businessEmail } from '@/lib/store';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/contact',
   title: 'Contact us',
-  description: 'Contact The Hillside Gardens about plants, planter workshops, products, orders or custom arrangements.'
-};
+  description:
+    'Contact The Hillside Gardens about plants, planter workshops, products, orders or custom arrangements.'
+});
 
 export default function ContactPage() {
   const email = businessEmail();

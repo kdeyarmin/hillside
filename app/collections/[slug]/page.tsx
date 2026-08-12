@@ -7,6 +7,7 @@ import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { absoluteUrl, resolveImageUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
+import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,17 +35,13 @@ export async function generateMetadata({
   const description =
     collection.description || collection.tagline || `Shop the ${collection.title} collection at The Hillside Gardens.`;
 
-  return {
+  return pageMetadata({
+    path: `/collections/${collection.slug}`,
     title: collection.title,
     description,
-    alternates: { canonical: `/collections/${collection.slug}` },
-    openGraph: {
-      title: collection.title,
-      description,
-      url: `/collections/${collection.slug}`,
-      images: [{ url: absoluteUrl(resolveImageUrl(collection.imageUrl)), alt: collection.title }]
-    }
-  };
+    image: resolveImageUrl(collection.imageUrl),
+    imageAlt: collection.title
+  });
 }
 
 export default async function CollectionPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -80,6 +77,18 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(listJsonLd) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLd(
+            breadcrumbJsonLd([
+              { name: 'Home', path: '/' },
+              { name: 'Collections', path: '/collections' },
+              { name: collection.title, path: `/collections/${collection.slug}` }
+            ])
+          )
+        }}
+      />
       <section className="pagehero collection-hero">
         <div className="container">
           <div className="breadcrumbs centered">

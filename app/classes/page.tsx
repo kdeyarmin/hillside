@@ -15,13 +15,15 @@ import { seatsRemaining } from '@/lib/class-seats';
 import { db } from '@/lib/db';
 import { absoluteUrl, formatMoney } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
+import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/classes',
   title: 'Plant & Planter Classes',
   description:
     'Join us for approachable planter workshops, in person at The Hillside Gardens or live online from your own table.'
-};
+});
 
 export default async function Classes({
   searchParams

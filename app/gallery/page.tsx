@@ -3,14 +3,15 @@ import GalleryGrid from '@/components/GalleryGrid';
 import ProductGrid from '@/components/ProductGrid';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
+import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/gallery',
   title: 'Planter Gallery',
   description:
-    'Browse potted plant arrangements, container combinations and planter inspiration we have created.',
-  alternates: { canonical: '/gallery' }
-};
+    'Browse potted plant arrangements, container combinations and planter inspiration we have created.'
+});
 
 export default async function Gallery() {
   const [items, featured] = await Promise.all([
