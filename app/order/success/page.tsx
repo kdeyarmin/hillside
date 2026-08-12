@@ -5,7 +5,12 @@ import { db } from '@/lib/db';
 import { formatMoney } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Order received' };
+export const metadata = {
+  title: 'Order received',
+  // A per-customer confirmation carrying an email address and order total has no
+  // business in a search index.
+  robots: { index: false, follow: false }
+};
 
 export default async function Success({
   searchParams
@@ -16,23 +21,35 @@ export default async function Success({
   let session: Stripe.Checkout.Session | null = null;
   let invoiceUrl: string | null = null;
 
+  const order = sessionId
+    ? await db.order.findUnique({ where: { stripeSessionId: sessionId }, include: { items: true } })
+    : null;
+
   if (sessionId && process.env.STRIPE_SECRET_KEY) {
     try {
       const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
       session = await stripe.checkout.sessions.retrieve(sessionId);
-      const invoiceId = typeof session.invoice === 'string' ? session.invoice : session.invoice?.id;
-      if (invoiceId) {
-        const invoice = await stripe.invoices.retrieve(invoiceId);
-        invoiceUrl = invoice.hosted_invoice_url || null;
+
+      /**
+       * The invoice link is only produced for a session this shop has actually
+       * recorded an order against. Anything in the query string used to be
+       * retrieved from the Stripe account and rendered, and the hosted invoice
+       * shows the customer's full billing name and address — so a session id
+       * leaking through browser history, a Referer header or an analytics tool
+       * was enough to read it. Session ids are high-entropy, so this was never
+       * realistically guessable; it just should not be the only thing in the way.
+       */
+      if (order) {
+        const invoiceId = typeof session.invoice === 'string' ? session.invoice : session.invoice?.id;
+        if (invoiceId) {
+          const invoice = await stripe.invoices.retrieve(invoiceId);
+          invoiceUrl = invoice.hosted_invoice_url || null;
+        }
       }
     } catch (error) {
       console.error('Unable to load checkout confirmation', error);
     }
   }
-
-  const order = sessionId
-    ? await db.order.findUnique({ where: { stripeSessionId: sessionId }, include: { items: true } })
-    : null;
   const invoiceNumber = order?.invoiceNumber || session?.metadata?.invoiceNumber || 'Pending';
   const totalCents = order?.totalCents ?? session?.amount_total ?? 0;
   const email = order?.email || session?.customer_details?.email || session?.customer_email;
@@ -40,7 +57,7 @@ export default async function Success({
   return (
     <section className="content">
       <div className="print-document" style={{ maxWidth: 780, textAlign: 'center' }}>
-        <img src="/logo.png" alt="The Hillside Gardens" style={{ width: 260, margin: '0 auto 20px' }} />
+        <img src="/logo.webp" alt="The Hillside Gardens" width={320} height={309} style={{ width: 260, height: 'auto', margin: '0 auto 20px' }} />
         <div className="eyebrow">Order received</div>
         <h1 className="display-title" style={{ fontSize: 56, color: 'var(--forest)', margin: '10px 0' }}>
           Thank you for shopping small.

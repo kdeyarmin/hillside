@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { MessageStatus, OrderStatus, ProductType, RegistrationStatus, ReviewStatus } from '@prisma/client';
 import { db } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
+import { REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
 import { formatMoney, productTypeLabel } from '@/lib/store';
 import {
   archiveProduct,
@@ -129,12 +130,24 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
       <section className="content">
         <div className="container" style={{ maxWidth: 520 }}>
           <div className="card"><div className="cardbody">
-            <img src="/logo.png" alt="The Hillside Gardens" style={{ width: 260, margin: '0 auto 25px' }} />
+            <img src="/logo.webp" alt="The Hillside Gardens" style={{ width: 260, margin: '0 auto 25px' }} />
             <h1 className="display-title" style={{ color: 'var(--forest)', fontSize: 42, textAlign: 'center' }}>Owner sign in</h1>
             <p style={{ textAlign: 'center' }}>Use the private password configured in Railway.</p>
-            {params.error && <p style={{ color: 'var(--danger)', textAlign: 'center' }}><b>That password wasn’t correct.</b></p>}
+            {params.error && (
+              <p role="alert" style={{ color: 'var(--danger)', textAlign: 'center' }}>
+                <b>
+                  {params.error === 'throttled'
+                    ? 'Too many sign-in attempts. Please wait a few minutes and try again.'
+                    : 'That password wasn’t correct.'}
+                </b>
+              </p>
+            )}
             <form action={loginAdmin}>
-              <input name="password" type="password" required placeholder="Admin password" style={{ ...input, marginBottom: 14 }} />
+              {/* A placeholder is not a label: it disappears on the first keystroke
+                  and is not reliably announced, so this field had no accessible
+                  name at all. */}
+              <label className="sr-only" htmlFor="admin-password">Admin password</label>
+              <input id="admin-password" name="password" type="password" required autoComplete="current-password" placeholder="Admin password" style={{ ...input, marginBottom: 14 }} />
               <button className="btn full">Sign in</button>
             </form>
           </div></div>
@@ -149,7 +162,16 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
       include: { collections: { select: { id: true } } }
     }),
     db.order.findMany({ orderBy: { createdAt: 'desc' }, take: 75, include: { items: true } }),
-    db.order.aggregate({ _sum: { totalCents: true }, where: { status: { in: [OrderStatus.PAID, OrderStatus.FULFILLED] } } }),
+    /**
+     * Net revenue: partially refunded orders still earned everything that was not
+     * given back, so they belong in the figure with their refund subtracted rather
+     * than dropped from it. Previously any refund at all — including a few dollars
+     * of shipping — marked the order REFUNDED and removed its whole value here.
+     */
+    db.order.aggregate({
+      _sum: { totalCents: true, refundedCents: true },
+      where: { status: { in: [...REVENUE_STATUSES] } }
+    }),
     db.classRegistration.findMany({ orderBy: { createdAt: 'desc' }, take: 75, include: { classEvent: true } }),
     db.contactMessage.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
     db.newsletterSubscriber.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }),
@@ -188,7 +210,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
   );
 
   const lowStock = products.filter((product) => product.active && product.inventory <= 3).length;
-  const openOrders = orders.filter((order) => order.status === OrderStatus.PAID).length;
+  const openOrders = orders.filter((order) => isAwaitingShipment(order.status)).length;
   const unreadMessages = messages.filter((message) => message.status === MessageStatus.NEW).length;
   const activeSubscribers = subscribers.filter((subscriber) => subscriber.active).length;
   const pendingReviews = reviews.filter((review) => review.status === ReviewStatus.PENDING).length;
@@ -198,7 +220,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
   return (
     <div className="adminshell">
       <aside className="sidebar">
-        <img src="/logo.png" alt="The Hillside Gardens" />
+        <img src="/logo.webp" alt="The Hillside Gardens" />
         <b>Owner Business Center</b>
         <a href="#overview">Overview</a>
         <a href="#orders">Orders & shipping</a>
@@ -227,7 +249,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         </div>
 
         <div className="statgrid">
-          <div className="stat"><span>Paid revenue</span><strong>{formatMoney(revenue._sum.totalCents || 0)}</strong></div>
+          <div className="stat"><span>Paid revenue</span><strong>{formatMoney(Math.max(0, (revenue._sum.totalCents || 0) - (revenue._sum.refundedCents || 0)))}</strong></div>
           <div className="stat"><span>Orders to ship</span><strong>{openOrders}</strong></div>
           <div className="stat"><span>Active products</span><strong>{products.filter((product) => product.active).length}</strong></div>
           <div className="stat"><span>Low stock</span><strong>{lowStock}</strong></div>
@@ -253,7 +275,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
           {orders.length ? (
             <div className="admin-list">
               {orders.map((order) => (
-                <details open={order.status === OrderStatus.PAID} key={order.id}>
+                <details open={isAwaitingShipment(order.status)} key={order.id}>
                   <summary>
                     <span>{order.invoiceNumber} • {order.customerName} • {formatMoney(order.totalCents)}</span>
                     <span className={`status-badge ${order.status}`}>{order.status}</span>

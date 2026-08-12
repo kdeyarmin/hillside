@@ -21,6 +21,7 @@ enum OrderStatus {
   PAID
   FULFILLED
   CANCELLED
+  PARTIALLY_REFUNDED
   REFUNDED
 }
 
@@ -104,7 +105,12 @@ model Order {
   subtotalCents           Int
   shippingCents           Int         @default(0)
   taxCents                Int         @default(0)
+  discountCents           Int         @default(0)
   totalCents              Int
+  refundedCents           Int         @default(0)
+  // Set once when a full refund returns stock, so repeated deliveries of the same
+  // Stripe event cannot inflate inventory.
+  inventoryRestoredAt     DateTime?
   shippingMethod          String?
   trackingCarrier         String?
   trackingNumber          String?

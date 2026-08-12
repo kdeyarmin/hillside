@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma, type ClassRegistration } from '@prisma/client';
 import { db } from '@/lib/db';
 
 /**
@@ -44,6 +44,42 @@ export async function seatsTaken(classEventId: string) {
 
 export async function seatsRemaining(classEventId: string, capacity: number) {
   return Math.max(0, capacity - (await seatsTaken(classEventId)));
+}
+
+/**
+ * Seat counts for several classes at once.
+ *
+ * The class list and the homepage both mapped `seatsRemaining` over their events,
+ * and every call ran `releaseExpiredHolds()` first — a global `deleteMany`. So
+ * rendering N classes issued 2N queries, N of them identical writes, on pages
+ * that are hit by every visitor. The sweep is global, so N−1 of those deletes
+ * could never have found anything left to delete.
+ *
+ * One sweep, then one grouped aggregate.
+ */
+export async function seatsRemainingFor(
+  events: ReadonlyArray<{ id: string; capacity: number }>
+): Promise<Map<string, number>> {
+  const remaining = new Map<string, number>();
+  if (!events.length) return remaining;
+
+  await releaseExpiredHolds();
+
+  const now = new Date();
+  const grouped = await db.classRegistration.groupBy({
+    by: ['classEventId'],
+    where: {
+      classEventId: { in: events.map((event) => event.id) },
+      OR: [{ status: 'PAID' }, { status: 'PENDING', holdExpiresAt: { gte: now } }]
+    },
+    _sum: { seats: true }
+  });
+
+  const taken = new Map(grouped.map((row) => [row.classEventId, row._sum.seats || 0]));
+  for (const event of events) {
+    remaining.set(event.id, Math.max(0, event.capacity - (taken.get(event.id) || 0)));
+  }
+  return remaining;
 }
 
 
@@ -108,6 +144,91 @@ export async function reserveSeats({
     });
 
     return { ok: true, holdId, expiresAt } as const;
+  });
+}
+
+export type FreeSeatResult =
+  | { ok: true; registration: ClassRegistration }
+  | { ok: false; reason: 'duplicate' }
+  | { ok: false; reason: 'sold-out'; seatsLeft: number };
+
+/**
+ * Claims seats on a free class in one atomic step.
+ *
+ * The free path used to read `seatsRemaining`, then create the registration in a
+ * separate statement — the same read-then-write window `reserveSeats` was written
+ * to close for paid classes, just never applied here. Concurrent submissions for
+ * the last seats all passed the check and all committed. The duplicate-email
+ * check had the same shape, so one person double-clicking got two registrations.
+ *
+ * Both checks now run inside the transaction that holds the advisory lock, which
+ * is what makes them decisive. A `@@unique([classEventId, email])` constraint
+ * would be the more obvious fix, but it would also reject a *paid* customer's
+ * second, legitimate purchase for the same class — after their card was charged.
+ * The lock gets the guarantee without that cost.
+ */
+export async function claimFreeSeat({
+  classEventId,
+  capacity,
+  seats,
+  name,
+  email,
+  phone,
+  joinTokenHash
+}: {
+  classEventId: string;
+  capacity: number;
+  seats: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  joinTokenHash: string | null;
+}): Promise<FreeSeatResult> {
+  return db.$transaction(async (transaction) => {
+    await transaction.$executeRaw(
+      Prisma.sql`SELECT pg_advisory_xact_lock(1, hashtext(${classEventId}))`
+    );
+
+    await transaction.classRegistration.deleteMany({
+      where: { classEventId, status: 'PENDING', holdExpiresAt: { lt: new Date() } }
+    });
+
+    const duplicate = await transaction.classRegistration.findFirst({
+      where: { classEventId, email, status: { in: ['PENDING', 'PAID'] } }
+    });
+    if (duplicate) return { ok: false, reason: 'duplicate' } as const;
+
+    const totals = await transaction.classRegistration.aggregate({
+      where: {
+        classEventId,
+        OR: [{ status: 'PAID' }, { status: 'PENDING', holdExpiresAt: { gte: new Date() } }]
+      },
+      _sum: { seats: true }
+    });
+
+    const seatsLeft = Math.max(0, capacity - (totals._sum.seats || 0));
+    if (seats > seatsLeft) return { ok: false, reason: 'sold-out', seatsLeft } as const;
+
+    const created = await transaction.classRegistration.create({
+      data: {
+        classEventId,
+        stripeSessionId: `free_${crypto.randomUUID()}`,
+        name,
+        email,
+        phone,
+        seats,
+        amountCents: 0,
+        status: 'PAID',
+        joinTokenHash
+      }
+    });
+
+    // The row itself, not its id. Reading it back afterwards meant a transient
+    // failure on that second query answered "unable to complete the registration"
+    // for a seat that had in fact been taken — sending the customer back into the
+    // duplicate-email rejection, which is the exact inconsistency the caller's
+    // comment says it is avoiding.
+    return { ok: true, registration: created } as const;
   });
 }
 

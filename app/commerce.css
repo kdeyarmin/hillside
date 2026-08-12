@@ -33,7 +33,6 @@
   color: var(--ink);
 }
 .mobile-menu-search input:focus {
-  outline: none;
   border-color: var(--gold);
   box-shadow: 0 0 0 3px rgba(185, 137, 46, 0.13);
 }
@@ -60,7 +59,6 @@
   font-size: 14px;
 }
 .header-search input:focus {
-  outline: none;
   border-color: var(--gold);
   box-shadow: 0 0 0 3px rgba(185, 137, 46, 0.13);
 }
@@ -77,7 +75,7 @@
 
 /* ---- shop controls ---- */
 .sort-field { flex: 0 0 auto; display: block; }
-.filter-chip.sale { border-color: var(--gold); color: var(--gold); }
+.filter-chip.sale { border-color: var(--gold-strong); color: var(--gold); }
 .filter-chip.sale.active { background: var(--gold); border-color: var(--gold); color: var(--white); }
 
 /* ---- ratings ---- */
@@ -119,7 +117,7 @@
   color: var(--forest);
   font-weight: 800;
 }
-.pagehero-links a:hover { border-color: var(--gold); color: var(--gold); }
+.pagehero-links a:hover { border-color: var(--gold-strong); color: var(--gold); }
 .breadcrumbs.centered { justify-content: center; margin-bottom: 16px; }
 .collections-all { margin-top: 26px; text-align: center; }
 .collection-crosslinks {
@@ -202,9 +200,18 @@
 .review-form h3 { margin: 0 0 14px; color: var(--forest); font-size: 22px; }
 .rating-picker { display: flex; align-items: center; gap: 4px; margin: 0 0 16px; padding: 0; border: 0; }
 .rating-picker legend { padding: 0 6px 0 0; color: var(--forest); font-size: 13px; font-weight: 800; float: left; }
-.rating-picker button { border: 0; background: transparent; color: #cfd6cd; cursor: pointer; padding: 2px; line-height: 0; }
-.rating-picker button.on { color: var(--gold); }
-.rating-picker button.on svg { fill: currentColor; }
+/* The picker is a radio group; each star is a label wrapping a visually hidden
+   radio, so the styles hang off the label rather than a button. */
+.rating-picker label { border: 0; background: transparent; color: #cfd6cd; cursor: pointer; padding: 2px; line-height: 0; }
+.rating-picker label.on { color: var(--gold-strong); }
+.rating-picker label.on svg { fill: currentColor; }
+/* Keyboard focus lands on the hidden input, so the ring has to be drawn on the
+   label the user can actually see. */
+.rating-picker label:has(input:focus-visible) {
+  outline: 3px solid var(--hillside-focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
 
 /* ---- cart drawer additions ---- */
 .drawer-shipping { margin-bottom: 14px; }
@@ -285,7 +292,7 @@
 .admin-collection-picker legend { padding: 0 6px; color: var(--forest); font-size: 12px; font-weight: 800; }
 .admin-alert { margin-top: 18px; border-color: var(--danger); }
 .admin-alert b { color: var(--danger); }
-.needs-photo { color: var(--gold); }
+.needs-photo { color: var(--gold-strong); }
 
 @media (max-width: 1060px) {
   .grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -522,5 +529,60 @@
 
   .product-card .product-copy .product-actions .text-link {
     text-align: center;
+  }
+}
+
+
+/* Related-care cards.
+   These live here rather than in care-library.css because they are rendered by
+   the product page and site search as well as the care library, and
+   care-library.css is now loaded only on /care. `.care-related-card .text-link`
+   was already in this file for the same reason. */
+.care-related-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.care-related-card {
+  padding: 25px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--white);
+}
+
+.care-related-card > span {
+  color: var(--gold-strong);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.care-related-card h3 {
+  margin: 9px 0 6px;
+  color: var(--forest);
+  font: 600 32px/1 var(--font-hillside-display), Georgia, serif;
+}
+
+.care-related-card p {
+  color: var(--muted);
+}
+
+@media (max-width: 900px) {
+  .care-related-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .care-related-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  .care-related-grid {
+    display: none !important;
   }
 }

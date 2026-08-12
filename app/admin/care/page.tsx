@@ -145,7 +145,7 @@ export default async function CareLibraryManager({
   return (
     <div className="adminshell">
       <aside className="sidebar">
-        <img src="/logo.png" alt="The Hillside Gardens" />
+        <img src="/logo.webp" alt="The Hillside Gardens" />
         <b>Plant Care Library</b>
         <Link href="/admin">← Business dashboard</Link>
         <Link href="/admin/content">Website content</Link>

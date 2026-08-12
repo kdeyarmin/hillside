@@ -4,6 +4,7 @@ import ShopClient from '@/components/ShopClient';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { categoryLabel } from '@/lib/store';
+import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,32 +18,67 @@ export async function generateMetadata({
   const { q, category } = await searchParams;
   if (q?.trim()) {
     return {
-      title: `Search: ${q.trim()}`,
-      description: `Products matching “${q.trim()}” at The Hillside Gardens.`,
+      ...pageMetadata({
+        path: '/shop',
+        title: `Search: ${q.trim()}`,
+        description: `Products matching “${q.trim()}” at The Hillside Gardens.`
+      }),
       robots: { index: false, follow: true }
     };
   }
+  // A filtered view is the shop with a narrower selection, not a page of its own,
+  // so it keeps the shop's canonical while carrying its own title and card.
   if (category && category.toUpperCase() !== 'ALL') {
-    return {
+    return pageMetadata({
+      path: '/shop',
       title: `${categoryLabel(category)} — Shop`,
-      description: `Shop ${categoryLabel(category).toLowerCase()} from The Hillside Gardens.`,
-      alternates: { canonical: '/shop' }
-    };
+      description: `Shop ${categoryLabel(category).toLowerCase()} from The Hillside Gardens.`
+    });
   }
-  return {
+  return pageMetadata({
+    path: '/shop',
     title: 'Shop Plants, Teas & Botanicals',
     description:
-      'Shop potted plants, loose-leaf tea, tea supplies, handmade soap and botanical lotion from The Hillside Gardens.',
-    alternates: { canonical: '/shop' }
-  };
+      'Shop potted plants, loose-leaf tea, tea supplies, handmade soap and botanical lotion from The Hillside Gardens.'
+  });
 }
 
 export default async function Shop({ searchParams }: { searchParams: Promise<ShopParams> }) {
   const params = await searchParams;
   const [products, collections] = await Promise.all([
+    /**
+     * Only the fields a card renders, and a ceiling on the row count.
+     *
+     * This read the whole product table with no `select` and no `take`, then
+     * handed full rows to `ShopClient`, which is a client component — so
+     * `details`, `careNotes`, `shippingNote`, `galleryImages`, `sku` and the
+     * timestamps were serialized twice per request (once into the HTML, once into
+     * the RSC payload) having never been read. Filtering and sorting happen in the
+     * browser, so the whole catalog does have to arrive; it just does not have to
+     * arrive twice over in full.
+     */
     db.product.findMany({
       where: { active: true },
-      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }]
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        shortDescription: true,
+        description: true,
+        type: true,
+        priceCents: true,
+        compareAtCents: true,
+        inventory: true,
+        imageUrl: true,
+        badge: true,
+        featured: true,
+        sortOrder: true,
+        createdAt: true
+      },
+      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+      // A ceiling, not a page size. The client-side filter needs the full catalog;
+      // this only stops one runaway import from producing an unbounded response.
+      take: 500
     }),
     db.collection.findMany({
       where: { active: true, products: { some: { active: true } } },
@@ -80,6 +116,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
       </section>
       <section className="content">
         <div className="container">
+          <h2 className="sr-only">Products</h2>
           <ShopClient
             products={withRatings}
             initialCategory={params.category || 'ALL'}

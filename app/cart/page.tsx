@@ -1,10 +1,14 @@
 import CartPageClient from '@/components/CartPageClient';
 import { freeShippingThresholdCents } from '@/lib/store';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/cart',
   title: 'Shopping Cart',
-  description: 'Review your Hillside Gardens cart before secure Stripe Checkout.'
-};
+  description:
+    'Review your Hillside Gardens cart before secure Stripe Checkout.',
+  noindex: true
+});
 
 export default function CartPage() {
   const freeShippingThreshold = freeShippingThresholdCents();

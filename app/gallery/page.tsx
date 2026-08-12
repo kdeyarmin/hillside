@@ -3,14 +3,15 @@ import GalleryGrid from '@/components/GalleryGrid';
 import ProductGrid from '@/components/ProductGrid';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
+import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/gallery',
   title: 'Planter Gallery',
   description:
-    'Browse potted plant arrangements, container combinations and planter inspiration we have created.',
-  alternates: { canonical: '/gallery' }
-};
+    'Browse potted plant arrangements, container combinations and planter inspiration we have created.'
+});
 
 export default async function Gallery() {
   const [items, featured] = await Promise.all([
@@ -44,6 +45,8 @@ export default async function Gallery() {
       <section className="content">
         <div className="container">
           {items.length ? (
+            <>
+            <h2 className="sr-only">Planter arrangements</h2>
             <GalleryGrid
               items={items.map(({ id, title, imageUrl, caption, linkUrl, linkLabel }) => ({
                 id,
@@ -54,6 +57,7 @@ export default async function Gallery() {
                 linkLabel
               }))}
             />
+            </>
           ) : (
             <div className="empty-state">
               <h3>Gallery coming soon.</h3>

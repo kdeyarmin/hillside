@@ -7,9 +7,17 @@
   --cream: #f7f4ec;
   --cream-deep: #efe9dc;
   --gold: #b9892e;
+  /* Accessible tones of the two brand colours, for text. --gold measures 3.14:1
+     and --sage 3.55:1 on white — fine for icons and borders, which need 3:1, but
+     under the 4.5:1 that body and label text require. */
+  --gold-strong: #8a641b;
+  --sage-ink: #5f6d52;
   --gold-light: #d9b96a;
   --ink: #1d2a21;
-  --muted: #68736b;
+  /* 4.94:1 on white but only 4.49:1 on --cream, and plenty of muted text sits
+     inside cream cards — just under the 4.5:1 body text needs. Darkened to clear
+     it on both. */
+  --muted: #636e66;
   --line: #dfe4dc;
   --white: #ffffff;
   --danger: #9b3527;
@@ -119,7 +127,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 .text-button.danger { color: var(--danger); }
 
 .eyebrow {
-  color: var(--gold);
+  color: var(--gold-strong);
   text-transform: uppercase;
   letter-spacing: 0.2em;
   font-size: 12px;
@@ -184,7 +192,7 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 .pagehero p { max-width: 700px; margin: auto; color: var(--muted); font-size: 18px; }
 .content { padding: 64px 0 90px; }
 .breadcrumbs { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 28px; color: var(--muted); font-size: 13px; }
-.breadcrumbs a:hover { color: var(--gold); }
+.breadcrumbs a:hover { color: var(--gold-strong); }
 
 .product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr)); gap: 24px; }
 .product-grid.sparse { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), max-content)); justify-content: center; }
@@ -211,7 +219,6 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   background: var(--white);
   padding: 12px 14px;
   color: var(--ink);
-  outline: none;
 }
 .search-input { padding-left: 42px; }
 .search-input:focus, .admin-input:focus, .form-input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(185, 137, 46, 0.13); }
@@ -267,11 +274,20 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 .progress-track span { display: block; height: 100%; border-radius: inherit; background: var(--gold); }
 
 .newsletter { display: flex; align-items: center; justify-content: space-between; gap: 34px; padding: 50px; border-radius: 30px; background: var(--forest); color: var(--white); }
+/* Eyebrows default to --gold-strong, tuned for light backgrounds, which measures
+   2.16:1 on this panel's forest green. --gold-light is the token for dark grounds.
+   Scoped away from .editorial-newsletter, which shares the class but repaints the
+   panel cream — there --gold-strong is already correct. */
+.newsletter:not(.editorial-newsletter) .eyebrow { color: var(--gold-light); }
 .newsletter h3, .footer-newsletter h3 { margin: 4px 0 0; font: 500 37px/1.15 Georgia, serif; }
 .newsletter-form { display: grid; grid-template-columns: minmax(130px, 0.7fr) minmax(220px, 1fr) auto; gap: 10px; align-items: start; }
 .newsletter-form.compact { grid-template-columns: minmax(220px, 1fr) auto; min-width: min(520px, 100%); }
 .newsletter-form input { min-height: 48px; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 999px; padding: 0 17px; background: var(--white); color: var(--ink); }
 .form-status { grid-column: 1 / -1; font-size: 13px; }
+/* The live region stays in the DOM while empty — that is what makes it announce
+   when it later fills — so it must simply occupy no space until it has content. */
+.form-status.is-empty { margin: 0; padding: 0; border: 0; font-size: 0; line-height: 0; }
+.form-status.tight { margin-bottom: 0; }
 .form-status.success { color: #cce9d4; }
 .form-status.error { color: #ffd2ca; }
 .honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; opacity: 0 !important; }
@@ -290,7 +306,7 @@ textarea.form-input { min-height: 145px; resize: vertical; }
 .care-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
 .care-card { padding: 24px; border: 1px solid var(--line); border-radius: 20px; background: var(--white); box-shadow: var(--shadow-soft); }
 .care-card h2 { margin: 8px 0 2px; color: var(--forest); font: 500 27px/1.15 Georgia, serif; }
-.care-card .botanical { color: var(--sage); font-style: italic; }
+.care-card .botanical { color: var(--sage-ink); font-style: italic; }
 .care-quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 17px 0; }
 .care-quick span { padding: 10px; border-radius: 10px; background: var(--cream); color: var(--muted); font-size: 12px; }
 .care-detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin: 34px 0; }

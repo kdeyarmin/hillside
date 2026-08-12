@@ -12,7 +12,10 @@ import { db } from '@/lib/db';
 import { formatMoney } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Class registration confirmed' };
+export const metadata = {
+  title: 'Class registration confirmed',
+  robots: { index: false, follow: false }
+};
 
 export default async function ClassSuccess({
   searchParams

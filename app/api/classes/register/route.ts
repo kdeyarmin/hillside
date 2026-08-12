@@ -1,9 +1,8 @@
-import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
-import { seatsRemaining } from '@/lib/class-seats';
+import { claimFreeSeat } from '@/lib/class-seats';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { rateLimited } from '@/lib/rate-limit';
 
@@ -15,7 +14,13 @@ const requestSchema = z.object({
   email: z.string().trim().email().max(254),
   phone: z.string().trim().max(40).optional().default(''),
   seats: z.coerce.number().int().min(1).max(6).default(1),
-  website: z.string().max(0).optional().default('')
+  /**
+   * Honeypot. Bounded rather than required-empty: `max(0)` made a filled
+   * honeypot fail schema validation and return 400, which meant the quiet-success
+   * branch below could never run and a bot was told plainly that the field was
+   * the problem. The cap keeps it from being used to post a payload.
+   */
+  website: z.string().max(200).optional().default('')
 });
 
 export async function POST(request: Request) {
@@ -45,55 +50,56 @@ export async function POST(request: Request) {
     }
 
     const email = input.email.toLowerCase();
-    const existing = await db.classRegistration.findFirst({
-      where: {
-        classEventId: event.id,
-        email,
-        status: { in: ['PENDING', 'PAID'] }
-      }
+    const credential = isOnlineClass(event.format) ? createClassJoinCredential() : null;
+    const claim = await claimFreeSeat({
+      classEventId: event.id,
+      capacity: event.capacity,
+      seats: input.seats,
+      name: input.name,
+      email,
+      phone: input.phone || null,
+      joinTokenHash: credential?.hash || null
     });
-    if (existing) {
-      return NextResponse.json(
-        { error: 'This email is already registered for the class. Contact us if you need to change the reservation.' },
-        { status: 409 }
-      );
-    }
 
-    const seatsLeft = await seatsRemaining(event.id, event.capacity);
-    if (input.seats > seatsLeft) {
+    if (!claim.ok) {
+      if (claim.reason === 'duplicate') {
+        return NextResponse.json(
+          { error: 'This email is already registered for the class. Contact us if you need to change the reservation.' },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
-        { error: seatsLeft ? `Only ${seatsLeft} seats remain.` : 'This class is sold out.' },
+        { error: claim.seatsLeft ? `Only ${claim.seatsLeft} seats remain.` : 'This class is sold out.' },
         { status: 400 }
       );
     }
 
-    const credential = isOnlineClass(event.format) ? createClassJoinCredential() : null;
-    const registration = await db.classRegistration.create({
-      data: {
-        classEventId: event.id,
-        stripeSessionId: `free_${crypto.randomUUID()}`,
-        name: input.name,
-        email,
-        phone: input.phone || null,
-        seats: input.seats,
-        amountCents: 0,
-        status: 'PAID',
-        joinTokenHash: credential?.hash || null
-      }
-    });
+    /**
+     * The seat is taken from here on, so nothing below may return an error. The
+     * registration comes back from the claiming transaction rather than a second
+     * read, because that read was itself a way to fail after the seat was gone:
+     * a transient database error there would answer 500, and the customer's retry
+     * would land on the duplicate-email rejection for a seat they were holding.
+     */
+    const registration = claim.registration;
 
-    const emailResult = await sendClassRegistrationEmails({
-      event,
-      registration,
-      accessToken: credential?.token
-    });
+    let emailSent = false;
+    try {
+      emailSent = (await sendClassRegistrationEmails({
+        event,
+        registration,
+        accessToken: credential?.token
+      })).sent;
+    } catch (error) {
+      console.error(`Class registration ${registration.id} saved, but its email failed`, error);
+    }
 
     return NextResponse.json({
       ok: true,
-      emailSent: emailResult.sent,
-      message: emailResult.sent
+      emailSent,
+      message: emailSent
         ? 'Your registration is confirmed. Check your email for the class details.'
-        : 'Your registration is confirmed. Email delivery is not configured, so please contact us for the class link.'
+        : 'Your registration is confirmed. We could not send the confirmation email, so please contact us for the class details.'
     });
   } catch (error) {
     console.error('Unable to register for free class', error);

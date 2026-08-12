@@ -100,6 +100,22 @@ export function freeShippingThresholdCents() {
   return Math.max(0, Number(process.env.FREE_SHIPPING_THRESHOLD_CENTS || 7500));
 }
 
+/** The standard shipping rate, read from the same value Stripe Checkout charges. */
+export function flatShippingCents() {
+  return Math.max(0, Number(process.env.FLAT_SHIPPING_CENTS || 895));
+}
+
+/**
+ * How long a product's advertised price should be treated as good for. Google
+ * warns about an Offer without it and may stop showing the price outright. A year
+ * out is the usual convention for a shop that does not run time-boxed pricing.
+ */
+export function priceValidUntil(from = new Date()) {
+  const until = new Date(from);
+  until.setFullYear(until.getFullYear() + 1);
+  return until.toISOString().slice(0, 10);
+}
+
 /**
  * The same threshold, readable from a client component. Only `NEXT_PUBLIC_*` is
  * inlined into the browser bundle, so the announcement bar and the cart drawer's
@@ -163,6 +179,42 @@ export function productTypeLabel(type: string) {
     OTHER: 'Botanical good'
   };
   return labels[type] || type.replaceAll('_', ' ').toLowerCase();
+}
+
+/**
+ * The return terms to advertise in a product's structured data, by product type.
+ *
+ * This has to be derived rather than stated once, because the published policy is
+ * not uniform: live plants, teas, opened personal-care products, custom
+ * arrangements and clearance items are final sale, while unopened nonperishable
+ * merchandise may be returned within 14 days. A single blanket 14-day policy in
+ * the markup would have search results promising a return right on a monstera
+ * that the shipping-and-returns page explicitly refuses — worse than saying
+ * nothing, because a shopper can act on it.
+ *
+ * Soaps and lotions are returnable here because the policy only makes them final
+ * sale once *opened*, which is the same condition it puts on all merchandise.
+ */
+export function returnPolicyForType(type: string) {
+  const finalSale = type === 'PLANT' || type === 'TEA';
+
+  if (finalSale) {
+    return {
+      '@type': 'MerchantReturnPolicy',
+      applicableCountry: 'US',
+      returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted'
+    };
+  }
+
+  return {
+    '@type': 'MerchantReturnPolicy',
+    applicableCountry: 'US',
+    returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+    merchantReturnDays: 14,
+    returnMethod: 'https://schema.org/ReturnByMail',
+    // Return postage is the customer's, per the published policy.
+    returnFees: 'https://schema.org/ReturnShippingFees'
+  };
 }
 
 export function clampQuantity(value: number, inventory: number) {
@@ -248,4 +300,45 @@ export function siteBaseUrl() {
 
 export function absoluteUrl(path = '/') {
   return new URL(path, siteBaseUrl()).toString();
+}
+
+/**
+ * The origin Stripe sends the customer back to after Checkout.
+ *
+ * This exists as its own function because both checkout routes used to build it
+ * from `process.env.NEXT_PUBLIC_SITE_URL` directly, bypassing `siteBaseUrl()` and
+ * its loopback guard. The deployed service has that variable set to a loopback
+ * address — which is the whole reason `siteBaseUrl` was written — so paying
+ * customers were redirected to `http://localhost:3000/order/success`. The payment
+ * succeeded; the customer saw a connection error.
+ *
+ * `absoluteUrl` is not usable here: Stripe's `{CHECKOUT_SESSION_ID}` placeholder
+ * has to survive into the URL literally, and `new URL()` percent-encodes the
+ * braces. So this returns a bare origin for callers to concatenate, with any
+ * trailing slash removed so `${origin}/order/success` cannot double up.
+ */
+export function checkoutReturnOrigin() {
+  return siteBaseUrl().replace(/\/+$/, '');
+}
+
+/**
+ * `Order.invoiceNumber` is `@unique`, and this used to be the last 8 digits of
+ * `Date.now()` — millisecond-aligned, so two orders placed in the same
+ * millisecond collide. A collision makes the webhook's `order.create` throw, and
+ * a throw there means Stripe retries, gives up, and the paid order is never
+ * recorded anywhere. The random suffix makes that effectively impossible while
+ * keeping the number short enough to read over the phone.
+ */
+export function newInvoiceNumber() {
+  const stamp = Date.now().toString(36).toUpperCase().slice(-6);
+  // Five base36 characters — about 60 million values per millisecond. Three was
+  // enough for any realistic order rate, but the number is written on packing
+  // slips and read over the phone, so two extra characters is a cheap way to make
+  // a collision genuinely impossible rather than merely unlikely.
+  const suffix = Array.from({ length: 5 }, () =>
+    Math.floor(Math.random() * 36)
+      .toString(36)
+      .toUpperCase()
+  ).join('');
+  return `HG-${stamp}${suffix}`;
 }

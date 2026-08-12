@@ -1,9 +1,12 @@
 import Link from 'next/link';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/shipping-returns',
   title: 'Shipping, Pickup & Returns',
-  description: 'Shipping, weather-delay, local-pickup, damage and return information for The Hillside Gardens.'
-};
+  description:
+    'Shipping, weather-delay, local-pickup, damage and return information for The Hillside Gardens.'
+});
 
 export default function ShippingReturnsPage() {
   return (

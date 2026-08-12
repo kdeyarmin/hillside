@@ -8,20 +8,21 @@ import {
   classFormatLabel,
   classLocationLabel,
   classTimeLabel,
-  isOnlineClass,
-  seatsRemainingLabel
+  isOnlineClass
 } from '@/lib/class-access';
-import { seatsRemaining } from '@/lib/class-seats';
+import { seatsRemainingFor } from '@/lib/class-seats';
 import { db } from '@/lib/db';
 import { absoluteUrl, formatMoney } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
+import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/classes',
   title: 'Plant & Planter Classes',
   description:
     'Join us for approachable planter workshops, in person at The Hillside Gardens or live online from your own table.'
-};
+});
 
 export default async function Classes({
   searchParams
@@ -34,11 +35,7 @@ export default async function Classes({
     orderBy: { startsAt: 'asc' }
   });
 
-  const seatsByClass = new Map<string, number>(
-    await Promise.all(
-      classes.map(async (event) => [event.id, await seatsRemaining(event.id, event.capacity)] as const)
-    )
-  );
+  const seatsByClass = await seatsRemainingFor(classes);
 
   /**
    * Event markup makes classes eligible for Google's event listings, which is

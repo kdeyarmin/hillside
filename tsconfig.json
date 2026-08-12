@@ -10,6 +10,10 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
+    // The test files import with explicit .ts extensions because that is what
+    // node's --experimental-strip-types resolves. Safe here: noEmit is on, so
+    // nothing is written that would carry the extension into output.
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "jsx": "preserve",
     "incremental": true,

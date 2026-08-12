@@ -8,6 +8,7 @@ import {
   verifyClassAccessCookie
 } from '@/lib/class-access';
 import { db } from '@/lib/db';
+import { rateLimited } from '@/lib/rate-limit';
 import {
   ensureTelnyxRoom,
   generateTelnyxJoinToken,
@@ -18,9 +19,20 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  // Each success mints short-lived Telnyx credentials, which are billable. The
+  // limit is generous enough for a genuine attendee reconnecting after a dropped
+  // connection, and low enough that a valid cookie cannot be used to mint tokens
+  // in a loop.
+  if (rateLimited(request, { name: 'video-token', limit: 30, windowMs: 10 * 60_000 })) {
+    return NextResponse.json(
+      { error: 'Too many attempts to join. Please wait a moment and reload the page.' },
+      { status: 429 }
+    );
+  }
+
   const { id } = await params;
   const event = await db.classEvent.findUnique({ where: { id } });
   if (!event || !event.active || !isOnlineClass(event.format)) {
@@ -104,9 +116,12 @@ export async function POST(
       { headers: { 'Cache-Control': 'no-store, private' } }
     );
   } catch (error) {
+    // The message is logged, not returned: for an upstream failure it is the
+    // video provider's own error text, which means nothing to a customer trying
+    // to join a class and needlessly describes our infrastructure to anyone else.
     console.error('Unable to issue Telnyx classroom token', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unable to open the online classroom.' },
+      { error: 'Unable to open the online classroom. Please reload, or contact us for help joining.' },
       { status: 502 }
     );
   }

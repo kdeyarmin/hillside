@@ -87,6 +87,38 @@ because those resolve to the visitor's own machine rather than the shop, and log
 warning naming the ignored value. Set the variable only to point a build at a genuine
 public origin, such as a Railway preview domain.
 
+## Why the database-backed pages are `force-dynamic`
+
+Every page that reads the database declares `export const dynamic = 'force-dynamic'`.
+That looks like a missed caching opportunity, and it is deliberate.
+
+Railway runs `buildCommand` (`npm run build`) **before** `preDeployCommand`
+(`npx prisma db push`). Switching those pages to `export const revalidate = …`
+makes Next prerender them during `next build`, which means the build starts
+requiring a reachable database whose schema already matches the code. Under this
+ordering it does not:
+
+- on a first deploy the tables do not exist yet, so the build fails;
+- on any deploy that adds a column, the build renders against the *old* schema
+  while the generated client expects the new one, so the build fails;
+- CI builds against a `DATABASE_URL` with nothing listening, so the build fails.
+
+This was tried and reverted. Caching these pages needs the deploy pipeline changed
+first — either push the schema before the build, or cache at the data layer
+(`unstable_cache`) so rendering stays dynamic. Until then, the far larger win is
+image weight, which is handled by `npm run images:variants` (see below).
+
+## Responsive images
+
+`npm run images:variants` regenerates the 400/800/1200-wide WebP variants beside
+each master in `public/images/`, re-encodes the brand marks, and rewrites the
+`lib/image-variants.ts` manifest that `lib/image-srcset.ts` reads. Run it after
+adding or replacing photography, and commit the output.
+
+`ResilientImage` resolves `srcSet` and `sizes` from its own `src`, so call sites
+only choose a `sizeRole` (`hero`, `card`, `tile`, `detail`, `thumb`). Owner-uploaded
+photographs served from `/media/` have no variants and fall back to a plain `src`.
+
 ## Class times and the shop timezone
 
 The shop runs on **Eastern time**. `instrumentation.ts` sets `TZ` to
@@ -168,6 +200,34 @@ Before accepting live orders or class registrations:
 - Complete the Telnyx two-device test in `docs/telnyx-video-classes.md`.
 - Replace sample gallery images with Tammy’s real work.
 - Verify mobile navigation, checkout, online classroom, admin login and label printing on Tammy’s actual devices.
+
+## Checks
+
+```bash
+npm run typecheck   # tsc --noEmit
+npm run lint        # eslint, including jsx-a11y rules
+npm test            # node --test over tests/
+npm run format      # prettier
+```
+
+CI runs all four against a real PostgreSQL service, plus the build. Two browser
+audits run against a server you have started yourself:
+
+```bash
+npm install --no-save --package-lock=false playwright@1.55.0 axe-core
+npm run audit:a11y                       # axe-core over the public routes
+npm run audit:weight / /shop /care       # transferred bytes on an iPhone viewport
+node scripts/responsive-audit.mjs        # 7 viewports x 14 routes
+```
+
+The browser tooling is installed on demand rather than kept in `package.json`,
+matching what `.github/workflows/responsive-audit.yml` already does. Set
+`CHROMIUM_PATH` if Playwright's own browser download is unavailable.
+
+The unit tests deliberately cover the code where a mistake costs money or access
+rather than aiming at coverage: money formatting and quantity clamping, the
+loopback guard on the origin Stripe returns customers to, invoice-number
+uniqueness, the rate limiter's client identification, and class join tokens.
 
 ## Local development
 

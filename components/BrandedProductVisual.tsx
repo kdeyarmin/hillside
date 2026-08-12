@@ -99,6 +99,7 @@ export default function BrandedProductVisual({
         badge={false}
         backgroundSrc={imageUrl || undefined}
         alt={name}
+        sizeRole={detail ? 'detail' : 'card'}
         className={`${detail ? 'branded-product-detail' : 'branded-product-card'} ${className}`.trim()}
       />
     );
@@ -107,12 +108,20 @@ export default function BrandedProductVisual({
   return (
     <ResilientImage
       className={className}
+      sizeRole={detail ? 'detail' : 'card'}
       src={imageUrl}
       fallbackSrc="/images/botanical-placeholder.svg"
       alt={name}
       width={detail ? 1400 : 1200}
       height={detail ? 1400 : 1050}
       loading={loading}
+      /**
+       * The first card in a grid is the largest thing above the fold on /shop,
+       * /collections and /care, and it was `loading="lazy"` — the browser will not
+       * even discover it until layout settles, which is the opposite of what an
+       * LCP element wants.
+       */
+      fetchPriority={loading === 'eager' ? 'high' : undefined}
       decoding="async"
       data-product-slug={slug}
     />

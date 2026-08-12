@@ -96,6 +96,7 @@ function CartDrawerSuggestions() {
       {suggestions.map((product) => (
         <div className="drawer-suggestion" key={product.slug}>
           <ResilientImage
+            sizeRole="thumb"
             src={product.imageUrl || FALLBACK_PRODUCT_IMAGE}
             fallbackSrc="/images/botanical-placeholder.svg"
             alt={product.name}
@@ -209,6 +210,7 @@ function CartDrawer() {
               {items.map((item) => (
                 <div className="cart-line" key={item.slug}>
                   <ResilientImage
+                    sizeRole="thumb"
                     src={item.imageUrl || FALLBACK_PRODUCT_IMAGE}
                     fallbackSrc="/images/botanical-placeholder.svg"
                     alt={item.name}
@@ -235,7 +237,12 @@ function CartDrawer() {
                         >
                           <Minus size={14} />
                         </button>
-                        <span aria-live="polite">{item.quantity}</span>
+                        {/* The live region announced a bare number — "3" — with nothing to
+                            say what changed. */}
+                        <span aria-hidden="true">{item.quantity}</span>
+                        <span className="sr-only" aria-live="polite">
+                          {item.name}: quantity {item.quantity}
+                        </span>
                         <button
                           type="button"
                           onClick={() => setQuantity(item.slug, item.quantity + 1)}
@@ -296,11 +303,25 @@ export function SiteHeader() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const freeShippingThreshold = publicFreeShippingThresholdCents();
-  const { count, drawerOpen, openCart } = useCart();
+  const { count, drawerOpen, openCart, lastAdded } = useCart();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setMobileOpen(false), [pathname]);
+
+  /**
+   * Return focus to the button that opened the menu whenever it closes. Escape
+   * already restored it; closing via the backdrop or by navigating did not, which
+   * left keyboard focus on a removed element and sent the next Tab back to the top
+   * of the document.
+   */
+  const wasMobileOpen = useRef(false);
+  useEffect(() => {
+    if (wasMobileOpen.current && !mobileOpen) {
+      menuButtonRef.current?.focus();
+    }
+    wasMobileOpen.current = mobileOpen;
+  }, [mobileOpen]);
 
   useEffect(() => {
     const media = window.matchMedia('(min-width: 901px)');
@@ -424,19 +445,24 @@ export function SiteHeader() {
           </form>
 
           <Link href="/" className="brand editorial-brand" aria-label="The Hillside Gardens home">
-            <img src="/logo.png" alt="The Hillside Gardens" width="949" height="917" />
+            <img src="/logo.webp" alt="The Hillside Gardens" width="320" height="309" />
           </Link>
 
           <div className="header-actions">
             <Link href="/order-status">Orders</Link>
-            <button
-              className="editorial-cart"
-              type="button"
-              onClick={openCart}
-              aria-label={`Open cart with ${count} items`}
-            >
-              <ShoppingBag size={22} />
+            {/*
+              No aria-label. The visible text is "Cart (3)" and the label was
+              "Open cart with 3 items", which does not contain the visible string —
+              so voice control could not act on "click Cart" (WCAG 2.5.3, Label in
+              Name). The visible text is the name; the extra detail is appended
+              for screen readers only, and now says "item" when there is one.
+            */}
+            <button className="editorial-cart" type="button" onClick={openCart}>
+              <ShoppingBag size={22} aria-hidden="true" />
               <span>Cart ({count})</span>
+              <span className="sr-only">
+                — open cart, {count} {count === 1 ? 'item' : 'items'}
+              </span>
             </button>
           </div>
 
@@ -445,9 +471,9 @@ export function SiteHeader() {
               className="icon-button mobile-cart-button"
               type="button"
               onClick={openMobileCart}
-              aria-label={`Open cart with ${count} items`}
+              aria-label={`Open cart, ${count} ${count === 1 ? 'item' : 'items'}`}
             >
-              <ShoppingBag size={20} />
+              <ShoppingBag size={20} aria-hidden="true" />
               <span className="mobile-cart-count" aria-hidden="true">{count}</span>
             </button>
             <button
@@ -509,6 +535,10 @@ export function SiteHeader() {
         </nav>
       </header>
 
+      <p className="sr-only" role="status" aria-live="polite">
+        {lastAdded || ''}
+      </p>
+
       {mobileOpen && (
         <button
           className="mobile-menu-page-backdrop"
@@ -546,7 +576,7 @@ export function SiteFooter({ contactEmail = DEFAULT_BUSINESS_EMAIL }: { contactE
       )}
       <div className="container footergrid">
         <div className="footer-brand">
-          <img src="/logo.png" alt="The Hillside Gardens" width="949" height="917" />
+          <img src="/logo.webp" alt="The Hillside Gardens" width="320" height="309" loading="lazy" decoding="async" />
           <p>
             Plants, teas and botanicals chosen with care, plus approachable education to help you grow
             with confidence.

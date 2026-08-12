@@ -6,6 +6,7 @@ import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
 import { useCart } from '@/components/CartProvider';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
+import FormStatus from '@/components/FormStatus';
 
 export default function CartPageClient({ freeShippingThreshold }: { freeShippingThreshold: number }) {
   const {
@@ -77,6 +78,7 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
           <article className="cart-page-line" key={item.slug}>
             <Link href={`/shop/${item.slug}`} aria-label={`View ${item.name}`}>
               <ResilientImage
+                sizeRole="thumb"
                 src={item.imageUrl || FALLBACK_PRODUCT_IMAGE}
                 fallbackSrc="/images/botanical-placeholder.svg"
                 alt={item.name}
@@ -103,7 +105,12 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
                   >
                     <Minus size={14} />
                   </button>
-                  <span aria-live="polite">{item.quantity}</span>
+                  {/* The live region announced a bare number — "3" — with nothing to
+                      say what changed. */}
+                  <span aria-hidden="true">{item.quantity}</span>
+                  <span className="sr-only" aria-live="polite">
+                    {item.name}: quantity {item.quantity}
+                  </span>
                   <button
                     type="button"
                     onClick={() => setQuantity(item.slug, item.quantity + 1)}
@@ -150,8 +157,8 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
           </div>
         )}
 
-        {checkoutError && <p className="form-status error" role="alert">{checkoutError}</p>}
-        {checkoutNotice && <p className="form-status notice" role="status">{checkoutNotice}</p>}
+        <FormStatus message={checkoutError} tone="error" />
+        <FormStatus message={checkoutNotice} tone="notice" />
         <button
           className="btn full"
           type="button"
@@ -192,11 +199,7 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
             />
             <span>Also send me seasonal tips, class dates and new arrivals.</span>
           </label>
-          {saveState.message && (
-            <p className={`form-status ${saveState.type === 'ok' ? 'success' : 'error'}`} role="status">
-              {saveState.message}
-            </p>
-          )}
+          <FormStatus message={saveState.message} tone={saveState.type === 'ok' ? 'success' : 'error'} />
         </form>
       </aside>
     </div>

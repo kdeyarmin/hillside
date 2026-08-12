@@ -1,9 +1,12 @@
 import { businessEmail } from '@/lib/store';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/terms',
   title: 'Terms of Use & Sale',
-  description: 'Website, product, class, payment and order terms for The Hillside Gardens.'
-};
+  description:
+    'Website, product, class, payment and order terms for The Hillside Gardens.'
+});
 
 export default function TermsPage() {
   const email = businessEmail();

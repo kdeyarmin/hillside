@@ -1,9 +1,13 @@
 import OrderStatusLookup from '@/components/OrderStatusLookup';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/order-status',
   title: 'Order Status',
-  description: 'Check the fulfillment and shipping status of an order from The Hillside Gardens.'
-};
+  description:
+    'Check the fulfillment and shipping status of an order from The Hillside Gardens.',
+  noindex: true
+});
 
 export default function OrderStatusPage() {
   return (

@@ -11,13 +11,15 @@ import {
 import BrandMockupScene from '@/components/BrandMockupScene';
 import CareLibrary from '@/components/CareLibrary';
 import { db } from '@/lib/db';
+import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/care',
   title: 'Plant Care Library & Plant Problem Guide',
   description:
     'Practical plant profiles, watering and light guidance, seasonal checklists, pest help and troubleshooting for common houseplant problems from The Hillside Gardens.'
-};
+});
 
 const quickStarts = [
   {

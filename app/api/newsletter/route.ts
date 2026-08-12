@@ -1,23 +1,42 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
+import { rateLimited } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
-export async function POST(request: Request) {
-  try {
-    const body: unknown = await request.json();
-    if (!body || typeof body !== 'object') {
-      return NextResponse.json({ error: 'Please enter an email address.' }, { status: 400 });
-    }
-    const data = body as { email?: unknown; name?: unknown; website?: unknown };
-    if (String(data.website || '').trim()) return NextResponse.json({ message: 'You’re on the list.' });
+const requestSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  name: z.string().trim().max(120).optional().default(''),
+  /**
+   * Honeypot. Bounded rather than required-empty: `max(0)` made a filled
+   * honeypot fail schema validation and return 400, which meant the quiet-success
+   * branch below could never run and a bot was told plainly that the field was
+   * the problem. The cap keeps it from being used to post a payload.
+   */
+  website: z.string().max(200).optional().default('')
+});
 
-    const email = String(data.email || '').trim().toLowerCase().slice(0, 254);
-    const name = String(data.name || '').trim().slice(0, 120) || null;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+export async function POST(request: Request) {
+  // Sends a welcome email to whatever address is posted, so the same open-relay
+  // reasoning as /api/contact applies. Varying the address defeated the partial
+  // self-limiting the "already subscribed" check happened to provide.
+  if (rateLimited(request, { name: 'newsletter', limit: 5, windowMs: 15 * 60_000 })) {
+    return NextResponse.json(
+      { error: 'Too many signups from this connection. Please try again shortly.' },
+      { status: 429 }
+    );
+  }
+
+  try {
+    const parsed = requestSchema.safeParse(await request.json());
+    if (!parsed.success) {
       return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 });
     }
+    const { email, website } = parsed.data;
+    const name = parsed.data.name || null;
+    if (website) return NextResponse.json({ message: 'You’re on the list.' });
 
     const existing = await db.newsletterSubscriber.findUnique({ where: { email } });
     const subscriber = await db.newsletterSubscriber.upsert({

@@ -14,7 +14,13 @@ const schema = z.object({
     .optional()
     .default([]),
   subscribe: z.boolean().optional().default(false),
-  website: z.string().max(0).optional().default('')
+  /**
+   * Honeypot. Bounded rather than required-empty: `max(0)` made a filled
+   * honeypot fail schema validation and return 400, which meant the quiet-success
+   * branch below could never run and a bot was told plainly that the field was
+   * the problem. The cap keeps it from being used to post a payload.
+   */
+  website: z.string().max(200).optional().default('')
 });
 
 /**

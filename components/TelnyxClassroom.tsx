@@ -160,9 +160,12 @@ function participantLabel(participant: ParticipantLike | undefined) {
 function RemoteVideo({ tile }: { tile: RemoteTile }) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
-    if (ref.current) ref.current.srcObject = tile.stream;
+    // Captured on the way in: by the time cleanup runs React may have detached
+    // this element, so `ref.current` would be null and the stream never released.
+    const element = ref.current;
+    if (element) element.srcObject = tile.stream;
     return () => {
-      if (ref.current) ref.current.srcObject = null;
+      if (element) element.srcObject = null;
     };
   }, [tile.stream]);
 

@@ -5,13 +5,15 @@ import ResilientImage from '@/components/ResilientImage';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
+import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/amazon',
   title: 'Our Amazon Picks',
-  description: 'A curated collection of plant tools, planter supplies and tea favorites we recommend.',
-  alternates: { canonical: '/amazon' }
-};
+  description:
+    'A curated collection of plant tools, planter supplies and tea favorites we recommend.'
+});
 
 export default async function AmazonPage() {
   const [picks, ourProducts] = await Promise.all([
@@ -57,11 +59,20 @@ export default async function AmazonPage() {
                     href={pick.amazonUrl}
                     target="_blank"
                     rel="sponsored nofollow noopener noreferrer"
+                    tabIndex={-1}
+                    aria-hidden="true"
                   >
+                    {/* Amazon artwork is remote and variably shaped, so it had no
+                        intrinsic size and reserved no space — the card jumped as
+                        each one arrived. The ratio matches the card slot the CSS
+                        gives it. */}
                     <ResilientImage
                       src={pick.imageUrl}
                       fallbackSrc={FALLBACK_PRODUCT_IMAGE}
                       alt={pick.title}
+                      sizeRole="card"
+                      width={1200}
+                      height={1050}
                       loading="lazy"
                       decoding="async"
                     />
@@ -76,7 +87,8 @@ export default async function AmazonPage() {
                       target="_blank"
                       rel="sponsored nofollow noopener noreferrer"
                     >
-                      View on Amazon <ExternalLink size={16} />
+                      View on Amazon <ExternalLink size={16} aria-hidden="true" />
+                      <span className="sr-only"> (opens in a new window)</span>
                     </a>
                   </div>
                 </article>

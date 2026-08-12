@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { jsonLd } from '@/lib/json-ld';
 import { absoluteUrl } from '@/lib/store';
+import { pageMetadata } from '@/lib/seo';
 
-export const metadata = {
+export const metadata = pageMetadata({
+  path: '/faq',
   title: 'Frequently Asked Questions',
-  description: 'Answers about Hillside Gardens plants, shipping, local pickup, planter classes, teas and handmade botanical goods.',
-  alternates: { canonical: '/faq' }
-};
+  description:
+    'Answers about Hillside Gardens plants, shipping, local pickup, planter classes, teas and handmade botanical goods.'
+});
 
 const questions = [
   ['Do the plants arrive already potted?', 'Product pages explain exactly what is included. Many Hillside plants are sold as ready-to-enjoy potted arrangements, while others may be offered in a nursery pot. Because living plants naturally vary, leaf shape, fullness and exact coloration will not be identical to the photograph.'],

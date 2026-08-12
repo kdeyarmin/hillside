@@ -18,7 +18,7 @@ export default async function PackingSlip({ params }: { params: Promise<{ id: st
       <div className="no-print" style={{ width: 'min(900px, calc(100% - 30px))', margin: '0 auto 12px' }}><PrintButton label="Print packing slip" /></div>
       <article className="print-document">
         <header className="print-header">
-          <img src="/logo.png" alt="The Hillside Gardens" />
+          <img src="/logo.webp" alt="The Hillside Gardens" />
           <div style={{ textAlign: 'right' }}><h1 className="print-document-title">Packing slip</h1><b>{order.invoiceNumber}</b><br /><span>{order.createdAt.toLocaleDateString('en-US', { dateStyle: 'long' })}</span></div>
         </header>
         <div className="print-columns">
@@ -26,7 +26,11 @@ export default async function PackingSlip({ params }: { params: Promise<{ id: st
           <div><div className="eyebrow">Order information</div><b>Status:</b> {order.status}<br /><b>Shipping:</b> {order.shippingMethod || 'Standard shipping'}<br />{order.trackingNumber && <><b>Tracking:</b> {order.trackingCarrier || ''} {order.trackingNumber}<br /></>}</div>
         </div>
         <table className="table"><thead><tr><th>Item</th><th>Quantity</th><th>Unit price</th><th>Total</th></tr></thead><tbody>{order.items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.quantity}</td><td>{formatMoney(item.unitCents)}</td><td>{formatMoney(item.unitCents * item.quantity)}</td></tr>)}</tbody></table>
-        <div style={{ marginLeft: 'auto', width: 320, marginTop: 24 }}><div className="summary-row"><span>Subtotal</span><span>{formatMoney(order.subtotalCents)}</span></div><div className="summary-row"><span>Shipping</span><span>{formatMoney(order.shippingCents)}</span></div><div className="summary-row"><span>Tax</span><span>{formatMoney(order.taxCents)}</span></div><div className="summary-row total"><span>Total paid</span><span>{formatMoney(order.totalCents)}</span></div></div>
+        {/* The discount and refund rows only appear when they are non-zero, but
+            they have to exist: without the discount line a promotion-code order
+            printed a slip whose subtotal, shipping and tax did not add up to the
+            total, with nothing on the page to account for the difference. */}
+        <div style={{ marginLeft: 'auto', width: 320, marginTop: 24 }}><div className="summary-row"><span>Subtotal</span><span>{formatMoney(order.subtotalCents)}</span></div>{order.discountCents > 0 && <div className="summary-row"><span>Discount</span><span>−{formatMoney(order.discountCents)}</span></div>}<div className="summary-row"><span>Shipping</span><span>{formatMoney(order.shippingCents)}</span></div><div className="summary-row"><span>Tax</span><span>{formatMoney(order.taxCents)}</span></div><div className="summary-row total"><span>Total paid</span><span>{formatMoney(order.totalCents)}</span></div>{order.refundedCents > 0 && <div className="summary-row"><span>Refunded</span><span>−{formatMoney(order.refundedCents)}</span></div>}</div>
         <div style={{ marginTop: 45, paddingTop: 20, borderTop: '1px solid var(--line)', textAlign: 'center' }}><b>Thank you for supporting The Hillside Gardens.</b><p>Plants • Teas • Botanicals • Practical plant education</p></div>
       </article>
     </section>

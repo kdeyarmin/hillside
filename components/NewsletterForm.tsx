@@ -2,6 +2,7 @@
 
 import { FormEvent, useId, useState } from 'react';
 import { ArrowRight } from 'lucide-react';
+import FormStatus from '@/components/FormStatus';
 
 export default function NewsletterForm({ compact = false }: { compact?: boolean }) {
   const formId = useId();
@@ -94,11 +95,7 @@ export default function NewsletterForm({ compact = false }: { compact?: boolean 
       <button className="btn gold" type="submit" disabled={status === 'loading'}>
         {status === 'loading' ? 'Joining…' : 'Join the list'} <ArrowRight size={16} />
       </button>
-      {message && (
-        <span id={statusId} className={`form-status ${status}`} role="status" aria-live="polite">
-          {message}
-        </span>
-      )}
+      <FormStatus id={statusId} message={message} tone={status === 'error' ? 'error' : 'success'} />
     </form>
   );
 }
