@@ -214,12 +214,15 @@ CI runs all four against a real PostgreSQL service, plus the build. Two browser
 audits run against a server you have started yourself:
 
 ```bash
+npm install --no-save --package-lock=false playwright@1.55.0 axe-core
 npm run audit:a11y                       # axe-core over the public routes
 npm run audit:weight / /shop /care       # transferred bytes on an iPhone viewport
 node scripts/responsive-audit.mjs        # 7 viewports x 14 routes
 ```
 
-Set `CHROMIUM_PATH` if Playwright's own browser download is unavailable.
+The browser tooling is installed on demand rather than kept in `package.json`,
+matching what `.github/workflows/responsive-audit.yml` already does. Set
+`CHROMIUM_PATH` if Playwright's own browser download is unavailable.
 
 The unit tests deliberately cover the code where a mistake costs money or access
 rather than aiming at coverage: money formatting and quantity clamping, the
