@@ -16,16 +16,28 @@ export async function GET() {
     stripeWebhook: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
     email: Boolean(process.env.RESEND_API_KEY),
     telnyxVideo: Boolean(process.env.TELNYX_API_KEY),
-    adminAuth: Boolean(process.env.ADMIN_PASSWORD && process.env.ADMIN_SESSION_SECRET),
+    adminAuth: false,
     analytics: Boolean(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID)
   };
 
+  /**
+   * Signing in needs the session secret plus something to sign in *with*:
+   * either a named admin account or the shared password. Reporting only on the
+   * environment variables would have called the site healthy at the point
+   * where nobody could get into the dashboard.
+   */
+  let adminAccounts = 0;
   try {
     await db.$queryRaw`SELECT 1`;
     checks.database = true;
+    adminAccounts = await db.adminUser.count({ where: { active: true } });
   } catch (error) {
     console.error('Health check could not reach the database', error);
   }
+
+  checks.adminAuth = Boolean(
+    process.env.ADMIN_SESSION_SECRET && (adminAccounts > 0 || process.env.ADMIN_PASSWORD)
+  );
 
   const expected: Array<keyof typeof checks> = ['stripe', 'stripeWebhook', 'email', 'adminAuth'];
   const missing = expected.filter((key) => !checks[key]);

@@ -60,6 +60,43 @@ The dashboard at `/admin` includes:
 - Online class creation, Telnyx room preparation and a private host studio
 - Online-class confirmation status, attendee last-join time and secure link resending
 
+## Admin accounts
+
+Signing in to `/admin` takes an email address and a password. Each admin has
+their own account, stored in the `AdminUser` table with a salted scrypt hash of
+their password — the dashboard sidebar shows who is signed in.
+
+Create an account, or reset the password on an existing one:
+
+```bash
+npm run admin:create -- --email owner@example.com --name "Full Name" --password 'their-password'
+```
+
+Re-running against an address that already exists updates that account instead
+of failing, so the same command serves as a password reset. Resetting a password
+signs out the sessions that were opened with the old one.
+
+Take an account away without deleting its history:
+
+```bash
+npm run admin:create -- --email owner@example.com --deactivate
+```
+
+A deactivated account cannot sign in, and any session it already had stops
+working on its next request. Setting a password again reactivates it.
+
+Passwords are never stored in this repository. The credentials go in on the
+command line, or through `ADMIN_ACCOUNT_EMAIL`, `ADMIN_ACCOUNT_NAME` and
+`ADMIN_ACCOUNT_PASSWORD` — when all three are set, the pre-deploy step creates
+or updates that one account on every deploy, which is how an account can be
+provisioned without shell access to the running service.
+
+`ADMIN_PASSWORD` is the older shared password. It still works, with any email
+address, alongside the named accounts, so that adding accounts cannot lock the
+owner out. Once every admin has their own account, unset it: `ADMIN_SESSION_SECRET`
+is the only variable sign-in actually requires. Rotating or clearing
+`ADMIN_PASSWORD` invalidates every existing session, named accounts included.
+
 ## Railway deployment
 
 1. Create a Railway project from `kdeyarmin/hillside`.
@@ -72,8 +109,18 @@ The dashboard at `/admin` includes:
 npm run db:seed
 ```
 
-6. Generate a Railway public domain, then set `NEXT_PUBLIC_SITE_URL` to that full URL.
-7. After the custom domain is connected, change `NEXT_PUBLIC_SITE_URL` to `https://thehillsidegardens.com` and redeploy.
+6. Create an admin account for each person who runs the shop, from a Railway shell:
+
+```bash
+npm run admin:create -- --email owner@example.com --name "Full Name" --password 'their-password'
+```
+
+   Without shell access, set `ADMIN_ACCOUNT_EMAIL`, `ADMIN_ACCOUNT_NAME` and
+   `ADMIN_ACCOUNT_PASSWORD` on the service and redeploy — the pre-deploy step
+   creates the account.
+
+7. Generate a Railway public domain, then set `NEXT_PUBLIC_SITE_URL` to that full URL.
+8. After the custom domain is connected, change `NEXT_PUBLIC_SITE_URL` to `https://thehillsidegardens.com` and redeploy.
 
 `NEXT_PUBLIC_SITE_URL` is read at **build** time, not run time — Next inlines
 `NEXT_PUBLIC_*` into the compiled output, so changing it on the running service has no
@@ -199,6 +246,7 @@ Before accepting live orders or class registrations:
 - Confirm that inventory decrements once and customer emails arrive as expected.
 - Complete the Telnyx two-device test in `docs/telnyx-video-classes.md`.
 - Replace sample gallery images with Tammy’s real work.
+- Create Tammy’s admin account, confirm she can sign in with it, and unset the shared `ADMIN_PASSWORD` once every admin has their own.
 - Verify mobile navigation, checkout, online classroom, admin login and label printing on Tammy’s actual devices.
 
 ## Checks
