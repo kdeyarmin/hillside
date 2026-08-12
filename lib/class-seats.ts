@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { Prisma } from '@prisma/client';
+import { Prisma, type ClassRegistration } from '@prisma/client';
 import { db } from '@/lib/db';
 
 /**
@@ -148,7 +148,7 @@ export async function reserveSeats({
 }
 
 export type FreeSeatResult =
-  | { ok: true; registrationId: string }
+  | { ok: true; registration: ClassRegistration }
   | { ok: false; reason: 'duplicate' }
   | { ok: false; reason: 'sold-out'; seatsLeft: number };
 
@@ -223,7 +223,12 @@ export async function claimFreeSeat({
       }
     });
 
-    return { ok: true, registrationId: created.id } as const;
+    // The row itself, not its id. Reading it back afterwards meant a transient
+    // failure on that second query answered "unable to complete the registration"
+    // for a seat that had in fact been taken — sending the customer back into the
+    // duplicate-email rejection, which is the exact inconsistency the caller's
+    // comment says it is avoiding.
+    return { ok: true, registration: created } as const;
   });
 }
 

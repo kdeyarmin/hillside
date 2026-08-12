@@ -181,6 +181,42 @@ export function productTypeLabel(type: string) {
   return labels[type] || type.replaceAll('_', ' ').toLowerCase();
 }
 
+/**
+ * The return terms to advertise in a product's structured data, by product type.
+ *
+ * This has to be derived rather than stated once, because the published policy is
+ * not uniform: live plants, teas, opened personal-care products, custom
+ * arrangements and clearance items are final sale, while unopened nonperishable
+ * merchandise may be returned within 14 days. A single blanket 14-day policy in
+ * the markup would have search results promising a return right on a monstera
+ * that the shipping-and-returns page explicitly refuses — worse than saying
+ * nothing, because a shopper can act on it.
+ *
+ * Soaps and lotions are returnable here because the policy only makes them final
+ * sale once *opened*, which is the same condition it puts on all merchandise.
+ */
+export function returnPolicyForType(type: string) {
+  const finalSale = type === 'PLANT' || type === 'TEA';
+
+  if (finalSale) {
+    return {
+      '@type': 'MerchantReturnPolicy',
+      applicableCountry: 'US',
+      returnPolicyCategory: 'https://schema.org/MerchantReturnNotPermitted'
+    };
+  }
+
+  return {
+    '@type': 'MerchantReturnPolicy',
+    applicableCountry: 'US',
+    returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
+    merchantReturnDays: 14,
+    returnMethod: 'https://schema.org/ReturnByMail',
+    // Return postage is the customer's, per the published policy.
+    returnFees: 'https://schema.org/ReturnShippingFees'
+  };
+}
+
 export function clampQuantity(value: number, inventory: number) {
   return Math.max(1, Math.min(Math.max(1, inventory), Math.floor(value || 1)));
 }

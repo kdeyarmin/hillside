@@ -75,16 +75,13 @@ export async function POST(request: Request) {
     }
 
     /**
-     * The seat is taken from here on, so nothing below may return an error.
-     *
-     * This used to sit inside the outer try/catch: a failure while recording the
-     * email send threw, the route answered 500 "Unable to complete the
-     * registration", and the customer retried straight into the duplicate-email
-     * rejection — holding a seat they had been told they did not get.
+     * The seat is taken from here on, so nothing below may return an error. The
+     * registration comes back from the claiming transaction rather than a second
+     * read, because that read was itself a way to fail after the seat was gone:
+     * a transient database error there would answer 500, and the customer's retry
+     * would land on the duplicate-email rejection for a seat they were holding.
      */
-    const registration = await db.classRegistration.findUniqueOrThrow({
-      where: { id: claim.registrationId }
-    });
+    const registration = claim.registration;
 
     let emailSent = false;
     try {

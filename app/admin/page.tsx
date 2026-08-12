@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { MessageStatus, OrderStatus, ProductType, RegistrationStatus, ReviewStatus } from '@prisma/client';
 import { db } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
+import { REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
 import { formatMoney, productTypeLabel } from '@/lib/store';
 import {
   archiveProduct,
@@ -169,11 +170,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
      */
     db.order.aggregate({
       _sum: { totalCents: true, refundedCents: true },
-      where: {
-        status: {
-          in: [OrderStatus.PAID, OrderStatus.FULFILLED, OrderStatus.PARTIALLY_REFUNDED]
-        }
-      }
+      where: { status: { in: [...REVENUE_STATUSES] } }
     }),
     db.classRegistration.findMany({ orderBy: { createdAt: 'desc' }, take: 75, include: { classEvent: true } }),
     db.contactMessage.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
@@ -213,7 +210,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
   );
 
   const lowStock = products.filter((product) => product.active && product.inventory <= 3).length;
-  const openOrders = orders.filter((order) => order.status === OrderStatus.PAID).length;
+  const openOrders = orders.filter((order) => isAwaitingShipment(order.status)).length;
   const unreadMessages = messages.filter((message) => message.status === MessageStatus.NEW).length;
   const activeSubscribers = subscribers.filter((subscriber) => subscriber.active).length;
   const pendingReviews = reviews.filter((review) => review.status === ReviewStatus.PENDING).length;
@@ -278,7 +275,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
           {orders.length ? (
             <div className="admin-list">
               {orders.map((order) => (
-                <details open={order.status === OrderStatus.PAID} key={order.id}>
+                <details open={isAwaitingShipment(order.status)} key={order.id}>
                   <summary>
                     <span>{order.invoiceNumber} • {order.customerName} • {formatMoney(order.totalCents)}</span>
                     <span className={`status-badge ${order.status}`}>{order.status}</span>

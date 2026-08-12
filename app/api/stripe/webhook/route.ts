@@ -246,17 +246,23 @@ async function fulfillClassRegistration(session: Stripe.Checkout.Session) {
   if (existing?.status === 'PAID' && existing.confirmationEmailSentAt) return;
 
   /**
-   * Minted *after* the guard, and only when there is no usable token already.
+   * Minted after the guard, and keyed on whether a link has ever been *delivered*
+   * rather than on whether a token exists.
    *
-   * This used to run unconditionally at the top of the function, before the
-   * idempotency check — and that check depends on `confirmationEmailSentAt`,
-   * which stays null whenever Resend is unconfigured or down. Stripe legitimately
-   * delivers both `checkout.session.completed` and
-   * `checkout.session.async_payment_succeeded` for the same purchase, so the
-   * second delivery overwrote `joinTokenHash` and silently broke every classroom
-   * link already emailed to the customer, along with their access cookie.
+   * Two failure modes have to be avoided at once. Minting unconditionally — as
+   * this once did, above the guard — rotated `joinTokenHash` on Stripe's second
+   * delivery of the same purchase and broke links already in the customer's
+   * inbox. But refusing to mint whenever a hash exists is just as bad: only the
+   * hash is stored, never the token, so a registration whose first email failed
+   * could never produce a working link again, and the retry would send a
+   * confirmation with no way to join and mark it as sent.
+   *
+   * `confirmationEmailSentAt` distinguishes the two exactly. If it is set, a link
+   * reached the customer and must not be rotated — and the guard above has
+   * already returned. If it is null, nothing usable was ever delivered, so
+   * minting a fresh token breaks nothing.
    */
-  const needsCredential = isOnlineClass(event.format) && !existing?.joinTokenHash;
+  const needsCredential = isOnlineClass(event.format) && !existing?.confirmationEmailSentAt;
   const credential = needsCredential ? createClassJoinCredential() : null;
 
   const registration = existing
@@ -373,12 +379,35 @@ async function applyRefund(charge: Stripe.Charge) {
   if (!order) return;
 
   await db.$transaction(async (transaction) => {
-    await transaction.order.update({
-      where: { id: order.id },
+    /**
+     * Monotonic, because refund events can arrive out of order. A charge that was
+     * partially refunded and then fully refunded produces two events, and if the
+     * older partial one is delivered last an unconditional write would downgrade
+     * REFUNDED back to PARTIALLY_REFUNDED and lower `refundedCents` — making the
+     * dashboard count revenue that had in fact been returned. Guarding on the
+     * stored amount means a stale event is simply ignored.
+     */
+    const applied = await transaction.order.updateMany({
+      where: { id: order.id, refundedCents: { lte: charge.amount_refunded } },
       data: { status, refundedCents: charge.amount_refunded }
     });
+    if (applied.count === 0) return;
 
-    if (!fullyRefunded || order.inventoryRestoredAt) return;
+    if (!fullyRefunded) return;
+
+    /**
+     * Claim the restoration with a conditional update rather than by testing the
+     * value read before the transaction opened. Two concurrent deliveries of the
+     * same full refund would both have seen `inventoryRestoredAt` as null on that
+     * earlier read and both incremented, restoring stock twice and overselling.
+     * `updateMany` filtered on the null is a single atomic statement, so exactly
+     * one caller wins it.
+     */
+    const claimed = await transaction.order.updateMany({
+      where: { id: order.id, inventoryRestoredAt: null },
+      data: { inventoryRestoredAt: new Date() }
+    });
+    if (claimed.count === 0) return;
 
     for (const item of order.items) {
       await transaction.product.update({
@@ -386,10 +415,6 @@ async function applyRefund(charge: Stripe.Charge) {
         data: { inventory: { increment: item.quantity } }
       });
     }
-    await transaction.order.update({
-      where: { id: order.id },
-      data: { inventoryRestoredAt: new Date() }
-    });
   });
 }
 

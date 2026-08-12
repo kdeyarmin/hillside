@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
+import { AWAITING_SHIPMENT_STATUSES } from '@/lib/orders';
 
 export const runtime = 'nodejs';
 const quote = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
@@ -7,7 +8,7 @@ const quote = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}
 export async function GET() {
   if (!(await isAdmin())) return new Response('Unauthorized', { status: 401 });
   const orders = await db.order.findMany({
-    where: { status: 'PAID' },
+    where: { status: { in: [...AWAITING_SHIPMENT_STATUSES] } },
     orderBy: { createdAt: 'asc' },
     include: { items: true }
   });

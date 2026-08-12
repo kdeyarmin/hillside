@@ -20,6 +20,7 @@ import {
   freeShippingThresholdCents,
   priceValidUntil,
   productTypeLabel,
+  returnPolicyForType,
   resolveImageUrl
 } from '@/lib/store';
 
@@ -140,14 +141,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           transitTime: { '@type': 'QuantitativeValue', minValue: 3, maxValue: 7, unitCode: 'DAY' }
         }
       },
-      hasMerchantReturnPolicy: {
-        '@type': 'MerchantReturnPolicy',
-        applicableCountry: 'US',
-        returnPolicyCategory: 'https://schema.org/MerchantReturnFiniteReturnWindow',
-        merchantReturnDays: 14,
-        returnMethod: 'https://schema.org/ReturnByMail',
-        returnFees: 'https://schema.org/ReturnShippingFees'
-      }
+      hasMerchantReturnPolicy: returnPolicyForType(product.type)
     }
   };
 
