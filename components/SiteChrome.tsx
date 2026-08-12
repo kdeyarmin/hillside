@@ -7,6 +7,7 @@ import { Facebook, Instagram, Menu, Minus, Plus, Search, ShoppingBag, Trash2, X 
 import NewsletterForm from '@/components/NewsletterForm';
 import ResilientImage from '@/components/ResilientImage';
 import { useCart } from '@/components/CartProvider';
+import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { focusableElements, trapTabKey } from '@/lib/focus-trap';
 import {
   DEFAULT_BUSINESS_EMAIL,
@@ -25,15 +26,15 @@ import {
  * These three slugs are locked in the content manager (see
  * `lib/collections.ts`) so the header can never point at a deleted collection.
  */
-const navigation = [
+const navigation: ReadonlyArray<readonly [label: string, href: string]> = [
   ['Plants', '/collections/plants'],
   ['Teas & Herbals', '/collections/teas-herbals'],
   ['Botanicals', '/collections/botanicals'],
-  ['Classes', '/classes'],
+  ...(CLASSES_PUBLICLY_VISIBLE ? ([['Classes', '/classes']] as const) : []),
   ['Plant Care', '/care'],
   ['Gallery', '/gallery'],
   ['Our Picks', '/amazon']
-] as const;
+];
 
 const SOCIAL_LINKS = [
   { label: 'Instagram', href: process.env.NEXT_PUBLIC_INSTAGRAM_URL, Icon: Instagram },
@@ -438,7 +439,7 @@ export function SiteHeader() {
               id="site-search"
               type="search"
               name="q"
-              placeholder="Search plants, care and classes"
+              placeholder="Search plants, care and products"
               enterKeyHint="search"
             />
             <button type="submit">Search</button>
@@ -510,12 +511,12 @@ export function SiteHeader() {
           {mobileOpen && (
             <div className="mobile-menu container" id="mobile-primary-menu" ref={mobileMenuRef}>
               <form className="mobile-menu-search" action="/search" role="search">
-                <label className="sr-only" htmlFor="mobile-search">Search plants, care and classes</label>
+                <label className="sr-only" htmlFor="mobile-search">Search plants, care and products</label>
                 <input
                   id="mobile-search"
                   type="search"
                   name="q"
-                  placeholder="Search plants, care and classes"
+                  placeholder="Search plants, care and products"
                   enterKeyHint="search"
                 />
                 <button type="submit">Search</button>
@@ -569,7 +570,7 @@ export function SiteFooter({ contactEmail = DEFAULT_BUSINESS_EMAIL }: { contactE
         <div className="container footer-newsletter">
           <div>
             <div className="eyebrow">The Hillside Notes</div>
-            <h3>Seasonal tips, class dates and new arrivals.</h3>
+            <h3>Seasonal tips, plant care and new arrivals.</h3>
           </div>
           <NewsletterForm compact />
         </div>
@@ -595,7 +596,7 @@ export function SiteFooter({ contactEmail = DEFAULT_BUSINESS_EMAIL }: { contactE
         <div>
           <h4>Explore</h4>
           <p><Link href="/shop">Shop</Link></p>
-          <p><Link href="/classes">Classes</Link></p>
+          {CLASSES_PUBLICLY_VISIBLE && <p><Link href="/classes">Classes</Link></p>}
           <p><Link href="/care">Care sheets</Link></p>
           <p><Link href="/gallery">Gallery</Link></p>
         </div>

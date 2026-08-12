@@ -197,7 +197,7 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
               checked={saveSubscribe}
               onChange={(event) => setSaveSubscribe(event.target.checked)}
             />
-            <span>Also send me seasonal tips, class dates and new arrivals.</span>
+            <span>Also send me seasonal tips, plant care and new arrivals.</span>
           </label>
           <FormStatus message={saveState.message} tone={saveState.type === 'ok' ? 'success' : 'error'} />
         </form>

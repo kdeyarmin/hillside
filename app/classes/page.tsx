@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { CalendarDays, Clock3, MailCheck, MapPin, Users, Video } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import ClassBookingButton from '@/components/ClassBookingButton';
@@ -11,6 +12,7 @@ import {
   isOnlineClass
 } from '@/lib/class-access';
 import { seatsRemainingFor } from '@/lib/class-seats';
+import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { absoluteUrl, formatMoney } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
@@ -21,7 +23,11 @@ export const metadata = pageMetadata({
   path: '/classes',
   title: 'Plant & Planter Classes',
   description:
-    'Join us for approachable planter workshops, in person at The Hillside Gardens or live online from your own table.'
+    'Join us for approachable planter workshops, in person at The Hillside Gardens or live online from your own table.',
+  // Next still resolves a segment's metadata on the way to rendering its 404, so
+  // while classes are hidden this page has to say noindex itself rather than
+  // leave a crawler an indexable title for a page that no longer answers.
+  noindex: !CLASSES_PUBLICLY_VISIBLE
 });
 
 export default async function Classes({
@@ -29,6 +35,10 @@ export default async function Classes({
 }: {
   searchParams: Promise<{ access?: string }>;
 }) {
+  // Hidden means gone, not empty: an unlisted page that still renders its hero
+  // and its "no classes scheduled" copy is still a page about classes.
+  if (!CLASSES_PUBLICLY_VISIBLE) notFound();
+
   const { access } = await searchParams;
   const classes = await db.classEvent.findMany({
     where: { active: true, startsAt: { gte: new Date() } },

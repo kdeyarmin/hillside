@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import GalleryGrid from '@/components/GalleryGrid';
 import ProductGrid from '@/components/ProductGrid';
+import { pointsAtHiddenClasses } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { pageMetadata } from '@/lib/seo';
@@ -48,14 +49,20 @@ export default async function Gallery() {
             <>
             <h2 className="sr-only">Planter arrangements</h2>
             <GalleryGrid
-              items={items.map(({ id, title, imageUrl, caption, linkUrl, linkLabel }) => ({
-                id,
-                title,
-                imageUrl,
-                caption,
-                linkUrl,
-                linkLabel
-              }))}
+              items={items.map(({ id, title, imageUrl, caption, linkUrl, linkLabel }) => {
+                // A gallery link is typed in the dashboard, so one of them can
+                // point at a class. While classes are hidden that is a button
+                // promising a class over a 404, so it is dropped, not rendered.
+                const hidden = pointsAtHiddenClasses(linkUrl);
+                return {
+                  id,
+                  title,
+                  imageUrl,
+                  caption,
+                  linkUrl: hidden ? null : linkUrl,
+                  linkLabel: hidden ? null : linkLabel
+                };
+              })}
             />
             </>
           ) : (

@@ -55,12 +55,10 @@ export const metadata: Metadata = {
     template: '%s | The Hillside Gardens'
   },
   description:
-    'Shop potted plants, loose-leaf teas, handmade soaps and lotions, explore practical plant-care sheets, and join us for in-person or online plant classes.',
+    'Shop potted plants, loose-leaf teas, handmade soaps and lotions, and explore practical plant-care sheets from The Hillside Gardens.',
   keywords: [
     'houseplants',
     'potted plants',
-    'planter classes',
-    'online plant classes',
     'loose leaf tea',
     'handmade soap',
     'botanical lotion',
@@ -89,10 +87,10 @@ export const metadata: Metadata = {
 };
 
 /**
- * LocalBusiness rather than a bare Store: this is a business that runs in-person
- * classes and local pickup, so address, telephone and opening hours are what make
- * it eligible for local search results and Google's business panel. Every field
- * is environment driven so nothing is published until it is real.
+ * LocalBusiness rather than a bare Store: this is a business people visit and
+ * collect from, so address, telephone and opening hours are what make it
+ * eligible for local search results and Google's business panel. Every field is
+ * environment driven so nothing is published until it is real.
  */
 function businessJsonLd() {
   const streetAddress = process.env.BUSINESS_STREET_ADDRESS?.trim();

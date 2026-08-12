@@ -21,6 +21,7 @@ import {
 import ProductGrid from '@/components/ProductGrid';
 import PrintButton from '@/components/PrintButton';
 import ResilientImage from '@/components/ResilientImage';
+import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { absoluteUrl, resolveImageUrl } from '@/lib/store';
@@ -102,17 +103,19 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     sheet.productId
       ? db.product.findFirst({ where: { id: sheet.productId, active: true } })
       : null,
-    db.classEvent.findFirst({
-      where: { active: true, startsAt: { gte: new Date() } },
-      orderBy: { startsAt: 'asc' }
-    })
+    CLASSES_PUBLICLY_VISIBLE
+      ? db.classEvent.findFirst({
+          where: { active: true, startsAt: { gte: new Date() } },
+          orderBy: { startsAt: 'asc' }
+        })
+      : null
   ]);
 
   /**
    * The care library is the reason strangers find this site, and it used to link
    * only to other care guides. A reader here is the most qualified visitor there
-   * is, so the guide now offers the plant itself, a class, and a fallback into
-   * the shop when nothing specific is linked.
+   * is, so the guide now offers the plant itself, a class when classes are
+   * public, and a fallback into the shop when nothing specific is linked.
    */
   const suggestedProducts = linkedProduct
     ? []

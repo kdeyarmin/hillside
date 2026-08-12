@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { absoluteUrl } from '@/lib/store';
 
@@ -9,7 +10,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '',
     '/shop',
     '/collections',
-    '/classes',
+    // Submitting a 404 is how a sitemap loses a crawler's trust for the URLs in
+    // it that are real, so the classes entry leaves with the page.
+    ...(CLASSES_PUBLICLY_VISIBLE ? ['/classes'] : []),
     '/care',
     '/gallery',
     '/amazon',

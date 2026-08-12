@@ -12,6 +12,7 @@ import {
   isOnlineClass,
   verifyClassAccessCookie
 } from '@/lib/class-access';
+import { CLASSES_EXIT_LINK } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -31,7 +32,7 @@ export default async function OnlineClassStudio({
           <Video size={36} />
           <h1>Online classroom not found.</h1>
           <p>This class may have ended or been unpublished.</p>
-          <Link className="btn" href="/classes">View available classes</Link>
+          <Link className="btn" href={CLASSES_EXIT_LINK.href}>{CLASSES_EXIT_LINK.label}</Link>
         </div>
       </section>
     );
@@ -63,7 +64,7 @@ export default async function OnlineClassStudio({
             For privacy, this classroom opens only through the secure link in your most recent
             registration confirmation email.
           </p>
-          <Link className="btn" href="/classes">Return to classes</Link>
+          <Link className="btn" href={CLASSES_EXIT_LINK.href}>{CLASSES_EXIT_LINK.label}</Link>
         </div>
       </section>
     );
@@ -106,7 +107,7 @@ export default async function OnlineClassStudio({
             <Video size={36} />
             <h1>This online classroom has closed.</h1>
             <p>Contact us if you need follow-up information from the class.</p>
-            <Link className="btn" href="/classes">Browse other classes</Link>
+            <Link className="btn" href={CLASSES_EXIT_LINK.href}>{CLASSES_EXIT_LINK.label}</Link>
           </div>
         ) : (
           <TelnyxClassroom

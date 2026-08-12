@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import ProductGrid from '@/components/ProductGrid';
+import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { absoluteUrl, resolveImageUrl } from '@/lib/store';
@@ -154,7 +155,9 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
               </p>
               <div className="actions">
                 <Link className="btn" href="/care">Open the care library</Link>
-                <Link className="btn outline" href="/classes">Join a class</Link>
+                {CLASSES_PUBLICLY_VISIBLE && (
+                  <Link className="btn outline" href="/classes">Join a class</Link>
+                )}
               </div>
             </div>
           </div>

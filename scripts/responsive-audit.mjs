@@ -19,7 +19,8 @@ const routes = [
   { name: 'home', path: '/' },
   { name: 'shop', path: '/shop' },
   { name: 'product', path: '/shop/monstera-deliciosa' },
-  { name: 'classes', path: '/classes' },
+  // '/classes' is hidden from the storefront (lib/class-visibility.ts) and
+  // answers 404; restore this line with the flag.
   { name: 'care', path: '/care' },
   { name: 'care-guide', path: '/care/monstera-deliciosa' },
   { name: 'about', path: '/about' },

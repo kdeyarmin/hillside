@@ -12,6 +12,7 @@ import {
   seatsRemainingLabel
 } from '@/lib/class-access';
 import { seatsRemainingFor } from '@/lib/class-seats';
+import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { pageMetadata } from '@/lib/seo';
@@ -22,7 +23,7 @@ export const metadata = pageMetadata({
   path: '/',
   title: 'The Hillside Gardens | Plants, Teas & Botanicals',
   description:
-    'Shop potted plants, loose-leaf teas, handmade soaps and lotions, explore practical plant-care sheets, and join us for in-person or online plant classes.',
+    'Shop potted plants, loose-leaf teas, handmade soaps and lotions, and explore practical plant-care sheets from The Hillside Gardens.',
   image: '/images/scenes/hillside-hero.webp',
   imageAlt: 'Plants growing in a sunlit greenhouse at The Hillside Gardens'
 });
@@ -35,11 +36,15 @@ export default async function Home() {
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
       take: 4
     }),
-    db.classEvent.findMany({
-      where: { active: true, startsAt: { gte: new Date() } },
-      orderBy: { startsAt: 'asc' },
-      take: 2
-    }),
+    // Hidden classes are not fetched at all, so the homepage costs one query
+    // less rather than rendering nothing from a result it paid for.
+    CLASSES_PUBLICLY_VISIBLE
+      ? db.classEvent.findMany({
+          where: { active: true, startsAt: { gte: new Date() } },
+          orderBy: { startsAt: 'asc' },
+          take: 2
+        })
+      : [],
     // Only collections that actually hold something are advertised, so a tile on
     // the homepage always leads to real stock.
     db.collection.findMany({
@@ -81,9 +86,15 @@ export default async function Home() {
             <Link className="btn editorial-btn" href="/shop">
               Shop now <ArrowRight size={17} />
             </Link>
-            <Link className="editorial-link" href="/classes">
-              Explore our classes →
-            </Link>
+            {CLASSES_PUBLICLY_VISIBLE ? (
+              <Link className="editorial-link" href="/classes">
+                Explore our classes →
+              </Link>
+            ) : (
+              <Link className="editorial-link" href="/care">
+                Explore plant care →
+              </Link>
+            )}
           </div>
         </div>
         <BrandMockupScene variant="hero" className="editorial-hero-image" badge />
@@ -194,8 +205,8 @@ export default async function Home() {
             </p>
             <p>
               Tammy Hill created The Hillside Gardens around a love of plants and a love of
-              teaching. Our in-person and online classes make choosing, arranging and caring for
-              plants approachable — even if you’re just getting started.
+              teaching. Our care guides make choosing, arranging and caring for plants
+              approachable — even if you’re just getting started.
             </p>
             <div className="actions">
               <Link className="btn editorial-btn" href="/about">
@@ -281,7 +292,7 @@ export default async function Home() {
         <div className="container newsletter editorial-newsletter">
           <div>
             <div className="eyebrow">The Hillside Notes</div>
-            <h3>Seasonal tips, class dates & fresh arrivals.</h3>
+            <h3>Seasonal tips, plant care & fresh arrivals.</h3>
             <p>A thoughtful note from us, sent occasionally.</p>
           </div>
           <NewsletterForm />

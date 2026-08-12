@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import Stripe from 'stripe';
 import { MailCheck, Video } from 'lucide-react';
 import {
@@ -8,6 +9,7 @@ import {
   classTimeLabel,
   isOnlineClass
 } from '@/lib/class-access';
+import { CLASSES_EXIT_LINK } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { formatMoney } from '@/lib/store';
 
@@ -23,17 +25,39 @@ export default async function ClassSuccess({
   searchParams: Promise<{ session_id?: string }>;
 }) {
   const { session_id: sessionId } = await searchParams;
+
+  /**
+   * This page is a receipt, not a page anyone can open. It used to render "We
+   * saved your seat" and "Your payment was successful" for a bare `/classes/
+   * success` with no session at all — confirming a payment that may never have
+   * happened, and, now that classes are hidden, standing as the one class
+   * surface a stranger could still walk into.
+   */
+  if (!sessionId || !process.env.STRIPE_SECRET_KEY) notFound();
+
   let session: Stripe.Checkout.Session | null = null;
-  if (sessionId && process.env.STRIPE_SECRET_KEY) {
-    try {
-      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-      session = await stripe.checkout.sessions.retrieve(sessionId);
-    } catch (error) {
-      console.error('Unable to load class confirmation', error);
-    }
+  try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    session = await stripe.checkout.sessions.retrieve(sessionId);
+  } catch (error) {
+    console.error('Unable to load class confirmation', error);
+    /**
+     * Only a genuine outage earns the benefit of the doubt — Stripe unreachable
+     * must not stand between a customer who has just paid and their
+     * confirmation. Everything else (a session id Stripe does not recognise, a
+     * key that does not authenticate) means this request cannot be shown to be
+     * a real registration, and an unverifiable receipt is exactly what should
+     * not be rendered.
+     */
+    const unreachable =
+      error instanceof Stripe.errors.StripeConnectionError ||
+      error instanceof Stripe.errors.StripeAPIError ||
+      error instanceof Stripe.errors.StripeRateLimitError;
+    if (!unreachable) notFound();
   }
 
   const classId = session?.metadata?.classEventId;
+  if (session && (session.payment_status === 'unpaid' || !classId)) notFound();
   const event = classId ? await db.classEvent.findUnique({ where: { id: classId } }) : null;
   const seats = Math.max(1, Number(session?.metadata?.seats) || 1);
   const online = Boolean(event && isOnlineClass(event.format));
@@ -76,7 +100,7 @@ export default async function ClassSuccess({
         )}
 
         <div className="actions" style={{ justifyContent: 'center' }}>
-          <Link className="btn" href="/classes">View all classes</Link>
+          <Link className="btn" href={CLASSES_EXIT_LINK.href}>{CLASSES_EXIT_LINK.label}</Link>
           <Link className="btn gold" href="/care">Explore plant care</Link>
         </div>
       </div>
