@@ -1,3 +1,4 @@
+import '../../../../classroom.css';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { Mail, Users, Video } from 'lucide-react';

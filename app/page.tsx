@@ -11,7 +11,7 @@ import {
   isOnlineClass,
   seatsRemainingLabel
 } from '@/lib/class-access';
-import { seatsRemaining } from '@/lib/class-seats';
+import { seatsRemainingFor } from '@/lib/class-seats';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { pageMetadata } from '@/lib/seo';
@@ -56,13 +56,7 @@ export default async function Home() {
     averageRating: ratings.get(product.id)?.average ?? null,
     reviewCount: ratings.get(product.id)?.count ?? 0
   }));
-  const classSeats = new Map<string, number>(
-    await Promise.all(
-      upcomingClasses.map(
-        async (event) => [event.id, await seatsRemaining(event.id, event.capacity)] as const
-      )
-    )
-  );
+  const classSeats = await seatsRemainingFor(upcomingClasses);
 
   return (
     <>

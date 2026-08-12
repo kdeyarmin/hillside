@@ -1,3 +1,4 @@
+import '../../classroom.css';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { AmazonPick, CareSheet, ClassEvent, Collection, GalleryItem } from '@prisma/client';
@@ -181,7 +182,7 @@ export default async function ContentManager() {
   return (
     <div className="adminshell">
       <aside className="sidebar">
-        <img src="/logo.png" alt="The Hillside Gardens" />
+        <img src="/logo.webp" alt="The Hillside Gardens" />
         <b>Website Content Manager</b>
         <Link href="/admin">← Business dashboard</Link>
         <a href="#collections">Collections</a>

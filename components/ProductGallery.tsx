@@ -65,6 +65,7 @@ export default function ProductGallery({
             key={`${source}-${index}`}
           >
             <ResilientImage
+              sizeRole="thumb"
               src={source}
               fallbackSrc="/images/botanical-placeholder.svg"
               alt=""

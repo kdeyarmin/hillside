@@ -1,3 +1,4 @@
+import '../../../classroom.css';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { CalendarDays, Clock3, LockKeyhole, Video } from 'lucide-react';

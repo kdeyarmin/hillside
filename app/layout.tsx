@@ -1,8 +1,15 @@
+/**
+ * Import order is load-bearing. `globals.css` sets `body { font-family: Arial }`
+ * and `refinement.css` is what replaces it with the brand face — reorder these and
+ * the whole site silently falls back to Arial.
+ *
+ * `classroom.css` and `care-library.css` are deliberately absent: they are imported
+ * by the route segments that use them, so a shopper who never opens the video
+ * classroom or the care library does not download either.
+ */
 import './globals.css';
 import './editorial.css';
 import './refinement.css';
-import './classroom.css';
-import './care-library.css';
 import './homepage.css';
 import './brand-mockups.css';
 import './responsive-hardening.css';
@@ -22,11 +29,15 @@ const hillsideSans = Manrope({
   variable: '--font-hillside-sans'
 });
 
+/**
+ * No `weight` list. Cormorant Garamond ships as a variable font, and enumerating
+ * four discrete weights made next/font download and preload four separate static
+ * WOFF2 files instead of one variable file covering the whole axis.
+ */
 const hillsideDisplay = Cormorant_Garamond({
   subsets: ['latin'],
   display: 'swap',
-  variable: '--font-hillside-display',
-  weight: ['400', '500', '600', '700']
+  variable: '--font-hillside-display'
 });
 
 export const viewport: Viewport = {
@@ -56,7 +67,9 @@ export const metadata: Metadata = {
     'plant care'
   ],
   applicationName: 'The Hillside Gardens',
-  icons: { icon: '/logo.png', apple: '/logo.png' },
+  // Purpose-sized icons. This pointed at the 296 KB full-resolution logo, which
+  // every page then downloaded a second time to draw a 16px tab icon.
+  icons: { icon: '/icon.png', apple: '/apple-icon.png' },
   formatDetection: {
     telephone: false,
     address: false,

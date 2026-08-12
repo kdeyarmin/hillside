@@ -149,17 +149,19 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
 
       {visible.length > 0 ? (
         <div className="care-library-grid">
-          {visible.slice(0, limit).map((guide) => (
+          {visible.slice(0, limit).map((guide, index) => (
             <article className={`care-guide-card care-type-${guide.guideType.toLowerCase()}`} key={guide.id}>
               <Link className="care-guide-image" href={`/care/${guide.slug}`}>
                 {guide.featured && <span className="care-featured-badge">Our essential</span>}
                 <ResilientImage
+                  sizeRole="card"
                   src={guide.imageUrl || FALLBACK_PRODUCT_IMAGE}
                   fallbackSrc="/images/botanical-placeholder.svg"
                   alt={`${guide.plantName} — ${guideLabel(guide.guideType).toLowerCase()}`}
                   width={900}
                   height={675}
-                  loading="lazy"
+                  loading={index < 2 ? 'eager' : 'lazy'}
+                  fetchPriority={index < 2 ? 'high' : undefined}
                   decoding="async"
                 />
               </Link>

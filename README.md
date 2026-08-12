@@ -87,6 +87,38 @@ because those resolve to the visitor's own machine rather than the shop, and log
 warning naming the ignored value. Set the variable only to point a build at a genuine
 public origin, such as a Railway preview domain.
 
+## Why the database-backed pages are `force-dynamic`
+
+Every page that reads the database declares `export const dynamic = 'force-dynamic'`.
+That looks like a missed caching opportunity, and it is deliberate.
+
+Railway runs `buildCommand` (`npm run build`) **before** `preDeployCommand`
+(`npx prisma db push`). Switching those pages to `export const revalidate = …`
+makes Next prerender them during `next build`, which means the build starts
+requiring a reachable database whose schema already matches the code. Under this
+ordering it does not:
+
+- on a first deploy the tables do not exist yet, so the build fails;
+- on any deploy that adds a column, the build renders against the *old* schema
+  while the generated client expects the new one, so the build fails;
+- CI builds against a `DATABASE_URL` with nothing listening, so the build fails.
+
+This was tried and reverted. Caching these pages needs the deploy pipeline changed
+first — either push the schema before the build, or cache at the data layer
+(`unstable_cache`) so rendering stays dynamic. Until then, the far larger win is
+image weight, which is handled by `npm run images:variants` (see below).
+
+## Responsive images
+
+`npm run images:variants` regenerates the 400/800/1200-wide WebP variants beside
+each master in `public/images/`, re-encodes the brand marks, and rewrites the
+`lib/image-variants.ts` manifest that `lib/image-srcset.ts` reads. Run it after
+adding or replacing photography, and commit the output.
+
+`ResilientImage` resolves `srcSet` and `sizes` from its own `src`, so call sites
+only choose a `sizeRole` (`hero`, `card`, `tile`, `detail`, `thumb`). Owner-uploaded
+photographs served from `/media/` have no variants and fall back to a plain `src`.
+
 ## Class times and the shop timezone
 
 The shop runs on **Eastern time**. `instrumentation.ts` sets `TZ` to

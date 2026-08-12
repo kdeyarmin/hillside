@@ -71,6 +71,7 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
             >
               <ResilientImage
                 className="photo"
+                sizeRole="tile"
                 src={item.imageUrl}
                 fallbackSrc="/images/botanical-placeholder.svg"
                 alt={item.title}
@@ -136,6 +137,7 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
               <X />
             </button>
             <ResilientImage
+              sizeRole="detail"
               src={selected.imageUrl}
               fallbackSrc="/images/botanical-placeholder.svg"
               alt={selected.title}

@@ -96,6 +96,7 @@ function CartDrawerSuggestions() {
       {suggestions.map((product) => (
         <div className="drawer-suggestion" key={product.slug}>
           <ResilientImage
+            sizeRole="thumb"
             src={product.imageUrl || FALLBACK_PRODUCT_IMAGE}
             fallbackSrc="/images/botanical-placeholder.svg"
             alt={product.name}
@@ -209,6 +210,7 @@ function CartDrawer() {
               {items.map((item) => (
                 <div className="cart-line" key={item.slug}>
                   <ResilientImage
+                    sizeRole="thumb"
                     src={item.imageUrl || FALLBACK_PRODUCT_IMAGE}
                     fallbackSrc="/images/botanical-placeholder.svg"
                     alt={item.name}
@@ -424,7 +426,7 @@ export function SiteHeader() {
           </form>
 
           <Link href="/" className="brand editorial-brand" aria-label="The Hillside Gardens home">
-            <img src="/logo.png" alt="The Hillside Gardens" width="949" height="917" />
+            <img src="/logo.webp" alt="The Hillside Gardens" width="320" height="309" />
           </Link>
 
           <div className="header-actions">
@@ -546,7 +548,7 @@ export function SiteFooter({ contactEmail = DEFAULT_BUSINESS_EMAIL }: { contactE
       )}
       <div className="container footergrid">
         <div className="footer-brand">
-          <img src="/logo.png" alt="The Hillside Gardens" width="949" height="917" />
+          <img src="/logo.webp" alt="The Hillside Gardens" width="320" height="309" loading="lazy" decoding="async" />
           <p>
             Plants, teas and botanicals chosen with care, plus approachable education to help you grow
             with confidence.

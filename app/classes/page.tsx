@@ -11,7 +11,7 @@ import {
   isOnlineClass,
   seatsRemainingLabel
 } from '@/lib/class-access';
-import { seatsRemaining } from '@/lib/class-seats';
+import { seatsRemainingFor } from '@/lib/class-seats';
 import { db } from '@/lib/db';
 import { absoluteUrl, formatMoney } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
@@ -36,11 +36,7 @@ export default async function Classes({
     orderBy: { startsAt: 'asc' }
   });
 
-  const seatsByClass = new Map<string, number>(
-    await Promise.all(
-      classes.map(async (event) => [event.id, await seatsRemaining(event.id, event.capacity)] as const)
-    )
-  );
+  const seatsByClass = await seatsRemainingFor(classes);
 
   /**
    * Event markup makes classes eligible for Google's event listings, which is

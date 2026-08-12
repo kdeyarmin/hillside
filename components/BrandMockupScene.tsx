@@ -1,6 +1,7 @@
 'use client';
 
 import ResilientImage from '@/components/ResilientImage';
+import type { ImageSizeRole } from '@/lib/image-srcset';
 import { pickForKey } from '@/lib/store';
 
 export type BrandMockupVariant =
@@ -30,6 +31,14 @@ export type HillsideCatalogImage =
 type BrandMockupSceneProps = {
   variant: BrandMockupVariant;
   className?: string;
+  /**
+   * Which layout slot this scene fills, deciding its `sizes`. It cannot be
+   * inferred from `variant`: the same `plants` variant backs both a full-width
+   * collection tile and a product card two-up in a phone grid, and defaulting
+   * everything to the tile's `100vw` had cards downloading the 1200w variant
+   * when about 500px was enough.
+   */
+  sizeRole?: ImageSizeRole;
   backgroundSrc?: string | null;
   alt?: string;
   catalogImage?: HillsideCatalogImage;
@@ -157,6 +166,7 @@ function isOwnerProvidedPhoto(source?: string | null) {
 export default function BrandMockupScene({
   variant,
   className = '',
+  sizeRole,
   backgroundSrc,
   alt,
   catalogImage,
@@ -182,6 +192,7 @@ export default function BrandMockupScene({
     >
       <ResilientImage
         className="brand-mockup-background"
+        sizeRole={sizeRole ?? (variant === 'hero' ? 'hero' : 'tile')}
         src={resolvedSrc}
         fallbackSrc="/images/botanical-placeholder.svg"
         alt=""
@@ -195,7 +206,7 @@ export default function BrandMockupScene({
       <span className="brand-mockup-wash" aria-hidden="true" />
       {badge && (
         <span className="brand-photo-badge" aria-hidden="true">
-          <img src="/logo-badge.png" alt="" width={949} height={768} loading="lazy" decoding="async" />
+          <img src="/logo-badge.webp" alt="" width={480} height={388} loading="lazy" decoding="async" />
         </span>
       )}
     </div>

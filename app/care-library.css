@@ -720,37 +720,6 @@
   background: var(--cream);
 }
 
-.care-related-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.care-related-card {
-  padding: 25px;
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  background: var(--white);
-}
-
-.care-related-card > span {
-  color: var(--gold);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-.care-related-card h3 {
-  margin: 9px 0 6px;
-  color: var(--forest);
-  font: 600 32px/1 var(--font-hillside-display), Georgia, serif;
-}
-
-.care-related-card p {
-  color: var(--muted);
-}
-
 .care-admin-summary {
   display: flex;
   flex-wrap: wrap;
@@ -805,10 +774,6 @@
     max-height: 520px;
   }
 
-  .care-related-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
   .care-checklist-wide .care-checklist {
     grid-template-columns: 1fr 1fr;
   }
@@ -834,7 +799,6 @@
   .care-symptom-links,
   .care-library-grid,
   .care-problem-grid,
-  .care-related-grid,
   .care-checklist-wide .care-checklist {
     grid-template-columns: 1fr;
   }
@@ -916,7 +880,6 @@
   .care-library-tools,
   .care-quick-start-section,
   .care-plant-doctor,
-  .care-related-grid,
   .care-plant-troubleshooting .sectionhead {
     display: none !important;
   }

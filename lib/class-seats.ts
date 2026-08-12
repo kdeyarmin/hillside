@@ -46,6 +46,42 @@ export async function seatsRemaining(classEventId: string, capacity: number) {
   return Math.max(0, capacity - (await seatsTaken(classEventId)));
 }
 
+/**
+ * Seat counts for several classes at once.
+ *
+ * The class list and the homepage both mapped `seatsRemaining` over their events,
+ * and every call ran `releaseExpiredHolds()` first — a global `deleteMany`. So
+ * rendering N classes issued 2N queries, N of them identical writes, on pages
+ * that are hit by every visitor. The sweep is global, so N−1 of those deletes
+ * could never have found anything left to delete.
+ *
+ * One sweep, then one grouped aggregate.
+ */
+export async function seatsRemainingFor(
+  events: ReadonlyArray<{ id: string; capacity: number }>
+): Promise<Map<string, number>> {
+  const remaining = new Map<string, number>();
+  if (!events.length) return remaining;
+
+  await releaseExpiredHolds();
+
+  const now = new Date();
+  const grouped = await db.classRegistration.groupBy({
+    by: ['classEventId'],
+    where: {
+      classEventId: { in: events.map((event) => event.id) },
+      OR: [{ status: 'PAID' }, { status: 'PENDING', holdExpiresAt: { gte: now } }]
+    },
+    _sum: { seats: true }
+  });
+
+  const taken = new Map(grouped.map((row) => [row.classEventId, row._sum.seats || 0]));
+  for (const event of events) {
+    remaining.set(event.id, Math.max(0, event.capacity - (taken.get(event.id) || 0)));
+  }
+  return remaining;
+}
+
 
 export type Reservation =
   | { ok: true; holdId: string; expiresAt: Date }

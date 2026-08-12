@@ -129,7 +129,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
       <section className="content">
         <div className="container" style={{ maxWidth: 520 }}>
           <div className="card"><div className="cardbody">
-            <img src="/logo.png" alt="The Hillside Gardens" style={{ width: 260, margin: '0 auto 25px' }} />
+            <img src="/logo.webp" alt="The Hillside Gardens" style={{ width: 260, margin: '0 auto 25px' }} />
             <h1 className="display-title" style={{ color: 'var(--forest)', fontSize: 42, textAlign: 'center' }}>Owner sign in</h1>
             <p style={{ textAlign: 'center' }}>Use the private password configured in Railway.</p>
             {params.error && (
@@ -223,7 +223,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
   return (
     <div className="adminshell">
       <aside className="sidebar">
-        <img src="/logo.png" alt="The Hillside Gardens" />
+        <img src="/logo.webp" alt="The Hillside Gardens" />
         <b>Owner Business Center</b>
         <a href="#overview">Overview</a>
         <a href="#orders">Orders & shipping</a>

@@ -280,7 +280,11 @@ async function auditHeaderInteractions(page, profile, route) {
   }
 }
 
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  // Lets the audit run against a preinstalled browser instead of a downloaded one.
+  ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {})
+});
 
 try {
   for (const profile of profiles) {

@@ -46,9 +46,39 @@ export async function generateMetadata({
 export default async function Shop({ searchParams }: { searchParams: Promise<ShopParams> }) {
   const params = await searchParams;
   const [products, collections] = await Promise.all([
+    /**
+     * Only the fields a card renders, and a ceiling on the row count.
+     *
+     * This read the whole product table with no `select` and no `take`, then
+     * handed full rows to `ShopClient`, which is a client component — so
+     * `details`, `careNotes`, `shippingNote`, `galleryImages`, `sku` and the
+     * timestamps were serialized twice per request (once into the HTML, once into
+     * the RSC payload) having never been read. Filtering and sorting happen in the
+     * browser, so the whole catalog does have to arrive; it just does not have to
+     * arrive twice over in full.
+     */
     db.product.findMany({
       where: { active: true },
-      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }]
+      select: {
+        id: true,
+        slug: true,
+        name: true,
+        shortDescription: true,
+        description: true,
+        type: true,
+        priceCents: true,
+        compareAtCents: true,
+        inventory: true,
+        imageUrl: true,
+        badge: true,
+        featured: true,
+        sortOrder: true,
+        createdAt: true
+      },
+      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+      // A ceiling, not a page size. The client-side filter needs the full catalog;
+      // this only stops one runaway import from producing an unbounded response.
+      take: 500
     }),
     db.collection.findMany({
       where: { active: true, products: { some: { active: true } } },

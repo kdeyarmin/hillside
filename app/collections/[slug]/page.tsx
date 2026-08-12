@@ -15,9 +15,24 @@ async function loadCollection(slug: string) {
   return db.collection.findFirst({
     where: { slug, active: true },
     include: {
+      // Card fields only — the long-form product copy is never rendered here.
       products: {
         where: { active: true },
-        orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }]
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          shortDescription: true,
+          description: true,
+          type: true,
+          priceCents: true,
+          compareAtCents: true,
+          inventory: true,
+          imageUrl: true,
+          badge: true
+        },
+        orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+        take: 200
       }
     }
   });

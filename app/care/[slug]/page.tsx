@@ -202,6 +202,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
           <div className="care-guide-hero">
             <ResilientImage
               className="care-hero-image"
+              sizeRole="detail"
               src={resolveImageUrl(sheet.imageUrl)}
               fallbackSrc="/images/botanical-placeholder.svg"
               alt={sheet.plantName}

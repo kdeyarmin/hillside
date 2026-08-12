@@ -209,8 +209,9 @@ export default function ShopClient({
         </div>
       ) : (
         <div className={`product-grid${visibleProducts.length < 3 ? ' sparse' : ''}`}>
-          {visibleProducts.map((product) => (
-            <ProductCard product={product} key={product.id} />
+          {visibleProducts.map((product, index) => (
+            // The shop's first row is the page's LCP; everything below it stays lazy.
+            <ProductCard product={product} priority={index < 2} key={product.id} />
           ))}
         </div>
       )}

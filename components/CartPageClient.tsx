@@ -77,6 +77,7 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
           <article className="cart-page-line" key={item.slug}>
             <Link href={`/shop/${item.slug}`} aria-label={`View ${item.name}`}>
               <ResilientImage
+                sizeRole="thumb"
                 src={item.imageUrl || FALLBACK_PRODUCT_IMAGE}
                 fallbackSrc="/images/botanical-placeholder.svg"
                 alt={item.name}

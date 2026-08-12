@@ -38,7 +38,13 @@ function Stars({ rating, count }: { rating: number; count: number }) {
   );
 }
 
-export default function ProductCard({ product }: { product: ProductCardProduct }) {
+export default function ProductCard({
+  product,
+  priority = false
+}: {
+  product: ProductCardProduct;
+  priority?: boolean;
+}) {
   const { addItem, openCart } = useCart();
   const saving = discountPercent(product.priceCents, product.compareAtCents);
   const soldOut = product.inventory <= 0;
@@ -55,6 +61,7 @@ export default function ProductCard({ product }: { product: ProductCardProduct }
           name={product.name}
           type={product.type}
           imageUrl={product.imageUrl}
+          loading={priority ? 'eager' : 'lazy'}
         />
       </Link>
       <div className="product-copy">

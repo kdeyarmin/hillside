@@ -57,7 +57,7 @@ export default async function Success({
   return (
     <section className="content">
       <div className="print-document" style={{ maxWidth: 780, textAlign: 'center' }}>
-        <img src="/logo.png" alt="The Hillside Gardens" style={{ width: 260, margin: '0 auto 20px' }} />
+        <img src="/logo.webp" alt="The Hillside Gardens" style={{ width: 260, margin: '0 auto 20px' }} />
         <div className="eyebrow">Order received</div>
         <h1 className="display-title" style={{ fontSize: 56, color: 'var(--forest)', margin: '10px 0' }}>
           Thank you for shopping small.
