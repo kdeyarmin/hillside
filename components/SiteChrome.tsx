@@ -511,7 +511,7 @@ export function SiteHeader() {
           {mobileOpen && (
             <div className="mobile-menu container" id="mobile-primary-menu" ref={mobileMenuRef}>
               <form className="mobile-menu-search" action="/search" role="search">
-                <label className="sr-only" htmlFor="mobile-search">Search plants, care and classes</label>
+                <label className="sr-only" htmlFor="mobile-search">Search plants, care and products</label>
                 <input
                   id="mobile-search"
                   type="search"

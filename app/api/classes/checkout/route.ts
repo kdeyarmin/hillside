@@ -12,6 +12,7 @@ import {
   releaseHold,
   reserveSeats
 } from '@/lib/class-seats';
+import { CLASSES_EXIT_LINK, CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { rateLimited } from '@/lib/rate-limit';
 import { absoluteUrl, checkoutReturnOrigin } from '@/lib/store';
 
@@ -107,7 +108,11 @@ export async function POST(request: Request) {
          */
         expires_at: holdExpiryUnix(reservation.expiresAt),
         success_url: `${site}/classes/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${site}/classes#class-${event.id}`,
+        // Cancelling has to land somewhere that answers. While the listing is
+        // hidden that is the shared exit, not a 404 with a class anchor on it.
+        cancel_url: CLASSES_PUBLICLY_VISIBLE
+          ? `${site}/classes#class-${event.id}`
+          : `${site}${CLASSES_EXIT_LINK.href}`,
         billing_address_collection: 'auto',
         phone_number_collection: { enabled: true },
         invoice_creation: { enabled: true },

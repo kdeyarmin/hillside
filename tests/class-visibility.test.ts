@@ -30,7 +30,11 @@ describe('class visibility', () => {
       '/classes?access=invalid',
       '/classes/studio/abc',
       '  /classes  ',
-      'https://thehillsidegardens.com/classes#class-abc'
+      'https://thehillsidegardens.com/classes#class-abc',
+      // The URL parser drops a scheme's default port and lowercases the host
+      // before `host` is read, so neither spelling is a way past the check.
+      'https://thehillsidegardens.com:443/classes',
+      'https://ThehillsideGardens.COM/classes'
     ];
     for (const url of internal) {
       assert.equal(pointsAtHiddenClasses(url), !CLASSES_PUBLICLY_VISIBLE, url);
@@ -47,6 +51,8 @@ describe('class visibility', () => {
       '/classesroom',
       '/shop/classes-starter-kit',
       'https://example.com/classes',
+      // A non-default port is a different origin, not the shop.
+      'https://thehillsidegardens.com:8443/classes',
       'not a url'
     ]) {
       assert.equal(pointsAtHiddenClasses(url), false, String(url));

@@ -5,6 +5,7 @@ import type { AmazonPick, CareSheet, ClassEvent, Collection, GalleryItem } from 
 import { ClassFormat } from '@prisma/client';
 import { isAdmin } from '@/lib/admin';
 import { classFormatLabel, isOnlineClass } from '@/lib/class-access';
+import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { telnyxVideoConfigured } from '@/lib/telnyx-video';
 import {
@@ -259,7 +260,11 @@ export default async function ContentManager() {
               <h2>In-person and online classes</h2>
               <p className="muted">Paid classes use Stripe. Free classes use the website signup form. Online customers receive a private Telnyx classroom link by email.</p>
             </div>
-            <Link className="btn outline small" href="/classes">View public classes</Link>
+            {CLASSES_PUBLICLY_VISIBLE ? (
+              <Link className="btn outline small" href="/classes">View public classes</Link>
+            ) : (
+              <p className="muted">The public classes page is hidden from customers. Classes stay editable here.</p>
+            )}
           </div>
           {!telnyxReady && (
             <div className="admin-card telnyx-setup-warning">
