@@ -21,7 +21,6 @@
  *   node scripts/brand-mockup.mjs --only apothecary --debug   # draw label outlines
  */
 import { readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
 import sharp from 'sharp';
 import { SHOTS } from './brand-mockup.config.mjs';
 

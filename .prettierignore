@@ -1,0 +1,7 @@
+.next
+node_modules
+package-lock.json
+responsive-audit-output
+lib/image-variants.ts
+public
+assets

@@ -295,9 +295,14 @@ export function checkoutReturnOrigin() {
  */
 export function newInvoiceNumber() {
   const stamp = Date.now().toString(36).toUpperCase().slice(-6);
-  const suffix = Math.floor(Math.random() * 36 ** 3)
-    .toString(36)
-    .toUpperCase()
-    .padStart(3, '0');
+  // Five base36 characters — about 60 million values per millisecond. Three was
+  // enough for any realistic order rate, but the number is written on packing
+  // slips and read over the phone, so two extra characters is a cheap way to make
+  // a collision genuinely impossible rather than merely unlikely.
+  const suffix = Array.from({ length: 5 }, () =>
+    Math.floor(Math.random() * 36)
+      .toString(36)
+      .toUpperCase()
+  ).join('');
   return `HG-${stamp}${suffix}`;
 }

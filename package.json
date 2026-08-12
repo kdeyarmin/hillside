@@ -18,7 +18,15 @@
     "images:generate": "node scripts/generate-image.mjs",
     "images:measure": "node scripts/brand-image.mjs --measure public/images/catalog",
     "images:mockup": "node scripts/brand-mockup.mjs",
-    "images:place": "node scripts/brand-place.mjs"
+    "images:place": "node scripts/brand-place.mjs",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types \"tests/**/*.test.ts\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,mjs,css,json,md}\"",
+    "format": "prettier --write \"**/*.{ts,tsx,mjs,css,json,md}\"",
+    "images:variants": "node scripts/build-image-variants.mjs",
+    "audit:a11y": "node scripts/a11y-audit.mjs",
+    "audit:weight": "node scripts/measure-page-weight.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.14.0",
@@ -30,9 +38,14 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.6",
     "@types/node": "^22.17.0",
     "@types/react": "^19.1.9",
     "@types/react-dom": "^19.1.7",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^15.5.23",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
+    "prettier": "^3.9.6",
     "prisma": "^6.14.0",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2"

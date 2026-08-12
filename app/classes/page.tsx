@@ -8,8 +8,7 @@ import {
   classFormatLabel,
   classLocationLabel,
   classTimeLabel,
-  isOnlineClass,
-  seatsRemainingLabel
+  isOnlineClass
 } from '@/lib/class-access';
 import { seatsRemainingFor } from '@/lib/class-seats';
 import { db } from '@/lib/db';

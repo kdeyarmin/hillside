@@ -201,6 +201,31 @@ Before accepting live orders or class registrations:
 - Replace sample gallery images with Tammy’s real work.
 - Verify mobile navigation, checkout, online classroom, admin login and label printing on Tammy’s actual devices.
 
+## Checks
+
+```bash
+npm run typecheck   # tsc --noEmit
+npm run lint        # eslint, including jsx-a11y rules
+npm test            # node --test over tests/
+npm run format      # prettier
+```
+
+CI runs all four against a real PostgreSQL service, plus the build. Two browser
+audits run against a server you have started yourself:
+
+```bash
+npm run audit:a11y                       # axe-core over the public routes
+npm run audit:weight / /shop /care       # transferred bytes on an iPhone viewport
+node scripts/responsive-audit.mjs        # 7 viewports x 14 routes
+```
+
+Set `CHROMIUM_PATH` if Playwright's own browser download is unavailable.
+
+The unit tests deliberately cover the code where a mistake costs money or access
+rather than aiming at coverage: money formatting and quantity clamping, the
+loopback guard on the origin Stripe returns customers to, invoice-number
+uniqueness, the rate limiter's client identification, and class join tokens.
+
 ## Local development
 
 ```bash

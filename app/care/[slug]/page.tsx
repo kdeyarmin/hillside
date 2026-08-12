@@ -23,7 +23,7 @@ import PrintButton from '@/components/PrintButton';
 import ResilientImage from '@/components/ResilientImage';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
-import { FALLBACK_PRODUCT_IMAGE, absoluteUrl, resolveImageUrl } from '@/lib/store';
+import { absoluteUrl, resolveImageUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
 import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
 
