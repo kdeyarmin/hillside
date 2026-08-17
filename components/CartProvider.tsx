@@ -19,7 +19,7 @@ import {
   sanitizeGiftMessage,
   type FulfillmentChoice
 } from '@/lib/fulfillment';
-import { clampQuantity, formatMoney } from '@/lib/store';
+import { clampQuantity } from '@/lib/store';
 
 export type CartProduct = {
   slug: string;
