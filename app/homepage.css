@@ -12,6 +12,28 @@
   padding-bottom: 42px;
 }
 
+.home-restock {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 12px 0 8px;
+  text-align: center;
+}
+
+.home-restock h2 {
+  margin: 8px 0 14px;
+  color: var(--forest);
+  font:
+    500 42px/1.12 Georgia,
+    serif;
+}
+
+.home-restock p {
+  margin: 0 auto 22px;
+  max-width: 48ch;
+  color: var(--muted);
+  font-size: 17px;
+}
+
 .footer-without-newsletter .footergrid {
   padding-top: 50px;
 }
@@ -23,7 +45,8 @@
 
   .home-products-section,
   .home-story-section,
-  .home-classes-section {
+  .home-classes-section,
+  .home-restock-section {
     padding-top: 28px;
     padding-bottom: 44px;
   }
@@ -49,9 +72,14 @@
 
   .home-products-section,
   .home-story-section,
-  .home-classes-section {
+  .home-classes-section,
+  .home-restock-section {
     padding-top: 22px;
     padding-bottom: 36px;
+  }
+
+  .home-restock h2 {
+    font-size: 32px;
   }
 
   .home-care-section {

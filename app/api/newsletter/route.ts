@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
+import { unsubscribeUrl } from '@/lib/newsletter';
 import { rateLimited } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
@@ -46,13 +47,15 @@ export async function POST(request: Request) {
     });
 
     if (!existing || !existing.active) {
+      const optOut = unsubscribeUrl(email);
       await sendEmail({
         to: email,
         subject: 'Welcome to The Hillside Notes',
         idempotencyKey: `newsletter-welcome/${subscriber.id}`,
         html: emailShell(
           'Welcome to The Hillside Notes',
-          `<p>${name ? `Hi ${escapeHtml(name)},` : 'Hello,'}</p><p>You’re on our list for seasonal plant tips, plant care and new arrivals from The Hillside Gardens.</p><p>Messages will be occasional and useful — never a daily flood.</p>`
+          `<p>${name ? `Hi ${escapeHtml(name)},` : 'Hello,'}</p><p>You’re on our list for seasonal plant tips, plant care and new arrivals from The Hillside Gardens.</p><p>Messages will be occasional and useful — never a daily flood.</p>`,
+          optOut ? { unsubscribeUrl: optOut } : undefined
         )
       });
     }

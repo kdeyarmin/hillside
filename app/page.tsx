@@ -13,6 +13,7 @@ import {
 } from '@/lib/class-access';
 import { seatsRemainingFor } from '@/lib/class-seats';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
+import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { pageMetadata } from '@/lib/seo';
@@ -33,30 +34,32 @@ export const metadata = {
 
 export default async function Home() {
   const freeShippingThreshold = freeShippingThresholdCents();
-  const [featuredProducts, upcomingClasses, collections, careGuideCount] = await Promise.all([
-    db.product.findMany({
-      where: { active: true, featured: true },
-      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-      take: 4
-    }),
-    // Hidden classes are not fetched at all, so the homepage costs one query
-    // less rather than rendering nothing from a result it paid for.
-    CLASSES_PUBLICLY_VISIBLE
-      ? db.classEvent.findMany({
-          where: { active: true, startsAt: { gte: new Date() } },
-          orderBy: { startsAt: 'asc' },
-          take: 2
-        })
-      : [],
-    // Only collections that actually hold something are advertised, so a tile on
-    // the homepage always leads to real stock.
-    db.collection.findMany({
-      where: { active: true, featured: true, products: { some: { active: true } } },
-      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-      include: { _count: { select: { products: { where: { active: true } } } } }
-    }),
-    db.careSheet.count({ where: { published: true } })
-  ]);
+  const [featuredProducts, upcomingClasses, collections, careGuideCount, catalogCount] =
+    await Promise.all([
+      db.product.findMany({
+        where: { active: true, featured: true },
+        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+        take: 4
+      }),
+      // Hidden classes are not fetched at all, so the homepage costs one query
+      // less rather than rendering nothing from a result it paid for.
+      CLASSES_PUBLICLY_VISIBLE
+        ? db.classEvent.findMany({
+            where: { active: true, startsAt: { gte: new Date() } },
+            orderBy: { startsAt: 'asc' },
+            take: 2
+          })
+        : [],
+      // Only collections that actually hold something are advertised, so a tile on
+      // the homepage always leads to real stock.
+      db.collection.findMany({
+        where: { active: true, featured: true, products: { some: { active: true } } },
+        orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+        include: { _count: { select: { products: { where: { active: true } } } } }
+      }),
+      db.careSheet.count({ where: { published: true } }),
+      db.product.count({ where: { active: true } })
+    ]);
 
   const ratings = await ratingsByProduct(featuredProducts.map((product) => product.id));
   const featured = featuredProducts.map((product) => ({
@@ -86,9 +89,18 @@ export default async function Home() {
             and botanical goods chosen to make everyday spaces feel warmer and more personal.
           </p>
           <div className="actions">
-            <Link className="btn editorial-btn" href="/shop">
-              Shop now <ArrowRight size={17} />
-            </Link>
+            {catalogCount > 0 ? (
+              <Link className="btn editorial-btn" href="/shop">
+                Shop now <ArrowRight size={17} />
+              </Link>
+            ) : (
+              <Link
+                className="btn editorial-btn"
+                href={contactHref({ subject: 'Custom planter arrangement' })}
+              >
+                Ask about a custom arrangement <ArrowRight size={17} />
+              </Link>
+            )}
             {CLASSES_PUBLICLY_VISIBLE ? (
               <Link className="editorial-link" href="/classes">
                 Explore our classes →
@@ -110,7 +122,11 @@ export default async function Home() {
         <div>
           <Truck />
           <span>
-            <b>{freeShippingThreshold > 0 ? `Free shipping over ${formatMoneyCompact(freeShippingThreshold)}` : 'Packed by hand'}</b>
+            <b>
+              {freeShippingThreshold > 0
+                ? `Free shipping over ${formatMoneyCompact(freeShippingThreshold)}`
+                : 'Packed by hand'}
+            </b>
             <small>Flat-rate standard shipping on everything else.</small>
           </span>
         </div>
@@ -125,7 +141,12 @@ export default async function Home() {
           <BookOpen />
           <span>
             <b>Free care guides</b>
-            <small>{careGuideCount > 0 ? `${careGuideCount} plant and problem guides` : 'Watering, light and troubleshooting'}, written for real homes.</small>
+            <small>
+              {careGuideCount > 0
+                ? `${careGuideCount} plant and problem guides`
+                : 'Watering, light and troubleshooting'}
+              , written for real homes.
+            </small>
           </span>
         </div>
         <div>
@@ -138,66 +159,97 @@ export default async function Home() {
       </section>
 
       <div className="home-merch">
-      {collections.length > 0 && (
-        <section className="section editorial-section home-collections-section">
-          <div className="container">
-            <div className="sectionhead">
-              <div className="eyebrow">Shop the garden</div>
-              <h2>Bring a little Hillside home.</h2>
-              <p>
-                Discover the plants, handmade goods and natural supplies that make The Hillside
-                Gardens collection distinctive.
-              </p>
-            </div>
-            <div className="editorial-collections">
-              {collections.map((collection) => (
-                <Link
-                  className="editorial-collection"
-                  href={`/collections/${collection.slug}`}
-                  key={collection.id}
-                >
-                  <BrandMockupScene
-                    variant="plants"
-                    imageSrc={collection.imageUrl}
-                    alt={collection.title}
-                  />
-                  <div>
-                    <span>{collection.tagline || `${collection._count.products} to browse`}</span>
-                    <h3>{collection.title}</h3>
-                    <b>Shop collection →</b>
-                  </div>
-                </Link>
-              ))}
-            </div>
-            <div className="collections-all">
-              <Link className="editorial-link" href="/collections">See every collection →</Link>
-            </div>
-          </div>
-        </section>
-      )}
-
-      {featured.length > 0 && (
-        <section className="section editorial-products home-products-section">
-          <div className="container">
-            <div className="editorial-heading-row">
-              <div>
-                <div className="eyebrow">New &amp; noteworthy</div>
-                <h2>Our current favorites.</h2>
+        {catalogCount === 0 && collections.length === 0 && featured.length === 0 && (
+          <section className="section editorial-section home-restock-section">
+            <div className="container">
+              <div className="home-restock">
+                <div className="eyebrow">On the bench</div>
+                <h2>New pieces are being potted.</h2>
+                <p>
+                  The shop lists only what is ready to go home. Ask Tammy about a custom arrangement
+                  or a local pickup, or browse the care library in the meantime.
+                </p>
+                <div className="actions" style={{ justifyContent: 'center' }}>
+                  <Link
+                    className="btn editorial-btn"
+                    href={contactHref({ subject: 'Local pickup inquiry' })}
+                  >
+                    Ask about local pickup
+                  </Link>
+                  <Link className="editorial-link" href="/care">
+                    Plant care library →
+                  </Link>
+                </div>
               </div>
-              <Link className="editorial-link" href="/shop">
-                Shop all products →
-              </Link>
             </div>
-            <ProductGrid products={featured} />
-          </div>
-        </section>
-      )}
+          </section>
+        )}
+
+        {collections.length > 0 && (
+          <section className="section editorial-section home-collections-section">
+            <div className="container">
+              <div className="sectionhead">
+                <div className="eyebrow">Shop the garden</div>
+                <h2>Bring a little Hillside home.</h2>
+                <p>
+                  Discover the plants, handmade goods and natural supplies that make The Hillside
+                  Gardens collection distinctive.
+                </p>
+              </div>
+              <div className="editorial-collections">
+                {collections.map((collection) => (
+                  <Link
+                    className="editorial-collection"
+                    href={`/collections/${collection.slug}`}
+                    key={collection.id}
+                  >
+                    <BrandMockupScene
+                      variant="plants"
+                      imageSrc={collection.imageUrl}
+                      alt={collection.title}
+                    />
+                    <div>
+                      <span>{collection.tagline || `${collection._count.products} to browse`}</span>
+                      <h3>{collection.title}</h3>
+                      <b>Shop collection →</b>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+              <div className="collections-all">
+                <Link className="editorial-link" href="/collections">
+                  See every collection →
+                </Link>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {featured.length > 0 && (
+          <section className="section editorial-products home-products-section">
+            <div className="container">
+              <div className="editorial-heading-row">
+                <div>
+                  <div className="eyebrow">New &amp; noteworthy</div>
+                  <h2>Our current favorites.</h2>
+                </div>
+                <Link className="editorial-link" href="/shop">
+                  Shop all products →
+                </Link>
+              </div>
+              <ProductGrid products={featured} />
+            </div>
+          </section>
+        )}
       </div>
 
       <section className="section tammy-story home-story-section">
         <div className="container split">
           <div className="story-photo">
-            <BrandMockupScene variant="about" alt="Terracotta pots, twine and seedlings on the Hillside potting bench" />
+            <BrandMockupScene
+              variant="about"
+              alt="Terracotta pots, twine and seedlings on the Hillside potting bench"
+            />
           </div>
           <div>
             <div className="eyebrow">Grow with confidence</div>
@@ -208,8 +260,8 @@ export default async function Home() {
             </p>
             <p>
               Tammy Hill created The Hillside Gardens around a love of plants and a love of
-              teaching. Our care guides make choosing, arranging and caring for plants
-              approachable — even if you’re just getting started.
+              teaching. Our care guides make choosing, arranging and caring for plants approachable
+              — even if you’re just getting started.
             </p>
             <div className="actions">
               <Link className="btn editorial-btn" href="/about">
@@ -257,10 +309,16 @@ export default async function Home() {
                         {classTimeLabel(event.startsAt)}
                       </p>
                       <p>{classLocationLabel(event)}</p>
-                      {online && <p><b>Private classroom link emailed after registration.</b></p>}
+                      {online && (
+                        <p>
+                          <b>Private classroom link emailed after registration.</b>
+                        </p>
+                      )}
                       <p>
                         {seatsRemainingLabel(seatsLeft)} ·{' '}
-                        {event.priceCents > 0 ? `${formatMoney(event.priceCents)} per person` : 'Free'}
+                        {event.priceCents > 0
+                          ? `${formatMoney(event.priceCents)} per person`
+                          : 'Free'}
                       </p>
                       <Link className="btn editorial-btn" href="/classes">
                         View class
@@ -281,8 +339,8 @@ export default async function Home() {
             <div className="eyebrow">Plant help, without the guesswork</div>
             <h2>Keep your plants happy.</h2>
             <p>
-              Use our practical care sheets for light, watering, soil, feeding, pet safety and
-              the little details that make a difference.
+              Use our practical care sheets for light, watering, soil, feeding, pet safety and the
+              little details that make a difference.
             </p>
           </div>
           <Link className="btn light" href="/care">

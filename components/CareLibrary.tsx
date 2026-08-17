@@ -12,6 +12,7 @@ import {
   SunMedium
 } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
+import { matchesAnySearchField } from '@/lib/search';
 import { FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
 
 type GuideType = 'PLANT' | 'GENERAL' | 'PROBLEM' | 'SEASONAL';
@@ -84,18 +85,19 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
     return guides.filter((guide) => {
       if (filter !== 'ALL' && guide.guideType !== filter) return false;
       if (!needle) return true;
-      return [
-        guide.plantName,
-        guide.botanical,
-        guide.category,
-        guide.difficulty,
-        guide.summary,
-        guide.light,
-        guide.water,
-        guide.symptoms
-      ]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(needle));
+      return matchesAnySearchField(
+        [
+          guide.plantName,
+          guide.botanical,
+          guide.category,
+          guide.difficulty,
+          guide.summary,
+          guide.light,
+          guide.water,
+          guide.symptoms
+        ],
+        needle
+      );
     });
   }, [filter, guides, query]);
 
@@ -131,7 +133,9 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
       <div className="care-results-heading" aria-live="polite">
         <div>
           <span className="eyebrow">Our practical library</span>
-          <h2>{visible.length} {visible.length === 1 ? 'guide' : 'guides'} found</h2>
+          <h2>
+            {visible.length} {visible.length === 1 ? 'guide' : 'guides'} found
+          </h2>
         </div>
         {(query || filter !== 'ALL') && (
           <button
@@ -150,7 +154,10 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
       {visible.length > 0 ? (
         <div className="care-library-grid">
           {visible.slice(0, limit).map((guide, index) => (
-            <article className={`care-guide-card care-type-${guide.guideType.toLowerCase()}`} key={guide.id}>
+            <article
+              className={`care-guide-card care-type-${guide.guideType.toLowerCase()}`}
+              key={guide.id}
+            >
               <Link className="care-guide-image" href={`/care/${guide.slug}`}>
                 {guide.featured && <span className="care-featured-badge">Our essential</span>}
                 <ResilientImage
@@ -167,17 +174,33 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
               </Link>
               <div className="care-guide-copy">
                 <div className="care-card-meta">
-                  <span><GuideIcon type={guide.guideType} /> {guideLabel(guide.guideType)}</span>
+                  <span>
+                    <GuideIcon type={guide.guideType} /> {guideLabel(guide.guideType)}
+                  </span>
                   {guide.category && <span>{guide.category}</span>}
                 </div>
-                <h3><Link href={`/care/${guide.slug}`}>{guide.plantName}</Link></h3>
+                <h3>
+                  <Link href={`/care/${guide.slug}`}>{guide.plantName}</Link>
+                </h3>
                 {guide.botanical && <p className="botanical">{guide.botanical}</p>}
                 <p>{guide.summary}</p>
 
                 {guide.guideType === 'PLANT' && (guide.light || guide.water) && (
                   <div className="care-card-quick">
-                    {guide.light && <span><SunMedium size={15} /><b>Light</b>{guide.light}</span>}
-                    {guide.water && <span><Droplets size={15} /><b>Water</b>{guide.water}</span>}
+                    {guide.light && (
+                      <span>
+                        <SunMedium size={15} />
+                        <b>Light</b>
+                        {guide.light}
+                      </span>
+                    )}
+                    {guide.water && (
+                      <span>
+                        <Droplets size={15} />
+                        <b>Water</b>
+                        {guide.water}
+                      </span>
+                    )}
                   </div>
                 )}
 
@@ -189,7 +212,9 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
 
                 <div className="care-guide-footer">
                   {guide.difficulty && <span>{guide.difficulty}</span>}
-                  <Link className="text-link" href={`/care/${guide.slug}`}>Read guide →</Link>
+                  <Link className="text-link" href={`/care/${guide.slug}`}>
+                    Read guide →
+                  </Link>
                 </div>
               </div>
             </article>
@@ -199,7 +224,10 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
         <div className="care-empty-state">
           <Leaf size={40} />
           <h3>No guides match that search.</h3>
-          <p>Try a plant name, a symptom such as “yellow leaves,” or a topic such as watering or pests.</p>
+          <p>
+            Try a plant name, a symptom such as “yellow leaves,” or a topic such as watering or
+            pests.
+          </p>
           <button
             className="btn"
             type="button"
@@ -215,7 +243,9 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
 
       {visible.length > limit && (
         <div className="care-load-more">
-          <p className="muted">Showing {limit} of {visible.length} guides.</p>
+          <p className="muted">
+            Showing {limit} of {visible.length} guides.
+          </p>
           <button className="btn outline" type="button" onClick={() => setLimit(visible.length)}>
             Show all {visible.length} guides
           </button>

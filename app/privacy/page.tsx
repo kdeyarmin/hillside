@@ -17,7 +17,7 @@ export default function PrivacyPage() {
       </section>
       <section className="content">
         <article className="narrow prose">
-          <p><strong>Effective August 9, 2026.</strong></p>
+          <p><strong>Effective August 16, 2026.</strong></p>
           <h2>Information collected</h2>
           <p>The Hillside Gardens may collect information a visitor provides when placing an order, registering for a class, joining the email list, checking an order or sending a message. This may include a name, email address, phone number, billing and shipping address, order details, class selections and message content.</p>
           <p>The website and its hosting, payment and email providers may also process technical information such as IP address, device or browser details, timestamps, security logs and cookies necessary to operate and protect the service.</p>
@@ -38,7 +38,7 @@ export default function PrivacyPage() {
           <p>Business records are retained for as long as reasonably needed for fulfillment, customer service, accounting, tax, legal and security purposes. Reasonable administrative and technical safeguards are used, but no online system can promise absolute security.</p>
 
           <h2>Your choices</h2>
-          <p>Subscribers may ask to stop marketing email at any time. Customers may also request access, correction or deletion of information, subject to records The Hillside Gardens must retain for legitimate business or legal reasons.</p>
+          <p>Subscribers may stop marketing email at any time using the unsubscribe link in each Hillside Notes message, or by writing to us. Customers may also request access, correction or deletion of information, subject to records The Hillside Gardens must retain for legitimate business or legal reasons.</p>
 
           <h2>Children</h2>
           <p>This website is not directed to children under 13, and The Hillside Gardens does not knowingly collect personal information from children under 13.</p>

@@ -4,8 +4,17 @@ import { FormEvent, useState } from 'react';
 import { Send } from 'lucide-react';
 import FormStatus from '@/components/FormStatus';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
+import { allowedContactSubjects, type ContactSubject } from '@/lib/contact';
 
-export default function ContactForm() {
+const SUBJECTS = allowedContactSubjects(CLASSES_PUBLICLY_VISIBLE);
+
+export default function ContactForm({
+  initialSubject = 'General question',
+  initialMessage = ''
+}: {
+  initialSubject?: ContactSubject;
+  initialMessage?: string;
+}) {
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
@@ -45,26 +54,49 @@ export default function ContactForm() {
       <div className="form-grid">
         <div className="form-group">
           <label htmlFor="contact-name">Name</label>
-          <input className="form-input" id="contact-name" name="name" autoComplete="name" required />
+          <input
+            className="form-input"
+            id="contact-name"
+            name="name"
+            autoComplete="name"
+            required
+          />
         </div>
         <div className="form-group">
           <label htmlFor="contact-email">Email</label>
-          <input className="form-input" id="contact-email" name="email" type="email" autoComplete="email" required />
+          <input
+            className="form-input"
+            id="contact-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+          />
         </div>
         <div className="form-group">
-          <label htmlFor="contact-phone">Phone <span className="muted">(optional)</span></label>
-          <input className="form-input" id="contact-phone" name="phone" type="tel" autoComplete="tel" />
+          <label htmlFor="contact-phone">
+            Phone <span className="muted">(optional)</span>
+          </label>
+          <input
+            className="form-input"
+            id="contact-phone"
+            name="phone"
+            type="tel"
+            autoComplete="tel"
+          />
         </div>
         <div className="form-group">
           <label htmlFor="contact-subject">What can we help with?</label>
-          <select className="form-input" id="contact-subject" name="subject" defaultValue="General question" required>
-            <option>General question</option>
-            <option>Plant care question</option>
-            <option>Product or order question</option>
-            {CLASSES_PUBLICLY_VISIBLE && <option>Planter class</option>}
-            {CLASSES_PUBLICLY_VISIBLE && <option>Private group class</option>}
-            <option>Custom planter arrangement</option>
-            <option>Wholesale or collaboration</option>
+          <select
+            className="form-input"
+            id="contact-subject"
+            name="subject"
+            defaultValue={initialSubject}
+            required
+          >
+            {SUBJECTS.map((subject) => (
+              <option key={subject}>{subject}</option>
+            ))}
           </select>
         </div>
         <div className="form-group full">
@@ -74,6 +106,7 @@ export default function ContactForm() {
             id="contact-message"
             name="message"
             placeholder="Tell us a little about what you need."
+            defaultValue={initialMessage}
             required
             minLength={10}
           />
@@ -90,7 +123,11 @@ export default function ContactForm() {
       <button className="btn" type="submit" disabled={status === 'loading'}>
         <Send size={17} /> {status === 'loading' ? 'Sending…' : 'Send message'}
       </button>
-      <FormStatus message={message} tone={status === 'error' ? 'error' : 'success'} className="tight" />
+      <FormStatus
+        message={message}
+        tone={status === 'error' ? 'error' : 'success'}
+        className="tight"
+      />
     </form>
   );
 }
