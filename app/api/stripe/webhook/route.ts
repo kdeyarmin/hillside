@@ -122,7 +122,7 @@ async function completeReservedOrder(
     ? 0
     : (session.shipping_cost?.amount_total ??
       Math.max(0, totalCents - order.subtotalCents - taxCents + discountCents));
-  const fulfillmentMethod = pickup ? 'PICKUP' : 'SHIP';
+  const fulfillmentMethod: 'PICKUP' | 'SHIP' = pickup ? 'PICKUP' : 'SHIP';
   const paidFields = {
     stripeSessionId: session.id,
     paymentIntentId: objectId(session.payment_intent),
@@ -252,7 +252,7 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
     );
   }
 
-  const fulfillmentMethod = fulfillmentFromSession(session);
+  const fulfillmentMethod: 'PICKUP' | 'SHIP' = fulfillmentFromSession(session);
   const pickup = fulfillmentMethod === 'PICKUP';
   const customer = customerFieldsFromSession(session, pickup);
   const subtotalCents = lineItems.reduce(

@@ -122,6 +122,18 @@ export function pickupPlaceholderAddress() {
   };
 }
 
+/** Locality Stripe Tax should use for pickup — town ZIP, not a street address. */
+export function pickupTaxOrigin() {
+  const postalCode = (process.env.PICKUP_POSTAL_CODE || '15931').trim() || '15931';
+  return {
+    line1: 'Local pickup',
+    city: 'Ebensburg',
+    state: 'PA',
+    postalCode,
+    country: 'US'
+  };
+}
+
 export function fulfillmentBlurb(product: FulfillmentFlags) {
   const ship = offersShipping(product);
   const pickup = offersPickup(product);

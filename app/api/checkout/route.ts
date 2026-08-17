@@ -18,6 +18,7 @@ import { rateLimited } from '@/lib/rate-limit';
 import { checkoutReturnOrigin, newInvoiceNumber } from '@/lib/store';
 import {
   cartFulfillment,
+  pickupTaxOrigin,
   readFulfillmentChoice,
   readGiftMessage,
   readPickupArranged,
@@ -180,7 +181,18 @@ export async function POST(request: Request) {
         cancel_url: `${site}/cart`,
         billing_address_collection: pickup ? 'required' : 'auto',
         ...(pickup
-          ? {}
+          ? {
+              permissions: { update_shipping_details: 'server_only' as const },
+              shipping_options: [
+                {
+                  shipping_rate_data: {
+                    type: 'fixed_amount' as const,
+                    fixed_amount: { amount: 0, currency: 'usd' },
+                    display_name: 'Local pickup'
+                  }
+                }
+              ]
+            }
           : {
               shipping_address_collection: { allowed_countries: ['US'] as const },
               shipping_options: [
@@ -240,6 +252,24 @@ export async function POST(request: Request) {
           items: encodeCheckoutItems(items)
         }
       });
+
+      if (pickup && process.env.STRIPE_AUTOMATIC_TAX === 'true') {
+        const origin = pickupTaxOrigin();
+        await stripe.checkout.sessions.update(session.id, {
+          collected_information: {
+            shipping_details: {
+              name: 'Local pickup',
+              address: {
+                line1: origin.line1,
+                city: origin.city,
+                state: origin.state,
+                postal_code: origin.postalCode,
+                country: origin.country
+              }
+            }
+          }
+        });
+      }
 
       try {
         await attachStripeSessionToOrder(reservation.holdId, session.id);

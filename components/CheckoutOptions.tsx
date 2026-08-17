@@ -29,8 +29,9 @@ export default function CheckoutOptions({ compact = false }: { compact?: boolean
         <fieldset className="fulfillment-picker">
           <legend>How should we get this to you?</legend>
           {options.canShip && (
-            <label>
+            <label htmlFor={compact ? 'drawer-fulfillment-ship' : 'cart-fulfillment-ship'}>
               <input
+                id={compact ? 'drawer-fulfillment-ship' : 'cart-fulfillment-ship'}
                 type="radio"
                 name={compact ? 'drawer-fulfillment' : 'cart-fulfillment'}
                 checked={fulfillment === 'SHIP'}
@@ -43,8 +44,9 @@ export default function CheckoutOptions({ compact = false }: { compact?: boolean
             </label>
           )}
           {options.canPickup && (
-            <label>
+            <label htmlFor={compact ? 'drawer-fulfillment-pickup' : 'cart-fulfillment-pickup'}>
               <input
+                id={compact ? 'drawer-fulfillment-pickup' : 'cart-fulfillment-pickup'}
                 type="radio"
                 name={compact ? 'drawer-fulfillment' : 'cart-fulfillment'}
                 checked={fulfillment === 'PICKUP'}

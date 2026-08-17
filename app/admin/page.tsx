@@ -738,7 +738,7 @@ export default async function Admin({
                       </div>
                     </div>
                     {order.giftMessage && (
-                      <div className="note-box" style={{ marginBottom: 18 }}>
+                      <div className="note-box" style={{ marginBottom: 18, whiteSpace: 'pre-wrap' }}>
                         <b>Gift message</b>
                         {order.giftMessage}
                       </div>
@@ -773,6 +773,17 @@ export default async function Admin({
                             defaultValue={order.trackingNumber || ''}
                           />
                         </label>
+                        {order.fulfillmentMethod === 'PICKUP' && (
+                          <label className="admin-label full">
+                            Pickup window to email the customer
+                            <textarea
+                              className="admin-input"
+                              name="pickupNote"
+                              rows={3}
+                              placeholder="Saturday 10–11am at the greenhouse door. Ring when you arrive."
+                            ></textarea>
+                          </label>
+                        )}
                         <label className="admin-label full">
                           Private order notes
                           <textarea

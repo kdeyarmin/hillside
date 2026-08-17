@@ -145,30 +145,39 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       itemCondition: 'https://schema.org/NewCondition',
       availability: soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
       seller: { '@id': absoluteUrl('/#business') },
-      shippingDetails: {
-        '@type': 'OfferShippingDetails',
-        shippingRate: {
-          '@type': 'MonetaryAmount',
-          value: (
-            (threshold > 0 && product.priceCents >= threshold ? 0 : flatShippingCents()) / 100
-          ).toFixed(2),
-          currency: 'USD'
-        },
-        shippingDestination: {
-          '@type': 'DefinedRegion',
-          addressCountry: 'US'
-        },
-        deliveryTime: {
-          '@type': 'ShippingDeliveryTime',
-          handlingTime: {
-            '@type': 'QuantitativeValue',
-            minValue: HANDLING_MIN_DAYS,
-            maxValue: HANDLING_MAX_DAYS,
-            unitCode: 'DAY'
-          },
-          transitTime: { '@type': 'QuantitativeValue', minValue: 3, maxValue: 7, unitCode: 'DAY' }
-        }
-      },
+      ...(offersShipping(product)
+        ? {
+            shippingDetails: {
+              '@type': 'OfferShippingDetails',
+              shippingRate: {
+                '@type': 'MonetaryAmount',
+                value: (
+                  (threshold > 0 && product.priceCents >= threshold ? 0 : flatShippingCents()) / 100
+                ).toFixed(2),
+                currency: 'USD'
+              },
+              shippingDestination: {
+                '@type': 'DefinedRegion',
+                addressCountry: 'US'
+              },
+              deliveryTime: {
+                '@type': 'ShippingDeliveryTime',
+                handlingTime: {
+                  '@type': 'QuantitativeValue',
+                  minValue: HANDLING_MIN_DAYS,
+                  maxValue: HANDLING_MAX_DAYS,
+                  unitCode: 'DAY'
+                },
+                transitTime: {
+                  '@type': 'QuantitativeValue',
+                  minValue: 3,
+                  maxValue: 7,
+                  unitCode: 'DAY'
+                }
+              }
+            }
+          }
+        : {}),
       hasMerchantReturnPolicy: returnPolicyForType(product.type)
     }
   };

@@ -374,6 +374,16 @@ export async function updateOrder(formData: FormData) {
   const trackingCarrier = text(formData, 'trackingCarrier') || null;
   const trackingNumber = text(formData, 'trackingNumber') || null;
   const internalNotes = text(formData, 'internalNotes') || null;
+  const pickupNote = text(formData, 'pickupNote');
+
+  if (
+    status === OrderStatus.FULFILLED &&
+    before.status !== OrderStatus.FULFILLED &&
+    isPickupOrder(before) &&
+    !pickupNote
+  ) {
+    redirect(adminDashboardPath({ error: 'pickup-note', order: before.id, section: 'orders' }));
+  }
 
   if (status === OrderStatus.CANCELLED && before.status === OrderStatus.PENDING) {
     await releaseProductHold(id);
@@ -428,7 +438,7 @@ export async function updateOrder(formData: FormData) {
       : '';
     const statusUrl = absoluteUrl('/order-status');
     const body = pickup
-      ? `<p>Hi ${escapeHtml(order.customerName)},</p><p>Order <strong>${escapeHtml(order.invoiceNumber)}</strong> is ready for pickup in Ebensburg.</p><p>Reply to this email to coordinate a time. Please do not come by until we have confirmed a window with you.</p>`
+      ? `<p>Hi ${escapeHtml(order.customerName)},</p><p>Order <strong>${escapeHtml(order.invoiceNumber)}</strong> is ready for pickup in Ebensburg.</p><p><strong>Pickup window:</strong></p><p style="white-space:pre-line">${escapeHtml(pickupNote)}</p><p>Please come during that window. Reply to this email if you need to change it.</p>`
       : `<p>Hi ${escapeHtml(order.customerName)},</p><p>We have marked order <strong>${escapeHtml(order.invoiceNumber)}</strong> as shipped.</p>${tracking}<p>Look this order up any time with your HG number and checkout email: <a href="${escapeHtml(statusUrl)}">${escapeHtml(statusUrl)}</a></p>`;
     await sendEmail({
       to: order.email,

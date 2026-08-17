@@ -5,6 +5,7 @@ const {
   cartFulfillment,
   fulfillmentBlurb,
   orderStatusHeading,
+  pickupTaxOrigin,
   readFulfillmentChoice,
   readGiftMessage,
   readPickupArranged,
@@ -127,6 +128,17 @@ describe('readPickupArranged', () => {
     assert.equal(readPickupArranged({ pickupArranged: true }), true);
     assert.equal(readPickupArranged({ pickupArranged: 'true' }), false);
     assert.equal(readPickupArranged({}), false);
+  });
+});
+
+describe('pickupTaxOrigin', () => {
+  it('uses the Ebensburg locality without inventing a street address', () => {
+    const origin = pickupTaxOrigin();
+    assert.equal(origin.city, 'Ebensburg');
+    assert.equal(origin.state, 'PA');
+    assert.equal(origin.country, 'US');
+    assert.equal(origin.line1, 'Local pickup');
+    assert.match(origin.postalCode, /^\d{5}$/);
   });
 });
 

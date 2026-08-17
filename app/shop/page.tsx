@@ -73,7 +73,9 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
         badge: true,
         featured: true,
         sortOrder: true,
-        createdAt: true
+        createdAt: true,
+        ships: true,
+        pickup: true
       },
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
       // A ceiling, not a page size. The client-side filter needs the full catalog;
