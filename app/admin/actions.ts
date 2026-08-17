@@ -33,6 +33,8 @@ const slugify = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
+/** Prefer the typed slug, but if it is only punctuation fall back to the name. */
+const slugFrom = (preferred: string, fallback: string) => slugify(preferred) || slugify(fallback);
 const money = (value: FormDataEntryValue | null) => {
   const number = Number(value || 0);
   return Number.isFinite(number) ? Math.round(number * 100) : 0;
@@ -94,7 +96,7 @@ export async function saveProduct(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
   const name = text(formData, 'name');
-  const slug = slugify(text(formData, 'slug') || name);
+  const slug = slugFrom(text(formData, 'slug'), name);
   const rawType = text(formData, 'type');
   const type = Object.values(ProductType).includes(rawType as ProductType)
     ? (rawType as ProductType)
@@ -223,7 +225,7 @@ export async function saveCollection(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
   const title = text(formData, 'title');
-  const requestedSlug = slugify(text(formData, 'slug') || title);
+  const requestedSlug = slugFrom(text(formData, 'slug'), title);
   if (!title || !requestedSlug) {
     redirect(
       adminContentPath({
@@ -268,10 +270,15 @@ export async function saveCollection(formData: FormData) {
 export async function deleteCollection(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
-  if (!id) return;
+  if (!id) {
+    redirect(adminContentPath({ error: 'collection-missing', section: 'collections' }));
+  }
 
   const collection = await db.collection.findUnique({ where: { id } });
-  if (!collection || isNavigationCollection(collection.slug)) {
+  if (!collection) {
+    redirect(adminContentPath({ error: 'collection-missing', section: 'collections' }));
+  }
+  if (isNavigationCollection(collection.slug)) {
     redirect(
       adminContentPath({
         error: 'collection-locked',
@@ -449,7 +456,7 @@ export async function saveClassEvent(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
   const title = text(formData, 'title');
-  const slug = slugify(text(formData, 'slug') || title) || null;
+  const slug = slugFrom(text(formData, 'slug'), title) || null;
   const startsAt = optionalDate(text(formData, 'startsAt'));
   const rawFormat = text(formData, 'format');
   const format = Object.values(ClassFormat).includes(rawFormat as ClassFormat)
@@ -517,13 +524,21 @@ export async function saveClassEvent(formData: FormData) {
 export async function prepareClassRoom(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
-  if (!id) return;
+  if (!id) {
+    redirect(adminContentPath({ error: 'content-invalid', section: 'classes' }));
+  }
   const event = await db.classEvent.findUnique({ where: { id } });
-  if (!event || !isOnlineClass(event.format)) return;
+  if (!event || !isOnlineClass(event.format)) {
+    redirect(
+      adminContentPath({ error: 'content-invalid', section: 'classes', item: id || undefined })
+    );
+  }
   try {
     await ensureTelnyxRoom(event);
   } catch (error) {
     console.error('Unable to prepare Telnyx room', error);
+    refresh('/admin/content', `/admin/classes/${id}/studio`);
+    redirect(adminContentPath({ error: 'class-room-failed', section: 'classes', item: id }));
   }
   refresh('/admin/content', `/admin/classes/${id}/studio`);
   redirect(adminContentPath({ notice: 'class-room-ready', section: 'classes', item: id }));
@@ -657,7 +672,7 @@ export async function saveCareSheet(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
   const plantName = text(formData, 'plantName');
-  const slug = slugify(text(formData, 'slug') || plantName);
+  const slug = slugFrom(text(formData, 'slug'), plantName);
   const data = {
     plantName,
     slug,

@@ -133,8 +133,11 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'registration-email-failed':
     'The class confirmation could not be sent. The guest’s previous classroom link is still valid. Check that RESEND_API_KEY is set.',
   'collection-invalid': 'A collection needs a name.',
+  'collection-missing': 'That collection is no longer here.',
   'collection-locked':
     'That collection is part of the site header and cannot be renamed away, hidden or deleted.',
+  'class-room-failed':
+    'The class was saved, but the Telnyx room could not be prepared. Check TELNYX_API_KEY and try Prepare room again.',
   'content-invalid': 'That form was missing a required field.',
   throttled: 'Too many sign-in attempts. Please wait a few minutes and try again.',
   '1': 'That email address and password didn’t match an admin account.'
