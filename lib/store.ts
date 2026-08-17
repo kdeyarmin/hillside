@@ -1,5 +1,4 @@
-export const FALLBACK_PRODUCT_IMAGE =
-  '/images/catalog/house-plants.webp';
+export const FALLBACK_PRODUCT_IMAGE = '/images/catalog/house-plants.webp';
 
 export const CANONICAL_SITE_URL = 'https://thehillsidegardens.com';
 
@@ -76,13 +75,11 @@ export const CATEGORY_GROUPS: Record<string, { label: string; types: string[] }>
 export function categoryTypes(value?: string | null): string[] {
   const raw = (value || '').trim().toUpperCase();
   if (!raw || raw === 'ALL') return [];
-  return raw
-    .split(',')
-    .flatMap((entry) => {
-      const key = entry.trim();
-      if (!key) return [];
-      return CATEGORY_GROUPS[key]?.types || [key];
-    });
+  return raw.split(',').flatMap((entry) => {
+    const key = entry.trim();
+    if (!key) return [];
+    return CATEGORY_GROUPS[key]?.types || [key];
+  });
 }
 
 export function categoryLabel(value?: string | null) {
@@ -195,6 +192,11 @@ export function productTypeLabel(type: string) {
  * Soaps and lotions are returnable here because the policy only makes them final
  * sale once *opened*, which is the same condition it puts on all merchandise.
  */
+
+/** Matches the published shipping-returns page. Search must not advertise faster. */
+export const HANDLING_MIN_DAYS = 2;
+export const HANDLING_MAX_DAYS = 4;
+
 export function returnPolicyForType(type: string) {
   const finalSale = type === 'PLANT' || type === 'TEA';
 
@@ -285,7 +287,8 @@ export function siteBaseUrl() {
   const isDev = process.env.NODE_ENV === 'development';
 
   if (isDev) return normalizeHillsideDomain(configured || 'http://localhost:3000');
-  if (configured && !isUnusableAsPublicOrigin(configured)) return normalizeHillsideDomain(configured);
+  if (configured && !isUnusableAsPublicOrigin(configured))
+    return normalizeHillsideDomain(configured);
 
   if (configured && !warnedAboutBase) {
     warnedAboutBase = true;
