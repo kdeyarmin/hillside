@@ -16,8 +16,11 @@ export default function robots(): MetadataRoute.Robots {
           '/cart',
           '/search',
           '/order/success',
+          '/order-status',
           '/classes/success',
-          '/classes/studio'
+          '/classes/studio',
+          '/classes/confirm',
+          '/classes/confirmed'
         ]
       }
     ],

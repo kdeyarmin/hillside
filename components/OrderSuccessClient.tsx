@@ -4,10 +4,57 @@ import Link from 'next/link';
 import { useEffect } from 'react';
 import { FileText, Printer } from 'lucide-react';
 import { useCart } from '@/components/CartProvider';
+import { trackPurchase } from '@/lib/analytics';
 
-export default function OrderSuccessClient({ invoiceUrl }: { invoiceUrl?: string | null }) {
+export default function OrderSuccessClient({
+  invoiceUrl,
+  sessionId,
+  shouldClearCart,
+  purchase
+}: {
+  invoiceUrl?: string | null;
+  sessionId?: string | null;
+  shouldClearCart?: boolean;
+  purchase?: {
+    invoiceNumber: string;
+    totalCents: number;
+    items: Array<{ name: string; quantity: number; unitCents: number }>;
+  } | null;
+}) {
   const { clearCart } = useCart();
-  useEffect(() => clearCart(), [clearCart]);
+
+  useEffect(() => {
+    if (!shouldClearCart || !sessionId) return;
+    const key = `hillside-cleared-${sessionId}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+    } catch {
+      // Private mode can throw; still clear once this mount.
+    }
+    clearCart();
+  }, [clearCart, sessionId, shouldClearCart]);
+
+  useEffect(() => {
+    if (!purchase || !sessionId) return;
+    const key = `hillside-purchase-${sessionId}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+    } catch {
+      return;
+    }
+    trackPurchase(
+      purchase.invoiceNumber,
+      purchase.items.map((item) => ({
+        item_id: item.name,
+        item_name: item.name,
+        price: item.unitCents / 100,
+        quantity: item.quantity
+      })),
+      purchase.totalCents
+    );
+  }, [purchase, sessionId]);
 
   return (
     <div className="actions no-print" style={{ justifyContent: 'center' }}>
@@ -19,7 +66,9 @@ export default function OrderSuccessClient({ invoiceUrl }: { invoiceUrl?: string
           <FileText size={17} /> View Stripe invoice
         </a>
       )}
-      <Link className="btn outline" href="/shop">Continue shopping</Link>
+      <Link className="btn outline" href="/shop">
+        Continue shopping
+      </Link>
     </div>
   );
 }

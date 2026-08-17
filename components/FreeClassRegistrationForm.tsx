@@ -59,9 +59,9 @@ export default function FreeClassRegistrationForm({
       <div className="class-registration-success" role="status">
         <CheckCircle2 size={24} />
         <div>
-          <b>Registration confirmed</b>
+          <b>Check your email to confirm</b>
           <p>{message}</p>
-          {online && <p>Keep the email containing your private online classroom link.</p>}
+          {online && <p>After you confirm, we will email the private online classroom link.</p>}
         </div>
       </div>
     );
@@ -73,7 +73,7 @@ export default function FreeClassRegistrationForm({
         <UserRound size={20} />
         <div>
           <b>Reserve your place</b>
-          <span>{online ? 'The private classroom link will be emailed to you.' : 'We will email your class confirmation.'}</span>
+          <span>{online ? 'We will email a confirmation link, then your private classroom link.' : 'We will email a confirmation link to finish reserving your seat.'}</span>
         </div>
       </div>
       <div className="free-class-registration-grid">
@@ -113,7 +113,7 @@ export default function FreeClassRegistrationForm({
       />
       {error && <p className="form-status error" role="alert">{error}</p>}
       <button className="btn" type="submit" disabled={submitting}>
-        <Mail size={17} /> {submitting ? 'Registering…' : 'Register and email my details'}
+        <Mail size={17} /> {submitting ? 'Sending confirmation…' : 'Email me a confirmation link'}
       </button>
     </form>
   );

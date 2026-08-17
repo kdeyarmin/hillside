@@ -13,8 +13,7 @@ import {
   DEFAULT_BUSINESS_EMAIL,
   FALLBACK_PRODUCT_IMAGE,
   formatMoney,
-  formatMoneyCompact,
-  publicFreeShippingThresholdCents
+  formatMoneyCompact
 } from '@/lib/store';
 
 /**
@@ -41,8 +40,13 @@ const SOCIAL_LINKS = [
   { label: 'Facebook', href: process.env.NEXT_PUBLIC_FACEBOOK_URL, Icon: Facebook }
 ].filter((link): link is { label: string; href: string; Icon: typeof Instagram } => Boolean(link.href));
 
-function FreeShippingMeter({ subtotalCents }: { subtotalCents: number }) {
-  const threshold = publicFreeShippingThresholdCents();
+function FreeShippingMeter({
+  subtotalCents,
+  threshold
+}: {
+  subtotalCents: number;
+  threshold: number;
+}) {
   if (threshold <= 0 || subtotalCents <= 0) return null;
 
   const remaining = threshold - subtotalCents;
@@ -119,7 +123,7 @@ function CartDrawerSuggestions() {
   );
 }
 
-function CartDrawer() {
+function CartDrawer({ freeShippingThreshold }: { freeShippingThreshold: number }) {
   const {
     items,
     subtotalCents,
@@ -268,7 +272,7 @@ function CartDrawer() {
             </div>
             <CartDrawerSuggestions />
             <div className="drawer-total">
-              <FreeShippingMeter subtotalCents={subtotalCents} />
+            <FreeShippingMeter subtotalCents={subtotalCents} threshold={freeShippingThreshold} />
               <div>
                 <span>Subtotal</span>
                 <strong>{formatMoney(subtotalCents)}</strong>
@@ -300,10 +304,9 @@ function CartDrawer() {
   );
 }
 
-export function SiteHeader() {
+export function SiteHeader({ freeShippingThreshold }: { freeShippingThreshold: number }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const freeShippingThreshold = publicFreeShippingThresholdCents();
   const { count, drawerOpen, openCart, lastAdded } = useCart();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
@@ -550,7 +553,7 @@ export function SiteHeader() {
         />
       )}
 
-      <CartDrawer />
+      <CartDrawer freeShippingThreshold={freeShippingThreshold} />
     </>
   );
 }

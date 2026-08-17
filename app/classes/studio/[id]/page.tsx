@@ -16,7 +16,11 @@ import { CLASSES_EXIT_LINK } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Online Classroom', robots: { index: false, follow: false } };
+export const metadata = {
+  title: 'Online Classroom',
+  robots: { index: false, follow: false },
+  referrer: 'no-referrer'
+};
 
 export default async function OnlineClassStudio({
   params

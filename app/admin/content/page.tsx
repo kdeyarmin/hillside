@@ -140,14 +140,14 @@ function CareFields({
         <label className="admin-label">Botanical name<input className="admin-input" name="botanical" defaultValue={sheet?.botanical || ''} /></label>
         <label className="admin-label">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={sheet?.imageUrl || ''} /></label>
         <label className="admin-label full">Short introduction<textarea className="admin-input" name="summary" rows={3} defaultValue={sheet?.summary} required /></label>
-        <label className="admin-label">Light<input className="admin-input" name="light" defaultValue={sheet?.light} required /></label>
-        <label className="admin-label">Water<input className="admin-input" name="water" defaultValue={sheet?.water} required /></label>
-        <label className="admin-label">Humidity<input className="admin-input" name="humidity" defaultValue={sheet?.humidity} required /></label>
-        <label className="admin-label">Soil<input className="admin-input" name="soil" defaultValue={sheet?.soil} required /></label>
-        <label className="admin-label">Feeding<input className="admin-input" name="feeding" defaultValue={sheet?.feeding} required /></label>
-        <label className="admin-label">Temperature<input className="admin-input" name="temperature" defaultValue={sheet?.temperature} required /></label>
+        <label className="admin-label">Light<input className="admin-input" name="light" defaultValue={sheet?.light} /></label>
+        <label className="admin-label">Water<input className="admin-input" name="water" defaultValue={sheet?.water} /></label>
+        <label className="admin-label">Humidity<input className="admin-input" name="humidity" defaultValue={sheet?.humidity} /></label>
+        <label className="admin-label">Soil<input className="admin-input" name="soil" defaultValue={sheet?.soil} /></label>
+        <label className="admin-label">Feeding<input className="admin-input" name="feeding" defaultValue={sheet?.feeding} /></label>
+        <label className="admin-label">Temperature<input className="admin-input" name="temperature" defaultValue={sheet?.temperature} /></label>
         <label className="admin-label full">Pet safety<input className="admin-input" name="petSafety" defaultValue={sheet?.petSafety || ''} /></label>
-        <label className="admin-label full">Our best tips<textarea className="admin-input" name="tips" rows={4} defaultValue={sheet?.tips} required /></label>
+        <label className="admin-label full">Our best tips<textarea className="admin-input" name="tips" rows={4} defaultValue={sheet?.tips} /></label>
         <label className="admin-label full">
           Sell this plant on the guide
           <select className="admin-input" name="productId" defaultValue={sheet?.productId || ''}>
@@ -193,7 +193,7 @@ export default async function ContentManager() {
         <a href="#care">Plant care sheets</a>
         <Link href="/">View public website</Link>
       </aside>
-      <main className="adminmain">
+      <div className="adminmain">
         <div className="eyebrow">Easy website editor</div>
         <h1>Website content</h1>
         <p className="muted">Use the forms below to publish and update content without changing code.</p>
@@ -335,7 +335,7 @@ export default async function ContentManager() {
         </section>
 
         <section className="admin-section" id="care">
-          <div className="toolbar"><div><h2>Plant care sheets</h2><p className="muted">Each published plant receives a searchable detail page and print-friendly care sheet.</p></div><Link className="btn outline small" href="/care">View care library</Link></div>
+          <div className="toolbar"><div><h2>Plant care sheets</h2><p className="muted">Each published plant receives a searchable detail page and print-friendly care sheet. Problem and seasonal guides are easier to edit in the full <Link className="text-link" href="/admin/care">care library manager</Link>.</p></div><Link className="btn outline small" href="/admin/care">Open care library manager</Link></div>
           <div className="admin-list">
             {sheets.map((sheet) => (
               <details key={sheet.id}><summary><span>{sheet.plantName}{sheet.botanical ? ` • ${sheet.botanical}` : ''}</span><span className={`status-badge ${sheet.published ? 'PAID' : 'CANCELLED'}`}>{sheet.published ? 'Published' : 'Draft'}</span></summary><div><form action={saveCareSheet}><CareFields sheet={sheet} products={products} /><div className="admin-actions"><button className="btn small">Save care sheet</button><Link className="btn outline small" href={`/care/${sheet.slug}`}>View guide</Link></div></form>{sheet.published && <form action={archiveContent} style={{ marginTop: 10 }}><input type="hidden" name="id" value={sheet.id} /><input type="hidden" name="kind" value="care" /><button className="text-button danger">Unpublish care sheet</button></form>}</div></details>
@@ -343,7 +343,7 @@ export default async function ContentManager() {
           </div>
           <div className="admin-card" style={{ marginTop: 20 }}><h2 style={{ marginTop: 0 }}>Add a plant care sheet</h2><form action={saveCareSheet}><CareFields products={products} /><button className="btn" style={{ marginTop: 16 }}>Publish care sheet</button></form></div>
         </section>
-      </main>
+      </div>
     </div>
   );
 }

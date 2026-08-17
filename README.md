@@ -233,9 +233,13 @@ Subscribe it to:
 
 - `checkout.session.completed`
 - `checkout.session.async_payment_succeeded`
+- `checkout.session.expired`
+- `checkout.session.async_payment_failed`
 - `charge.refunded`
 
 Copy the signing secret into `STRIPE_WEBHOOK_SECRET`. Product purchases and class registrations are identified through signed Checkout metadata. Fulfillment is idempotent, so a repeated Stripe event does not create a second order or registration. When a paid online class is fulfilled, the webhook creates and emails the customer’s secure classroom access link.
+
+Product checkout now reserves stock on a `PENDING` order for 35 minutes, matching the Stripe session `expires_at`. Subscribe `checkout.session.expired` (and `async_payment_failed`) so abandoned checkouts return that stock; a sweep on the next checkout also releases holds whose webhook was missed.
 
 Set `STRIPE_AUTOMATIC_TAX=true` only after Stripe Tax has been configured for the business. Stripe Checkout emails receipts and creates invoices for paid product and class sessions.
 

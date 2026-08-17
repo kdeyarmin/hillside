@@ -14,6 +14,11 @@ type TelnyxRoomResponse = {
   errors?: Array<{ detail?: string; title?: string }>;
 };
 
+type TelnyxRoomListResponse = {
+  data?: Array<{ id?: string; unique_name?: string }>;
+  errors?: Array<{ detail?: string; title?: string }>;
+};
+
 type TelnyxTokenResponse = {
   data?: {
     token?: string;
@@ -41,18 +46,18 @@ export function telnyxVideoConfigured() {
   return Boolean(apiKey());
 }
 
-async function telnyxRequest<T>(path: string, body: unknown): Promise<T> {
+async function telnyxRequest<T>(path: string, body?: unknown, method = 'POST'): Promise<T> {
   const key = apiKey();
   if (!key) throw new Error('TELNYX_API_KEY is not configured.');
 
   const response = await fetch(`${apiBase()}${path}`, {
-    method: 'POST',
+    method,
     headers: {
       Authorization: `Bearer ${key}`,
       Accept: 'application/json',
-      'Content-Type': 'application/json'
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {})
     },
-    body: JSON.stringify(body),
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
     cache: 'no-store'
   });
 
@@ -66,23 +71,53 @@ async function telnyxRequest<T>(path: string, body: unknown): Promise<T> {
   return payload;
 }
 
+async function findRoomIdByUniqueName(uniqueName: string) {
+  const listed = await telnyxRequest<TelnyxRoomListResponse>(
+    `/rooms?filter[unique_name]=${encodeURIComponent(uniqueName)}`,
+    undefined,
+    'GET'
+  );
+  return listed.data?.find((room) => room.unique_name === uniqueName)?.id || listed.data?.[0]?.id || null;
+}
+
 export async function ensureTelnyxRoom(event: TelnyxClass) {
   if (!isOnlineClass(event.format)) return null;
   if (event.telnyxRoomId) return event.telnyxRoomId;
 
+  /**
+   * Two concurrent prepares used to both see a null room id and both POST /rooms.
+   * Telnyx then had two rooms and the later write won, leaking an orphaned room
+   * and racing the unique `telnyxRoomId` column. Create-or-recover by unique
+   * name, then claim the column only while it is still empty.
+   */
   const uniqueName = `hillside-${event.id}`;
-  const response = await telnyxRequest<TelnyxRoomResponse>('/rooms', {
-    unique_name: uniqueName,
-    max_participants: Math.max(2, Math.min(50, event.capacity + 1)),
-    enable_recording: event.telnyxRecordingEnabled
-  });
-  const roomId = response.data?.id;
+  let roomId: string | null = null;
+
+  try {
+    const response = await telnyxRequest<TelnyxRoomResponse>('/rooms', {
+      unique_name: uniqueName,
+      max_participants: Math.max(2, Math.min(50, event.capacity + 1)),
+      enable_recording: event.telnyxRecordingEnabled
+    });
+    roomId = response.data?.id || null;
+  } catch (error) {
+    roomId = await findRoomIdByUniqueName(uniqueName);
+    if (!roomId) throw error;
+  }
+
   if (!roomId) throw new Error('Telnyx did not return a room ID.');
 
-  await db.classEvent.update({
-    where: { id: event.id },
+  const claimed = await db.classEvent.updateMany({
+    where: { id: event.id, telnyxRoomId: null },
     data: { telnyxRoomId: roomId }
   });
+  if (claimed.count === 0) {
+    const existing = await db.classEvent.findUnique({
+      where: { id: event.id },
+      select: { telnyxRoomId: true }
+    });
+    return existing?.telnyxRoomId || roomId;
+  }
   return roomId;
 }
 

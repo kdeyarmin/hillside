@@ -6,10 +6,11 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState
 } from 'react';
 import { toGtagItem, trackAddToCart, trackBeginCheckout } from '@/lib/analytics';
-import { clampQuantity } from '@/lib/store';
+import { clampQuantity, formatMoney } from '@/lib/store';
 
 export type CartProduct = {
   slug: string;
@@ -22,6 +23,15 @@ export type CartProduct = {
 
 export type CartLine = CartProduct & { quantity: number };
 
+export type CheckoutAdjustment = {
+  slug: string;
+  name: string;
+  requested: number;
+  available: number;
+  reason?: 'stock' | 'price' | 'unavailable';
+  priceCents?: number;
+};
+
 type CartContextValue = {
   items: CartLine[];
   count: number;
@@ -30,11 +40,11 @@ type CartContextValue = {
   checkoutLoading: boolean;
   checkoutError: string | null;
   checkoutNotice: string | null;
-  /** Last "added to basket" message, for the header's live region. */
   lastAdded: string | null;
   addItem: (product: CartProduct, quantity?: number) => void;
   setQuantity: (slug: string, quantity: number) => void;
   removeItem: (slug: string) => void;
+  replaceItems: (lines: CartLine[]) => void;
   clearCart: () => void;
   openCart: () => void;
   closeCart: () => void;
@@ -44,6 +54,14 @@ type CartContextValue = {
 const CartContext = createContext<CartContextValue | null>(null);
 const STORAGE_KEY = 'hillside-cart-v2';
 
+function noticeForAdjustment(change: CheckoutAdjustment) {
+  if (change.reason === 'price' && change.priceCents != null) {
+    return `${change.name} is now ${formatMoney(change.priceCents)} — total updated.`;
+  }
+  if (change.available <= 0) return `${change.name} sold out and was removed.`;
+  return `Only ${change.available} of ${change.name} left — quantity updated.`;
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [lastAdded, setLastAdded] = useState<string | null>(null);
   const [items, setItems] = useState<CartLine[]>([]);
@@ -52,6 +70,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
+  const checkoutLock = useRef(false);
 
   useEffect(() => {
     try {
@@ -89,11 +108,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addItem = useCallback((product: CartProduct, quantity = 1) => {
     trackAddToCart(toGtagItem(product, quantity));
-    /**
-     * Adding to the basket was silent to a screen reader. Focus does move into the
-     * drawer, which is a reasonable cue on its own, but nothing ever said what had
-     * been added — so the confirmation existed only visually.
-     */
     setLastAdded(`${product.name} added to your basket.`);
     setItems((current) => {
       const existing = current.find((item) => item.slug === product.slug);
@@ -132,18 +146,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems((current) => current.filter((item) => item.slug !== slug));
   }, []);
 
+  const replaceItems = useCallback((lines: CartLine[]) => {
+    setItems(lines);
+  }, []);
+
   const clearCart = useCallback(() => setItems([]), []);
   const openCart = useCallback(() => setDrawerOpen(true), []);
   const closeCart = useCallback(() => setDrawerOpen(false), []);
 
-  /**
-   * Checkout used to silently reprice the basket: the server clamps each line to
-   * the stock on hand and drops sold-out items, and the customer met a different
-   * total at Stripe with no explanation. Adjustments now come back from the API,
-   * get applied to the local cart, and are shown before the redirect.
-   */
   const checkout = useCallback(async () => {
-    if (!items.length || checkoutLoading) return;
+    if (!items.length || checkoutLock.current) return;
+    checkoutLock.current = true;
     setCheckoutLoading(true);
     setCheckoutError(null);
     setCheckoutNotice(null);
@@ -156,13 +169,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          items: items.map((item) => ({ id: item.slug, quantity: item.quantity }))
+          items: items.map((item) => ({
+            id: item.slug,
+            quantity: item.quantity,
+            priceCents: item.priceCents
+          }))
         })
       });
       const result = (await response.json()) as {
         url?: string;
         error?: string;
-        adjustments?: Array<{ slug: string; name: string; requested: number; available: number }>;
+        adjustments?: CheckoutAdjustment[];
       };
 
       if (result.adjustments?.length) {
@@ -171,19 +188,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           current.flatMap((item) => {
             const change = adjustments.find((entry) => entry.slug === item.slug);
             if (!change) return [item];
+            if (change.reason === 'price' && change.priceCents != null) {
+              return [{ ...item, priceCents: change.priceCents }];
+            }
             if (change.available <= 0) return [];
             return [{ ...item, inventory: change.available, quantity: change.available }];
           })
         );
-        setCheckoutNotice(
-          adjustments
-            .map((change) =>
-              change.available <= 0
-                ? `${change.name} sold out and was removed.`
-                : `Only ${change.available} of ${change.name} left — quantity updated.`
-            )
-            .join(' ')
-        );
+        setCheckoutNotice(adjustments.map(noticeForAdjustment).join(' '));
+        checkoutLock.current = false;
         setCheckoutLoading(false);
         return;
       }
@@ -192,9 +205,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       window.location.assign(result.url);
     } catch (error) {
       setCheckoutError(error instanceof Error ? error.message : 'Unable to open checkout.');
+      checkoutLock.current = false;
       setCheckoutLoading(false);
     }
-  }, [checkoutLoading, items]);
+  }, [items]);
 
   const count = useMemo(() => items.reduce((total, item) => total + item.quantity, 0), [items]);
   const subtotalCents = useMemo(
@@ -215,6 +229,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       addItem,
       setQuantity,
       removeItem,
+      replaceItems,
       clearCart,
       openCart,
       closeCart,
@@ -232,6 +247,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       addItem,
       setQuantity,
       removeItem,
+      replaceItems,
       clearCart,
       openCart,
       closeCart,

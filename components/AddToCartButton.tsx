@@ -26,7 +26,10 @@ export default function AddToCartButton({ product }: { product: CartProduct }) {
         >
           <Minus size={16} />
         </button>
-        <span>{quantity}</span>
+        <span aria-hidden="true">{quantity}</span>
+        <span className="sr-only" aria-live="polite">
+          Quantity {quantity}
+        </span>
         <button
           type="button"
           onClick={() => setQuantity((value) => Math.min(product.inventory, value + 1))}

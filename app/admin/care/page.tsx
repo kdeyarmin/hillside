@@ -155,7 +155,7 @@ export default async function CareLibraryManager({
         <Link href="/care">View public care library</Link>
       </aside>
 
-      <main className="adminmain">
+      <div className="adminmain">
         <div className="toolbar">
           <div>
             <div className="eyebrow">Our education center</div>
@@ -247,7 +247,7 @@ export default async function CareLibraryManager({
             </form>
           </div>
         </section>
-      </main>
+      </div>
     </div>
   );
 }

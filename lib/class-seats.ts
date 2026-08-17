@@ -149,23 +149,19 @@ export async function reserveSeats({
 
 export type FreeSeatResult =
   | { ok: true; registration: ClassRegistration }
-  | { ok: false; reason: 'duplicate' }
+  | { ok: false; reason: 'duplicate'; pending?: ClassRegistration }
   | { ok: false; reason: 'sold-out'; seatsLeft: number };
 
 /**
- * Claims seats on a free class in one atomic step.
+ * Holds seats on a free class until the guest confirms the email we send them.
  *
- * The free path used to read `seatsRemaining`, then create the registration in a
- * separate statement — the same read-then-write window `reserveSeats` was written
- * to close for paid classes, just never applied here. Concurrent submissions for
- * the last seats all passed the check and all committed. The duplicate-email
- * check had the same shape, so one person double-clicking got two registrations.
+ * Marking the row PAID at submit time let anyone occupy a seat with an address
+ * they did not control — a filled form was enough to empty a class. The seat is
+ * now PENDING until they open the mailed link, and the hold expires if they
+ * never do.
  *
- * Both checks now run inside the transaction that holds the advisory lock, which
- * is what makes them decisive. A `@@unique([classEventId, email])` constraint
- * would be the more obvious fix, but it would also reject a *paid* customer's
- * second, legitimate purchase for the same class — after their card was charged.
- * The lock gets the guarantee without that cost.
+ * Both the duplicate-email check and the capacity check still run inside the
+ * transaction that holds the advisory lock.
  */
 export async function claimFreeSeat({
   classEventId,
@@ -174,7 +170,7 @@ export async function claimFreeSeat({
   name,
   email,
   phone,
-  joinTokenHash
+  holdExpiresAt
 }: {
   classEventId: string;
   capacity: number;
@@ -182,7 +178,7 @@ export async function claimFreeSeat({
   name: string;
   email: string;
   phone: string | null;
-  joinTokenHash: string | null;
+  holdExpiresAt: Date;
 }): Promise<FreeSeatResult> {
   return db.$transaction(async (transaction) => {
     await transaction.$executeRaw(
@@ -196,7 +192,13 @@ export async function claimFreeSeat({
     const duplicate = await transaction.classRegistration.findFirst({
       where: { classEventId, email, status: { in: ['PENDING', 'PAID'] } }
     });
-    if (duplicate) return { ok: false, reason: 'duplicate' } as const;
+    if (duplicate) {
+      return {
+        ok: false,
+        reason: 'duplicate',
+        ...(duplicate.status === 'PENDING' ? { pending: duplicate } : {})
+      } as const;
+    }
 
     const totals = await transaction.classRegistration.aggregate({
       where: {
@@ -218,16 +220,11 @@ export async function claimFreeSeat({
         phone,
         seats,
         amountCents: 0,
-        status: 'PAID',
-        joinTokenHash
+        status: 'PENDING',
+        holdExpiresAt
       }
     });
 
-    // The row itself, not its id. Reading it back afterwards meant a transient
-    // failure on that second query answered "unable to complete the registration"
-    // for a seat that had in fact been taken — sending the customer back into the
-    // duplicate-email rejection, which is the exact inconsistency the caller's
-    // comment says it is avoiding.
     return { ok: true, registration: created } as const;
   });
 }
@@ -241,5 +238,15 @@ export async function attachSessionToHold(holdId: string, stripeSessionId: strin
 }
 
 export async function releaseHold(holdId: string) {
-  await db.classRegistration.deleteMany({ where: { stripeSessionId: holdId } });
+  if (!holdId) return;
+  await db.classRegistration.deleteMany({
+    where: { stripeSessionId: holdId, status: 'PENDING' }
+  });
+}
+
+export async function findHoldBySessionOrHoldId(sessionId: string, holdId?: string | null) {
+  const bySession = await db.classRegistration.findUnique({ where: { stripeSessionId: sessionId } });
+  if (bySession) return bySession;
+  if (!holdId || holdId === sessionId) return null;
+  return db.classRegistration.findUnique({ where: { stripeSessionId: holdId } });
 }

@@ -70,6 +70,7 @@ function ProductFields({
   return (
     <>
       {product && <input type="hidden" name="id" value={product.id} />}
+      {product && <input type="hidden" name="expectedInventory" value={product.inventory} />}
       <div className="admin-form-grid">
         <label className="admin-label">Product name<input className="admin-input" name="name" defaultValue={product?.name} required /></label>
         <label className="admin-label">URL slug<input className="admin-input" name="slug" defaultValue={product?.slug} placeholder="created-from-name" /></label>
@@ -138,7 +139,9 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
                 <b>
                   {params.error === 'throttled'
                     ? 'Too many sign-in attempts. Please wait a few minutes and try again.'
-                    : 'That email address and password didn’t match an admin account.'}
+                    : params.error === 'slug'
+                      ? 'That product URL is already in use. Choose a different slug.'
+                      : 'That email address and password didn’t match an admin account.'}
                 </b>
               </p>
             )}
@@ -202,7 +205,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         where: {
           productId: { in: reviews.map((review) => review.productId) },
           order: {
-            status: { in: [OrderStatus.PAID, OrderStatus.FULFILLED] },
+            status: { in: [OrderStatus.PAID, OrderStatus.FULFILLED, OrderStatus.PARTIALLY_REFUNDED] },
             email: { in: reviews.map((review) => review.email || '').filter(Boolean), mode: 'insensitive' }
           }
         },
@@ -239,7 +242,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         <form action={logoutAdmin}><button className="btn gold small" style={{ marginTop: 8 }}>Sign out</button></form>
       </aside>
 
-      <main className="adminmain">
+      <div className="adminmain">
         <div className="toolbar" id="overview">
           <div>
             <div className="eyebrow">The Hillside Gardens</div>
@@ -263,6 +266,22 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
           <div className="stat"><span>Products needing a photo</span><strong>{missingPhotos}</strong></div>
           <div className="stat"><span>Waiting on restock</span><strong>{stockAlerts.length}</strong></div>
         </div>
+
+        {params.error === 'slug' && (
+          <div className="admin-card admin-alert" role="alert">
+            <b>That product URL is already in use.</b>
+            <p className="muted">Choose a different slug and save again.</p>
+          </div>
+        )}
+        {params.error === 'inventory' && (
+          <div className="admin-card admin-alert" role="alert">
+            <b>Stock changed while you were editing.</b>
+            <p className="muted">
+              Someone reserved or returned units of that product. Refresh the page and save again so
+              you do not overwrite a live checkout hold.
+            </p>
+          </div>
+        )}
 
         {undeliveredEmails > 0 && (
           <div className="admin-card admin-alert" role="alert">
@@ -449,7 +468,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
           <p className="muted">Export-ready subscriber records are stored here. Connect an email campaign platform before sending bulk marketing messages.</p>
           {subscribers.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Email</th><th>Name</th><th>Source</th><th>Joined</th><th>Status</th></tr></thead><tbody>{subscribers.map((subscriber) => <tr key={subscriber.id}><td>{subscriber.email}</td><td>{subscriber.name || '—'}</td><td>{subscriber.source || 'website'}</td><td>{subscriber.createdAt.toLocaleDateString()}</td><td><form action={updateSubscriber}><input type="hidden" name="id" value={subscriber.id} /><label className="admin-checkbox"><input name="active" type="checkbox" defaultChecked={subscriber.active} /> Active</label><button className="btn small" style={{ marginTop: 5 }}>Save</button></form></td></tr>)}</tbody></table></div> : <div className="admin-card"><p>No subscribers yet.</p></div>}
         </section>
-      </main>
+      </div>
     </div>
   );
 }

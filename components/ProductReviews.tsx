@@ -185,7 +185,8 @@ export default function ProductReviews({
                   {new Date(review.createdAt).toLocaleDateString('en-US', {
                     month: 'long',
                     day: 'numeric',
-                    year: 'numeric'
+                    year: 'numeric',
+                    timeZone: 'UTC'
                   })}
                 </time>
               </div>

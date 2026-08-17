@@ -33,6 +33,15 @@ export function trackBeginCheckout(items: GtagItem[], valueCents: number) {
   send('begin_checkout', { currency: 'USD', value: valueCents / 100, items });
 }
 
+export function trackPurchase(transactionId: string, items: GtagItem[], valueCents: number) {
+  send('purchase', {
+    transaction_id: transactionId,
+    currency: 'USD',
+    value: valueCents / 100,
+    items
+  });
+}
+
 export function trackSearch(term: string) {
   send('search', { search_term: term });
 }
@@ -41,12 +50,15 @@ export function trackSignUp(method: string) {
   send('sign_up', { method });
 }
 
-export function toGtagItem(product: {
-  slug: string;
-  name: string;
-  type?: string;
-  priceCents: number;
-}, quantity = 1): GtagItem {
+export function toGtagItem(
+  product: {
+    slug: string;
+    name: string;
+    type?: string;
+    priceCents: number;
+  },
+  quantity = 1
+): GtagItem {
   return {
     item_id: product.slug,
     item_name: product.name,

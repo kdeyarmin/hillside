@@ -1,10 +1,15 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import type { ClassEvent } from '@prisma/client';
 import { db } from '@/lib/db';
-import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
+import {
+  createFreeClassConfirmToken,
+  freeClassConfirmExpiry
+} from '@/lib/class-confirm';
+import { sendFreeClassConfirmEmail } from '@/lib/class-registration-email';
 import { claimFreeSeat } from '@/lib/class-seats';
-import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { rateLimited } from '@/lib/rate-limit';
+import { absoluteUrl } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -22,6 +27,22 @@ const requestSchema = z.object({
    */
   website: z.string().max(200).optional().default('')
 });
+
+async function sendConfirmFor(
+  event: Pick<ClassEvent, 'id' | 'title' | 'startsAt' | 'format' | 'location' | 'durationMinutes'>,
+  registration: { id: string; name: string; email: string; seats: number; holdExpiresAt: Date | null },
+  resend = false
+) {
+  const expiresAt = registration.holdExpiresAt || freeClassConfirmExpiry(event.startsAt);
+  const token = createFreeClassConfirmToken(registration.id, registration.email, event.id, expiresAt);
+  if (!token) return { sent: false as const, reason: 'not-configured' as const };
+  return sendFreeClassConfirmEmail({
+    event,
+    registration,
+    confirmUrl: absoluteUrl(`/classes/confirm/${token}`),
+    resend
+  });
+}
 
 export async function POST(request: Request) {
   if (rateLimited(request, { name: 'class-register', limit: 8, windowMs: 10 * 60_000 })) {
@@ -50,7 +71,7 @@ export async function POST(request: Request) {
     }
 
     const email = input.email.toLowerCase();
-    const credential = isOnlineClass(event.format) ? createClassJoinCredential() : null;
+    const holdExpiresAt = freeClassConfirmExpiry(event.startsAt);
     const claim = await claimFreeSeat({
       classEventId: event.id,
       capacity: event.capacity,
@@ -58,10 +79,25 @@ export async function POST(request: Request) {
       name: input.name,
       email,
       phone: input.phone || null,
-      joinTokenHash: credential?.hash || null
+      holdExpiresAt
     });
 
     if (!claim.ok) {
+      if (claim.reason === 'duplicate' && claim.pending) {
+        /**
+         * Same person asking again before they clicked the first email. Resend
+         * rather than occupying a second hold or telling them they already
+         * registered when they have not confirmed yet.
+         */
+        const emailSent = (await sendConfirmFor(event, claim.pending, true)).sent;
+        return NextResponse.json({
+          ok: true,
+          emailSent,
+          message: emailSent
+            ? 'We sent another confirmation email. Open it to finish reserving your seat.'
+            : 'Your seat is held. We could not email the confirmation link, so please contact us.'
+        });
+      }
       if (claim.reason === 'duplicate') {
         return NextResponse.json(
           { error: 'This email is already registered for the class. Contact us if you need to change the reservation.' },
@@ -75,31 +111,25 @@ export async function POST(request: Request) {
     }
 
     /**
-     * The seat is taken from here on, so nothing below may return an error. The
+     * The seat is held from here on, so nothing below may return an error. The
      * registration comes back from the claiming transaction rather than a second
-     * read, because that read was itself a way to fail after the seat was gone:
-     * a transient database error there would answer 500, and the customer's retry
-     * would land on the duplicate-email rejection for a seat they were holding.
+     * read, because that read was itself a way to fail after the seat was gone.
      */
     const registration = claim.registration;
 
     let emailSent = false;
     try {
-      emailSent = (await sendClassRegistrationEmails({
-        event,
-        registration,
-        accessToken: credential?.token
-      })).sent;
+      emailSent = (await sendConfirmFor(event, registration)).sent;
     } catch (error) {
-      console.error(`Class registration ${registration.id} saved, but its email failed`, error);
+      console.error(`Class registration ${registration.id} saved, but its confirm email failed`, error);
     }
 
     return NextResponse.json({
       ok: true,
       emailSent,
       message: emailSent
-        ? 'Your registration is confirmed. Check your email for the class details.'
-        : 'Your registration is confirmed. We could not send the confirmation email, so please contact us for the class details.'
+        ? 'Check your email and open the confirmation link to finish reserving your seat.'
+        : 'Your seat is held. We could not send the confirmation email, so please contact us to finish registering.'
     });
   } catch (error) {
     console.error('Unable to register for free class', error);

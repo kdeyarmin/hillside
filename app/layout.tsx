@@ -19,7 +19,7 @@ import { Cormorant_Garamond, Manrope } from 'next/font/google';
 import Analytics from '@/components/Analytics';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
-import { absoluteUrl, businessEmail, siteBaseUrl } from '@/lib/store';
+import { absoluteUrl, businessEmail, freeShippingThresholdCents, siteBaseUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
 import { websiteJsonLd } from '@/lib/seo';
 
@@ -155,7 +155,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: jsonLd(websiteJsonLd()) }}
         />
         <CartProvider>
-          <SiteHeader />
+          <SiteHeader freeShippingThreshold={freeShippingThresholdCents()} />
           {/* tabIndex={-1} so the skip link actually moves focus. Without it Safari
             scrolls to the target and leaves focus where it was. */}
           <main id="main-content" tabIndex={-1}>

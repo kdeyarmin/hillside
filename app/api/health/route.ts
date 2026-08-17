@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { isAdmin } from '@/lib/admin';
 import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -8,6 +9,10 @@ export const dynamic = 'force-dynamic';
  * Reports which integrations are actually wired. Email in particular used to
  * fail silently: without RESEND_API_KEY every order confirmation was dropped
  * with nothing anywhere recording it.
+ *
+ * The public body is liveness only. A detailed map of which keys are missing
+ * is useful on the dashboard and useful to an attacker doing recon, so it is
+ * reserved for a signed-in admin.
  */
 export async function GET() {
   const checks = {
@@ -60,16 +65,23 @@ export async function GET() {
   /**
    * Railway gates deploys on this endpoint, so the status code reports liveness
    * only — an unset integration is worth surfacing, never worth failing a
-   * release for. `configured` carries that detail in the body instead.
+   * release for. `configured` carries that detail in the body instead, and only
+   * for someone already signed in to the dashboard.
    */
+  const signedIn = await isAdmin();
   return NextResponse.json(
-    {
-      ok: checks.database,
-      configured: missing.length === 0,
-      service: 'hillside-gardens',
-      checks,
-      missing
-    },
+    signedIn
+      ? {
+          ok: checks.database,
+          configured: missing.length === 0,
+          service: 'hillside-gardens',
+          checks,
+          missing
+        }
+      : {
+          ok: checks.database,
+          service: 'hillside-gardens'
+        },
     { status: checks.database ? 200 : 503 }
   );
 }

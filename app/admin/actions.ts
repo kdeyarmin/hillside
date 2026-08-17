@@ -12,14 +12,16 @@ import {
   ReviewStatus
 } from '@prisma/client';
 import { authenticateAdmin, clearAdminSession, isAdmin, setAdminSession } from '@/lib/admin';
-import { rateLimitedByKey } from '@/lib/rate-limit';
+import { Prisma } from '@prisma/client';
+import { clientKeyFromHeaders, rateLimitedByKey } from '@/lib/rate-limit';
 import { isNavigationCollection } from '@/lib/collections';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
-import { absoluteUrl } from '@/lib/store';
 import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
+import { notifyStockAlerts } from '@/lib/stock-alerts';
+import { releaseProductHold } from '@/lib/checkout';
 
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
 const checked = (form: FormData, name: string) => form.get(name) === 'on' || form.get(name) === 'true';
@@ -63,11 +65,7 @@ export async function loginAdmin(formData: FormData) {
   const email = text(formData, 'email');
   const password = text(formData, 'password');
   const requestHeaders = await headers();
-  const forwarded = requestHeaders.get('x-forwarded-for') || '';
-  const chain = forwarded.split(',').map((entry) => entry.trim()).filter(Boolean);
-  const identity = chain.length
-    ? chain[chain.length - 1]
-    : requestHeaders.get('x-real-ip')?.trim() || 'local';
+  const identity = clientKeyFromHeaders(requestHeaders);
 
   if (rateLimitedByKey(identity, { name: 'admin-login', limit: 8, windowMs: 15 * 60_000 })) {
     redirect('/admin?error=throttled');
@@ -109,7 +107,6 @@ export async function saveProduct(formData: FormData) {
     type,
     priceCents,
     compareAtCents: compareAtText ? money(formData.get('compareAt')) : null,
-    inventory: Math.max(0, integer(formData.get('inventory'))),
     imageUrl: text(formData, 'imageUrl') || null,
     badge: text(formData, 'badge') || null,
     active: checked(formData, 'active'),
@@ -124,51 +121,66 @@ export async function saveProduct(formData: FormData) {
 
   if (!name || !slug || !data.description || priceCents < 0) return;
 
+  const postedInventory = Math.max(0, integer(formData.get('inventory')));
+  const expectedInventory = integer(formData.get('expectedInventory'), postedInventory);
+
   const collectionIds = formData
     .getAll('collectionIds')
     .map((value) => String(value))
     .filter(Boolean);
 
-  const product = id
-    ? await db.product.update({
+  const previous = id
+    ? await db.product.findUnique({ where: { id }, select: { inventory: true } })
+    : null;
+
+  let product;
+  try {
+    if (!id) {
+      product = await db.product.create({
+        data: {
+          ...data,
+          inventory: postedInventory,
+          collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) }
+        }
+      });
+    } else if (postedInventory === expectedInventory) {
+      /**
+       * The owner did not change the quantity box. Leave the column alone so a
+       * checkout hold that landed while this form was open is not written back
+       * over with the stale on-hand figure.
+       */
+      product = await db.product.update({
         where: { id },
         data: { ...data, collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) } }
-      })
-    : await db.product.create({
-        data: { ...data, collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) } }
       });
+    } else {
+      const claimed = await db.product.updateMany({
+        where: { id, inventory: expectedInventory },
+        data: { inventory: postedInventory }
+      });
+      if (claimed.count === 0) redirect('/admin?error=inventory');
+      product = await db.product.update({
+        where: { id },
+        data: { ...data, collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) } }
+      });
+    }
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      redirect('/admin?error=slug');
+    }
+    throw error;
+  }
 
   /**
-   * Any save that leaves the product in stock flushes the waiting list. Firing
-   * only on the zero-to-positive transition stranded everyone permanently if the
-   * email provider happened to be down for that one save; `notifyStockAlerts`
-   * only picks up alerts it has not delivered, so this retries safely.
+   * Only the zero-to-positive transition emails the waiting list. Firing on
+   * every in-stock save turned a typo fix into a second wave of "it's back"
+   * mail for anyone whose first notice had not been marked delivered.
    */
-  if (product.inventory > 0) {
+  if ((previous?.inventory ?? 0) <= 0 && product.inventory > 0) {
     await notifyStockAlerts(product.id, product.name, product.slug);
   }
 
   refresh('/shop', '/', '/collections', `/shop/${slug}`);
-}
-
-async function notifyStockAlerts(productId: string, name: string, slug: string) {
-  const waiting = await db.stockAlert.findMany({ where: { productId, notifiedAt: null } });
-  if (!waiting.length) return;
-
-  for (const alert of waiting) {
-    const delivery = await sendEmail({
-      to: alert.email,
-      subject: `${name} is back at The Hillside Gardens`,
-      idempotencyKey: `stock-alert/${alert.id}`,
-      html: emailShell(
-        `${name} is back`,
-        `<p>You asked us to let you know when <strong>${escapeHtml(name)}</strong> returned. It is back on the shelf now.</p><p><a href="${absoluteUrl(`/shop/${slug}`)}">View ${escapeHtml(name)}</a></p><p>Stock is limited, so it may not last long.</p>`
-      )
-    });
-    if (delivery.sent) {
-      await db.stockAlert.update({ where: { id: alert.id }, data: { notifiedAt: new Date() } });
-    }
-  }
 }
 
 export async function saveCollection(formData: FormData) {
@@ -255,6 +267,17 @@ export async function updateOrder(formData: FormData) {
   const trackingCarrier = text(formData, 'trackingCarrier') || null;
   const trackingNumber = text(formData, 'trackingNumber') || null;
   const internalNotes = text(formData, 'internalNotes') || null;
+
+  if (status === OrderStatus.CANCELLED && before.status === OrderStatus.PENDING) {
+    await releaseProductHold(id);
+    await db.order.update({
+      where: { id },
+      data: { trackingCarrier, trackingNumber, internalNotes }
+    });
+    refresh('/order-status');
+    return;
+  }
+
   const order = await db.order.update({
     where: { id },
     data: {
@@ -263,8 +286,29 @@ export async function updateOrder(formData: FormData) {
       trackingNumber,
       internalNotes,
       fulfilledAt: status === OrderStatus.FULFILLED ? before.fulfilledAt || new Date() : null
-    }
+    },
+    include: { items: true }
   });
+
+  if (
+    status === OrderStatus.REFUNDED &&
+    before.status !== OrderStatus.REFUNDED &&
+    !before.inventoryRestoredAt
+  ) {
+    await db.$transaction(async (transaction) => {
+      const claimed = await transaction.order.updateMany({
+        where: { id: order.id, inventoryRestoredAt: null },
+        data: { inventoryRestoredAt: new Date() }
+      });
+      if (claimed.count === 0) return;
+      for (const item of order.items) {
+        await transaction.product.update({
+          where: { id: item.productId },
+          data: { inventory: { increment: item.quantity } }
+        });
+      }
+    });
+  }
 
   if (status === OrderStatus.FULFILLED && before.status !== OrderStatus.FULFILLED && order.email) {
     const tracking = trackingNumber
