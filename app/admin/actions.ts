@@ -12,7 +12,8 @@ import {
   ReviewStatus
 } from '@prisma/client';
 import { authenticateAdmin, clearAdminSession, isAdmin, setAdminSession } from '@/lib/admin';
-import { rateLimitedByKey } from '@/lib/rate-limit';
+import { Prisma } from '@prisma/client';
+import { clientKeyFromHeaders, rateLimitedByKey } from '@/lib/rate-limit';
 import { isNavigationCollection } from '@/lib/collections';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
@@ -63,11 +64,7 @@ export async function loginAdmin(formData: FormData) {
   const email = text(formData, 'email');
   const password = text(formData, 'password');
   const requestHeaders = await headers();
-  const forwarded = requestHeaders.get('x-forwarded-for') || '';
-  const chain = forwarded.split(',').map((entry) => entry.trim()).filter(Boolean);
-  const identity = chain.length
-    ? chain[chain.length - 1]
-    : requestHeaders.get('x-real-ip')?.trim() || 'local';
+  const identity = clientKeyFromHeaders(requestHeaders);
 
   if (rateLimitedByKey(identity, { name: 'admin-login', limit: 8, windowMs: 15 * 60_000 })) {
     redirect('/admin?error=throttled');
@@ -129,22 +126,33 @@ export async function saveProduct(formData: FormData) {
     .map((value) => String(value))
     .filter(Boolean);
 
-  const product = id
-    ? await db.product.update({
-        where: { id },
-        data: { ...data, collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) } }
-      })
-    : await db.product.create({
-        data: { ...data, collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) } }
-      });
+  const previous = id
+    ? await db.product.findUnique({ where: { id }, select: { inventory: true } })
+    : null;
+
+  let product;
+  try {
+    product = id
+      ? await db.product.update({
+          where: { id },
+          data: { ...data, collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) } }
+        })
+      : await db.product.create({
+          data: { ...data, collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) } }
+        });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      redirect('/admin?error=slug');
+    }
+    throw error;
+  }
 
   /**
-   * Any save that leaves the product in stock flushes the waiting list. Firing
-   * only on the zero-to-positive transition stranded everyone permanently if the
-   * email provider happened to be down for that one save; `notifyStockAlerts`
-   * only picks up alerts it has not delivered, so this retries safely.
+   * Only the zero-to-positive transition emails the waiting list. Firing on
+   * every in-stock save turned a typo fix into a second wave of "it's back"
+   * mail for anyone whose first notice had not been marked delivered.
    */
-  if (product.inventory > 0) {
+  if ((previous?.inventory ?? 0) <= 0 && product.inventory > 0) {
     await notifyStockAlerts(product.id, product.name, product.slug);
   }
 
@@ -263,8 +271,29 @@ export async function updateOrder(formData: FormData) {
       trackingNumber,
       internalNotes,
       fulfilledAt: status === OrderStatus.FULFILLED ? before.fulfilledAt || new Date() : null
-    }
+    },
+    include: { items: true }
   });
+
+  if (
+    status === OrderStatus.REFUNDED &&
+    before.status !== OrderStatus.REFUNDED &&
+    !before.inventoryRestoredAt
+  ) {
+    await db.$transaction(async (transaction) => {
+      const claimed = await transaction.order.updateMany({
+        where: { id: order.id, inventoryRestoredAt: null },
+        data: { inventoryRestoredAt: new Date() }
+      });
+      if (claimed.count === 0) return;
+      for (const item of order.items) {
+        await transaction.product.update({
+          where: { id: item.productId },
+          data: { inventory: { increment: item.quantity } }
+        });
+      }
+    });
+  }
 
   if (status === OrderStatus.FULFILLED && before.status !== OrderStatus.FULFILLED && order.email) {
     const tracking = trackingNumber

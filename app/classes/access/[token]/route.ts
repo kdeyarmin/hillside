@@ -22,7 +22,9 @@ function accessFailure(reason: 'invalid' | 'expired', request: Request) {
   const destination = CLASSES_PUBLICLY_VISIBLE
     ? `/classes?access=${reason}`
     : CLASSES_EXIT_LINK.href;
-  return NextResponse.redirect(new URL(destination, request.url));
+  const response = NextResponse.redirect(new URL(destination, request.url));
+  response.headers.set('Referrer-Policy', 'no-referrer');
+  return response;
 }
 
 export async function GET(
@@ -63,6 +65,7 @@ export async function GET(
   const response = NextResponse.redirect(
     new URL(`/classes/studio/${registration.classEventId}`, request.url)
   );
+  response.headers.set('Referrer-Policy', 'no-referrer');
   response.cookies.set(classAccessCookieName(registration.classEventId), cookie, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

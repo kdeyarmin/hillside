@@ -67,6 +67,8 @@ describe('class visibility', () => {
       'app/api/classes/checkout/route.ts',
       'app/classes/access/[token]/route.ts',
       'app/classes/studio/[id]/page.tsx',
+      'app/classes/confirm/[token]/route.ts',
+      'app/classes/confirmed/page.tsx',
       'lib/class-seats.ts',
       'lib/class-registration-email.ts'
     ]) {

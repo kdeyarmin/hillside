@@ -10,7 +10,12 @@ export const metadata = pageMetadata({
   noindex: true
 });
 
-export default function CartPage() {
+export default async function CartPage({
+  searchParams
+}: {
+  searchParams: Promise<{ restore?: string }>;
+}) {
+  const { restore } = await searchParams;
   const freeShippingThreshold = freeShippingThresholdCents();
   return (
     <>
@@ -23,7 +28,10 @@ export default function CartPage() {
       </section>
       <section className="content">
         <div className="container">
-          <CartPageClient freeShippingThreshold={freeShippingThreshold} />
+          <CartPageClient
+            freeShippingThreshold={freeShippingThreshold}
+            restoreToken={restore || null}
+          />
         </div>
       </section>
     </>

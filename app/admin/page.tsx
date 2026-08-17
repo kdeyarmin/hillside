@@ -138,7 +138,9 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
                 <b>
                   {params.error === 'throttled'
                     ? 'Too many sign-in attempts. Please wait a few minutes and try again.'
-                    : 'That email address and password didn’t match an admin account.'}
+                    : params.error === 'slug'
+                      ? 'That product URL is already in use. Choose a different slug.'
+                      : 'That email address and password didn’t match an admin account.'}
                 </b>
               </p>
             )}
@@ -202,7 +204,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         where: {
           productId: { in: reviews.map((review) => review.productId) },
           order: {
-            status: { in: [OrderStatus.PAID, OrderStatus.FULFILLED] },
+            status: { in: [OrderStatus.PAID, OrderStatus.FULFILLED, OrderStatus.PARTIALLY_REFUNDED] },
             email: { in: reviews.map((review) => review.email || '').filter(Boolean), mode: 'insensitive' }
           }
         },
@@ -239,7 +241,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
         <form action={logoutAdmin}><button className="btn gold small" style={{ marginTop: 8 }}>Sign out</button></form>
       </aside>
 
-      <main className="adminmain">
+      <div className="adminmain">
         <div className="toolbar" id="overview">
           <div>
             <div className="eyebrow">The Hillside Gardens</div>
@@ -449,7 +451,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
           <p className="muted">Export-ready subscriber records are stored here. Connect an email campaign platform before sending bulk marketing messages.</p>
           {subscribers.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Email</th><th>Name</th><th>Source</th><th>Joined</th><th>Status</th></tr></thead><tbody>{subscribers.map((subscriber) => <tr key={subscriber.id}><td>{subscriber.email}</td><td>{subscriber.name || '—'}</td><td>{subscriber.source || 'website'}</td><td>{subscriber.createdAt.toLocaleDateString()}</td><td><form action={updateSubscriber}><input type="hidden" name="id" value={subscriber.id} /><label className="admin-checkbox"><input name="active" type="checkbox" defaultChecked={subscriber.active} /> Active</label><button className="btn small" style={{ marginTop: 5 }}>Save</button></form></td></tr>)}</tbody></table></div> : <div className="admin-card"><p>No subscribers yet.</p></div>}
         </section>
-      </main>
+      </div>
     </div>
   );
 }

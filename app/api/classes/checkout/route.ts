@@ -12,9 +12,10 @@ import {
   releaseHold,
   reserveSeats
 } from '@/lib/class-seats';
+import { stripeProductDescription, stripeProductImages } from '@/lib/checkout';
 import { CLASSES_EXIT_LINK, CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { rateLimited } from '@/lib/rate-limit';
-import { absoluteUrl, checkoutReturnOrigin } from '@/lib/store';
+import { checkoutReturnOrigin } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -26,8 +27,11 @@ export async function POST(request: Request) {
      * contacted. Unthrottled, two anonymous POSTs asking for six seats each sell
      * out a twelve-seat class at no cost to the caller, repeatable forever — the
      * class page then reads sold out and the booking button disables itself.
+     *
+     * Two attempts per ten minutes still lets a guest recover from a closed tab;
+     * six was enough to empty a typical class from one IP.
      */
-    if (rateLimited(request, { name: 'class-checkout', limit: 6, windowMs: 10 * 60_000 })) {
+    if (rateLimited(request, { name: 'class-checkout', limit: 2, windowMs: 10 * 60_000 })) {
       return NextResponse.json(
         { error: 'Too many booking attempts. Please wait a few minutes and try again.' },
         { status: 429 }
@@ -94,8 +98,10 @@ export async function POST(request: Request) {
               unit_amount: event.priceCents,
               product_data: {
                 name: event.title,
-                description: `${classFormatLabel(event.format)} • ${event.startsAt.toLocaleDateString('en-US')} • ${classLocationLabel(event)}`,
-                images: event.imageUrl ? [absoluteUrl(event.imageUrl)] : undefined,
+                description: stripeProductDescription(
+                  `${classFormatLabel(event.format)} • ${event.startsAt.toLocaleDateString('en-US')} • ${classLocationLabel(event)}`
+                ),
+                images: stripeProductImages(event.imageUrl),
                 metadata: { hillsideClassId: event.id, classFormat: event.format }
               }
             }
@@ -120,7 +126,7 @@ export async function POST(request: Request) {
         consent_collection: { promotions: 'auto' },
         payment_intent_data: {
           description: `The Hillside Gardens class: ${event.title}`,
-          metadata: { kind: 'CLASS_REGISTRATION', classEventId: event.id }
+          metadata: { kind: 'CLASS_REGISTRATION', classEventId: event.id, holdId: reservation.holdId }
         },
         custom_text: {
           submit: {
@@ -133,15 +139,25 @@ export async function POST(request: Request) {
           kind: 'CLASS_REGISTRATION',
           classEventId: event.id,
           seats: String(seats),
-          classFormat: event.format
+          classFormat: event.format,
+          holdId: reservation.holdId
         }
       });
+
+      try {
+        await attachSessionToHold(reservation.holdId, session.id);
+      } catch (error) {
+        /**
+         * The session exists and the hold still occupies the seat under hold_*.
+         * Releasing here would let someone else take the seat while this guest
+         * is on Stripe. The webhook looks the hold up by metadata.holdId.
+         */
+        console.error('Unable to attach Stripe session to class hold', error);
+      }
     } catch (error) {
       await releaseHold(reservation.holdId);
       throw error;
     }
-
-    await attachSessionToHold(reservation.holdId, session.id);
 
     return NextResponse.json({ url: session.url });
   } catch (error) {

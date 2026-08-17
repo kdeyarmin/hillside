@@ -1,14 +1,20 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
-import { useCart } from '@/components/CartProvider';
+import { useCart, type CartLine } from '@/components/CartProvider';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
 import FormStatus from '@/components/FormStatus';
 
-export default function CartPageClient({ freeShippingThreshold }: { freeShippingThreshold: number }) {
+export default function CartPageClient({
+  freeShippingThreshold,
+  restoreToken
+}: {
+  freeShippingThreshold: number;
+  restoreToken?: string | null;
+}) {
   const {
     items,
     subtotalCents,
@@ -17,6 +23,7 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
     checkoutNotice,
     setQuantity,
     removeItem,
+    replaceItems,
     checkout
   } = useCart();
   const [saveEmail, setSaveEmail] = useState('');
@@ -24,6 +31,37 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
   const [saveState, setSaveState] = useState<{ type: 'idle' | 'ok' | 'error'; message?: string }>({
     type: 'idle'
   });
+  const [restoreState, setRestoreState] = useState<'idle' | 'loading' | 'ok' | 'error'>(
+    restoreToken ? 'loading' : 'idle'
+  );
+
+  useEffect(() => {
+    if (!restoreToken) return;
+    const controller = new AbortController();
+    fetch(`/api/cart-lead?token=${encodeURIComponent(restoreToken)}`, { signal: controller.signal })
+      .then(async (response) => {
+        const result = (await response.json()) as { items?: CartLine[]; error?: string };
+        if (!response.ok) throw new Error(result.error || 'We could not restore that cart.');
+        replaceItems(result.items || []);
+        setRestoreState('ok');
+        setSaveState({
+          type: 'ok',
+          message: result.items?.length
+            ? 'Your saved cart is back. Review it and check out when you are ready.'
+            : 'That saved cart no longer has items we can restore.'
+        });
+        window.history.replaceState(null, '', '/cart');
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return;
+        setRestoreState('error');
+        setSaveState({
+          type: 'error',
+          message: error instanceof Error ? error.message : 'We could not restore that cart.'
+        });
+      });
+    return () => controller.abort();
+  }, [replaceItems, restoreToken]);
 
   /**
    * Carts live only in this browser, so leaving used to lose the basket and the
@@ -55,12 +93,13 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
     }
   }
 
-  if (!items.length) {
+  if (!items.length && restoreState !== 'loading') {
     return (
       <div className="empty-state">
         <ShoppingBag size={42} />
         <h3>Your cart is empty.</h3>
         <p>Explore our current plants, teas and handmade botanical goods.</p>
+        <FormStatus message={saveState.message} tone={saveState.type === 'ok' ? 'success' : 'error'} />
         <Link className="btn" href="/shop">Browse the shop</Link>
       </div>
     );
@@ -163,7 +202,7 @@ export default function CartPageClient({ freeShippingThreshold }: { freeShipping
           className="btn full"
           type="button"
           onClick={checkout}
-          disabled={checkoutLoading}
+          disabled={checkoutLoading || restoreState === 'loading'}
           aria-busy={checkoutLoading}
         >
           {checkoutLoading ? 'Opening secure checkout…' : 'Continue to secure checkout'}

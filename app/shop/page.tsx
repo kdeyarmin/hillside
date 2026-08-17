@@ -118,6 +118,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
         <div className="container">
           <h2 className="sr-only">Products</h2>
           <ShopClient
+            key={`${params.category || 'ALL'}|${params.q || ''}|${params.sort || 'featured'}|${params.sale === 'true'}`}
             products={withRatings}
             initialCategory={params.category || 'ALL'}
             initialSearch={params.q || ''}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { CreditCard, MailCheck } from 'lucide-react';
 
 export default function ClassBookingButton({
@@ -15,6 +15,7 @@ export default function ClassBookingButton({
   const [seats, setSeats] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const lock = useRef(false);
   const maxSeats = Math.max(1, Math.min(6, seatsLeft));
 
   /**
@@ -23,6 +24,8 @@ export default function ClassBookingButton({
    * form on the site reports inline, so this one does too.
    */
   async function register() {
+    if (lock.current) return;
+    lock.current = true;
     setLoading(true);
     setError('');
     try {
@@ -36,6 +39,7 @@ export default function ClassBookingButton({
       window.location.assign(result.url);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Unable to register.');
+      lock.current = false;
       setLoading(false);
     }
   }

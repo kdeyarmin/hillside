@@ -1,25 +1,23 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
+import {
+  attachStripeSessionToOrder,
+  checkoutAdjustments,
+  encodeCheckoutItems,
+  holdExpiryUnix,
+  InsufficientStockError,
+  readCheckoutItems,
+  releaseExpiredProductHolds,
+  releaseProductHold,
+  reserveProductOrder,
+  stripeProductDescription,
+  stripeProductImages
+} from '@/lib/checkout';
 import { rateLimited } from '@/lib/rate-limit';
-import { absoluteUrl, checkoutReturnOrigin, newInvoiceNumber, resolveImageUrl } from '@/lib/store';
+import { checkoutReturnOrigin, newInvoiceNumber } from '@/lib/store';
 
 export const runtime = 'nodejs';
-
-type RequestedItem = { id: string; quantity: number };
-
-function readItems(body: unknown): RequestedItem[] {
-  if (!body || typeof body !== 'object' || !('items' in body)) return [];
-  const items = (body as { items?: unknown }).items;
-  if (!Array.isArray(items)) return [];
-  return items.flatMap((entry: unknown) => {
-    if (!entry || typeof entry !== 'object') return [];
-    const raw = entry as { id?: unknown; quantity?: unknown };
-    const id = String(raw.id || '').trim();
-    if (!id) return [];
-    return [{ id, quantity: Math.max(1, Math.min(20, Math.floor(Number(raw.quantity) || 1))) }];
-  });
-}
 
 export async function POST(request: Request) {
   try {
@@ -35,41 +33,32 @@ export async function POST(request: Request) {
     const secret = process.env.STRIPE_SECRET_KEY;
     if (!secret) return NextResponse.json({ error: 'Stripe is not configured yet.' }, { status: 503 });
 
+    await releaseExpiredProductHolds();
+
     const body: unknown = await request.json();
-    const requested = readItems(body);
+    const requested = readCheckoutItems(body);
     if (!requested.length) return NextResponse.json({ error: 'Your cart is empty.' }, { status: 400 });
 
     const products = await db.product.findMany({
       where: { active: true, slug: { in: requested.map((item) => item.id) } }
     });
 
+    /**
+     * Anything the server had to change is reported back rather than applied
+     * silently, so the customer confirms the corrected basket before paying.
+     * Price changes used to skip this path: the drawer showed the old figure
+     * and Stripe charged the new one.
+     */
+    const adjustments = checkoutAdjustments(requested, products);
+    if (adjustments.length) {
+      return NextResponse.json({ adjustments }, { status: 409 });
+    }
+
     const items = requested.flatMap((requestedItem) => {
       const product = products.find((candidate) => candidate.slug === requestedItem.id);
       if (!product || product.inventory <= 0) return [];
       return [{ product, quantity: Math.min(requestedItem.quantity, product.inventory) }];
     });
-
-    /**
-     * Anything the server had to change is reported back rather than applied
-     * silently, so the customer confirms the corrected basket before paying.
-     */
-    const adjustments = requested.flatMap((requestedItem) => {
-      const product = products.find((candidate) => candidate.slug === requestedItem.id);
-      const available = product ? Math.max(0, product.inventory) : 0;
-      if (product && available >= requestedItem.quantity) return [];
-      return [
-        {
-          slug: requestedItem.id,
-          name: product?.name || 'That item',
-          requested: requestedItem.quantity,
-          available
-        }
-      ];
-    });
-
-    if (adjustments.length) {
-      return NextResponse.json({ adjustments }, { status: 409 });
-    }
 
     if (!items.length) {
       return NextResponse.json(
@@ -93,69 +82,119 @@ export async function POST(request: Request) {
     const site = checkoutReturnOrigin();
     const stripe = new Stripe(secret);
 
-    const session = await stripe.checkout.sessions.create({
-      mode: 'payment',
-      client_reference_id: invoiceNumber,
-      customer_creation: 'always',
-      line_items: items.map(({ product, quantity }) => ({
-        quantity,
-        price_data: {
-          currency: 'usd',
-          unit_amount: product.priceCents,
-          product_data: {
-            name: product.name,
-            description: product.shortDescription || product.description || undefined,
-            images: [absoluteUrl(resolveImageUrl(product.imageUrl))],
-            metadata: { hillsideProductId: product.id, hillsideSlug: product.slug }
-          }
-        }
-      })),
-      success_url: `${site}/order/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${site}/cart`,
-      billing_address_collection: 'auto',
-      shipping_address_collection: { allowed_countries: ['US'] },
-      shipping_options: [
-        {
-          shipping_rate_data: {
-            type: 'fixed_amount',
-            fixed_amount: { amount: shippingCents, currency: 'usd' },
-            display_name: shippingCents === 0 ? 'Free standard shipping' : 'Standard shipping',
-            delivery_estimate: {
-              minimum: { unit: 'business_day', value: 3 },
-              maximum: { unit: 'business_day', value: 7 }
+    let reservation: Awaited<ReturnType<typeof reserveProductOrder>>;
+    try {
+      reservation = await reserveProductOrder({
+        invoiceNumber,
+        items,
+        subtotalCents,
+        shippingCents
+      });
+    } catch (error) {
+      if (error instanceof InsufficientStockError) {
+        return NextResponse.json(
+          {
+            adjustments: items
+              .filter((item) => item.product.slug === error.slug)
+              .map((item) => ({
+                slug: item.product.slug,
+                name: item.product.name,
+                requested: item.quantity,
+                available: 0,
+                reason: 'stock' as const
+              }))
+          },
+          { status: 409 }
+        );
+      }
+      throw error;
+    }
+
+    let session: Stripe.Checkout.Session;
+    try {
+      session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        client_reference_id: invoiceNumber,
+        customer_creation: 'always',
+        line_items: items.map(({ product, quantity }) => ({
+          quantity,
+          price_data: {
+            currency: 'usd',
+            unit_amount: product.priceCents,
+            product_data: {
+              name: product.name,
+              description: stripeProductDescription(product.shortDescription || product.description),
+              images: stripeProductImages(product.imageUrl),
+              metadata: { hillsideProductId: product.id, hillsideSlug: product.slug }
             }
           }
-        }
-      ],
-      phone_number_collection: { enabled: true },
-      automatic_tax: { enabled: process.env.STRIPE_AUTOMATIC_TAX === 'true' },
-      invoice_creation: { enabled: true },
-      allow_promotion_codes: true,
-      consent_collection: { promotions: 'auto' },
-      payment_intent_data: {
-        description: `The Hillside Gardens ${invoiceNumber}`,
-        metadata: { invoiceNumber, kind: 'PRODUCT_ORDER' }
-      },
-      custom_text: {
-        shipping_address: {
-          message: 'Plants and temperature-sensitive goods are packed with care. We may contact you if weather could delay safe shipment.'
-        },
-        submit: { message: 'You will receive an emailed receipt and invoice after payment.' }
-      },
-      metadata: {
-        kind: 'PRODUCT_ORDER',
-        invoiceNumber,
+        })),
         /**
-         * The product's id, not its slug. Slugs are regenerated from the product
-         * name on every dashboard save, so renaming a product between checkout
-         * and webhook delivery used to leave the webhook unable to resolve a
-         * single line item: it threw, Stripe retried for three days and gave up,
-         * and a paid order was never recorded. The webhook still accepts a slug
-         * here so sessions already in flight during this deploy fulfil normally.
+         * Expires with the inventory hold. Left at Stripe's 24-hour default, a
+         * customer could pay long after abandoned-checkout stock had been
+         * returned to the shelf and sold to someone else.
          */
-        items: JSON.stringify(items.map(({ product, quantity }) => ({ id: product.id, q: quantity })))
+        expires_at: holdExpiryUnix(reservation.expiresAt),
+        success_url: `${site}/order/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${site}/cart`,
+        billing_address_collection: 'auto',
+        shipping_address_collection: { allowed_countries: ['US'] },
+        shipping_options: [
+          {
+            shipping_rate_data: {
+              type: 'fixed_amount',
+              fixed_amount: { amount: shippingCents, currency: 'usd' },
+              display_name: shippingCents === 0 ? 'Free standard shipping' : 'Standard shipping',
+              delivery_estimate: {
+                minimum: { unit: 'business_day', value: 3 },
+                maximum: { unit: 'business_day', value: 7 }
+              }
+            }
+          }
+        ],
+        phone_number_collection: { enabled: true },
+        automatic_tax: { enabled: process.env.STRIPE_AUTOMATIC_TAX === 'true' },
+        invoice_creation: { enabled: true },
+        allow_promotion_codes: true,
+        consent_collection: { promotions: 'auto' },
+        payment_intent_data: {
+          description: `The Hillside Gardens ${invoiceNumber}`,
+          metadata: { invoiceNumber, kind: 'PRODUCT_ORDER', orderId: reservation.order.id }
+        },
+        custom_text: {
+          shipping_address: {
+            message:
+              'Plants and temperature-sensitive goods are packed with care. We may contact you if weather could delay safe shipment.'
+          },
+          submit: { message: 'You will receive an emailed receipt and invoice after payment.' }
+        },
+        metadata: {
+          kind: 'PRODUCT_ORDER',
+          invoiceNumber,
+          orderId: reservation.order.id,
+          held: '1',
+          /**
+           * Compact backup. Fulfillment prefers the reserved order and Stripe
+           * line items; this remains so sessions already in flight during a
+           * deploy still resolve if the hold row is missing.
+           */
+          items: encodeCheckoutItems(items)
+        }
+      });
+
+      try {
+        await attachStripeSessionToOrder(reservation.holdId, session.id);
+      } catch (error) {
+        /**
+         * The session exists and stock is already held against orderId. The
+         * webhook looks the order up by metadata.orderId if this attach fails.
+         */
+        console.error('Unable to attach Stripe session to reserved order', error);
       }
-    });
+    } catch (error) {
+      await releaseProductHold(reservation.order.id);
+      throw error;
+    }
 
     return NextResponse.json({ url: session.url });
   } catch (error) {

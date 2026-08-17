@@ -16,8 +16,9 @@ import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
  * `notFound()` call in the page stays as the second line of defence.
  *
  * The matcher is the listing page alone. `/classes/access/<token>`,
- * `/classes/studio/<id>` and `/classes/success` are reachable only with a token
- * or a Stripe session and keep working for customers who already registered.
+ * `/classes/confirm/<token>`, `/classes/studio/<id>` and `/classes/success`
+ * are reachable only with a token or a Stripe session and keep working for
+ * customers who already registered.
  */
 export function middleware(request: NextRequest) {
   if (CLASSES_PUBLICLY_VISIBLE) return NextResponse.next();

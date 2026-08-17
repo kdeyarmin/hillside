@@ -19,14 +19,17 @@ import { pageMetadata } from '@/lib/seo';
 import { formatMoney, formatMoneyCompact, freeShippingThresholdCents } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
-export const metadata = pageMetadata({
-  path: '/',
-  title: 'The Hillside Gardens | Plants, Teas & Botanicals',
-  description:
-    'Shop potted plants, loose-leaf teas, handmade soaps and lotions, and explore practical plant-care sheets from The Hillside Gardens.',
-  image: '/images/scenes/hillside-hero.webp',
-  imageAlt: 'Plants growing in a sunlit greenhouse at The Hillside Gardens'
-});
+export const metadata = {
+  ...pageMetadata({
+    path: '/',
+    title: 'The Hillside Gardens | Plants, Teas & Botanicals',
+    description:
+      'Shop potted plants, loose-leaf teas, handmade soaps and lotions, and explore practical plant-care sheets from The Hillside Gardens.',
+    image: '/images/scenes/hillside-hero.webp',
+    imageAlt: 'Plants growing in a sunlit greenhouse at The Hillside Gardens'
+  }),
+  title: { absolute: 'The Hillside Gardens | Plants, Teas & Botanicals' }
+};
 
 export default async function Home() {
   const freeShippingThreshold = freeShippingThresholdCents();

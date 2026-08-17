@@ -21,6 +21,8 @@ function trustedProxyHops() {
   return Number.isFinite(configured) && configured >= 1 ? Math.floor(configured) : 1;
 }
 
+type HeaderReader = { get(name: string): string | null };
+
 /**
  * Identifies the caller for rate-limiting purposes.
  *
@@ -35,8 +37,8 @@ function trustedProxyHops() {
  * rightmost entry is the address that proxy saw the connection come from, which
  * is the real client. Anything further left is client-supplied and ignored.
  */
-export function clientKey(request: Request) {
-  const chain = (request.headers.get('x-forwarded-for') || '')
+export function clientKeyFromHeaders(headers: HeaderReader) {
+  const chain = (headers.get('x-forwarded-for') || '')
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean);
@@ -46,7 +48,7 @@ export function clientKey(request: Request) {
     return chain[index];
   }
 
-  const realIp = request.headers.get('x-real-ip')?.trim();
+  const realIp = headers.get('x-real-ip')?.trim();
   if (realIp) return realIp;
 
   /**
@@ -56,8 +58,12 @@ export function clientKey(request: Request) {
    * is a weak discriminator rather than an identity, but it keeps unrelated
    * callers apart without switching the limiter off.
    */
-  const fingerprint = `${request.headers.get('user-agent') || ''}|${request.headers.get('accept-language') || ''}`;
+  const fingerprint = `${headers.get('user-agent') || ''}|${headers.get('accept-language') || ''}`;
   return `anon:${crypto.createHash('sha256').update(fingerprint).digest('base64url').slice(0, 16)}`;
+}
+
+export function clientKey(request: Request) {
+  return clientKeyFromHeaders(request.headers);
 }
 
 /**

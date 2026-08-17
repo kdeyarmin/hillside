@@ -45,7 +45,7 @@ export default async function AdminAccounts({ searchParams }: { searchParams: Pr
         <p className="muted" style={{ marginTop: 16, marginBottom: 0, fontSize: 14 }}>Signed in as {admin.name}</p>
       </aside>
 
-      <main className="adminmain">
+      <div className="adminmain">
         <div className="eyebrow">Dashboard access</div>
         <h1>Admin accounts</h1>
         <p className="muted">
@@ -179,7 +179,7 @@ export default async function AdminAccounts({ searchParams }: { searchParams: Pr
             )}
           </p>
         </section>
-      </main>
+      </div>
     </div>
   );
 }
