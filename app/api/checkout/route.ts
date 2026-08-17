@@ -182,9 +182,6 @@ export async function POST(request: Request) {
         billing_address_collection: pickup ? 'required' : 'auto',
         ...(pickup
           ? {
-              ...(process.env.STRIPE_AUTOMATIC_TAX === 'true'
-                ? { permissions: { update_shipping_details: 'server_only' as const } }
-                : {}),
               shipping_options: [
                 {
                   shipping_rate_data: {

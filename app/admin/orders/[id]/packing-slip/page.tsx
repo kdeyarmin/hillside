@@ -4,6 +4,7 @@ import { isAdmin } from '@/lib/admin';
 import { db } from '@/lib/db';
 import { formatMoney } from '@/lib/store';
 import { isPickupOrder } from '@/lib/fulfillment';
+import { orderStatusBadge } from '@/lib/tracking';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Packing Slip' };
@@ -77,7 +78,7 @@ export default async function PackingSlip({ params }: { params: Promise<{ id: st
           </div>
           <div>
             <div className="eyebrow">Order information</div>
-            <b>Status:</b> {order.status}
+            <b>Status:</b> {orderStatusBadge(order.status, order.fulfillmentMethod)}
             <br />
             <b>{pickup ? 'Fulfillment:' : 'Shipping:'}</b>{' '}
             {order.shippingMethod || (pickup ? 'Local pickup' : 'Standard shipping')}
@@ -148,6 +149,12 @@ export default async function PackingSlip({ params }: { params: Promise<{ id: st
           <div className="note-box" style={{ marginTop: 28 }}>
             <b>Gift message — include with the order</b>
             <p style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0' }}>{order.giftMessage}</p>
+          </div>
+        )}
+        {pickup && order.pickupNote && (
+          <div className="note-box" style={{ marginTop: 16 }}>
+            <b>Arranged pickup window</b>
+            <p style={{ whiteSpace: 'pre-wrap', margin: '8px 0 0' }}>{order.pickupNote}</p>
           </div>
         )}
         <div

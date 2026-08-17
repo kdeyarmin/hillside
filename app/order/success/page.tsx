@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Stripe from 'stripe';
 import OrderSuccessClient from '@/components/OrderSuccessClient';
+import { catalogHasActiveProducts } from '@/lib/catalog';
 import { db } from '@/lib/db';
 import { formatMoney } from '@/lib/store';
 import { isPickupOrder } from '@/lib/fulfillment';
@@ -76,6 +77,7 @@ export default async function Success({
   const totalCents = order?.totalCents ?? session?.amount_total ?? 0;
   const email = order?.email || session?.customer_details?.email || session?.customer_email;
   const pickup = order ? isPickupOrder(order) : session?.metadata?.fulfillment === 'PICKUP';
+  const catalogEmpty = !(await catalogHasActiveProducts());
 
   return (
     <section className="content">
@@ -146,6 +148,7 @@ export default async function Success({
           invoiceUrl={invoiceUrl}
           sessionId={sessionId}
           shouldClearCart={paid}
+          catalogEmpty={catalogEmpty}
           purchase={
             order
               ? {

@@ -36,10 +36,9 @@ export default function CheckoutOptions({ compact = false }: { compact?: boolean
                 name={compact ? 'drawer-fulfillment' : 'cart-fulfillment'}
                 checked={fulfillment === 'SHIP'}
                 onChange={() => setFulfillment('SHIP')}
-                aria-label="Ship to me"
               />
               <span>
-                <b>Ship to me</b>
+                Ship to me
                 <small>US shipping. The exact charge is shown before you pay.</small>
               </span>
             </label>
@@ -52,10 +51,9 @@ export default function CheckoutOptions({ compact = false }: { compact?: boolean
                 name={compact ? 'drawer-fulfillment' : 'cart-fulfillment'}
                 checked={fulfillment === 'PICKUP'}
                 onChange={() => setFulfillment('PICKUP')}
-                aria-label="Local pickup"
               />
               <span>
-                <b>Local pickup</b>
+                Local pickup
                 <small>Arrange a time with us first, then choose this option.</small>
               </span>
             </label>

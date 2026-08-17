@@ -121,6 +121,7 @@ model Order {
   shippingMethod          String?
   fulfillmentMethod       FulfillmentMethod @default(SHIP)
   giftMessage             String?
+  pickupNote              String?
   trackingCarrier         String?
   trackingNumber          String?
   internalNotes           String?

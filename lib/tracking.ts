@@ -88,16 +88,17 @@ export function describeTracking(number: string, carrier?: string | null): Track
   };
 }
 
-export function orderStatusBadge(status: string) {
+export function orderStatusBadge(status: string, fulfillment?: string | null) {
+  const pickup = fulfillment === 'PICKUP';
   switch (status) {
     case 'PENDING':
       return 'Pending';
     case 'PAID':
-      return 'Preparing';
+      return pickup ? 'Preparing pickup' : 'Preparing';
     case 'FULFILLED':
-      return 'Shipped';
+      return pickup ? 'Ready for pickup' : 'Shipped';
     case 'PARTIALLY_REFUNDED':
-      return 'Partially refunded';
+      return pickup ? 'Partially refunded pickup' : 'Partially refunded';
     case 'REFUNDED':
       return 'Refunded';
     case 'CANCELLED':
@@ -107,16 +108,19 @@ export function orderStatusBadge(status: string) {
   }
 }
 
-export function orderStatusLabel(status: string) {
+export function orderStatusLabel(status: string, fulfillment?: string | null) {
+  const pickup = fulfillment === 'PICKUP';
   switch (status) {
     case 'PENDING':
       return 'Payment is still being confirmed.';
     case 'PAID':
-      return 'We are preparing your order.';
+      return pickup ? 'We are preparing your pickup.' : 'We are preparing your order.';
     case 'FULFILLED':
-      return 'Your order has shipped.';
+      return pickup ? 'Your order is ready for pickup.' : 'Your order has shipped.';
     case 'PARTIALLY_REFUNDED':
-      return 'Part of this order was refunded.';
+      return pickup
+        ? 'Part of this pickup order was refunded.'
+        : 'Part of this order was refunded.';
     case 'REFUNDED':
       return 'This order was refunded.';
     case 'CANCELLED':

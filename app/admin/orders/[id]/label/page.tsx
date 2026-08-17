@@ -5,7 +5,15 @@ import { db } from '@/lib/db';
 import { isPickupOrder } from '@/lib/fulfillment';
 
 export const dynamic = 'force-dynamic';
-export const metadata = { title: 'Shipping Label' };
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const order = await db.order.findUnique({
+    where: { id },
+    select: { fulfillmentMethod: true, shippingMethod: true }
+  });
+  return { title: order && isPickupOrder(order) ? 'Pickup ticket' : 'Shipping Label' };
+}
 
 export default async function ShippingLabel({ params }: { params: Promise<{ id: string }> }) {
   if (!(await isAdmin())) redirect('/admin');

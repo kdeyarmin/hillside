@@ -1,17 +1,19 @@
 import { db } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
 import { csvCell } from '@/lib/csv';
+import { isPickupOrder } from '@/lib/fulfillment';
 import { AWAITING_SHIPMENT_STATUSES } from '@/lib/orders';
 
 export const runtime = 'nodejs';
 
 export async function GET() {
   if (!(await isAdmin())) return new Response('Unauthorized', { status: 401 });
-  const orders = await db.order.findMany({
+  const awaiting = await db.order.findMany({
     where: { status: { in: [...AWAITING_SHIPMENT_STATUSES] } },
     orderBy: { createdAt: 'asc' },
     include: { items: true }
   });
+  const orders = awaiting.filter((order) => !isPickupOrder(order));
   const header = [
     'OrderNumber',
     'RecipientName',

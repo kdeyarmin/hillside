@@ -146,8 +146,7 @@ function enhanceGalleryInput(textarea: HTMLTextAreaElement) {
   heading.textContent = 'Upload extra photos from this device';
 
   const help = document.createElement('p');
-  help.textContent =
-    'JPEG, PNG, WebP or GIF — up to 8 MB each. Each upload is added as another line above (up to 8).';
+  help.textContent = `JPEG, PNG, WebP or GIF — up to 8 MB each. Each upload is added as another line above (up to ${GALLERY_LIMIT}).`;
 
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
@@ -209,7 +208,7 @@ function enhanceGalleryInput(textarea: HTMLTextAreaElement) {
 
     const current = galleryUrls(textarea.value);
     if (current.length >= GALLERY_LIMIT) {
-      status.textContent = 'This product already has 8 extra photos.';
+      status.textContent = `This product already has ${GALLERY_LIMIT} extra photos.`;
       status.dataset.state = 'error';
       fileInput.value = '';
       return;

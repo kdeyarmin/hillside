@@ -20,11 +20,13 @@ import { db } from '@/lib/db';
 import { currentAdmin } from '@/lib/admin';
 import { REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
 import { formatMoney, productTypeLabel } from '@/lib/store';
+import { orderStatusBadge } from '@/lib/tracking';
 import {
   loginAdmin,
   logoutAdmin,
   resendClassConfirmation,
   resendOrderConfirmation,
+  resendPickupReady,
   saveProduct,
   setProductActive,
   updateMessageStatus,
@@ -521,7 +523,7 @@ export default async function Admin({
             </strong>
           </div>
           <div className="stat">
-            <span>Orders to ship</span>
+            <span>Orders to fulfill</span>
             <strong>{openOrders}</strong>
           </div>
           <div className="stat">
@@ -624,7 +626,7 @@ export default async function Admin({
             </div>
             <div className="admin-actions">
               <a className="btn small" href="/api/admin/shipping.csv">
-                Download unshipped addresses
+                Download addresses to ship
               </a>
               <a className="btn outline small" href="/api/admin/orders.csv">
                 Export all orders
@@ -645,7 +647,9 @@ export default async function Admin({
                       {order.fulfillmentMethod === 'PICKUP' ? ' • Pickup' : ''}
                       {order.giftMessage ? ' • Gift note' : ''}
                     </span>
-                    <span className={`status-badge ${order.status}`}>{order.status}</span>
+                    <span className={`status-badge ${order.status}`}>
+                      {orderStatusBadge(order.status, order.fulfillmentMethod)}
+                    </span>
                   </summary>
                   <div>
                     <div className="grid three">
@@ -724,7 +728,7 @@ export default async function Admin({
                         </div>
                       ))}
                       <div className="summary-row">
-                        <span>Shipping</span>
+                        <span>{order.fulfillmentMethod === 'PICKUP' ? 'Pickup' : 'Shipping'}</span>
                         <span>{formatMoney(order.shippingCents)}</span>
                       </div>
                       <div className="summary-row">
@@ -755,6 +759,7 @@ export default async function Admin({
                             ))}
                           </select>
                         </label>
+                        {order.fulfillmentMethod !== 'PICKUP' && (
                         <label className="admin-label">
                           Carrier
                           <input
@@ -764,6 +769,8 @@ export default async function Admin({
                             placeholder="USPS, UPS, FedEx"
                           />
                         </label>
+                        )}
+                        {order.fulfillmentMethod !== 'PICKUP' && (
                         <label className="admin-label">
                           Tracking number
                           <input
@@ -772,6 +779,7 @@ export default async function Admin({
                             defaultValue={order.trackingNumber || ''}
                           />
                         </label>
+                        )}
                         {order.fulfillmentMethod === 'PICKUP' && (
                           <label className="admin-label full">
                             Pickup window to email the customer
@@ -779,6 +787,7 @@ export default async function Admin({
                               className="admin-input"
                               name="pickupNote"
                               rows={3}
+                              defaultValue={order.pickupNote || ''}
                               placeholder="Saturday 10–11am at the greenhouse door. Ring when you arrive."
                             ></textarea>
                           </label>
@@ -805,7 +814,7 @@ export default async function Admin({
                           className="btn outline small"
                           href={`/admin/orders/${order.id}/label`}
                         >
-                          4 × 6 label
+                          {order.fulfillmentMethod === 'PICKUP' ? 'Pickup ticket' : '4 × 6 label'}
                         </Link>
                       </div>
                     </form>
@@ -817,6 +826,12 @@ export default async function Admin({
                             ? 'Retry confirmation email'
                             : 'Resend confirmation email'}
                         </button>
+                      </form>
+                    )}
+                    {order.fulfillmentMethod === 'PICKUP' && order.pickupNote && (
+                      <form action={resendPickupReady} style={{ marginTop: 10 }}>
+                        <input type="hidden" name="id" value={order.id} />
+                        <button className="text-button">Resend pickup email</button>
                       </form>
                     )}
                   </div>
