@@ -1,13 +1,9 @@
 import { db } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
+import { csvCell } from '@/lib/csv';
 import { AWAITING_SHIPMENT_STATUSES } from '@/lib/orders';
 
 export const runtime = 'nodejs';
-const quote = (value: unknown) => {
-  let text = String(value ?? '');
-  if (/^[=+\-@\t\r]/.test(text)) text = `'${text}`;
-  return `"${text.replaceAll('"', '""')}"`;
-};
 
 export async function GET() {
   if (!(await isAdmin())) return new Response('Unauthorized', { status: 401 });
@@ -52,7 +48,7 @@ export async function GET() {
     order.items.map((item) => `${item.quantity} x ${item.name}`).join('; '),
     (order.totalCents / 100).toFixed(2)
   ]);
-  const csv = [header, ...rows].map((row) => row.map(quote).join(',')).join('\r\n');
+  const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
   const stamp = new Date().toISOString().slice(0, 10);
   return new Response(`\uFEFF${csv}`, {
     headers: {

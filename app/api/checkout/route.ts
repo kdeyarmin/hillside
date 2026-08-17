@@ -182,7 +182,9 @@ export async function POST(request: Request) {
         billing_address_collection: pickup ? 'required' : 'auto',
         ...(pickup
           ? {
-              permissions: { update_shipping_details: 'server_only' as const },
+              ...(process.env.STRIPE_AUTOMATIC_TAX === 'true'
+                ? { permissions: { update_shipping_details: 'server_only' as const } }
+                : {}),
               shipping_options: [
                 {
                   shipping_rate_data: {
@@ -254,21 +256,30 @@ export async function POST(request: Request) {
       });
 
       if (pickup && process.env.STRIPE_AUTOMATIC_TAX === 'true') {
-        const origin = pickupTaxOrigin();
-        await stripe.checkout.sessions.update(session.id, {
-          collected_information: {
-            shipping_details: {
-              name: 'Local pickup',
-              address: {
-                line1: origin.line1,
-                city: origin.city,
-                state: origin.state,
-                postal_code: origin.postalCode,
-                country: origin.country
+        try {
+          const origin = pickupTaxOrigin();
+          await stripe.checkout.sessions.update(session.id, {
+            collected_information: {
+              shipping_details: {
+                name: 'Local pickup',
+                address: {
+                  line1: origin.line1,
+                  city: origin.city,
+                  state: origin.state,
+                  postal_code: origin.postalCode,
+                  country: origin.country
+                }
               }
             }
-          }
-        });
+          });
+        } catch (error) {
+          /**
+           * Tax origin is a nicety. The session is already paid-ready and stock
+           * is held — failing checkout here would leave the customer with a 500
+           * after Stripe already created the session.
+           */
+          console.error('Unable to pin pickup tax origin on Stripe session', error);
+        }
       }
 
       try {
