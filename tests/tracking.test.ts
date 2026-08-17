@@ -4,6 +4,7 @@ import {
   describeTracking,
   inferTrackingCarrier,
   normalizeTrackingCarrier,
+  orderStatusBadge,
   orderStatusLabel,
   trackingUrl
 } from '../lib/tracking.ts';
@@ -27,6 +28,7 @@ describe('inferTrackingCarrier', () => {
     assert.equal(inferTrackingCarrier('9400111899223034123456'), 'USPS');
     assert.equal(inferTrackingCarrier('EA123456789US'), 'USPS');
     assert.equal(inferTrackingCarrier('794644304390'), 'FedEx');
+    assert.equal(inferTrackingCarrier('TBA123456789012'), 'Amazon');
     assert.equal(inferTrackingCarrier('not-a-number'), null);
   });
 });
@@ -42,6 +44,7 @@ describe('trackingUrl', () => {
       'https://tools.usps.com/go/TrackConfirmAction?tLabels=9400111899223034123456'
     );
     assert.equal(trackingUrl('mystery-123', 'Local courier'), null);
+    assert.equal(trackingUrl('794644304390', 'Local courier'), null);
   });
 
   it('lets an explicit carrier override a guessed one', () => {
@@ -56,6 +59,27 @@ describe('describeTracking', () => {
     assert.equal(info.number, '1Z999AA10123456784');
     assert.equal(info.label, 'UPS 1Z999AA10123456784');
     assert.ok(info.url?.includes('ups.com'));
+  });
+
+  it('keeps an unknown typed courier instead of guessing FedEx', () => {
+    const info = describeTracking('794644304390', 'Local courier');
+    assert.equal(info.carrier, 'Local courier');
+    assert.equal(info.url, null);
+    assert.equal(info.label, 'Local courier 794644304390');
+  });
+
+  it('links a blank-carrier Amazon TBA number', () => {
+    const info = describeTracking('tba123456789012');
+    assert.equal(info.carrier, 'Amazon');
+    assert.ok(info.url?.includes('track.amazon.com'));
+  });
+});
+
+describe('orderStatusBadge', () => {
+  it('never prints the raw enum', () => {
+    assert.equal(orderStatusBadge('PARTIALLY_REFUNDED'), 'Partially refunded');
+    assert.equal(orderStatusBadge('FULFILLED'), 'Shipped');
+    assert.doesNotMatch(orderStatusBadge('PARTIALLY_REFUNDED'), /_/);
   });
 });
 

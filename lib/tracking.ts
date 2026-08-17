@@ -36,16 +36,28 @@ export function inferTrackingCarrier(number: string): TrackingCarrierName | null
   if (/^1Z[A-Z0-9]{16}$/.test(cleaned)) return 'UPS';
   if (/^[A-Z]{2}\d{9}[A-Z]{2}$/.test(cleaned)) return 'USPS';
   if (/^JD\d{16,22}$/.test(cleaned)) return 'DHL';
+  if (/^TB[AMD][A-Z0-9]{8,}$/.test(cleaned)) return 'Amazon';
   if (/^9\d{21,25}$/.test(cleaned)) return 'USPS';
   if (/^\d{12}$/.test(cleaned) || /^\d{15}$/.test(cleaned)) return 'FedEx';
   if (/^\d{20,22}$/.test(cleaned)) return 'USPS';
   return null;
 }
 
+/**
+ * Guess from the number only when Tammy left the carrier blank. An unknown
+ * typed name (a local courier) must stay unlinkable rather than become FedEx.
+ */
+function resolveCarrier(number: string, carrier?: string | null) {
+  const typed = (carrier || '').trim();
+  const normalized = normalizeTrackingCarrier(typed);
+  if (typed && !normalized) return { kind: null as TrackingCarrierName | null, typed };
+  return { kind: normalized || inferTrackingCarrier(number), typed };
+}
+
 export function trackingUrl(number: string, carrier?: string | null): string | null {
   const cleaned = cleanTrackingNumber(number);
   if (!cleaned) return null;
-  const kind = normalizeTrackingCarrier(carrier) || inferTrackingCarrier(cleaned);
+  const { kind } = resolveCarrier(cleaned, carrier);
   if (!kind) return null;
   const encoded = encodeURIComponent(cleaned);
   switch (kind) {
@@ -66,14 +78,33 @@ export function trackingUrl(number: string, carrier?: string | null): string | n
 
 export function describeTracking(number: string, carrier?: string | null): TrackingInfo {
   const cleaned = cleanTrackingNumber(number);
-  const kind = normalizeTrackingCarrier(carrier) || inferTrackingCarrier(cleaned);
-  const displayCarrier = kind || (carrier || '').trim() || null;
+  const { kind, typed } = resolveCarrier(cleaned, carrier);
+  const displayCarrier = kind || typed || null;
   return {
     number: cleaned,
     carrier: displayCarrier,
     url: trackingUrl(cleaned, carrier),
     label: displayCarrier ? `${displayCarrier} ${cleaned}` : cleaned
   };
+}
+
+export function orderStatusBadge(status: string) {
+  switch (status) {
+    case 'PENDING':
+      return 'Pending';
+    case 'PAID':
+      return 'Preparing';
+    case 'FULFILLED':
+      return 'Shipped';
+    case 'PARTIALLY_REFUNDED':
+      return 'Partially refunded';
+    case 'REFUNDED':
+      return 'Refunded';
+    case 'CANCELLED':
+      return 'Cancelled';
+    default:
+      return 'Updated';
+  }
 }
 
 export function orderStatusLabel(status: string) {

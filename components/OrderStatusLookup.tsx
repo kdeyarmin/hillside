@@ -3,7 +3,7 @@
 import { FormEvent, useState } from 'react';
 import { PackageSearch } from 'lucide-react';
 import { formatMoney } from '@/lib/store';
-import { describeTracking, orderStatusLabel } from '@/lib/tracking';
+import { describeTracking, orderStatusBadge, orderStatusLabel } from '@/lib/tracking';
 
 type OrderResult = {
   invoiceNumber: string;
@@ -92,7 +92,7 @@ export default function OrderStatusLookup() {
                 {orderStatusLabel(order.status)}
               </h2>
             </div>
-            <span className={`status-badge ${order.status}`}>{order.status}</span>
+            <span className={`status-badge ${order.status}`}>{orderStatusBadge(order.status)}</span>
           </div>
           <p className="muted">
             Placed {new Date(order.createdAt).toLocaleDateString('en-US', { dateStyle: 'long' })}
@@ -125,13 +125,15 @@ function TrackingNote({ number, carrier }: { number: string; carrier: string | n
   return (
     <div className="note-box">
       <b>Tracking information</b>
-      {track.url ? (
-        <a href={track.url} target="_blank" rel="noopener noreferrer">
-          {track.label}
-        </a>
-      ) : (
-        track.label
-      )}
+      <div>
+        {track.url ? (
+          <a href={track.url} target="_blank" rel="noopener noreferrer">
+            {track.label}
+          </a>
+        ) : (
+          track.label
+        )}
+      </div>
     </div>
   );
 }
