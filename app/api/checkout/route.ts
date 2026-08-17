@@ -31,16 +31,18 @@ export async function POST(request: Request) {
     }
 
     const secret = process.env.STRIPE_SECRET_KEY;
-    if (!secret) return NextResponse.json({ error: 'Stripe is not configured yet.' }, { status: 503 });
+    if (!secret)
+      return NextResponse.json({ error: 'Stripe is not configured yet.' }, { status: 503 });
 
     await releaseExpiredProductHolds();
 
     const body: unknown = await request.json();
     const requested = readCheckoutItems(body);
-    if (!requested.length) return NextResponse.json({ error: 'Your cart is empty.' }, { status: 400 });
+    if (!requested.length)
+      return NextResponse.json({ error: 'Your cart is empty.' }, { status: 400 });
 
     const products = await db.product.findMany({
-      where: { active: true, slug: { in: requested.map((item) => item.id) } }
+      where: { slug: { in: requested.map((item) => item.id) } }
     });
 
     /**
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
 
     const items = requested.flatMap((requestedItem) => {
       const product = products.find((candidate) => candidate.slug === requestedItem.id);
-      if (!product || product.inventory <= 0) return [];
+      if (!product || !product.active || product.inventory <= 0) return [];
       return [{ product, quantity: Math.min(requestedItem.quantity, product.inventory) }];
     });
 
@@ -135,7 +137,9 @@ export async function POST(request: Request) {
             unit_amount: product.priceCents,
             product_data: {
               name: product.name,
-              description: stripeProductDescription(product.shortDescription || product.description),
+              description: stripeProductDescription(
+                product.shortDescription || product.description
+              ),
               images: stripeProductImages(product.imageUrl),
               metadata: { hillsideProductId: product.id, hillsideSlug: product.slug }
             }
@@ -211,6 +215,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: session.url });
   } catch (error) {
     console.error('Unable to create checkout session', error);
-    return NextResponse.json({ error: 'Unable to start checkout. Please try again.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Unable to start checkout. Please try again.' },
+      { status: 500 }
+    );
   }
 }

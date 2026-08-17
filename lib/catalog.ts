@@ -1,0 +1,20 @@
+import { cache } from 'react';
+import { db } from './db.ts';
+
+/**
+ * The live shop currently has a catalog of archived rows and zero active
+ * products. Several customer surfaces still talk as if something is for sale.
+ * One count is enough to switch that copy.
+ *
+ * Fail closed: if the database cannot be read, do not advertise a shop.
+ * `cache()` dedupes the count within a single request so layout + page + 404
+ * do not each hit the database for the same answer.
+ */
+export const catalogHasActiveProducts = cache(async () => {
+  try {
+    const count = await db.product.count({ where: { active: true } });
+    return count > 0;
+  } catch {
+    return false;
+  }
+});

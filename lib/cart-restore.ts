@@ -50,11 +50,27 @@ export function readCartRestoreToken(token: string): RestorePayload | null {
   const [encoded, signature] = token.split('.');
   if (!encoded || !signature || !safeEqual(sign(encoded, key), signature)) return null;
   try {
-    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as RestorePayload;
-    if (!payload.email || !Array.isArray(payload.items) || !Number.isFinite(payload.exp)) return null;
+    const payload = JSON.parse(
+      Buffer.from(encoded, 'base64url').toString('utf8')
+    ) as RestorePayload;
+    if (!payload.email || !Array.isArray(payload.items) || !Number.isFinite(payload.exp))
+      return null;
     if (payload.exp <= Date.now()) return null;
     return payload;
   } catch {
     return null;
   }
+}
+
+/**
+ * A saved cart stores quantities, not just rows. Restoring 5 when 2 remain
+ * dropped 3 pieces even though the line count stayed one.
+ */
+export function cartRestoreDropped(
+  requested: Array<{ quantity: number }>,
+  restored: Array<{ quantity: number }>
+) {
+  const pieces = (items: Array<{ quantity: number }>) =>
+    items.reduce((total, item) => total + Math.max(0, Number(item.quantity) || 0), 0);
+  return Math.max(0, pieces(requested) - pieces(restored));
 }

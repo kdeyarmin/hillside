@@ -9,9 +9,11 @@ import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
 import FormStatus from '@/components/FormStatus';
 
 export default function CartPageClient({
+  catalogEmpty,
   freeShippingThreshold,
   restoreToken
 }: {
+  catalogEmpty?: boolean;
   freeShippingThreshold: number;
   restoreToken?: string | null;
 }) {
@@ -40,15 +42,21 @@ export default function CartPageClient({
     const controller = new AbortController();
     fetch(`/api/cart-lead?token=${encodeURIComponent(restoreToken)}`, { signal: controller.signal })
       .then(async (response) => {
-        const result = (await response.json()) as { items?: CartLine[]; error?: string };
+        const result = (await response.json()) as {
+          items?: CartLine[];
+          error?: string;
+          message?: string;
+        };
         if (!response.ok) throw new Error(result.error || 'We could not restore that cart.');
         replaceItems(result.items || []);
         setRestoreState('ok');
         setSaveState({
           type: 'ok',
-          message: result.items?.length
-            ? 'Your saved cart is back. Review it and check out when you are ready.'
-            : 'That saved cart no longer has items we can restore.'
+          message:
+            result.message ||
+            (result.items?.length
+              ? 'Your saved cart is back. Review it and check out when you are ready.'
+              : 'That saved cart no longer has items we can restore.')
         });
         window.history.replaceState(null, '', '/cart');
       })
@@ -97,18 +105,50 @@ export default function CartPageClient({
     return (
       <div className="empty-state">
         <ShoppingBag size={42} />
-        <h3>Your cart is empty.</h3>
-        <p>Explore our current plants, teas and handmade botanical goods.</p>
-        <FormStatus message={saveState.message} tone={saveState.type === 'ok' ? 'success' : 'error'} />
-        <Link className="btn" href="/shop">Browse the shop</Link>
+        {catalogEmpty ? (
+          <>
+            <h3>Nothing is on the bench right now.</h3>
+            <p>
+              We only list pieces that are ready to go home. Ask about a custom arrangement, or
+              browse the care library while the next batch is potted.
+            </p>
+            <FormStatus message={checkoutNotice} tone="notice" />
+            <FormStatus
+              message={saveState.message}
+              tone={saveState.type === 'ok' ? 'success' : 'error'}
+            />
+            <div className="actions" style={{ justifyContent: 'center' }}>
+              <Link className="btn" href="/care">
+                Plant care library
+              </Link>
+              <Link className="btn outline" href="/contact?subject=Custom+planter+arrangement">
+                Ask about a custom arrangement
+              </Link>
+            </div>
+          </>
+        ) : (
+          <>
+            <h3>Your cart is empty.</h3>
+            <p>Explore our current plants, teas and handmade botanical goods.</p>
+            <FormStatus message={checkoutNotice} tone="notice" />
+            <FormStatus
+              message={saveState.message}
+              tone={saveState.type === 'ok' ? 'success' : 'error'}
+            />
+            <Link className="btn" href="/shop">
+              Browse the shop
+            </Link>
+          </>
+        )}
       </div>
     );
   }
 
   const remaining = Math.max(0, freeShippingThreshold - subtotalCents);
-  const progress = freeShippingThreshold > 0
-    ? Math.min(100, Math.round((subtotalCents / freeShippingThreshold) * 100))
-    : 100;
+  const progress =
+    freeShippingThreshold > 0
+      ? Math.min(100, Math.round((subtotalCents / freeShippingThreshold) * 100))
+      : 100;
 
   return (
     <div className="cart-page">
@@ -134,9 +174,15 @@ export default function CartPageClient({
               <h2 className="cart-page-line-title">
                 <Link href={`/shop/${item.slug}`}>{item.name}</Link>
               </h2>
-              <p className="muted" style={{ marginTop: 0 }}>{formatMoney(item.priceCents)} each</p>
+              <p className="muted" style={{ marginTop: 0 }}>
+                {formatMoney(item.priceCents)} each
+              </p>
               <div className="cart-line-actions">
-                <div className="quantity-picker small" role="group" aria-label={`Quantity for ${item.name}`}>
+                <div
+                  className="quantity-picker small"
+                  role="group"
+                  aria-label={`Quantity for ${item.name}`}
+                >
                   <button
                     type="button"
                     onClick={() => setQuantity(item.slug, item.quantity - 1)}
@@ -159,7 +205,11 @@ export default function CartPageClient({
                     <Plus size={14} />
                   </button>
                 </div>
-                <button className="text-button danger" type="button" onClick={() => removeItem(item.slug)}>
+                <button
+                  className="text-button danger"
+                  type="button"
+                  onClick={() => removeItem(item.slug)}
+                >
                   <Trash2 size={14} /> Remove
                 </button>
               </div>
@@ -167,14 +217,25 @@ export default function CartPageClient({
             <strong>{formatMoney(item.priceCents * item.quantity)}</strong>
           </article>
         ))}
-        <Link className="text-link" href="/shop">← Continue shopping</Link>
+        <Link className="text-link" href="/shop">
+          ← Continue shopping
+        </Link>
       </div>
 
       <aside className="order-summary" aria-label="Order summary">
         <div className="eyebrow">Order summary</div>
-        <div className="summary-row"><span>Subtotal</span><strong>{formatMoney(subtotalCents)}</strong></div>
-        <div className="summary-row"><span>Shipping</span><span>Calculated at checkout</span></div>
-        <div className="summary-row total"><span>Current total</span><span>{formatMoney(subtotalCents)}</span></div>
+        <div className="summary-row">
+          <span>Subtotal</span>
+          <strong>{formatMoney(subtotalCents)}</strong>
+        </div>
+        <div className="summary-row">
+          <span>Shipping</span>
+          <span>Calculated at checkout</span>
+        </div>
+        <div className="summary-row total">
+          <span>Current total</span>
+          <span>{formatMoney(subtotalCents)}</span>
+        </div>
 
         {freeShippingThreshold > 0 && (
           <div style={{ margin: '18px 0' }}>
@@ -216,7 +277,9 @@ export default function CartPageClient({
           <b>Not ready yet?</b>
           <span>Email yourself this cart and we&rsquo;ll hold onto it.</span>
           <div className="save-cart-row">
-            <label className="sr-only" htmlFor="save-cart-email">Email address</label>
+            <label className="sr-only" htmlFor="save-cart-email">
+              Email address
+            </label>
             <input
               id="save-cart-email"
               className="form-input"
@@ -226,7 +289,9 @@ export default function CartPageClient({
               onChange={(event) => setSaveEmail(event.target.value)}
               placeholder="you@example.com"
             />
-            <button className="btn outline small" type="submit">Save cart</button>
+            <button className="btn outline small" type="submit">
+              Save cart
+            </button>
           </div>
           {/* Saving a cart is not consent to be marketed to. The newsletter is a
               separate, explicit opt-in that defaults to off. */}
@@ -238,7 +303,10 @@ export default function CartPageClient({
             />
             <span>Also send me seasonal tips, plant care and new arrivals.</span>
           </label>
-          <FormStatus message={saveState.message} tone={saveState.type === 'ok' ? 'success' : 'error'} />
+          <FormStatus
+            message={saveState.message}
+            tone={saveState.type === 'ok' ? 'success' : 'error'}
+          />
         </form>
       </aside>
     </div>

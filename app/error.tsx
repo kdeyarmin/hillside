@@ -23,14 +23,15 @@ export default function ErrorBoundary({
           <div className="eyebrow">Something needs a little care</div>
           <h1>We couldn’t finish loading this page.</h1>
           <p>
-            Your cart and information are still safe. Try loading the page again, or return to the
-            shop and continue browsing.
+            Your cart and information are still safe. Try loading the page again, or return home.
           </p>
           <div className="actions" style={{ justifyContent: 'center' }}>
             <button className="btn" type="button" onClick={reset}>
               <RefreshCw size={17} /> Try again
             </button>
-            <Link className="btn outline" href="/shop">Browse the shop</Link>
+            <Link className="btn outline" href="/">
+              Return home
+            </Link>
           </div>
         </div>
       </div>
