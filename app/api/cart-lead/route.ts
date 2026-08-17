@@ -12,7 +12,9 @@ const schema = z.object({
   email: z.string().trim().email().max(254),
   subtotalCents: z.coerce.number().int().min(0).max(10_000_000).optional().default(0),
   items: z
-    .array(z.object({ slug: z.string().max(140), quantity: z.coerce.number().int().min(1).max(50) }))
+    .array(
+      z.object({ slug: z.string().max(140), quantity: z.coerce.number().int().min(1).max(50) })
+    )
     .max(50)
     .optional()
     .default([]),
@@ -54,7 +56,10 @@ async function emailSavedCart(
  */
 export async function POST(request: Request) {
   if (rateLimited(request, { name: 'cart-lead', limit: 10, windowMs: 15 * 60_000 })) {
-    return NextResponse.json({ error: 'Too many requests. Please try again shortly.' }, { status: 429 });
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again shortly.' },
+      { status: 429 }
+    );
   }
 
   try {
@@ -112,13 +117,19 @@ export async function POST(request: Request) {
 
 export async function GET(request: Request) {
   if (rateLimited(request, { name: 'cart-restore', limit: 20, windowMs: 15 * 60_000 })) {
-    return NextResponse.json({ error: 'Too many requests. Please try again shortly.' }, { status: 429 });
+    return NextResponse.json(
+      { error: 'Too many requests. Please try again shortly.' },
+      { status: 429 }
+    );
   }
 
   const token = new URL(request.url).searchParams.get('token') || '';
   const payload = readCartRestoreToken(token);
   if (!payload) {
-    return NextResponse.json({ error: 'That restore link is invalid or has expired.' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'That restore link is invalid or has expired.' },
+      { status: 400 }
+    );
   }
 
   const products = await db.product.findMany({
@@ -133,6 +144,7 @@ export async function GET(request: Request) {
     }
   });
 
+  const requestedCount = payload.items.length;
   const items = payload.items.flatMap((requested) => {
     const product = products.find((candidate) => candidate.slug === requested.slug);
     if (!product || product.inventory <= 0) return [];
@@ -154,5 +166,14 @@ export async function GET(request: Request) {
     data: { recoveredAt: new Date() }
   });
 
-  return NextResponse.json({ email: payload.email, items });
+  const dropped = requestedCount - items.length;
+  return NextResponse.json({
+    email: payload.email,
+    items,
+    dropped,
+    message:
+      dropped > 0
+        ? 'Some saved pieces are no longer on the bench and could not be restored.'
+        : undefined
+  });
 }

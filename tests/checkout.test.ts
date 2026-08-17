@@ -5,6 +5,7 @@ process.env.NEXT_PUBLIC_SITE_URL ||= 'https://thehillsidegardens.com';
 process.env.DATABASE_URL ||= 'postgresql://postgres:postgres@127.0.0.1:5432/hillside_test';
 
 const {
+  checkoutAdjustmentNotice,
   checkoutAdjustments,
   encodeCheckoutItems,
   parseCheckoutItems,
@@ -63,6 +64,26 @@ describe('checkoutAdjustments', () => {
       checkoutAdjustments([{ id: 'tea', quantity: 2, priceCents: 1800 }], catalog),
       []
     );
+  });
+
+  it('names an archived product instead of calling it sold out', () => {
+    const changes = checkoutAdjustments(
+      [{ id: 'monstera', quantity: 1 }],
+      [
+        {
+          slug: 'monstera',
+          name: 'Monstera Deliciosa',
+          inventory: 4,
+          priceCents: 4500,
+          active: false
+        }
+      ]
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'unavailable');
+    assert.equal(changes[0].name, 'Monstera Deliciosa');
+    assert.match(checkoutAdjustmentNotice(changes[0]), /Monstera Deliciosa is no longer available/);
+    assert.doesNotMatch(checkoutAdjustmentNotice(changes[0]), /sold out/);
   });
 });
 

@@ -19,6 +19,7 @@ import { Cormorant_Garamond, Manrope } from 'next/font/google';
 import Analytics from '@/components/Analytics';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
+import { catalogHasActiveProducts } from '@/lib/catalog';
 import { absoluteUrl, businessEmail, freeShippingThresholdCents, siteBaseUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
 import { websiteJsonLd } from '@/lib/seo';
@@ -127,19 +128,26 @@ function businessJsonLd() {
         }
       : {}),
     ...(openingHours
-      ? { openingHours: openingHours.split('|').map((entry) => entry.trim()).filter(Boolean) }
+      ? {
+          openingHours: openingHours
+            .split('|')
+            .map((entry) => entry.trim())
+            .filter(Boolean)
+        }
       : {}),
     ...(process.env.NEXT_PUBLIC_INSTAGRAM_URL || process.env.NEXT_PUBLIC_FACEBOOK_URL
       ? {
-          sameAs: [process.env.NEXT_PUBLIC_INSTAGRAM_URL, process.env.NEXT_PUBLIC_FACEBOOK_URL].filter(
-            Boolean
-          )
+          sameAs: [
+            process.env.NEXT_PUBLIC_INSTAGRAM_URL,
+            process.env.NEXT_PUBLIC_FACEBOOK_URL
+          ].filter(Boolean)
         }
       : {})
   };
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const catalogEmpty = !(await catalogHasActiveProducts());
   return (
     <html lang="en" className={`${hillsideSans.variable} ${hillsideDisplay.variable}`}>
       <body>
@@ -155,7 +163,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: jsonLd(websiteJsonLd()) }}
         />
         <CartProvider>
-          <SiteHeader freeShippingThreshold={freeShippingThresholdCents()} />
+          <SiteHeader
+            catalogEmpty={catalogEmpty}
+            freeShippingThreshold={freeShippingThresholdCents()}
+          />
           {/* tabIndex={-1} so the skip link actually moves focus. Without it Safari
             scrolls to the target and leaves focus where it was. */}
           <main id="main-content" tabIndex={-1}>

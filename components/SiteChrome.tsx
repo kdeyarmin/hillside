@@ -3,7 +3,17 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Facebook, Instagram, Menu, Minus, Plus, Search, ShoppingBag, Trash2, X } from 'lucide-react';
+import {
+  Facebook,
+  Instagram,
+  Menu,
+  Minus,
+  Plus,
+  Search,
+  ShoppingBag,
+  Trash2,
+  X
+} from 'lucide-react';
 import NewsletterForm from '@/components/NewsletterForm';
 import ResilientImage from '@/components/ResilientImage';
 import { useCart } from '@/components/CartProvider';
@@ -38,7 +48,9 @@ const navigation: ReadonlyArray<readonly [label: string, href: string]> = [
 const SOCIAL_LINKS = [
   { label: 'Instagram', href: process.env.NEXT_PUBLIC_INSTAGRAM_URL, Icon: Instagram },
   { label: 'Facebook', href: process.env.NEXT_PUBLIC_FACEBOOK_URL, Icon: Facebook }
-].filter((link): link is { label: string; href: string; Icon: typeof Instagram } => Boolean(link.href));
+].filter((link): link is { label: string; href: string; Icon: typeof Instagram } =>
+  Boolean(link.href)
+);
 
 function FreeShippingMeter({
   subtotalCents,
@@ -55,9 +67,15 @@ function FreeShippingMeter({
   return (
     <div className="drawer-shipping">
       <p>
-        {remaining > 0
-          ? <>Add <b>{formatMoney(remaining)}</b> more for free standard shipping.</>
-          : <>You&rsquo;ve earned <b>free standard shipping</b>.</>}
+        {remaining > 0 ? (
+          <>
+            Add <b>{formatMoney(remaining)}</b> more for free standard shipping.
+          </>
+        ) : (
+          <>
+            You&rsquo;ve earned <b>free standard shipping</b>.
+          </>
+        )}
       </p>
       <div className="progress-track" role="presentation">
         <span style={{ width: `${progress}%` }} />
@@ -86,7 +104,9 @@ function CartDrawerSuggestions() {
       return;
     }
     const controller = new AbortController();
-    fetch(`/api/recommendations?exclude=${encodeURIComponent(slugs)}`, { signal: controller.signal })
+    fetch(`/api/recommendations?exclude=${encodeURIComponent(slugs)}`, {
+      signal: controller.signal
+    })
       .then((response) => (response.ok ? response.json() : { products: [] }))
       .then((data: { products?: Suggestion[] }) => setSuggestions(data.products?.slice(0, 2) || []))
       .catch(() => setSuggestions([]));
@@ -123,7 +143,13 @@ function CartDrawerSuggestions() {
   );
 }
 
-function CartDrawer({ freeShippingThreshold }: { freeShippingThreshold: number }) {
+function CartDrawer({
+  catalogEmpty,
+  freeShippingThreshold
+}: {
+  catalogEmpty: boolean;
+  freeShippingThreshold: number;
+}) {
   const {
     items,
     subtotalCents,
@@ -142,9 +168,8 @@ function CartDrawer({ freeShippingThreshold }: { freeShippingThreshold: number }
   useEffect(() => {
     if (!drawerOpen) return;
 
-    const previouslyFocused = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const focusTimer = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
 
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -203,11 +228,33 @@ function CartDrawer({ freeShippingThreshold }: { freeShippingThreshold: number }
         {items.length === 0 ? (
           <div className="empty-state">
             <ShoppingBag size={38} />
-            <h3>Your cart is ready for something beautiful.</h3>
-            <p>Browse plants, teas and small-batch botanical goods.</p>
-            <Link className="btn" href="/shop" onClick={closeCart}>
-              Explore the shop
-            </Link>
+            {catalogEmpty ? (
+              <>
+                <h3>Nothing is on the bench right now.</h3>
+                <p>
+                  We only list pieces that are ready to go home. Ask about a custom arrangement, or
+                  browse the care library while the next batch is potted.
+                </p>
+                <Link className="btn" href="/care" onClick={closeCart}>
+                  Plant care library
+                </Link>
+                <Link
+                  className="btn outline"
+                  href="/contact?subject=Custom+planter+arrangement"
+                  onClick={closeCart}
+                >
+                  Ask about a custom arrangement
+                </Link>
+              </>
+            ) : (
+              <>
+                <h3>Your cart is ready for something beautiful.</h3>
+                <p>Browse plants, teas and small-batch botanical goods.</p>
+                <Link className="btn" href="/shop" onClick={closeCart}>
+                  Explore the shop
+                </Link>
+              </>
+            )}
           </div>
         ) : (
           <>
@@ -272,17 +319,21 @@ function CartDrawer({ freeShippingThreshold }: { freeShippingThreshold: number }
             </div>
             <CartDrawerSuggestions />
             <div className="drawer-total">
-            <FreeShippingMeter subtotalCents={subtotalCents} threshold={freeShippingThreshold} />
+              <FreeShippingMeter subtotalCents={subtotalCents} threshold={freeShippingThreshold} />
               <div>
                 <span>Subtotal</span>
                 <strong>{formatMoney(subtotalCents)}</strong>
               </div>
               <p>Shipping and any applicable tax are calculated securely in Stripe Checkout.</p>
               {checkoutError && (
-                <p className="drawer-error" role="alert">{checkoutError}</p>
+                <p className="drawer-error" role="alert">
+                  {checkoutError}
+                </p>
               )}
               {checkoutNotice && (
-                <p className="drawer-notice" role="status">{checkoutNotice}</p>
+                <p className="drawer-notice" role="status">
+                  {checkoutNotice}
+                </p>
               )}
               <button
                 className="btn full"
@@ -304,7 +355,13 @@ function CartDrawer({ freeShippingThreshold }: { freeShippingThreshold: number }
   );
 }
 
-export function SiteHeader({ freeShippingThreshold }: { freeShippingThreshold: number }) {
+export function SiteHeader({
+  catalogEmpty = false,
+  freeShippingThreshold
+}: {
+  catalogEmpty?: boolean;
+  freeShippingThreshold: number;
+}) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { count, drawerOpen, openCart, lastAdded } = useCart();
@@ -375,9 +432,10 @@ export function SiteHeader({ freeShippingThreshold }: { freeShippingThreshold: n
       if (event.key !== 'Tab') return;
       // The toggle button is part of this cycle on purpose — it sits outside the
       // menu panel but is the control that opened it, so Tab should reach it.
-      const focusables = [menuButtonRef.current, ...focusableElements(mobileMenuRef.current)].filter(
-        (element): element is HTMLElement => Boolean(element)
-      );
+      const focusables = [
+        menuButtonRef.current,
+        ...focusableElements(mobileMenuRef.current)
+      ].filter((element): element is HTMLElement => Boolean(element));
       if (!focusables.length) return;
 
       const first = focusables[0];
@@ -436,7 +494,9 @@ export function SiteHeader({ freeShippingThreshold }: { freeShippingThreshold: n
       <header className="editorial-header">
         <div className="container editorial-head-main">
           <form className="header-search" action="/search" role="search">
-            <label className="sr-only" htmlFor="site-search">Search plants, teas and botanicals</label>
+            <label className="sr-only" htmlFor="site-search">
+              Search plants, teas and botanicals
+            </label>
             <Search size={20} aria-hidden="true" />
             <input
               id="site-search"
@@ -478,7 +538,9 @@ export function SiteHeader({ freeShippingThreshold }: { freeShippingThreshold: n
               aria-label={`Open cart, ${count} ${count === 1 ? 'item' : 'items'}`}
             >
               <ShoppingBag size={20} aria-hidden="true" />
-              <span className="mobile-cart-count" aria-hidden="true">{count}</span>
+              <span className="mobile-cart-count" aria-hidden="true">
+                {count}
+              </span>
             </button>
             <button
               className="icon-button mobile-menu-button"
@@ -506,15 +568,19 @@ export function SiteHeader({ freeShippingThreshold }: { freeShippingThreshold: n
                 {label}
               </Link>
             ))}
-            <Link className="sale-link" href="/shop?sort=new">
-              New Arrivals
-            </Link>
+            {!catalogEmpty && (
+              <Link className="sale-link" href="/shop?sort=new">
+                New Arrivals
+              </Link>
+            )}
           </div>
 
           {mobileOpen && (
             <div className="mobile-menu container" id="mobile-primary-menu" ref={mobileMenuRef}>
               <form className="mobile-menu-search" action="/search" role="search">
-                <label className="sr-only" htmlFor="mobile-search">Search plants, care and products</label>
+                <label className="sr-only" htmlFor="mobile-search">
+                  Search plants, care and products
+                </label>
                 <input
                   id="mobile-search"
                   type="search"
@@ -530,10 +596,19 @@ export function SiteHeader({ freeShippingThreshold }: { freeShippingThreshold: n
                 </Link>
               ))}
               <Link href="/shop">Shop everything</Link>
-              <Link href="/shop?sort=new">New Arrivals</Link>
-              <Link href="/order-status" aria-current={pathname === '/order-status' ? 'page' : undefined}>Order Status</Link>
-              <Link href="/about" aria-current={pathname === '/about' ? 'page' : undefined}>About Us</Link>
-              <Link href="/contact" aria-current={pathname === '/contact' ? 'page' : undefined}>Contact</Link>
+              {!catalogEmpty && <Link href="/shop?sort=new">New Arrivals</Link>}
+              <Link
+                href="/order-status"
+                aria-current={pathname === '/order-status' ? 'page' : undefined}
+              >
+                Order Status
+              </Link>
+              <Link href="/about" aria-current={pathname === '/about' ? 'page' : undefined}>
+                About Us
+              </Link>
+              <Link href="/contact" aria-current={pathname === '/contact' ? 'page' : undefined}>
+                Contact
+              </Link>
             </div>
           )}
         </nav>
@@ -553,7 +628,7 @@ export function SiteHeader({ freeShippingThreshold }: { freeShippingThreshold: n
         />
       )}
 
-      <CartDrawer freeShippingThreshold={freeShippingThreshold} />
+      <CartDrawer catalogEmpty={catalogEmpty} freeShippingThreshold={freeShippingThreshold} />
     </>
   );
 }
@@ -580,16 +655,29 @@ export function SiteFooter({ contactEmail = DEFAULT_BUSINESS_EMAIL }: { contactE
       )}
       <div className="container footergrid">
         <div className="footer-brand">
-          <img src="/logo.webp" alt="The Hillside Gardens" width="320" height="309" loading="lazy" decoding="async" />
+          <img
+            src="/logo.webp"
+            alt="The Hillside Gardens"
+            width="320"
+            height="309"
+            loading="lazy"
+            decoding="async"
+          />
           <p>
-            Plants, teas and botanicals chosen with care, plus approachable education to help you grow
-            with confidence.
+            Plants, teas and botanicals chosen with care, plus approachable education to help you
+            grow with confidence.
           </p>
           <a href={`mailto:${contactEmail}`}>{contactEmail}</a>
           {SOCIAL_LINKS.length > 0 && (
             <div className="footer-social">
               {SOCIAL_LINKS.map(({ label, href, Icon }) => (
-                <a href={href} key={label} aria-label={label} target="_blank" rel="me noopener noreferrer">
+                <a
+                  href={href}
+                  key={label}
+                  aria-label={label}
+                  target="_blank"
+                  rel="me noopener noreferrer"
+                >
                   <Icon size={19} />
                 </a>
               ))}
@@ -598,24 +686,50 @@ export function SiteFooter({ contactEmail = DEFAULT_BUSINESS_EMAIL }: { contactE
         </div>
         <div>
           <h4>Explore</h4>
-          <p><Link href="/shop">Shop</Link></p>
-          {CLASSES_PUBLICLY_VISIBLE && <p><Link href="/classes">Classes</Link></p>}
-          <p><Link href="/care">Care sheets</Link></p>
-          <p><Link href="/gallery">Gallery</Link></p>
+          <p>
+            <Link href="/shop">Shop</Link>
+          </p>
+          {CLASSES_PUBLICLY_VISIBLE && (
+            <p>
+              <Link href="/classes">Classes</Link>
+            </p>
+          )}
+          <p>
+            <Link href="/care">Care sheets</Link>
+          </p>
+          <p>
+            <Link href="/gallery">Gallery</Link>
+          </p>
         </div>
         <div>
           <h4>Customer care</h4>
-          <p><Link href="/order-status">Order status</Link></p>
-          <p><Link href="/shipping-returns">Shipping & returns</Link></p>
-          <p><Link href="/faq">Frequently asked questions</Link></p>
-          <p><Link href="/contact">Contact us</Link></p>
+          <p>
+            <Link href="/order-status">Order status</Link>
+          </p>
+          <p>
+            <Link href="/shipping-returns">Shipping & returns</Link>
+          </p>
+          <p>
+            <Link href="/faq">Frequently asked questions</Link>
+          </p>
+          <p>
+            <Link href="/contact">Contact us</Link>
+          </p>
         </div>
         <div>
           <h4>Information</h4>
-          <p><Link href="/about">About us</Link></p>
-          <p><Link href="/amazon">Our Amazon picks</Link></p>
-          <p><Link href="/privacy">Privacy</Link></p>
-          <p><Link href="/terms">Terms</Link></p>
+          <p>
+            <Link href="/about">About us</Link>
+          </p>
+          <p>
+            <Link href="/amazon">Our Amazon picks</Link>
+          </p>
+          <p>
+            <Link href="/privacy">Privacy</Link>
+          </p>
+          <p>
+            <Link href="/terms">Terms</Link>
+          </p>
         </div>
       </div>
       <div className="container footer-bottom">

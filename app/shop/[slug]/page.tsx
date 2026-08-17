@@ -8,6 +8,8 @@ import ProductGrid from '@/components/ProductGrid';
 import ProductViewTracker from '@/components/ProductViewTracker';
 import ProductReviews from '@/components/ProductReviews';
 import StockAlertForm from '@/components/StockAlertForm';
+import { catalogHasActiveProducts } from '@/lib/catalog';
+import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { jsonLd } from '@/lib/json-ld';
@@ -26,10 +28,24 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
   const { slug } = await params;
-  const product = await db.product.findFirst({ where: { slug, active: true } });
+  const product = await db.product.findFirst({ where: { slug } });
   if (!product) return { title: 'Product not found' };
+  if (!product.active) {
+    return pageMetadata({
+      path: `/shop/${product.slug}`,
+      title: `${product.name} is no longer listed`,
+      description: `${product.name} is not for sale right now.`,
+      image: resolveImageUrl(product.imageUrl),
+      imageAlt: product.name,
+      noindex: true
+    });
+  }
   return pageMetadata({
     path: `/shop/${product.slug}`,
     title: product.name,
@@ -42,13 +58,17 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const product = await db.product.findFirst({
-    where: { slug, active: true },
+    where: { slug },
     include: {
       collections: { where: { active: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
       careSheets: { where: { published: true }, take: 2 }
     }
   });
   if (!product) notFound();
+  if (!product.active) {
+    const catalogEmpty = !(await catalogHasActiveProducts());
+    return <RetiredProduct product={product} catalogEmpty={catalogEmpty} />;
+  }
 
   const [related, reviews, rating] = await Promise.all([
     db.product.findMany({
@@ -151,14 +171,25 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: absoluteUrl('/') },
       { '@type': 'ListItem', position: 2, name: 'Shop', item: absoluteUrl('/shop') },
-      { '@type': 'ListItem', position: 3, name: product.name, item: absoluteUrl(`/shop/${product.slug}`) }
+      {
+        '@type': 'ListItem',
+        position: 3,
+        name: product.name,
+        item: absoluteUrl(`/shop/${product.slug}`)
+      }
     ]
   };
 
   return (
     <section className="content">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(productJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbJsonLd) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd(productJsonLd) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbJsonLd) }}
+      />
       <ProductViewTracker
         slug={product.slug}
         name={product.name}
@@ -167,8 +198,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       />
       <div className="container">
         <div className="breadcrumbs">
-          <Link href="/">Home</Link><span>/</span>
-          <Link href="/shop">Shop</Link><span>/</span>
+          <Link href="/">Home</Link>
+          <span>/</span>
+          <Link href="/shop">Shop</Link>
+          <span>/</span>
           <span>{product.name}</span>
         </div>
         <div className="product-detail">
@@ -192,11 +225,14 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <p className="rating-inline">
                 <span className="rating-stars" aria-hidden="true">
                   {[1, 2, 3, 4, 5].map((step) => (
-                    <span className={step <= Math.round(rating.average) ? 'on' : ''} key={step}>★</span>
+                    <span className={step <= Math.round(rating.average) ? 'on' : ''} key={step}>
+                      ★
+                    </span>
                   ))}
                 </span>
                 <a href="#reviews">
-                  {rating.average.toFixed(1)} · {rating.count} {rating.count === 1 ? 'review' : 'reviews'}
+                  {rating.average.toFixed(1)} · {rating.count}{' '}
+                  {rating.count === 1 ? 'review' : 'reviews'}
                 </a>
               </p>
             )}
@@ -226,9 +262,22 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             )}
 
             <div className="product-detail-notes">
-              {product.careNotes && <div className="note-box"><b>Care at a glance</b>{product.careNotes}</div>}
-              {product.shippingNote && <div className="note-box"><b>Shipping note</b>{product.shippingNote}</div>}
-              <div className="note-box"><b>Secure checkout</b>Payment is processed by Stripe. A receipt and invoice are emailed after purchase.</div>
+              {product.careNotes && (
+                <div className="note-box">
+                  <b>Care at a glance</b>
+                  {product.careNotes}
+                </div>
+              )}
+              {product.shippingNote && (
+                <div className="note-box">
+                  <b>Shipping note</b>
+                  {product.shippingNote}
+                </div>
+              )}
+              <div className="note-box">
+                <b>Secure checkout</b>Payment is processed by Stripe. A receipt and invoice are
+                emailed after purchase.
+              </div>
             </div>
 
             {soldOut ? (
@@ -259,7 +308,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 ))}
               </p>
             )}
-            {product.sku && <p className="muted" style={{ fontSize: 12 }}>Item number: {product.sku}</p>}
+            {product.sku && (
+              <p className="muted" style={{ fontSize: 12 }}>
+                Item number: {product.sku}
+              </p>
+            )}
           </div>
         </div>
 
@@ -281,9 +334,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               {product.careSheets.map((sheet) => (
                 <article className="care-related-card" key={sheet.id}>
                   <span>Plant care</span>
-                  <h3><Link href={`/care/${sheet.slug}`}>{sheet.plantName}</Link></h3>
+                  <h3>
+                    <Link href={`/care/${sheet.slug}`}>{sheet.plantName}</Link>
+                  </h3>
                   <p>{sheet.summary}</p>
-                  <Link className="text-link" href={`/care/${sheet.slug}`}>Read the guide →</Link>
+                  <Link className="text-link" href={`/care/${sheet.slug}`}>
+                    Read the guide →
+                  </Link>
                 </article>
               ))}
             </div>
@@ -316,6 +373,90 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <h2>More in {productTypeLabel(product.type).toLowerCase()}.</h2>
             </div>
             <ProductGrid products={relatedProducts} />
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function RetiredProduct({
+  product,
+  catalogEmpty
+}: {
+  catalogEmpty: boolean;
+  product: {
+    name: string;
+    slug: string;
+    type: string;
+    shortDescription: string | null;
+    description: string;
+    imageUrl: string | null;
+    galleryImages: string[];
+    careSheets: Array<{ id: string; slug: string; plantName: string; summary: string }>;
+  };
+}) {
+  const inquiry = contactHref({
+    subject: 'Availability or restock',
+    message: `Is there anything similar to ${product.name} coming back?`
+  });
+
+  return (
+    <section className="content">
+      <div className="container">
+        <div className="product-detail">
+          <div className="product-detail-image-wrap">
+            <ProductGallery
+              slug={product.slug}
+              name={product.name}
+              type={product.type}
+              imageUrl={product.imageUrl}
+              images={product.galleryImages}
+            />
+          </div>
+          <div className="product-detail-copy">
+            <div className="eyebrow">No longer listed</div>
+            <h1>{product.name} has left the bench.</h1>
+            <p className="lead">
+              We don’t list what we can’t send home. This piece is not for sale right now.
+            </p>
+            {product.shortDescription && <p>{product.shortDescription}</p>}
+            <div className="actions">
+              <Link className="btn" href={inquiry}>
+                Ask about something similar
+              </Link>
+              <Link className="btn outline" href="/care">
+                Plant care library
+              </Link>
+              {!catalogEmpty && (
+                <Link className="btn outline" href="/shop">
+                  Browse the shop
+                </Link>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {product.careSheets.length > 0 && (
+          <div className="product-details-section">
+            <div className="sectionhead">
+              <div className="eyebrow">Keep it thriving</div>
+              <h2>Care guides for this plant.</h2>
+            </div>
+            <div className="care-related-grid">
+              {product.careSheets.map((sheet) => (
+                <article className="care-related-card" key={sheet.id}>
+                  <span>Plant care</span>
+                  <h3>
+                    <Link href={`/care/${sheet.slug}`}>{sheet.plantName}</Link>
+                  </h3>
+                  <p>{sheet.summary}</p>
+                  <Link className="text-link" href={`/care/${sheet.slug}`}>
+                    Read the guide →
+                  </Link>
+                </article>
+              ))}
+            </div>
           </div>
         )}
       </div>

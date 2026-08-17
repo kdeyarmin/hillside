@@ -10,7 +10,8 @@ import {
   useState
 } from 'react';
 import { toGtagItem, trackAddToCart, trackBeginCheckout } from '@/lib/analytics';
-import { clampQuantity, formatMoney } from '@/lib/store';
+import { clampQuantity } from '@/lib/store';
+import { checkoutAdjustmentNotice } from '@/lib/checkout-format';
 
 export type CartProduct = {
   slug: string;
@@ -55,11 +56,7 @@ const CartContext = createContext<CartContextValue | null>(null);
 const STORAGE_KEY = 'hillside-cart-v2';
 
 function noticeForAdjustment(change: CheckoutAdjustment) {
-  if (change.reason === 'price' && change.priceCents != null) {
-    return `${change.name} is now ${formatMoney(change.priceCents)} — total updated.`;
-  }
-  if (change.available <= 0) return `${change.name} sold out and was removed.`;
-  return `Only ${change.available} of ${change.name} left — quantity updated.`;
+  return checkoutAdjustmentNotice(change);
 }
 
 export function CartProvider({ children }: { children: React.ReactNode }) {

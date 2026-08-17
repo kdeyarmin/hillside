@@ -1,4 +1,4 @@
-import { absoluteUrl, resolveImageUrl } from './store.ts';
+import { absoluteUrl, formatMoney, resolveImageUrl } from './store.ts';
 
 /**
  * How long a Stripe Checkout Session may hold stock. Matches the class-seat
@@ -96,15 +96,21 @@ export function readCheckoutItems(body: unknown): CheckoutRequestedItem[] {
 
 export function checkoutAdjustments(
   requested: CheckoutRequestedItem[],
-  products: Array<{ slug: string; name: string; inventory: number; priceCents: number }>
+  products: Array<{
+    slug: string;
+    name: string;
+    inventory: number;
+    priceCents: number;
+    active?: boolean;
+  }>
 ): CheckoutAdjustment[] {
   const adjustments: CheckoutAdjustment[] = [];
   for (const requestedItem of requested) {
     const product = products.find((candidate) => candidate.slug === requestedItem.id);
-    if (!product) {
+    if (!product || product.active === false) {
       adjustments.push({
         slug: requestedItem.id,
-        name: 'That item',
+        name: product?.name || 'That item',
         requested: requestedItem.quantity,
         available: 0,
         reason: 'unavailable'
@@ -136,6 +142,22 @@ export function checkoutAdjustments(
     }
   }
   return adjustments;
+}
+
+export function checkoutAdjustmentNotice(change: {
+  name: string;
+  available: number;
+  reason?: 'stock' | 'price' | 'unavailable';
+  priceCents?: number;
+}) {
+  if (change.reason === 'price' && change.priceCents != null) {
+    return `${change.name} is now ${formatMoney(change.priceCents)} — total updated.`;
+  }
+  if (change.reason === 'unavailable') {
+    return `${change.name} is no longer available and was removed.`;
+  }
+  if (change.available <= 0) return `${change.name} sold out and was removed.`;
+  return `Only ${change.available} of ${change.name} left — quantity updated.`;
 }
 
 export function encodeCheckoutItems(items: Array<{ product: { id: string }; quantity: number }>) {
