@@ -15,6 +15,11 @@ describe('tokenizeSearch', () => {
     assert.deepEqual(tokenizeSearch('!!!'), []);
     assert.deepEqual(tokenizeSearch(''), []);
   });
+
+  it('keeps accented letters as their own tokens', () => {
+    assert.deepEqual(tokenizeSearch('café'), ['café']);
+    assert.deepEqual(tokenizeSearch('théière blend'), ['théière', 'blend']);
+  });
 });
 
 describe('matchesSearchTerm', () => {
@@ -46,6 +51,12 @@ describe('matchesSearchTerm', () => {
 
   it('finds a ZZ plant from a single letter', () => {
     assert.equal(matchesSearchTerm('ZZ plant', 'z'), true);
+  });
+
+  it('matches café against Café blend, not against a substring of another word', () => {
+    assert.equal(matchesSearchTerm('Café blend', 'café'), true);
+    assert.equal(matchesSearchTerm('Loose-leaf café', 'café'), true);
+    assert.equal(matchesSearchTerm('decaffeinated leaves', 'café'), false);
   });
 });
 

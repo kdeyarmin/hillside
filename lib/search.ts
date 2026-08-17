@@ -8,7 +8,8 @@
  *
  * Start-of-word is the rule that fits a plant shop: "tea" still matches
  * "teas", "teapot" and "tea-cup", and "water" still matches "watering", but
- * "tea" will not match "steady" or "instead".
+ * "tea" will not match "steady" or "instead". Accented letters stay letters:
+ * searching "café" still finds "Café blend", not a substring of another word.
  */
 
 export const SEARCH_CANDIDATE_LIMIT = 80;
@@ -22,11 +23,11 @@ export function tokenizeSearch(term: string): string[] {
   const normalized = normalizeSearchTerm(term).toLowerCase();
   if (!normalized) return [];
 
-  const tokens = normalized.split(/[^a-z0-9]+/).filter((token) => token.length >= 2);
+  const tokens = normalized.split(/[^\p{L}\p{N}]+/u).filter((token) => token.length >= 2);
   if (tokens.length) return tokens;
 
   // A single letter such as "z" should still find "ZZ plant".
-  if (/^[a-z0-9]$/.test(normalized)) return [normalized];
+  if (/^[\p{L}\p{N}]$/u.test(normalized)) return [normalized];
   return [];
 }
 
@@ -35,7 +36,7 @@ function escapeRegExp(value: string) {
 }
 
 function startsAWord(haystack: string, token: string) {
-  return new RegExp(`(?:^|[^a-z0-9])${escapeRegExp(token)}`, 'i').test(haystack);
+  return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escapeRegExp(token)}`, 'iu').test(haystack);
 }
 
 export function matchesSearchTerm(haystack: string | null | undefined, term: string) {

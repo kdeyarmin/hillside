@@ -1,4 +1,4 @@
-import { normalizeHillsideDomain } from '@/lib/store';
+import { normalizeHillsideDomain } from './store.ts';
 
 type EmailInput = {
   to: string | string[];
@@ -11,11 +11,11 @@ type EmailInput = {
 
 export function escapeHtml(value: unknown) {
   return String(value ?? '')
-    .replaceAll('&', '&')
-    .replaceAll('<', '<')
-    .replaceAll('>', '>')
-    .replaceAll('"', '"')
-    .replaceAll("'", '&#039;');
+    .replaceAll('&', '\u0026amp;')
+    .replaceAll('<', '\u0026lt;')
+    .replaceAll('>', '\u0026gt;')
+    .replaceAll('"', '\u0026quot;')
+    .replaceAll("'", '\u0026#039;');
 }
 
 export async function sendEmail(input: EmailInput) {

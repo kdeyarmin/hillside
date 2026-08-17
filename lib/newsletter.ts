@@ -11,12 +11,35 @@ import { absoluteUrl } from './store.ts';
  *
  * No expiry on purpose. An email sitting in a mailbox for a year should
  * still honour "unsubscribe".
+ *
+ * Sign with a dedicated newsletter secret when one is set. Verify against
+ * that secret, a previous newsletter secret (so rotation does not break
+ * year-old links), and the older admin / class fallbacks that already-sent
+ * mail may have been signed with.
  */
 
-function signingKey() {
-  const secret = process.env.ADMIN_SESSION_SECRET || process.env.CLASS_ACCESS_SECRET || '';
-  if (!secret) return null;
+function keyFromSecret(secret: string) {
   return crypto.createHash('sha256').update(`hillside-newsletter:${secret}`).digest();
+}
+
+function configuredSecrets() {
+  const secrets = [
+    process.env.NEWSLETTER_UNSUBSCRIBE_SECRET,
+    process.env.NEWSLETTER_UNSUBSCRIBE_SECRET_PREVIOUS,
+    process.env.ADMIN_SESSION_SECRET,
+    process.env.CLASS_ACCESS_SECRET
+  ]
+    .map((value) => value?.trim() || '')
+    .filter(Boolean);
+  return [...new Set(secrets)];
+}
+
+function signingKeys() {
+  return configuredSecrets().map(keyFromSecret);
+}
+
+function signingKey() {
+  return signingKeys()[0] ?? null;
 }
 
 function sign(value: string, key: Buffer) {
@@ -41,10 +64,12 @@ export function createUnsubscribeToken(email: string) {
 }
 
 export function readUnsubscribeToken(token: string): string | null {
-  const key = signingKey();
-  if (!key || !token) return null;
+  const keys = signingKeys();
+  if (!keys.length || !token) return null;
   const [encoded, signature] = token.split('.');
-  if (!encoded || !signature || !safeEqual(sign(encoded, key), signature)) return null;
+  if (!encoded || !signature) return null;
+  const matches = keys.some((key) => safeEqual(sign(encoded, key), signature));
+  if (!matches) return null;
   try {
     const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as {
       email?: unknown;
