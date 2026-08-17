@@ -22,7 +22,7 @@ import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { releaseProductHold } from '@/lib/checkout';
-import { adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
+import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
 
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
@@ -33,6 +33,8 @@ const slugify = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
+/** Prefer the typed slug, but if it is only punctuation fall back to the name. */
+const slugFrom = (preferred: string, fallback: string) => slugify(preferred) || slugify(fallback);
 const money = (value: FormDataEntryValue | null) => {
   const number = Number(value || 0);
   return Number.isFinite(number) ? Math.round(number * 100) : 0;
@@ -94,7 +96,7 @@ export async function saveProduct(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
   const name = text(formData, 'name');
-  const slug = slugify(text(formData, 'slug') || name);
+  const slug = slugFrom(text(formData, 'slug'), name);
   const rawType = text(formData, 'type');
   const type = Object.values(ProductType).includes(rawType as ProductType)
     ? (rawType as ProductType)
@@ -223,8 +225,16 @@ export async function saveCollection(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
   const title = text(formData, 'title');
-  const requestedSlug = slugify(text(formData, 'slug') || title);
-  if (!title || !requestedSlug) return;
+  const requestedSlug = slugFrom(text(formData, 'slug'), title);
+  if (!title || !requestedSlug) {
+    redirect(
+      adminContentPath({
+        error: 'collection-invalid',
+        section: id ? 'collections' : 'add-collection',
+        item: id || undefined
+      })
+    );
+  }
 
   const existing = id ? await db.collection.findUnique({ where: { id } }) : null;
 
@@ -244,21 +254,43 @@ export async function saveCollection(formData: FormData) {
     sortOrder: integer(formData.get('sortOrder'))
   };
 
-  if (id) await db.collection.update({ where: { id }, data });
-  else await db.collection.create({ data });
+  const collection = id
+    ? await db.collection.update({ where: { id }, data })
+    : await db.collection.create({ data });
   refresh('/', '/collections', `/collections/${slug}`, '/shop');
+  redirect(
+    adminContentPath({
+      notice: id ? 'collection-saved' : 'collection-created',
+      section: 'collections',
+      item: collection.id
+    })
+  );
 }
 
 export async function deleteCollection(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
-  if (!id) return;
+  if (!id) {
+    redirect(adminContentPath({ error: 'collection-missing', section: 'collections' }));
+  }
 
   const collection = await db.collection.findUnique({ where: { id } });
-  if (!collection || isNavigationCollection(collection.slug)) return;
+  if (!collection) {
+    redirect(adminContentPath({ error: 'collection-missing', section: 'collections' }));
+  }
+  if (isNavigationCollection(collection.slug)) {
+    redirect(
+      adminContentPath({
+        error: 'collection-locked',
+        section: 'collections',
+        item: id
+      })
+    );
+  }
 
   await db.collection.delete({ where: { id } });
   refresh('/', '/collections', '/shop');
+  redirect(adminContentPath({ notice: 'collection-deleted', section: 'collections' }));
 }
 
 export async function updateReview(formData: FormData) {
@@ -424,13 +456,21 @@ export async function saveClassEvent(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
   const title = text(formData, 'title');
-  const slug = slugify(text(formData, 'slug') || title) || null;
+  const slug = slugFrom(text(formData, 'slug'), title) || null;
   const startsAt = optionalDate(text(formData, 'startsAt'));
   const rawFormat = text(formData, 'format');
   const format = Object.values(ClassFormat).includes(rawFormat as ClassFormat)
     ? (rawFormat as ClassFormat)
     : ClassFormat.IN_PERSON;
-  if (!title || !startsAt) return;
+  if (!title || !startsAt) {
+    redirect(
+      adminContentPath({
+        error: 'content-invalid',
+        section: id ? 'classes' : 'add-class',
+        item: id || undefined
+      })
+    );
+  }
 
   const data = {
     title,
@@ -472,20 +512,36 @@ export async function saveClassEvent(formData: FormData) {
     }
   }
   refresh('/classes', '/', '/admin/content', `/admin/classes/${event.id}/studio`);
+  redirect(
+    adminContentPath({
+      notice: id ? 'class-saved' : 'class-created',
+      section: 'classes',
+      item: event.id
+    })
+  );
 }
 
 export async function prepareClassRoom(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
-  if (!id) return;
+  if (!id) {
+    redirect(adminContentPath({ error: 'content-invalid', section: 'classes' }));
+  }
   const event = await db.classEvent.findUnique({ where: { id } });
-  if (!event || !isOnlineClass(event.format)) return;
+  if (!event || !isOnlineClass(event.format)) {
+    redirect(
+      adminContentPath({ error: 'content-invalid', section: 'classes', item: id || undefined })
+    );
+  }
   try {
     await ensureTelnyxRoom(event);
   } catch (error) {
     console.error('Unable to prepare Telnyx room', error);
+    refresh('/admin/content', `/admin/classes/${id}/studio`);
+    redirect(adminContentPath({ error: 'class-room-failed', section: 'classes', item: id }));
   }
   refresh('/admin/content', `/admin/classes/${id}/studio`);
+  redirect(adminContentPath({ notice: 'class-room-ready', section: 'classes', item: id }));
 }
 
 export async function resendClassConfirmation(formData: FormData) {
@@ -556,10 +612,26 @@ export async function saveGalleryItem(formData: FormData) {
     linkLabel: text(formData, 'linkLabel') || null,
     sortOrder: integer(formData.get('sortOrder'))
   };
-  if (!data.title || !data.imageUrl) return;
-  if (id) await db.galleryItem.update({ where: { id }, data });
-  else await db.galleryItem.create({ data });
+  if (!data.title || !data.imageUrl) {
+    redirect(
+      adminContentPath({
+        error: 'content-invalid',
+        section: id ? 'gallery' : 'add-gallery',
+        item: id || undefined
+      })
+    );
+  }
+  const item = id
+    ? await db.galleryItem.update({ where: { id }, data })
+    : await db.galleryItem.create({ data });
   refresh('/gallery', '/admin/content');
+  redirect(
+    adminContentPath({
+      notice: id ? 'gallery-saved' : 'gallery-created',
+      section: 'gallery',
+      item: item.id
+    })
+  );
 }
 
 export async function saveAmazonPick(formData: FormData) {
@@ -574,17 +646,33 @@ export async function saveAmazonPick(formData: FormData) {
     active: checked(formData, 'active'),
     sortOrder: integer(formData.get('sortOrder'))
   };
-  if (!data.title || !data.amazonUrl) return;
-  if (id) await db.amazonPick.update({ where: { id }, data });
-  else await db.amazonPick.create({ data });
+  if (!data.title || !data.amazonUrl) {
+    redirect(
+      adminContentPath({
+        error: 'content-invalid',
+        section: id ? 'amazon' : 'add-amazon',
+        item: id || undefined
+      })
+    );
+  }
+  const item = id
+    ? await db.amazonPick.update({ where: { id }, data })
+    : await db.amazonPick.create({ data });
   refresh('/amazon', '/admin/content');
+  redirect(
+    adminContentPath({
+      notice: id ? 'amazon-saved' : 'amazon-created',
+      section: 'amazon',
+      item: item.id
+    })
+  );
 }
 
 export async function saveCareSheet(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
   const plantName = text(formData, 'plantName');
-  const slug = slugify(text(formData, 'slug') || plantName);
+  const slug = slugFrom(text(formData, 'slug'), plantName);
   const data = {
     plantName,
     slug,
@@ -602,10 +690,26 @@ export async function saveCareSheet(formData: FormData) {
     productId: text(formData, 'productId') || null,
     published: checked(formData, 'published')
   };
-  if (!plantName || !slug || !data.summary) return;
-  if (id) await db.careSheet.update({ where: { id }, data });
-  else await db.careSheet.create({ data });
+  if (!plantName || !slug || !data.summary) {
+    redirect(
+      adminContentPath({
+        error: 'content-invalid',
+        section: id ? 'care' : 'add-care',
+        item: id || undefined
+      })
+    );
+  }
+  const sheet = id
+    ? await db.careSheet.update({ where: { id }, data })
+    : await db.careSheet.create({ data });
   refresh('/care', `/care/${slug}`, '/admin/content');
+  redirect(
+    adminContentPath({
+      notice: id ? 'care-saved' : 'care-created',
+      section: 'care',
+      item: sheet.id
+    })
+  );
 }
 
 export async function archiveContent(formData: FormData) {
@@ -618,6 +722,21 @@ export async function archiveContent(formData: FormData) {
   if (kind === 'amazon') await db.amazonPick.update({ where: { id }, data: { active: false } });
   if (kind === 'care') await db.careSheet.update({ where: { id }, data: { published: false } });
   refresh('/classes', '/gallery', '/amazon', '/care', '/admin/content');
+  const section =
+    kind === 'class'
+      ? 'classes'
+      : kind === 'gallery'
+        ? 'gallery'
+        : kind === 'amazon'
+          ? 'amazon'
+          : 'care';
+  redirect(
+    adminContentPath({
+      notice: kind === 'gallery' ? 'gallery-deleted' : 'content-archived',
+      section,
+      item: kind === 'gallery' ? undefined : id
+    })
+  );
 }
 
 export async function updateMessageStatus(formData: FormData) {

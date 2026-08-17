@@ -71,6 +71,10 @@ export function adminDashboardPath(query: Record<string, string | undefined | nu
   return encoded ? `/admin?${encoded}` : '/admin';
 }
 
+export function adminContentPath(query: Record<string, string | undefined | null> = {}) {
+  return adminDashboardPath(query).replace(/^\/admin/, '/admin/content');
+}
+
 /**
  * Next can hand a repeated query string through as `string[]`. The dashboard
  * used to call `.trim()` on `params.q` directly, so `/admin?q=one&q=two`
@@ -97,7 +101,21 @@ export const ADMIN_NOTICES: Record<string, string> = {
   'review-saved': 'Review updated.',
   'subscriber-saved': 'Subscriber updated.',
   'registration-saved': 'Registration updated.',
-  'registration-emailed': 'Class confirmation emailed.'
+  'registration-emailed': 'Class confirmation emailed.',
+  'collection-saved': 'Collection saved.',
+  'collection-created': 'Collection created.',
+  'collection-deleted': 'Collection deleted.',
+  'class-saved': 'Class saved.',
+  'class-created': 'Class created.',
+  'class-room-ready': 'Telnyx room prepared.',
+  'gallery-saved': 'Gallery item saved.',
+  'gallery-created': 'Gallery item added.',
+  'gallery-deleted': 'Gallery photo deleted.',
+  'amazon-saved': 'Amazon pick saved.',
+  'amazon-created': 'Amazon pick published.',
+  'care-saved': 'Care sheet saved.',
+  'care-created': 'Care sheet published.',
+  'content-archived': 'Archived. It is no longer on the public website.'
 };
 
 export const ADMIN_ERRORS: Record<string, string> = {
@@ -114,6 +132,13 @@ export const ADMIN_ERRORS: Record<string, string> = {
     'Confirmation mail is only sent for paid orders that have not shipped yet.',
   'registration-email-failed':
     'The class confirmation could not be sent. The guest’s previous classroom link is still valid. Check that RESEND_API_KEY is set.',
+  'collection-invalid': 'A collection needs a name.',
+  'collection-missing': 'That collection is no longer here.',
+  'collection-locked':
+    'That collection is part of the site header and cannot be renamed away, hidden or deleted.',
+  'class-room-failed':
+    'The class was saved, but the Telnyx room could not be prepared. Check TELNYX_API_KEY and try Prepare room again.',
+  'content-invalid': 'That form was missing a required field.',
   throttled: 'Too many sign-in attempts. Please wait a few minutes and try again.',
   '1': 'That email address and password didn’t match an admin account.'
 };
