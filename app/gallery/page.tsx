@@ -95,7 +95,7 @@ export default async function Gallery() {
               <div className="sectionhead">
                 <div className="eyebrow">Build your own</div>
                 <h2>Start with one of these.</h2>
-                <p>Every arrangement here began with plants we still have in the shop.</p>
+                <p>A few plants currently on the bench, if you want to start your own.</p>
               </div>
               <ProductGrid products={shopProducts} />
             </div>

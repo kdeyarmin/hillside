@@ -174,7 +174,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <main id="main-content" tabIndex={-1}>
             {children}
           </main>
-          <SiteFooter contactEmail={businessEmail()} />
+          <SiteFooter contactEmail={businessEmail()} catalogEmpty={catalogEmpty} />
         </CartProvider>
         <Analytics />
       </body>
