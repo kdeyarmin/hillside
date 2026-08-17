@@ -1,4 +1,4 @@
-import { normalizeHillsideDomain } from '@/lib/store';
+import { normalizeHillsideDomain } from './store.ts';
 
 type EmailInput = {
   to: string | string[];
