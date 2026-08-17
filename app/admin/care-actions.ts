@@ -51,7 +51,7 @@ export async function setCareGuidePublished(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
   const published = checked(formData, 'published');
-  if (!id) redirect(adminCarePath({ error: 'required' }));
+  if (!id) redirect(adminCarePath());
   const guide = await db.careSheet.update({ where: { id }, data: { published } });
   refresh(guide.slug);
   redirect(adminCarePath({ edit: guide.slug, notice: published ? 'published' : 'draft' }));

@@ -31,6 +31,27 @@ describe('parseCareGuideInput', () => {
     assert.equal(parsed.slug, 'yellow-leaves');
   });
 
+  it('keeps the persisted id when a required field is blank so the row can reopen', () => {
+    const parsed = parseCareGuideInput(
+      form({
+        id: 'guide-1',
+        plantName: 'Yellow leaves',
+        slug: 'new-yellow-leaves',
+        summary: '   ',
+        tips: 'Check watering first.',
+        guideType: 'PROBLEM'
+      })
+    );
+    assert.equal(parsed.ok, false);
+    if (parsed.ok) return;
+    assert.equal(parsed.id, 'guide-1');
+    assert.equal(parsed.slug, 'new-yellow-leaves');
+    assert.equal(
+      adminCarePath({ error: 'required', edit: parsed.slug, item: parsed.id }),
+      '/admin/care?error=required&edit=new-yellow-leaves&item=guide-1'
+    );
+  });
+
   it('keeps the chosen guide type and leaves empty diagnostics as null', () => {
     const parsed = parseCareGuideInput(
       form({

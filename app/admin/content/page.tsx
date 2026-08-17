@@ -413,7 +413,7 @@ export default async function ContentManager({
                         className="text-button danger"
                         message={`Unpublish “${sheet.plantName}”? It will leave the care library.`}
                       >
-                        Unpublish care sheet
+                        Unpublish guide
                       </ConfirmSubmit>
                     </form>
                   )}
