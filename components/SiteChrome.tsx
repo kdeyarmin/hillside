@@ -600,7 +600,7 @@ export function SiteHeader({
                   {label}
                 </Link>
               ))}
-              <Link href="/shop">Shop everything</Link>
+              {!catalogEmpty && <Link href="/shop">Shop everything</Link>}
               {!catalogEmpty && <Link href="/shop?sort=new">New Arrivals</Link>}
               <Link
                 href="/order-status"
@@ -643,7 +643,13 @@ export function SiteHeader({
  * variable — reading `process.env` here would compile to `undefined` in the
  * browser bundle and quietly drop the address from the footer.
  */
-export function SiteFooter({ contactEmail = DEFAULT_BUSINESS_EMAIL }: { contactEmail?: string }) {
+export function SiteFooter({
+  contactEmail = DEFAULT_BUSINESS_EMAIL,
+  catalogEmpty = false
+}: {
+  contactEmail?: string;
+  catalogEmpty?: boolean;
+}) {
   const pathname = usePathname();
   const showNewsletter = pathname !== '/';
 
@@ -691,9 +697,11 @@ export function SiteFooter({ contactEmail = DEFAULT_BUSINESS_EMAIL }: { contactE
         </div>
         <div>
           <h4>Explore</h4>
-          <p>
-            <Link href="/shop">Shop</Link>
-          </p>
+          {!catalogEmpty && (
+            <p>
+              <Link href="/shop">Shop</Link>
+            </p>
+          )}
           {CLASSES_PUBLICLY_VISIBLE && (
             <p>
               <Link href="/classes">Classes</Link>

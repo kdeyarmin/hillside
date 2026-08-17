@@ -9,7 +9,7 @@ export const metadata = pageMetadata({
   path: '/collections',
   title: 'Shop by collection',
   description:
-    'Browse The Hillside Gardens by collection — house plants, carnivorous plants, planters, succulents, air plants, soaps, moss, driftwood, apothecary and terrarium supplies.'
+    'Browse The Hillside Gardens by collection — plants, teas and botanicals grouped the way we keep them.'
 });
 
 export default async function CollectionsIndex() {

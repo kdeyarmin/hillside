@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import CareLibrary from '@/components/CareLibrary';
+import { catalogHasActiveProducts } from '@/lib/catalog';
 import { db } from '@/lib/db';
 import { pageMetadata } from '@/lib/seo';
 
@@ -62,35 +63,47 @@ const symptomLinks = [
 ] as const;
 
 export default async function Care() {
-  const guides = await db.careSheet.findMany({
-    where: { published: true },
-    orderBy: [
-      { featured: 'desc' },
-      { guideType: 'asc' },
-      { sortOrder: 'asc' },
-      { plantName: 'asc' }
-    ],
-    select: {
-      id: true,
-      plantName: true,
-      slug: true,
-      guideType: true,
-      category: true,
-      difficulty: true,
-      botanical: true,
-      summary: true,
-      light: true,
-      water: true,
-      symptoms: true,
-      imageUrl: true,
-      featured: true
-    }
-  });
+  const [guides, hasCatalog] = await Promise.all([
+    db.careSheet.findMany({
+      where: { published: true },
+      orderBy: [
+        { featured: 'desc' },
+        { guideType: 'asc' },
+        { sortOrder: 'asc' },
+        { plantName: 'asc' }
+      ],
+      select: {
+        id: true,
+        plantName: true,
+        slug: true,
+        guideType: true,
+        category: true,
+        difficulty: true,
+        botanical: true,
+        summary: true,
+        light: true,
+        water: true,
+        symptoms: true,
+        imageUrl: true,
+        featured: true
+      }
+    }),
+    catalogHasActiveProducts()
+  ]);
+
+  const catalogEmpty = !hasCatalog;
+  const publishedSlugs = new Set(guides.map((guide) => guide.slug));
+  const visibleQuickStarts = quickStarts.filter((item) =>
+    publishedSlugs.has(item.href.replace(/^\/care\//, ''))
+  );
+  const visibleSymptoms = symptomLinks.filter(([, href]) =>
+    publishedSlugs.has(href.replace(/^\/care\//, ''))
+  );
 
   const plantProfiles = guides.filter((guide) => guide.guideType === 'PLANT').length;
   const problemGuides = guides.filter((guide) => guide.guideType === 'PROBLEM').length;
-  const learningGuides = guides.filter((guide) =>
-    guide.guideType === 'GENERAL' || guide.guideType === 'SEASONAL'
+  const learningGuides = guides.filter(
+    (guide) => guide.guideType === 'GENERAL' || guide.guideType === 'SEASONAL'
   ).length;
 
   return (
@@ -105,52 +118,73 @@ export default async function Care() {
               steps that help you decide what to check next.
             </p>
             <div className="care-library-stats" aria-label="Plant care library contents">
-              <span><Leaf size={18} /><b>{plantProfiles}</b> plant profiles</span>
-              <span><AlertTriangle size={18} /><b>{problemGuides}</b> problem guides</span>
-              <span><SearchCheck size={18} /><b>{learningGuides}</b> care lessons</span>
+              <span>
+                <Leaf size={18} />
+                <b>{plantProfiles}</b> plant profiles
+              </span>
+              <span>
+                <AlertTriangle size={18} />
+                <b>{problemGuides}</b> problem guides
+              </span>
+              <span>
+                <SearchCheck size={18} />
+                <b>{learningGuides}</b> care lessons
+              </span>
             </div>
           </div>
           <BrandMockupScene variant="care" />
         </div>
       </section>
 
-      <section className="care-quick-start-section">
-        <div className="container">
-          <div className="sectionhead">
-            <div className="eyebrow">Start with the essentials</div>
-            <h2>Four guides that prevent most houseplant problems.</h2>
-            <p>Strong light decisions, thoughtful watering and healthy roots solve more than any quick fix.</p>
+      {visibleQuickStarts.length > 0 && (
+        <section className="care-quick-start-section">
+          <div className="container">
+            <div className="sectionhead">
+              <div className="eyebrow">Start with the essentials</div>
+              <h2>Guides that prevent most houseplant problems.</h2>
+              <p>
+                Strong light decisions, thoughtful watering and healthy roots solve more than any
+                quick fix.
+              </p>
+            </div>
+            <div className="care-quick-start-grid">
+              {visibleQuickStarts.map(({ title, description, href, icon: Icon }) => (
+                <Link href={href} className="care-quick-start-card" key={href}>
+                  <Icon size={27} />
+                  <h3>{title}</h3>
+                  <p>{description}</p>
+                  <span>
+                    Read guide <ArrowRight size={15} />
+                  </span>
+                </Link>
+              ))}
+            </div>
           </div>
-          <div className="care-quick-start-grid">
-            {quickStarts.map(({ title, description, href, icon: Icon }) => (
-              <Link href={href} className="care-quick-start-card" key={href}>
-                <Icon size={27} />
-                <h3>{title}</h3>
-                <p>{description}</p>
-                <span>Read guide <ArrowRight size={15} /></span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
-      <section className="care-plant-doctor">
-        <div className="container care-plant-doctor-inner">
-          <div>
-            <div className="eyebrow">Plant doctor</div>
-            <h2>What are you noticing?</h2>
-            <p>
-              Choose the symptom that looks closest. Plant symptoms overlap, so each guide begins
-              with simple checks before recommending a treatment.
-            </p>
+      {visibleSymptoms.length > 0 && (
+        <section className="care-plant-doctor">
+          <div className="container care-plant-doctor-inner">
+            <div>
+              <div className="eyebrow">Plant doctor</div>
+              <h2>What are you noticing?</h2>
+              <p>
+                Choose the symptom that looks closest. Plant symptoms overlap, so each guide begins
+                with simple checks before recommending a treatment.
+              </p>
+            </div>
+            <div className="care-symptom-links">
+              {visibleSymptoms.map(([label, href]) => (
+                <Link href={href} key={href}>
+                  {label}
+                  <ArrowRight size={14} />
+                </Link>
+              ))}
+            </div>
           </div>
-          <div className="care-symptom-links">
-            {symptomLinks.map(([label, href]) => (
-              <Link href={href} key={href}>{label}<ArrowRight size={14} /></Link>
-            ))}
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       <section className="content care-library-content">
         <div className="container">
@@ -165,8 +199,14 @@ export default async function Care() {
                 question and we will answer it directly.
               </p>
               <div className="actions" style={{ justifyContent: 'center' }}>
-                <Link className="btn" href="/contact">Ask a plant question</Link>
-                <Link className="btn outline" href="/shop">Browse the shop</Link>
+                <Link className="btn" href="/contact">
+                  Ask a plant question
+                </Link>
+                {!catalogEmpty && (
+                  <Link className="btn outline" href="/shop">
+                    Browse the shop
+                  </Link>
+                )}
               </div>
             </div>
           )}
