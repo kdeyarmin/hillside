@@ -42,6 +42,11 @@ npm run db:seed
 
 ## Care manager
 
+Guides are edited in one place: `/admin/care`. The website content manager at
+`/admin/content#care` lists every sheet and can unpublish one, but it no longer
+has a second, narrower form — that stub could publish a hollow plant profile
+and hide the diagnostic fields the public page actually shows.
+
 The dedicated manager at `/admin/care` allows Tammy to:
 
 - Create and edit all four guide types

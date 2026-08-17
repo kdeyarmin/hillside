@@ -1,27 +1,27 @@
 import '../../classroom.css';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import type { AmazonPick, CareSheet, ClassEvent, Collection, GalleryItem } from '@prisma/client';
+import type { AmazonPick, ClassEvent, Collection, GalleryItem } from '@prisma/client';
 import { ClassFormat } from '@prisma/client';
 import AdminDeepLink from '@/components/AdminDeepLink';
 import ConfirmSubmit from '@/components/ConfirmSubmit';
 import { isAdmin } from '@/lib/admin';
-import { classFormatLabel, isOnlineClass } from '@/lib/class-access';
-import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
-import { isNavigationCollection } from '@/lib/collections';
-import { db } from '@/lib/db';
 import {
   ADMIN_ERRORS,
   ADMIN_NOTICES,
   firstSearchParam
 } from '@/lib/admin-dashboard';
+import { careGuideTypeLabel } from '@/lib/care-seed-data';
+import { classFormatLabel, isOnlineClass } from '@/lib/class-access';
+import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
+import { isNavigationCollection } from '@/lib/collections';
+import { db } from '@/lib/db';
 import { telnyxVideoConfigured } from '@/lib/telnyx-video';
 import {
   archiveContent,
   deleteCollection,
   prepareClassRoom,
   saveAmazonPick,
-  saveCareSheet,
   saveClassEvent,
   saveCollection,
   saveGalleryItem
@@ -132,47 +132,6 @@ function AmazonFields({ item }: { item?: AmazonPick }) {
   );
 }
 
-function CareFields({
-  sheet,
-  products
-}: {
-  sheet?: CareSheet;
-  products: Array<{ id: string; name: string; active: boolean }>;
-}) {
-  return (
-    <>
-      {sheet && <input type="hidden" name="id" value={sheet.id} />}
-      <div className="admin-form-grid">
-        <label className="admin-label">Plant name<input className="admin-input" name="plantName" defaultValue={sheet?.plantName} required /></label>
-        <label className="admin-label">URL slug<input className="admin-input" name="slug" defaultValue={sheet?.slug} placeholder="created-from-name" /></label>
-        <label className="admin-label">Botanical name<input className="admin-input" name="botanical" defaultValue={sheet?.botanical || ''} /></label>
-        <label className="admin-label">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={sheet?.imageUrl || ''} /></label>
-        <label className="admin-label full">Short introduction<textarea className="admin-input" name="summary" rows={3} defaultValue={sheet?.summary} required /></label>
-        <label className="admin-label">Light<input className="admin-input" name="light" defaultValue={sheet?.light} /></label>
-        <label className="admin-label">Water<input className="admin-input" name="water" defaultValue={sheet?.water} /></label>
-        <label className="admin-label">Humidity<input className="admin-input" name="humidity" defaultValue={sheet?.humidity} /></label>
-        <label className="admin-label">Soil<input className="admin-input" name="soil" defaultValue={sheet?.soil} /></label>
-        <label className="admin-label">Feeding<input className="admin-input" name="feeding" defaultValue={sheet?.feeding} /></label>
-        <label className="admin-label">Temperature<input className="admin-input" name="temperature" defaultValue={sheet?.temperature} /></label>
-        <label className="admin-label full">Pet safety<input className="admin-input" name="petSafety" defaultValue={sheet?.petSafety || ''} /></label>
-        <label className="admin-label full">Our best tips<textarea className="admin-input" name="tips" rows={4} defaultValue={sheet?.tips} /></label>
-        <label className="admin-label full">
-          Sell this plant on the guide
-          <select className="admin-input" name="productId" defaultValue={sheet?.productId || ''}>
-            <option value="">No product — show current plants instead</option>
-            {products.map((product) => (
-              <option value={product.id} key={product.id}>
-                {product.name}{product.active ? '' : ' (archived)'}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <label className="admin-checkbox" style={{ marginTop: 12 }}><input name="published" type="checkbox" defaultChecked={sheet?.published ?? true} /> Published in care library</label>
-    </>
-  );
-}
-
 export default async function ContentManager({
   searchParams
 }: {
@@ -195,12 +154,11 @@ export default async function ContentManager({
       : focusSection === 'collections'
         ? 'collection'
         : focusSection || 'item';
-  const [classes, gallery, picks, sheets, products, collections] = await Promise.all([
+  const [classes, gallery, picks, sheets, collections] = await Promise.all([
     db.classEvent.findMany({ orderBy: { startsAt: 'desc' } }),
     db.galleryItem.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] }),
     db.amazonPick.findMany({ orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { title: 'asc' }] }),
     db.careSheet.findMany({ orderBy: [{ published: 'desc' }, { plantName: 'asc' }] }),
-    db.product.findMany({ orderBy: [{ active: 'desc' }, { name: 'asc' }], select: { id: true, name: true, active: true } }),
     db.collection.findMany({
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
       include: { _count: { select: { products: { where: { active: true } } } } }
@@ -222,7 +180,8 @@ export default async function ContentManager({
         <a href="#classes">Classes</a>
         <a href="#gallery">Gallery</a>
         <a href="#amazon">Amazon picks</a>
-        <a href="#care">Plant care sheets</a>
+        <a href="#care">Plant care library</a>
+        <Link href="/admin/care">Open care library</Link>
         <Link href="/">View public website</Link>
       </aside>
       <div className="adminmain">
@@ -407,13 +366,61 @@ export default async function ContentManager({
         </section>
 
         <section className="admin-section" id="care">
-          <div className="toolbar"><div><h2>Plant care sheets</h2><p className="muted">Each published plant receives a searchable detail page and print-friendly care sheet. Problem and seasonal guides are easier to edit in the full <Link className="text-link" href="/admin/care">care library manager</Link>.</p></div><Link className="btn outline small" href="/admin/care">Open care library manager</Link></div>
+          <div className="toolbar">
+            <div>
+              <h2>Plant care library</h2>
+              <p className="muted">
+                Guides are edited in the care library manager so plant profiles, problem guides and
+                seasonal checklists stay one form. Unpublish here if you only need to take a sheet
+                off the public library.
+              </p>
+            </div>
+            <div className="admin-actions">
+              <Link className="btn" href="/admin/care">Open care library</Link>
+              <Link className="btn outline small" href="/admin/care#new-guide">Add a guide</Link>
+            </div>
+          </div>
           <div className="admin-list">
             {sheets.map((sheet) => (
-              <details key={sheet.id} id={`care-${sheet.id}`} open={focusItem === sheet.id}><summary><span>{sheet.plantName}{sheet.botanical ? ` • ${sheet.botanical}` : ''}</span><span className={`status-badge ${sheet.published ? 'PAID' : 'CANCELLED'}`}>{sheet.published ? 'Published' : 'Draft'}</span></summary><div><form action={saveCareSheet}><CareFields sheet={sheet} products={products} /><div className="admin-actions"><button className="btn small">Save care sheet</button><Link className="btn outline small" href={`/care/${sheet.slug}`}>View guide</Link></div></form>{sheet.published && <form action={archiveContent} style={{ marginTop: 10 }}><input type="hidden" name="id" value={sheet.id} /><input type="hidden" name="kind" value="care" /><ConfirmSubmit className="text-button danger" message={`Unpublish “${sheet.plantName}”? It will leave the care library.`}>Unpublish care sheet</ConfirmSubmit></form>}</div></details>
+              <details key={sheet.id} id={`care-${sheet.id}`} open={focusItem === sheet.id}>
+                <summary>
+                  <span>
+                    {sheet.plantName}
+                    {sheet.botanical ? ` • ${sheet.botanical}` : ''} • {careGuideTypeLabel(sheet.guideType)}
+                  </span>
+                  <span className={`status-badge ${sheet.published ? 'PAID' : 'CANCELLED'}`}>
+                    {sheet.published ? 'Published' : 'Draft'}
+                  </span>
+                </summary>
+                <div>
+                  <p className="muted" style={{ marginTop: 0 }}>
+                    {sheet.category ? `${sheet.category} • ` : ''}
+                    {sheet.summary}
+                  </p>
+                  <div className="admin-actions">
+                    <Link className="btn small" href={`/admin/care?edit=${encodeURIComponent(sheet.slug)}`}>
+                      Edit guide
+                    </Link>
+                    <Link className="btn outline small" href={`/care/${sheet.slug}`}>
+                      View guide
+                    </Link>
+                  </div>
+                  {sheet.published && (
+                    <form action={archiveContent} style={{ marginTop: 10 }}>
+                      <input type="hidden" name="id" value={sheet.id} />
+                      <input type="hidden" name="kind" value="care" />
+                      <ConfirmSubmit
+                        className="text-button danger"
+                        message={`Unpublish “${sheet.plantName}”? It will leave the care library.`}
+                      >
+                        Unpublish guide
+                      </ConfirmSubmit>
+                    </form>
+                  )}
+                </div>
+              </details>
             ))}
           </div>
-          <div className="admin-card" id="add-care" style={{ marginTop: 20 }}><h2 style={{ marginTop: 0 }}>Add a plant care sheet</h2><form action={saveCareSheet}><CareFields products={products} /><button className="btn" style={{ marginTop: 16 }}>Publish care sheet</button></form></div>
         </section>
       </div>
     </div>
