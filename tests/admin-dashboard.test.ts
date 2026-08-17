@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  adminContentPath,
   adminDashboardPath,
   firstSearchParam,
   parseAdminStockFilter,
@@ -93,5 +94,19 @@ describe('firstSearchParam', () => {
     assert.equal(firstSearchParam([]), '');
     assert.equal(firstSearchParam(undefined), '');
     assert.equal(firstSearchParam(null), '');
+  });
+});
+
+describe('adminContentPath', () => {
+  it('stays on the content manager and keeps the focused row', () => {
+    assert.equal(adminContentPath({}), '/admin/content');
+    assert.equal(
+      adminContentPath({
+        notice: 'collection-saved',
+        section: 'collections',
+        item: 'col_1'
+      }),
+      '/admin/content?notice=collection-saved&section=collections&item=col_1'
+    );
   });
 });
