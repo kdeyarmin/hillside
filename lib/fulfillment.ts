@@ -1,4 +1,7 @@
 export const GIFT_MESSAGE_MAX = 280;
+export const PICKUP_ARRANGE_HREF = '/contact?subject=Local+pickup+inquiry';
+export const PICKUP_ARRANGE_ERROR =
+  'Contact us to arrange a pickup time before choosing local pickup at checkout.';
 
 export type FulfillmentChoice = 'SHIP' | 'PICKUP';
 
@@ -38,7 +41,8 @@ export function cartFulfillment(items: FulfillmentFlags[]): CartFulfillment {
 
 export function resolveFulfillment(
   requested: FulfillmentChoice,
-  options: CartFulfillment
+  options: CartFulfillment,
+  arranged = false
 ): { ok: true; method: FulfillmentChoice } | { ok: false; error: string } {
   if (options.conflict) {
     return {
@@ -59,6 +63,9 @@ export function resolveFulfillment(
       ok: false,
       error: 'These items are available for local pickup only.'
     };
+  }
+  if (method === 'PICKUP' && !arranged) {
+    return { ok: false, error: PICKUP_ARRANGE_ERROR };
   }
   return { ok: true, method };
 }
@@ -85,6 +92,11 @@ export function sanitizeGiftMessage(value: unknown): string | null {
 export function readGiftMessage(body: unknown): string | null {
   if (!body || typeof body !== 'object') return null;
   return sanitizeGiftMessage((body as { giftMessage?: unknown }).giftMessage);
+}
+
+export function readPickupArranged(body: unknown) {
+  if (!body || typeof body !== 'object') return false;
+  return (body as { pickupArranged?: unknown }).pickupArranged === true;
 }
 
 export function shippingMethodLabel(method: FulfillmentChoice, shippingCents: number) {
@@ -114,10 +126,10 @@ export function fulfillmentBlurb(product: FulfillmentFlags) {
   const ship = offersShipping(product);
   const pickup = offersPickup(product);
   if (ship && pickup) {
-    return 'Ships to US addresses. Local pickup in Ebensburg is available at checkout.';
+    return 'Ships to US addresses. Local pickup is available after you arrange a time with us.';
   }
   if (pickup) {
-    return 'Local pickup only. We will email when it is ready — please do not come until you hear from us.';
+    return 'Local pickup only. Contact us to arrange a time, then choose pickup at checkout. Please do not come until we confirm it is ready.';
   }
   return 'Ships to US addresses.';
 }

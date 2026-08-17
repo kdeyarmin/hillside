@@ -20,6 +20,7 @@ import {
   cartFulfillment,
   readFulfillmentChoice,
   readGiftMessage,
+  readPickupArranged,
   resolveFulfillment,
   shippingMethodLabel
 } from '@/lib/fulfillment';
@@ -78,7 +79,8 @@ export async function POST(request: Request) {
 
     const fulfillment = resolveFulfillment(
       readFulfillmentChoice(body),
-      cartFulfillment(items.map(({ product }) => product))
+      cartFulfillment(items.map(({ product }) => product)),
+      readPickupArranged(body)
     );
     if (!fulfillment.ok) {
       return NextResponse.json({ error: fulfillment.error }, { status: 400 });
@@ -213,7 +215,7 @@ export async function POST(request: Request) {
           ? {
               submit: {
                 message:
-                  'Local pickup in Ebensburg. We will email when the order is ready — please do not come until you hear from us.'
+                  'Local pickup in Ebensburg, as arranged. We will email when the order is ready — please do not come until you hear from us.'
               }
             }
           : {

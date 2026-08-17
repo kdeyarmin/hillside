@@ -96,7 +96,7 @@ export default async function Success({
         </h1>
         <p style={{ fontSize: 18 }}>
           {pickup
-            ? 'Your payment was successful. This order is for local pickup in Ebensburg. We will email when it is ready — please wait for that note before you come by.'
+            ? 'Your payment was successful. This pickup was arranged with us. We will email when it is ready — please wait for that note before you come by.'
             : 'Your payment was successful. We will begin preparing your Hillside order.'}
         </p>
         <div className="admin-card" style={{ textAlign: 'left', margin: '28px 0' }}>

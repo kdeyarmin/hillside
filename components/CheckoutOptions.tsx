@@ -1,10 +1,19 @@
 'use client';
 
-import { cartFulfillment, GIFT_MESSAGE_MAX } from '@/lib/fulfillment';
+import Link from 'next/link';
+import { cartFulfillment, GIFT_MESSAGE_MAX, PICKUP_ARRANGE_HREF } from '@/lib/fulfillment';
 import { useCart } from '@/components/CartProvider';
 
 export default function CheckoutOptions({ compact = false }: { compact?: boolean }) {
-  const { items, fulfillment, setFulfillment, giftMessage, setGiftMessage } = useCart();
+  const {
+    items,
+    fulfillment,
+    setFulfillment,
+    giftMessage,
+    setGiftMessage,
+    pickupArranged,
+    setPickupArranged
+  } = useCart();
   const options = cartFulfillment(items);
 
   if (!items.length) return null;
@@ -43,11 +52,30 @@ export default function CheckoutOptions({ compact = false }: { compact?: boolean
               />
               <span>
                 <b>Local pickup</b>
-                <small>Ebensburg. We email when it is ready — please wait for that note.</small>
+                <small>Arrange a time with us first, then choose this option.</small>
               </span>
             </label>
           )}
         </fieldset>
+      )}
+
+      {options.canPickup && fulfillment === 'PICKUP' && !options.conflict && (
+        <div className="pickup-arrange">
+          <p>
+            <Link className="text-link" href={PICKUP_ARRANGE_HREF}>
+              Contact us to arrange pickup
+            </Link>{' '}
+            before you pay. We will confirm a window, then you can check out as a pickup.
+          </p>
+          <label>
+            <input
+              type="checkbox"
+              checked={pickupArranged}
+              onChange={(event) => setPickupArranged(event.target.checked)}
+            />
+            <span>I have already arranged this pickup with The Hillside Gardens.</span>
+          </label>
+        </div>
       )}
 
       <label className="gift-message-field">

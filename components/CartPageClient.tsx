@@ -26,6 +26,7 @@ export default function CartPageClient({
     checkoutError,
     checkoutNotice,
     fulfillment,
+    pickupArranged,
     setQuantity,
     removeItem,
     replaceItems,
@@ -154,7 +155,7 @@ export default function CartPageClient({
       : 100;
   const pickup = fulfillment === 'PICKUP';
   const options = cartFulfillment(items);
-  const checkoutBlocked = options.conflict;
+  const checkoutBlocked = options.conflict || (pickup && !pickupArranged);
 
   return (
     <div className="cart-page">
@@ -278,7 +279,7 @@ export default function CartPageClient({
         </button>
         <p className="muted" style={{ fontSize: 12 }}>
           {pickup
-            ? 'Stripe securely collects payment and a contact address. We will email when the pickup is ready.'
+            ? 'Arrange pickup with us first. Stripe then collects payment and a contact address.'
             : 'Stripe securely collects payment, billing and shipping information. Promotion codes can be entered during checkout.'}
         </p>
 

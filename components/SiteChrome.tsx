@@ -162,6 +162,7 @@ function CartDrawer({
     checkoutError,
     checkoutNotice,
     fulfillment,
+    pickupArranged,
     closeCart,
     setQuantity,
     removeItem,
@@ -356,7 +357,11 @@ function CartDrawer({
                 className="btn full"
                 type="button"
                 onClick={checkout}
-                disabled={checkoutLoading || cartFulfillment(items).conflict}
+                disabled={
+                  checkoutLoading ||
+                  cartFulfillment(items).conflict ||
+                  (fulfillment === 'PICKUP' && !pickupArranged)
+                }
                 aria-busy={checkoutLoading}
               >
                 {checkoutLoading ? 'Opening secure checkout…' : 'Secure checkout'}

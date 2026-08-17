@@ -7,10 +7,12 @@ const {
   orderStatusHeading,
   readFulfillmentChoice,
   readGiftMessage,
+  readPickupArranged,
   resolveFulfillment,
   sanitizeGiftMessage,
   shippingMethodLabel,
-  GIFT_MESSAGE_MAX
+  GIFT_MESSAGE_MAX,
+  PICKUP_ARRANGE_ERROR
 } = await import('../lib/fulfillment.ts');
 
 describe('sanitizeGiftMessage', () => {
@@ -87,14 +89,26 @@ describe('cartFulfillment', () => {
 });
 
 describe('resolveFulfillment', () => {
-  it('accepts the customer choice when the cart allows it', () => {
+  it('accepts pickup only after it has been arranged', () => {
     const options = cartFulfillment([{ ships: true, pickup: true }]);
-    assert.deepEqual(resolveFulfillment('PICKUP', options), { ok: true, method: 'PICKUP' });
+    assert.deepEqual(resolveFulfillment('PICKUP', options, true), { ok: true, method: 'PICKUP' });
+    assert.deepEqual(resolveFulfillment('PICKUP', options, false), {
+      ok: false,
+      error: PICKUP_ARRANGE_ERROR
+    });
   });
 
-  it('overrides a ship request when the cart is pickup only', () => {
+  it('overrides a ship request when the cart is pickup only, still requiring an arrangement', () => {
     const options = cartFulfillment([{ ships: false, pickup: true }]);
-    assert.deepEqual(resolveFulfillment('SHIP', options), { ok: true, method: 'PICKUP' });
+    assert.deepEqual(resolveFulfillment('SHIP', options, true), { ok: true, method: 'PICKUP' });
+    const refused = resolveFulfillment('SHIP', options, false);
+    assert.equal(refused.ok, false);
+    if (!refused.ok) assert.equal(refused.error, PICKUP_ARRANGE_ERROR);
+  });
+
+  it('lets a ship order through without an arrangement', () => {
+    const options = cartFulfillment([{ ships: true, pickup: true }]);
+    assert.deepEqual(resolveFulfillment('SHIP', options, false), { ok: true, method: 'SHIP' });
   });
 
   it('refuses a conflicting cart instead of guessing', () => {
@@ -102,9 +116,17 @@ describe('resolveFulfillment', () => {
       { ships: false, pickup: true },
       { ships: true, pickup: false }
     ]);
-    const result = resolveFulfillment('PICKUP', options);
+    const result = resolveFulfillment('PICKUP', options, true);
     assert.equal(result.ok, false);
     if (!result.ok) assert.match(result.error, /mixes pieces/);
+  });
+});
+
+describe('readPickupArranged', () => {
+  it('only treats an explicit true as arranged', () => {
+    assert.equal(readPickupArranged({ pickupArranged: true }), true);
+    assert.equal(readPickupArranged({ pickupArranged: 'true' }), false);
+    assert.equal(readPickupArranged({}), false);
   });
 });
 
@@ -116,8 +138,8 @@ describe('labels', () => {
   });
 
   it('describes how a piece gets home without inventing SKUs', () => {
-    assert.match(fulfillmentBlurb({ ships: true, pickup: true }), /Local pickup in Ebensburg/);
-    assert.match(fulfillmentBlurb({ ships: false, pickup: true }), /Local pickup only/);
+    assert.match(fulfillmentBlurb({ ships: true, pickup: true }), /arrange a time/);
+    assert.match(fulfillmentBlurb({ ships: false, pickup: true }), /Contact us to arrange/);
     assert.equal(fulfillmentBlurb({ ships: true, pickup: false }), 'Ships to US addresses.');
   });
 
