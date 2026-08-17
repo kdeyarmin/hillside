@@ -3,7 +3,8 @@ import { describe, it } from 'node:test';
 
 process.env.ADMIN_SESSION_SECRET ||= 'test-admin-session-secret-long-enough';
 
-const { createCartRestoreToken, readCartRestoreToken } = await import('../lib/cart-restore.ts');
+const { cartRestoreDropped, createCartRestoreToken, readCartRestoreToken } =
+  await import('../lib/cart-restore.ts');
 
 describe('cart restore tokens', () => {
   it('round-trips email and items', () => {
@@ -36,5 +37,13 @@ describe('cart restore tokens', () => {
     assert.ok(token);
     const payload = readCartRestoreToken(token);
     assert.equal(payload?.items[0].quantity, 20);
+  });
+});
+
+describe('cartRestoreDropped', () => {
+  it('counts pieces, not rows, including a clamped line', () => {
+    assert.equal(cartRestoreDropped([{ quantity: 5 }], [{ quantity: 2 }]), 3);
+    assert.equal(cartRestoreDropped([{ quantity: 1 }, { quantity: 2 }], [{ quantity: 1 }]), 2);
+    assert.equal(cartRestoreDropped([{ quantity: 1 }], [{ quantity: 1 }]), 0);
   });
 });

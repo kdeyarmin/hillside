@@ -3,6 +3,8 @@ import { catalogHasActiveProducts } from '@/lib/catalog';
 import { freeShippingThresholdCents } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = pageMetadata({
   path: '/cart',
   title: 'Shopping Cart',

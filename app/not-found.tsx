@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { Leaf } from 'lucide-react';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 
+export const dynamic = 'force-dynamic';
+
 export default async function NotFound() {
   const catalogEmpty = !(await catalogHasActiveProducts());
   return (

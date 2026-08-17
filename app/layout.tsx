@@ -24,6 +24,8 @@ import { absoluteUrl, businessEmail, freeShippingThresholdCents, siteBaseUrl } f
 import { jsonLd } from '@/lib/json-ld';
 import { websiteJsonLd } from '@/lib/seo';
 
+export const dynamic = 'force-dynamic';
+
 const hillsideSans = Manrope({
   subsets: ['latin'],
   display: 'swap',

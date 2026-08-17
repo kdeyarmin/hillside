@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { createCartRestoreToken, readCartRestoreToken } from '@/lib/cart-restore';
+import {
+  createCartRestoreToken,
+  cartRestoreDropped,
+  readCartRestoreToken
+} from '@/lib/cart-restore';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { rateLimited } from '@/lib/rate-limit';
@@ -144,7 +148,7 @@ export async function GET(request: Request) {
     }
   });
 
-  const requestedCount = payload.items.length;
+  const requestedPieces = payload.items;
   const items = payload.items.flatMap((requested) => {
     const product = products.find((candidate) => candidate.slug === requested.slug);
     if (!product || product.inventory <= 0) return [];
@@ -166,7 +170,7 @@ export async function GET(request: Request) {
     data: { recoveredAt: new Date() }
   });
 
-  const dropped = requestedCount - items.length;
+  const dropped = cartRestoreDropped(requestedPieces, items);
   return NextResponse.json({
     email: payload.email,
     items,

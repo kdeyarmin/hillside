@@ -112,6 +112,7 @@ export default function CartPageClient({
               We only list pieces that are ready to go home. Ask about a custom arrangement, or
               browse the care library while the next batch is potted.
             </p>
+            <FormStatus message={checkoutNotice} tone="notice" />
             <FormStatus
               message={saveState.message}
               tone={saveState.type === 'ok' ? 'success' : 'error'}
@@ -129,6 +130,7 @@ export default function CartPageClient({
           <>
             <h3>Your cart is empty.</h3>
             <p>Explore our current plants, teas and handmade botanical goods.</p>
+            <FormStatus message={checkoutNotice} tone="notice" />
             <FormStatus
               message={saveState.message}
               tone={saveState.type === 'ok' ? 'success' : 'error'}

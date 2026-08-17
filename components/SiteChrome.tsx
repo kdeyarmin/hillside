@@ -228,6 +228,11 @@ function CartDrawer({
         {items.length === 0 ? (
           <div className="empty-state">
             <ShoppingBag size={38} />
+            {checkoutNotice && (
+              <p className="drawer-notice" role="status">
+                {checkoutNotice}
+              </p>
+            )}
             {catalogEmpty ? (
               <>
                 <h3>Nothing is on the bench right now.</h3>
