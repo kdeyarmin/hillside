@@ -464,6 +464,7 @@ export default async function Admin({
         <a href="#reviews">Reviews</a>
         <a href="#restock">Restock requests</a>
         <Link href="/admin/content">Website content</Link>
+        <Link href="/admin/care">Plant care library</Link>
         <Link href="/admin/accounts">Admin accounts</Link>
         <Link href="/">View public website</Link>
         <p className="muted" style={{ marginTop: 16, marginBottom: 0, fontSize: 14 }}>
@@ -494,6 +495,9 @@ export default async function Admin({
             </a>
             <Link className="btn gold" href="/admin/content">
               Manage website content
+            </Link>
+            <Link className="btn outline" href="/admin/care">
+              Plant care library
             </Link>
           </div>
         </div>

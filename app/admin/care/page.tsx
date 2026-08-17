@@ -119,10 +119,29 @@ function CareGuideFields({
 export default async function CareLibraryManager({
   searchParams
 }: {
-  searchParams: Promise<{ seeded?: string; saved?: string }>;
+  searchParams: Promise<{
+    seeded?: string;
+    saved?: string;
+    edit?: string;
+    notice?: string;
+    error?: string;
+  }>;
 }) {
   if (!(await isAdmin())) redirect('/admin');
   const params = await searchParams;
+  const focusSlug = params.edit || params.saved;
+  const banner =
+    params.error === 'required'
+      ? { tone: 'error' as const, text: 'A guide needs a title, an introduction and the main guidance.' }
+      : params.seeded
+        ? { tone: 'ok' as const, text: `${params.seeded} starter guides loaded or refreshed.` }
+        : params.notice === 'published'
+          ? { tone: 'ok' as const, text: 'Guide is now published.' }
+          : params.notice === 'draft'
+            ? { tone: 'ok' as const, text: 'Guide moved to draft.' }
+            : params.saved
+              ? { tone: 'ok' as const, text: 'Care guide saved.' }
+              : null;
   const [guides, products] = await Promise.all([
     db.careSheet.findMany({
       orderBy: [
@@ -165,9 +184,13 @@ export default async function CareLibraryManager({
           <Link className="btn" href="/care">View public library</Link>
         </div>
 
-        {(params.seeded || params.saved) && (
-          <div className="admin-card" style={{ borderColor: 'var(--success)', background: '#f2faf4' }}>
-            <b>{params.seeded ? `${params.seeded} starter guides loaded or refreshed.` : 'Care guide saved.'}</b>
+        {banner && (
+          <div
+            className={`admin-card${banner.tone === 'error' ? ' admin-alert' : ''}`}
+            style={banner.tone === 'ok' ? { borderColor: 'var(--success)', background: '#f2faf4' } : undefined}
+            role={banner.tone === 'error' ? 'alert' : 'status'}
+          >
+            <b>{banner.text}</b>
           </div>
         )}
 
@@ -205,7 +228,7 @@ export default async function CareLibraryManager({
 
           <div className="admin-list">
             {guides.map((guide) => (
-              <details key={guide.id}>
+              <details key={guide.id} id={`guide-${guide.slug}`} open={focusSlug === guide.slug}>
                 <summary>
                   <span>{guide.plantName} • {careGuideTypeLabel(guide.guideType)}</span>
                   <span className={`status-badge ${guide.published ? 'PAID' : 'CANCELLED'}`}>{guide.published ? 'Published' : 'Draft'}</span>

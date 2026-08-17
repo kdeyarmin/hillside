@@ -668,50 +668,6 @@ export async function saveAmazonPick(formData: FormData) {
   );
 }
 
-export async function saveCareSheet(formData: FormData) {
-  await guard();
-  const id = text(formData, 'id');
-  const plantName = text(formData, 'plantName');
-  const slug = slugFrom(text(formData, 'slug'), plantName);
-  const data = {
-    plantName,
-    slug,
-    botanical: text(formData, 'botanical') || null,
-    summary: text(formData, 'summary'),
-    light: text(formData, 'light'),
-    water: text(formData, 'water'),
-    humidity: text(formData, 'humidity'),
-    soil: text(formData, 'soil'),
-    feeding: text(formData, 'feeding'),
-    temperature: text(formData, 'temperature'),
-    petSafety: text(formData, 'petSafety') || null,
-    tips: text(formData, 'tips'),
-    imageUrl: text(formData, 'imageUrl') || null,
-    productId: text(formData, 'productId') || null,
-    published: checked(formData, 'published')
-  };
-  if (!plantName || !slug || !data.summary) {
-    redirect(
-      adminContentPath({
-        error: 'content-invalid',
-        section: id ? 'care' : 'add-care',
-        item: id || undefined
-      })
-    );
-  }
-  const sheet = id
-    ? await db.careSheet.update({ where: { id }, data })
-    : await db.careSheet.create({ data });
-  refresh('/care', `/care/${slug}`, '/admin/content');
-  redirect(
-    adminContentPath({
-      notice: id ? 'care-saved' : 'care-created',
-      section: 'care',
-      item: sheet.id
-    })
-  );
-}
-
 export async function archiveContent(formData: FormData) {
   await guard();
   const id = text(formData, 'id');

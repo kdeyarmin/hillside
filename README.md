@@ -54,7 +54,8 @@ The dashboard at `/admin` includes:
 - Visibility of products still missing their own photograph
 - Order confirmation email delivery status
 - Admin account management at `/admin/accounts` — add an admin, change a password, revoke access
-- A separate content manager at `/admin/content` for classes, care sheets, gallery items and Amazon picks
+- A separate content manager at `/admin/content` for classes, gallery items and Amazon picks
+- A plant care library manager at `/admin/care` for plant profiles, problem guides and seasonal checklists
 - Online class creation, Telnyx room preparation and a private host studio
 - Online-class confirmation status, attendee last-join time and secure link resending
 
@@ -129,9 +130,9 @@ npm run db:seed
 npm run admin:create -- --email owner@example.com --name "Full Name" --password 'their-password'
 ```
 
-   Without shell access, set `ADMIN_ACCOUNT_EMAIL`, `ADMIN_ACCOUNT_NAME` and
-   `ADMIN_ACCOUNT_PASSWORD` on the service and redeploy — the pre-deploy step
-   creates the account.
+Without shell access, set `ADMIN_ACCOUNT_EMAIL`, `ADMIN_ACCOUNT_NAME` and
+`ADMIN_ACCOUNT_PASSWORD` on the service and redeploy — the pre-deploy step
+creates the account.
 
 7. Generate a Railway public domain, then set `NEXT_PUBLIC_SITE_URL` to that full URL.
 8. After the custom domain is connected, change `NEXT_PUBLIC_SITE_URL` to `https://thehillsidegardens.com` and redeploy.
@@ -160,7 +161,7 @@ requiring a reachable database whose schema already matches the code. Under this
 ordering it does not:
 
 - on a first deploy the tables do not exist yet, so the build fails;
-- on any deploy that adds a column, the build renders against the *old* schema
+- on any deploy that adds a column, the build renders against the _old_ schema
   while the generated client expects the new one, so the build fails;
 - CI builds against a `DATABASE_URL` with nothing listening, so the build fails.
 
