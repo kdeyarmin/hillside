@@ -24,6 +24,8 @@ import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { releaseProductHold } from '@/lib/checkout';
 import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
+import { absoluteUrl } from '@/lib/store';
+import { describeTracking } from '@/lib/tracking';
 
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
 const checked = (form: FormData, name: string) =>
@@ -409,16 +411,20 @@ export async function updateOrder(formData: FormData) {
   }
 
   if (status === OrderStatus.FULFILLED && before.status !== OrderStatus.FULFILLED && order.email) {
-    const tracking = trackingNumber
-      ? `<p><strong>Tracking:</strong> ${escapeHtml(trackingCarrier || 'Carrier')} ${escapeHtml(trackingNumber)}</p>`
+    const track = trackingNumber ? describeTracking(trackingNumber, trackingCarrier) : null;
+    const tracking = track
+      ? track.url
+        ? `<p><strong>Tracking:</strong> <a href="${escapeHtml(track.url)}">${escapeHtml(track.label)}</a></p>`
+        : `<p><strong>Tracking:</strong> ${escapeHtml(track.label)}</p>`
       : '';
+    const statusUrl = absoluteUrl('/order-status');
     await sendEmail({
       to: order.email,
       subject: `Your Hillside order ${order.invoiceNumber} has shipped`,
       idempotencyKey: `shipping-update/${order.id}/${trackingNumber || 'fulfilled'}`,
       html: emailShell(
         'Your order is on the way',
-        `<p>Hi ${escapeHtml(order.customerName)},</p><p>We have marked order <strong>${escapeHtml(order.invoiceNumber)}</strong> as shipped.</p>${tracking}<p>You can also check the current order status on The Hillside Gardens website using your order number and checkout email.</p>`
+        `<p>Hi ${escapeHtml(order.customerName)},</p><p>We have marked order <strong>${escapeHtml(order.invoiceNumber)}</strong> as shipped.</p>${tracking}<p>Look this order up any time with your HG number and checkout email: <a href="${escapeHtml(statusUrl)}">${escapeHtml(statusUrl)}</a></p>`
       )
     });
   }

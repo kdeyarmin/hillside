@@ -23,6 +23,7 @@ describe('orderConfirmationHtml', () => {
     assert.match(html, /Apt 2/);
     assert.match(html, /Spring Hill, PA 15129/);
     assert.match(html, /\$45\.90/);
+    assert.match(html, /\/order-status/);
   });
 
   it('escapes a name that would otherwise break the markup', () => {

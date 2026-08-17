@@ -18,6 +18,8 @@ import {
   flatShippingCents,
   formatMoney,
   freeShippingThresholdCents,
+  HANDLING_MAX_DAYS,
+  HANDLING_MIN_DAYS,
   priceValidUntil,
   productTypeLabel,
   returnPolicyForType,
@@ -137,7 +139,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         },
         deliveryTime: {
           '@type': 'ShippingDeliveryTime',
-          handlingTime: { '@type': 'QuantitativeValue', minValue: 1, maxValue: 3, unitCode: 'DAY' },
+          handlingTime: {
+            '@type': 'QuantitativeValue',
+            minValue: HANDLING_MIN_DAYS,
+            maxValue: HANDLING_MAX_DAYS,
+            unitCode: 'DAY'
+          },
           transitTime: { '@type': 'QuantitativeValue', minValue: 3, maxValue: 7, unitCode: 'DAY' }
         }
       },
