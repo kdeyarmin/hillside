@@ -109,6 +109,7 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'order-missing': 'That order is no longer here.',
   'order-email-failed':
     'The confirmation email could not be sent. Check that RESEND_API_KEY is set.',
+  'order-no-email': 'That order has no customer email to write to.',
   'order-not-confirmable':
     'Confirmation mail is only sent for paid orders that have not shipped yet.',
   'registration-email-failed':

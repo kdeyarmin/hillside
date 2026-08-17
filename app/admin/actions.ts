@@ -129,8 +129,8 @@ export async function saveProduct(formData: FormData) {
     redirect(
       adminDashboardPath({
         error: 'product-invalid',
-        product: slug || undefined,
-        section: 'inventory'
+        product: id ? slug || undefined : undefined,
+        section: id ? 'inventory' : 'add-product'
       })
     );
   }
@@ -407,7 +407,9 @@ export async function resendOrderConfirmation(formData: FormData) {
       ? 'order-missing'
       : result.reason === 'not-confirmable'
         ? 'order-not-confirmable'
-        : 'order-email-failed';
+        : result.reason === 'no-email'
+          ? 'order-no-email'
+          : 'order-email-failed';
   redirect(
     adminDashboardPath({
       notice: result.sent ? 'order-emailed' : undefined,

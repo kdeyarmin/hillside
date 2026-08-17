@@ -652,13 +652,16 @@ export default async function Admin({
                       <div>
                         <b>Confirmation email</b>
                         <br />
-                        {order.confirmationEmailError ? (
-                          <span className="stock out">
-                            Not sent ({order.confirmationEmailError})
-                          </span>
-                        ) : order.confirmationEmailSentAt ? (
+                        {order.confirmationEmailSentAt ? (
                           <span className="stock">
                             Sent {order.confirmationEmailSentAt.toLocaleString()}
+                            {order.confirmationEmailError
+                              ? ` · last retry failed (${order.confirmationEmailError})`
+                              : ''}
+                          </span>
+                        ) : order.confirmationEmailError ? (
+                          <span className="stock out">
+                            Not sent ({order.confirmationEmailError})
                           </span>
                         ) : (
                           <span className="muted">No record yet</span>
