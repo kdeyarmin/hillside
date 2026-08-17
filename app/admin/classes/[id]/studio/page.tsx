@@ -12,12 +12,15 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Class Host Studio', robots: { index: false, follow: false } };
 
 export default async function HostClassStudio({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ notice?: string; error?: string }>;
 }) {
   if (!(await isAdmin())) redirect('/admin');
   const { id } = await params;
+  const query = await searchParams;
   const event = await db.classEvent.findUnique({
     where: { id },
     include: {
@@ -34,7 +37,9 @@ export default async function HostClassStudio({
         <div className="narrow classroom-access-card">
           <Video size={36} />
           <h1>Online class not found.</h1>
-          <Link className="btn" href="/admin/content">Return to class management</Link>
+          <Link className="btn" href="/admin/content">
+            Return to class management
+          </Link>
         </div>
       </section>
     );
@@ -51,16 +56,25 @@ export default async function HostClassStudio({
               <span className="pill">Your private host studio</span>
               <h2>{event.title}</h2>
             </div>
-            <Link className="btn outline small" href="/admin/content#classes">Manage class</Link>
+            <Link className="btn outline small" href="/admin/content#classes">
+              Manage class
+            </Link>
           </div>
           <div>
-            <span><Video size={16} /> {classFormatLabel(event.format)}</span>
-            <span><Users size={16} /> {seats} registered seats</span>
-            <span>{event.startsAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}</span>
+            <span>
+              <Video size={16} /> {classFormatLabel(event.format)}
+            </span>
+            <span>
+              <Users size={16} /> {seats} registered seats
+            </span>
+            <span>
+              {event.startsAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' })}
+            </span>
           </div>
           <p>
-            You can open this host studio before class to test Telnyx, your camera and your microphone.
-            Customers can enter only during the configured join window using their emailed private link.
+            You can open this host studio before class to test Telnyx, your camera and your
+            microphone. Customers can enter only during the configured join window using their
+            emailed private link.
           </p>
         </div>
 
@@ -74,23 +88,58 @@ export default async function HostClassStudio({
 
         <div className="admin-card classroom-roster">
           <h2>Registered guests</h2>
-          <p className="muted">Resending creates a new private classroom link and invalidates the previous emailed link.</p>
+          <p className="muted">
+            Resending emails a new private classroom link. The previous link stays valid until that
+            email actually goes out.
+          </p>
+          {query.notice === 'emailed' && (
+            <div className="admin-card admin-notice" role="status">
+              <b>Class confirmation emailed.</b> The previous classroom link no longer works.
+            </div>
+          )}
+          {query.error === 'email' && (
+            <div className="admin-card admin-alert" role="alert">
+              <b>The confirmation could not be sent.</b> The guest’s previous classroom link is
+              still valid. Check that RESEND_API_KEY is set.
+            </div>
+          )}
           {event.registrations.length ? (
             <div className="table-wrap">
               <table className="table">
-                <thead><tr><th>Name</th><th>Email</th><th>Seats</th><th>Confirmation</th><th>Last joined</th><th>Actions</th></tr></thead>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Seats</th>
+                    <th>Confirmation</th>
+                    <th>Last joined</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
                 <tbody>
                   {event.registrations.map((registration) => (
                     <tr key={registration.id}>
                       <td>{registration.name}</td>
-                      <td><a href={`mailto:${registration.email}`}>{registration.email}</a></td>
+                      <td>
+                        <a href={`mailto:${registration.email}`}>{registration.email}</a>
+                      </td>
                       <td>{registration.seats}</td>
-                      <td>{registration.confirmationEmailSentAt ? `Sent ${registration.confirmationEmailSentAt.toLocaleString()}` : 'Not sent'}</td>
-                      <td>{registration.lastJoinedAt ? registration.lastJoinedAt.toLocaleString() : 'Not yet'}</td>
+                      <td>
+                        {registration.confirmationEmailSentAt
+                          ? `Sent ${registration.confirmationEmailSentAt.toLocaleString()}`
+                          : 'Not sent'}
+                      </td>
+                      <td>
+                        {registration.lastJoinedAt
+                          ? registration.lastJoinedAt.toLocaleString()
+                          : 'Not yet'}
+                      </td>
                       <td>
                         <form action={resendClassConfirmation}>
                           <input type="hidden" name="id" value={registration.id} />
-                          <button className="btn outline small" type="submit"><Mail size={15} /> Resend link</button>
+                          <button className="btn outline small" type="submit">
+                            <Mail size={15} /> Resend link
+                          </button>
                         </form>
                       </td>
                     </tr>
@@ -98,7 +147,9 @@ export default async function HostClassStudio({
                 </tbody>
               </table>
             </div>
-          ) : <p>No registrations yet.</p>}
+          ) : (
+            <p>No registrations yet.</p>
+          )}
         </div>
       </div>
     </section>

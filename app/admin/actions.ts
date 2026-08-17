@@ -22,11 +22,17 @@ import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { releaseProductHold } from '@/lib/checkout';
+import { adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
+import { sendOrderConfirmationEmail } from '@/lib/order-send';
 
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
-const checked = (form: FormData, name: string) => form.get(name) === 'on' || form.get(name) === 'true';
+const checked = (form: FormData, name: string) =>
+  form.get(name) === 'on' || form.get(name) === 'true';
 const slugify = (value: string) =>
-  value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
 const money = (value: FormDataEntryValue | null) => {
   const number = Number(value || 0);
   return Number.isFinite(number) ? Math.round(number * 100) : 0;
@@ -119,7 +125,15 @@ export async function saveProduct(formData: FormData) {
       .slice(0, 8)
   };
 
-  if (!name || !slug || !data.description || priceCents < 0) return;
+  if (!name || !slug || !data.description || priceCents < 0) {
+    redirect(
+      adminDashboardPath({
+        error: 'product-invalid',
+        product: id ? slug || undefined : undefined,
+        section: id ? 'inventory' : 'add-product'
+      })
+    );
+  }
 
   const postedInventory = Math.max(0, integer(formData.get('inventory')));
   const expectedInventory = integer(formData.get('expectedInventory'), postedInventory);
@@ -130,7 +144,7 @@ export async function saveProduct(formData: FormData) {
     .filter(Boolean);
 
   const previous = id
-    ? await db.product.findUnique({ where: { id }, select: { inventory: true } })
+    ? await db.product.findUnique({ where: { id }, select: { inventory: true, slug: true } })
     : null;
 
   let product;
@@ -151,22 +165,37 @@ export async function saveProduct(formData: FormData) {
        */
       product = await db.product.update({
         where: { id },
-        data: { ...data, collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) } }
+        data: {
+          ...data,
+          collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
+        }
       });
     } else {
       const claimed = await db.product.updateMany({
         where: { id, inventory: expectedInventory },
         data: { inventory: postedInventory }
       });
-      if (claimed.count === 0) redirect('/admin?error=inventory');
+      if (claimed.count === 0) {
+        redirect(adminDashboardPath({ error: 'inventory', product: slug, section: 'inventory' }));
+      }
       product = await db.product.update({
         where: { id },
-        data: { ...data, collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) } }
+        data: {
+          ...data,
+          collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
+        }
       });
     }
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-      redirect('/admin?error=slug');
+      const field = uniqueConstraintField(error.meta?.target);
+      redirect(
+        adminDashboardPath({
+          error: field === 'sku' ? 'sku' : 'slug',
+          product: previous?.slug,
+          section: id ? 'inventory' : 'add-product'
+        })
+      );
     }
     throw error;
   }
@@ -181,6 +210,13 @@ export async function saveProduct(formData: FormData) {
   }
 
   refresh('/shop', '/', '/collections', `/shop/${slug}`);
+  redirect(
+    adminDashboardPath({
+      notice: id ? 'product-saved' : 'product-created',
+      product: product.slug,
+      section: 'inventory'
+    })
+  );
 }
 
 export async function saveCollection(formData: FormData) {
@@ -244,13 +280,42 @@ export async function updateReview(formData: FormData) {
     include: { product: { select: { slug: true } } }
   });
   refresh('/shop', `/shop/${review.product.slug}`);
+  redirect(adminDashboardPath({ notice: 'review-saved', review: id, section: 'reviews' }));
 }
 
 export async function archiveProduct(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
-  if (id) await db.product.update({ where: { id }, data: { active: false, featured: false } });
+  if (!id) return;
+  const product = await db.product.update({
+    where: { id },
+    data: { active: false, featured: false },
+    select: { slug: true }
+  });
   refresh('/shop', '/');
+  redirect(
+    adminDashboardPath({ notice: 'product-archived', product: product.slug, section: 'inventory' })
+  );
+}
+
+export async function setProductActive(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  const active = text(formData, 'active') === 'true';
+  if (!id) return;
+  const product = await db.product.update({
+    where: { id },
+    data: active ? { active: true } : { active: false, featured: false },
+    select: { slug: true }
+  });
+  refresh('/shop', '/', '/collections', `/shop/${product.slug}`);
+  redirect(
+    adminDashboardPath({
+      notice: active ? 'product-live' : 'product-archived',
+      product: product.slug,
+      section: 'inventory'
+    })
+  );
 }
 
 export async function updateOrder(formData: FormData) {
@@ -275,6 +340,7 @@ export async function updateOrder(formData: FormData) {
       data: { trackingCarrier, trackingNumber, internalNotes }
     });
     refresh('/order-status');
+    redirect(adminDashboardPath({ notice: 'order-saved', order: id, section: 'orders' }));
     return;
   }
 
@@ -326,6 +392,32 @@ export async function updateOrder(formData: FormData) {
   }
 
   refresh('/order-status');
+  redirect(adminDashboardPath({ notice: 'order-saved', order: order.id, section: 'orders' }));
+}
+
+export async function resendOrderConfirmation(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  if (!id) redirect(adminDashboardPath({ error: 'order-missing', section: 'orders' }));
+
+  const result = await sendOrderConfirmationEmail(id, { force: true });
+  const error = result.sent
+    ? undefined
+    : result.reason === 'missing'
+      ? 'order-missing'
+      : result.reason === 'not-confirmable'
+        ? 'order-not-confirmable'
+        : result.reason === 'no-email'
+          ? 'order-no-email'
+          : 'order-email-failed';
+  redirect(
+    adminDashboardPath({
+      notice: result.sent ? 'order-emailed' : undefined,
+      error,
+      order: id,
+      section: 'orders'
+    })
+  );
 }
 
 export async function saveClassEvent(formData: FormData) {
@@ -358,8 +450,14 @@ export async function saveClassEvent(formData: FormData) {
     active: checked(formData, 'active'),
     onlineInstructions: text(formData, 'onlineInstructions') || null,
     telnyxRecordingEnabled: checked(formData, 'telnyxRecordingEnabled'),
-    joinOpensMinutesBefore: Math.max(0, Math.min(240, integer(formData.get('joinOpensMinutesBefore'), 30))),
-    joinClosesMinutesAfter: Math.max(0, Math.min(1440, integer(formData.get('joinClosesMinutesAfter'), 60)))
+    joinOpensMinutesBefore: Math.max(
+      0,
+      Math.min(240, integer(formData.get('joinOpensMinutesBefore'), 30))
+    ),
+    joinClosesMinutesAfter: Math.max(
+      0,
+      Math.min(1440, integer(formData.get('joinClosesMinutesAfter'), 60))
+    )
   };
 
   const event = id
@@ -393,32 +491,58 @@ export async function prepareClassRoom(formData: FormData) {
 export async function resendClassConfirmation(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
-  if (!id) return;
+  const next = text(formData, 'next');
+  if (!id) {
+    if (next === 'dashboard') redirect(adminDashboardPath({ section: 'registrations' }));
+    return;
+  }
   const registration = await db.classRegistration.findUnique({
     where: { id },
     include: { classEvent: true }
   });
-  if (!registration || registration.status !== RegistrationStatus.PAID) return;
+  if (!registration || registration.status !== RegistrationStatus.PAID) {
+    if (next === 'dashboard') redirect(adminDashboardPath({ section: 'registrations' }));
+    return;
+  }
 
+  /**
+   * Send first. Rotating `joinTokenHash` before the mail goes out would
+   * invalidate the guest's current classroom link even when Resend is
+   * unconfigured or rejects the message.
+   */
   const credential = isOnlineClass(registration.classEvent.format)
     ? createClassJoinCredential()
     : null;
-  const updated = credential
-    ? await db.classRegistration.update({
-        where: { id: registration.id },
-        data: { joinTokenHash: credential.hash, confirmationEmailSentAt: null }
-      })
-    : await db.classRegistration.update({
-        where: { id: registration.id },
-        data: { confirmationEmailSentAt: null }
-      });
 
-  await sendClassRegistrationEmails({
+  const result = await sendClassRegistrationEmails({
     event: registration.classEvent,
-    registration: updated,
-    accessToken: credential?.token
+    registration,
+    accessToken: credential?.token,
+    resend: true
   });
-  refresh('/admin', '/admin/content');
+
+  if (result.sent && credential) {
+    await db.classRegistration.update({
+      where: { id: registration.id },
+      data: { joinTokenHash: credential.hash }
+    });
+  }
+
+  if (next === 'dashboard') {
+    redirect(
+      adminDashboardPath({
+        notice: result.sent ? 'registration-emailed' : undefined,
+        error: result.sent ? undefined : 'registration-email-failed',
+        section: 'registrations'
+      })
+    );
+  }
+
+  redirect(
+    `/admin/classes/${registration.classEvent.id}/studio?${
+      result.sent ? 'notice=emailed' : 'error=email'
+    }`
+  );
 }
 
 export async function saveGalleryItem(formData: FormData) {
@@ -505,6 +629,7 @@ export async function updateMessageStatus(formData: FormData) {
     : MessageStatus.READ;
   if (id) await db.contactMessage.update({ where: { id }, data: { status } });
   refresh();
+  redirect(adminDashboardPath({ notice: 'message-saved', message: id, section: 'messages' }));
 }
 
 export async function updateSubscriber(formData: FormData) {
@@ -518,6 +643,7 @@ export async function updateSubscriber(formData: FormData) {
     });
   }
   refresh();
+  redirect(adminDashboardPath({ notice: 'subscriber-saved', section: 'subscribers' }));
 }
 
 export async function updateRegistration(formData: FormData) {
@@ -529,4 +655,5 @@ export async function updateRegistration(formData: FormData) {
     : RegistrationStatus.PAID;
   if (id) await db.classRegistration.update({ where: { id }, data: { status } });
   refresh('/classes');
+  redirect(adminDashboardPath({ notice: 'registration-saved', section: 'registrations' }));
 }

@@ -57,11 +57,13 @@ export async function sendFreeClassConfirmEmail({
 export async function sendClassRegistrationEmails({
   event,
   registration,
-  accessToken
+  accessToken,
+  resend = false
 }: {
   event: RegistrationEmailEvent;
   registration: RegistrationEmailRegistration;
   accessToken?: string | null;
+  resend?: boolean;
 }) {
   const online = isOnlineClass(event.format);
   const accessUrl = online && accessToken ? absoluteUrl(`/classes/access/${accessToken}`) : null;
@@ -94,7 +96,9 @@ export async function sendClassRegistrationEmails({
           'Your class registration is confirmed',
           `<p>Hi ${escapeHtml(registration.name)},</p><p>Your registration for <strong>${escapeHtml(event.title)}</strong> is confirmed for ${registration.seats} ${registration.seats === 1 ? 'seat' : 'seats'}.</p><p><strong>Format:</strong> ${escapeHtml(format)}<br><strong>Date:</strong> ${escapeHtml(date)}<br><strong>Duration:</strong> About ${event.durationMinutes} minutes<br><strong>Location:</strong> ${escapeHtml(location)}<br><strong>Amount paid:</strong> ${formatMoney(registration.amountCents)}</p>${joinBlock}${onlineNotes}${recordingNotice}${bring}<p>Please keep this email. The online classroom link is private and should not be forwarded.</p><p>We look forward to planting with you.</p>`
         ),
-        idempotencyKey: `class-confirmation/${registration.id}/${registration.joinTokenHash?.slice(0, 12) || 'in-person'}`
+        idempotencyKey: resend
+          ? `class-confirmation/${registration.id}/resend/${Date.now()}`
+          : `class-confirmation/${registration.id}/${registration.joinTokenHash?.slice(0, 12) || 'in-person'}`
       })
     : { sent: false as const, reason: 'missing-email' as const };
 

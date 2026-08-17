@@ -292,7 +292,35 @@
 .admin-collection-picker legend { padding: 0 6px; color: var(--forest); font-size: 12px; font-weight: 800; }
 .admin-alert { margin-top: 18px; border-color: var(--danger); }
 .admin-alert b { color: var(--danger); }
+.admin-notice { margin-top: 18px; border-color: var(--success); background: #f2faf4; }
+.admin-notice b { color: var(--success); }
 .needs-photo { color: var(--gold-strong); }
+.admin-inventory-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin: 16px 0 12px;
+}
+.admin-inventory-tools .admin-input { max-width: 360px; flex: 1 1 220px; }
+a.filter-chip { text-decoration: none; }
+.admin-restore-list {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-restore-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.admin-restore-list li:first-child { border-top: 0; padding-top: 0; }
 
 @media (max-width: 1060px) {
   .grid.three { grid-template-columns: repeat(2, minmax(0, 1fr)); }

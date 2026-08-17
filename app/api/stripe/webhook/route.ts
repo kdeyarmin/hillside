@@ -4,12 +4,9 @@ import { db } from '@/lib/db';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { findHoldBySessionOrHoldId, releaseHold, seatsRemaining } from '@/lib/class-seats';
-import {
-  parseCheckoutItems,
-  releaseExpiredProductHolds,
-  releaseProductHold
-} from '@/lib/checkout';
+import { parseCheckoutItems, releaseExpiredProductHolds, releaseProductHold } from '@/lib/checkout';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
+import { sendOrderConfirmationEmail } from '@/lib/order-send';
 import { formatMoney, newInvoiceNumber } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -26,7 +23,8 @@ type CollectedShipping = { name?: string | null; address?: AddressLike | null };
 
 function objectId(value: unknown) {
   if (typeof value === 'string') return value;
-  if (value && typeof value === 'object' && 'id' in value) return String((value as { id: unknown }).id);
+  if (value && typeof value === 'object' && 'id' in value)
+    return String((value as { id: unknown }).id);
   return null;
 }
 
@@ -216,7 +214,8 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
         ]
       : [];
   });
-  if (!lineItems.length) throw new Error(`No valid line items found for Stripe session ${session.id}`);
+  if (!lineItems.length)
+    throw new Error(`No valid line items found for Stripe session ${session.id}`);
   if (lineItems.length !== requested.length) {
     throw new Error(
       `Stripe session ${session.id} paid for ${requested.length} lines but only ${lineItems.length} could be resolved.`
@@ -224,7 +223,10 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
   }
 
   const customer = customerFieldsFromSession(session);
-  const subtotalCents = lineItems.reduce((total, item) => total + item.unitCents * item.quantity, 0);
+  const subtotalCents = lineItems.reduce(
+    (total, item) => total + item.unitCents * item.quantity,
+    0
+  );
   const taxCents = session.total_details?.amount_tax || 0;
   const discountCents = session.total_details?.amount_discount || 0;
   const totalCents = session.amount_total ?? subtotalCents;
@@ -278,37 +280,20 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
 }
 
 async function sendOrderEmails(orderId: string) {
-  const order = await db.order.findUnique({ where: { id: orderId }, include: { items: true } });
-  if (!order || order.confirmationEmailSentAt) return;
-
-  const itemRows = order.items
-    .map(
-      (item) =>
-        `<tr><td style="padding:8px 0;border-bottom:1px solid #dfe4dc">${escapeHtml(item.name)} × ${item.quantity}</td><td style="padding:8px 0;border-bottom:1px solid #dfe4dc;text-align:right">${formatMoney(item.unitCents * item.quantity)}</td></tr>`
-    )
-    .join('');
-  const customerHtml = emailShell(
-    `Order ${order.invoiceNumber} received`,
-    `<p>Hi ${escapeHtml(order.customerName)},</p><p>Thank you for shopping with The Hillside Gardens. Your payment was successful and we will begin preparing your order.</p><table style="width:100%;border-collapse:collapse;margin:20px 0">${itemRows}<tr><td style="padding-top:12px"><strong>Total</strong></td><td style="padding-top:12px;text-align:right"><strong>${formatMoney(order.totalCents)}</strong></td></tr></table><p><strong>Ship to</strong><br>${escapeHtml(order.address1)}${order.address2 ? `<br>${escapeHtml(order.address2)}` : ''}<br>${escapeHtml(order.city)}, ${escapeHtml(order.state)} ${escapeHtml(order.postalCode)}</p><p>You’ll receive another update when the order ships.</p>`
-  );
-  if (order.email) {
-    const delivery = await sendEmail({
-      to: order.email,
-      subject: `We received your Hillside order ${order.invoiceNumber}`,
-      html: customerHtml,
-      idempotencyKey: `order-confirmation/${order.id}`
-    });
-    await db.order.update({
-      where: { id: order.id },
-      data: delivery.sent
-        ? { confirmationEmailSentAt: new Date(), confirmationEmailError: null }
-        : { confirmationEmailError: delivery.reason || 'unknown-error' }
-    });
-    if (!delivery.sent) {
-      if (delivery.reason === 'not-configured') return;
-      throw new Error(`Order ${order.invoiceNumber} confirmation email not sent: ${delivery.reason}`);
-    }
+  const result = await sendOrderConfirmationEmail(orderId);
+  if (result.reason === 'already-sent' || result.reason === 'missing') return;
+  if (!result.sent && result.reason !== 'not-configured' && result.reason !== 'no-email') {
+    throw new Error(
+      `Order ${result.invoiceNumber || orderId} confirmation email not sent: ${result.reason}`
+    );
   }
+  if (result.reason === 'not-configured') return;
+
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    select: { invoiceNumber: true, customerName: true, totalCents: true }
+  });
+  if (!order) return;
 
   const businessEmail = process.env.BUSINESS_EMAIL;
   if (businessEmail) {
@@ -319,7 +304,7 @@ async function sendOrderEmails(orderId: string) {
         `New order ${order.invoiceNumber}`,
         `<p><strong>${escapeHtml(order.customerName)}</strong> placed a paid order for ${formatMoney(order.totalCents)}.</p><p>Open the owner dashboard to review, print the packing slip and create the shipping label.</p>`
       ),
-      idempotencyKey: `new-order-admin/${order.id}`
+      idempotencyKey: `new-order-admin/${orderId}`
     });
   }
 }
@@ -327,7 +312,8 @@ async function sendOrderEmails(orderId: string) {
 async function fulfillClassRegistration(session: Stripe.Checkout.Session) {
   const classEventId = session.metadata?.classEventId || '';
   const event = await db.classEvent.findUnique({ where: { id: classEventId } });
-  if (!event) throw new Error(`Class ${classEventId} was not found for Stripe session ${session.id}`);
+  if (!event)
+    throw new Error(`Class ${classEventId} was not found for Stripe session ${session.id}`);
 
   const seats = Math.max(1, Math.min(6, Number(session.metadata?.seats) || 1));
   const name = session.customer_details?.name || 'Class guest';
@@ -342,7 +328,14 @@ async function fulfillClassRegistration(session: Stripe.Checkout.Session) {
   const result = existing
     ? await updatePaidRegistration({ existing, session, name, email, seats, credential })
     : {
-        registration: await createRegistrationForSweptHold({ event, session, name, email, seats, credential }),
+        registration: await createRegistrationForSweptHold({
+          event,
+          session,
+          name,
+          email,
+          seats,
+          credential
+        }),
         sendEmail: true,
         accessToken: credential?.token ?? null
       };
@@ -350,7 +343,10 @@ async function fulfillClassRegistration(session: Stripe.Checkout.Session) {
   try {
     await subscribeFromCheckout(session);
   } catch (error) {
-    console.error(`Newsletter opt-in failed for class registration ${result.registration.id}`, error);
+    console.error(
+      `Newsletter opt-in failed for class registration ${result.registration.id}`,
+      error
+    );
   }
 
   if (!result.sendEmail) return;
@@ -399,7 +395,8 @@ async function updatePaidRegistration({
 
   if (updated.count === 0) {
     const winner = await db.classRegistration.findUnique({ where: { id: existing.id } });
-    if (!winner) throw new Error(`Class registration ${existing.id} disappeared during fulfillment.`);
+    if (!winner)
+      throw new Error(`Class registration ${existing.id} disappeared during fulfillment.`);
     return { registration: winner, sendEmail: false, accessToken: null };
   }
 
@@ -532,7 +529,8 @@ async function fulfillSession(session: Stripe.Checkout.Session) {
 export async function POST(request: Request) {
   const secret = process.env.STRIPE_SECRET_KEY;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret || !webhookSecret) return new NextResponse('Stripe is not configured', { status: 503 });
+  if (!secret || !webhookSecret)
+    return new NextResponse('Stripe is not configured', { status: 503 });
 
   const stripe = new Stripe(secret);
   const signature = request.headers.get('stripe-signature');
@@ -556,7 +554,10 @@ export async function POST(request: Request) {
       await fulfillSession(event.data.object as Stripe.Checkout.Session);
     }
 
-    if (event.type === 'checkout.session.expired' || event.type === 'checkout.session.async_payment_failed') {
+    if (
+      event.type === 'checkout.session.expired' ||
+      event.type === 'checkout.session.async_payment_failed'
+    ) {
       await expireSession(event.data.object as Stripe.Checkout.Session);
     }
 
