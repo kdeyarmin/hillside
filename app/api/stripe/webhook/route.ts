@@ -286,6 +286,7 @@ async function sendOrderEmails(orderId: string) {
     throw new Error(
       `Order ${result.invoiceNumber || orderId} confirmation email not sent: ${result.reason}`
     );
+  }
   if (result.reason === 'not-configured') return;
 
   const order = await db.order.findUnique({
