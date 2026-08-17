@@ -30,12 +30,6 @@ export default async function Success({
   try {
     const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
     session = await stripe.checkout.sessions.retrieve(sessionId);
-    if (
-      session.payment_status !== 'paid' &&
-      session.payment_status !== 'no_payment_required'
-    ) {
-      notFound();
-    }
 
     /**
      * The invoice link is only produced for a session this shop has actually
@@ -59,6 +53,14 @@ export default async function Success({
         error instanceof Stripe.errors.StripeRateLimitError;
       if (!unreachable) notFound();
     }
+  }
+
+  if (
+    session &&
+    session.payment_status !== 'paid' &&
+    session.payment_status !== 'no_payment_required'
+  ) {
+    notFound();
   }
 
   const paid = Boolean(
@@ -127,7 +129,7 @@ export default async function Success({
         <OrderSuccessClient
           invoiceUrl={invoiceUrl}
           sessionId={sessionId}
-          shouldClearCart
+          shouldClearCart={paid}
           purchase={
             order
               ? {

@@ -43,7 +43,7 @@ async function emailSavedCart(
       'Your cart is waiting',
       `<p>You asked us to email this basket so you could come back to it.</p><p>${count} ${count === 1 ? 'item' : 'items'} · about ${(subtotalCents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' })} before shipping.</p><p style="margin:24px 0"><a href="${escapeHtml(restoreUrl)}" style="display:inline-block;padding:13px 20px;border-radius:6px;background:#203f2b;color:#ffffff;text-decoration:none;font-weight:700">Restore my cart</a></p><p>The link works for 30 days, on this device or another.</p>`
     ),
-    idempotencyKey: `cart-lead/${email}`
+    idempotencyKey: `cart-lead/${email}/${Date.now()}`
   });
 }
 

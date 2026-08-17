@@ -70,6 +70,7 @@ function ProductFields({
   return (
     <>
       {product && <input type="hidden" name="id" value={product.id} />}
+      {product && <input type="hidden" name="expectedInventory" value={product.inventory} />}
       <div className="admin-form-grid">
         <label className="admin-label">Product name<input className="admin-input" name="name" defaultValue={product?.name} required /></label>
         <label className="admin-label">URL slug<input className="admin-input" name="slug" defaultValue={product?.slug} placeholder="created-from-name" /></label>
@@ -265,6 +266,22 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
           <div className="stat"><span>Products needing a photo</span><strong>{missingPhotos}</strong></div>
           <div className="stat"><span>Waiting on restock</span><strong>{stockAlerts.length}</strong></div>
         </div>
+
+        {params.error === 'slug' && (
+          <div className="admin-card admin-alert" role="alert">
+            <b>That product URL is already in use.</b>
+            <p className="muted">Choose a different slug and save again.</p>
+          </div>
+        )}
+        {params.error === 'inventory' && (
+          <div className="admin-card admin-alert" role="alert">
+            <b>Stock changed while you were editing.</b>
+            <p className="muted">
+              Someone reserved or returned units of that product. Refresh the page and save again so
+              you do not overwrite a live checkout hold.
+            </p>
+          </div>
+        )}
 
         {undeliveredEmails > 0 && (
           <div className="admin-card admin-alert" role="alert">

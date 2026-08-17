@@ -79,6 +79,13 @@ function customerFieldsFromSession(session: Stripe.Checkout.Session) {
   };
 }
 
+class OversellError extends Error {
+  constructor() {
+    super('Could not reacquire inventory for a paid order');
+    this.name = 'OversellError';
+  }
+}
+
 async function completeReservedOrder(
   order: NonNullable<Awaited<ReturnType<typeof findReservedOrder>>>,
   session: Stripe.Checkout.Session
@@ -90,42 +97,56 @@ async function completeReservedOrder(
   const shippingCents =
     session.shipping_cost?.amount_total ??
     Math.max(0, totalCents - order.subtotalCents - taxCents + discountCents);
+  const paidFields = {
+    stripeSessionId: session.id,
+    paymentIntentId: objectId(session.payment_intent),
+    stripeInvoiceId: objectId(session.invoice),
+    status: 'PAID' as const,
+    ...customer,
+    taxCents,
+    discountCents,
+    totalCents,
+    shippingCents,
+    shippingMethod: shippingCents === 0 ? 'Free standard shipping' : 'Standard shipping'
+  };
 
-  const claimed = await db.order.updateMany({
-    where: { id: order.id, status: { in: ['PENDING', 'CANCELLED'] } },
-    data: {
-      stripeSessionId: session.id,
-      paymentIntentId: objectId(session.payment_intent),
-      stripeInvoiceId: objectId(session.invoice),
-      status: 'PAID',
-      ...customer,
-      taxCents,
-      discountCents,
-      totalCents,
-      shippingCents,
-      shippingMethod: shippingCents === 0 ? 'Free standard shipping' : 'Standard shipping',
-      inventoryRestoredAt: order.status === 'CANCELLED' ? order.inventoryRestoredAt : null
-    }
-  });
-  if (claimed.count === 0) return;
-
-  if (order.status !== 'CANCELLED') return;
-
-  let restored = true;
-  await db.$transaction(async (transaction) => {
-    for (const item of order.items) {
-      const result = await transaction.product.updateMany({
-        where: { id: item.productId, inventory: { gte: item.quantity } },
-        data: { inventory: { decrement: item.quantity } }
+  try {
+    await db.$transaction(async (transaction) => {
+      const current = await transaction.order.findUnique({
+        where: { id: order.id },
+        include: { items: true }
       });
-      if (result.count === 0) restored = false;
-    }
-  });
+      if (!current || (current.status !== 'PENDING' && current.status !== 'CANCELLED')) return;
 
-  if (restored) {
-    await db.order.update({ where: { id: order.id }, data: { inventoryRestoredAt: null } });
-  } else {
-    await notifyOversell(order.invoiceNumber, order.items.map((item) => item.name).join(', '));
+      const mustReacquire = current.status === 'CANCELLED' || Boolean(current.inventoryRestoredAt);
+      if (mustReacquire) {
+        for (const item of current.items) {
+          const result = await transaction.product.updateMany({
+            where: { id: item.productId, inventory: { gte: item.quantity } },
+            data: { inventory: { decrement: item.quantity } }
+          });
+          if (result.count === 0) throw new OversellError();
+        }
+      }
+
+      const claimed = await transaction.order.updateMany({
+        where: { id: current.id, status: current.status },
+        data: { ...paidFields, inventoryRestoredAt: null }
+      });
+      if (claimed.count === 0) {
+        throw new Error(`Lost the claim on order ${current.id} during fulfillment.`);
+      }
+    });
+  } catch (error) {
+    if (!(error instanceof OversellError)) throw error;
+
+    const claimed = await db.order.updateMany({
+      where: { id: order.id, status: { in: ['PENDING', 'CANCELLED'] } },
+      data: paidFields
+    });
+    if (claimed.count > 0) {
+      await notifyOversell(order.invoiceNumber, order.items.map((item) => item.name).join(', '));
+    }
   }
 }
 
@@ -284,6 +305,7 @@ async function sendOrderEmails(orderId: string) {
         : { confirmationEmailError: delivery.reason || 'unknown-error' }
     });
     if (!delivery.sent) {
+      if (delivery.reason === 'not-configured') return;
       throw new Error(`Order ${order.invoiceNumber} confirmation email not sent: ${delivery.reason}`);
     }
   }
@@ -317,20 +339,26 @@ async function fulfillClassRegistration(session: Stripe.Checkout.Session) {
   const needsCredential = isOnlineClass(event.format) && !existing?.confirmationEmailSentAt;
   const credential = needsCredential ? createClassJoinCredential() : null;
 
-  const registration = existing
+  const result = existing
     ? await updatePaidRegistration({ existing, session, name, email, seats, credential })
-    : await createRegistrationForSweptHold({ event, session, name, email, seats, credential });
+    : {
+        registration: await createRegistrationForSweptHold({ event, session, name, email, seats, credential }),
+        sendEmail: true,
+        accessToken: credential?.token ?? null
+      };
 
   try {
     await subscribeFromCheckout(session);
   } catch (error) {
-    console.error(`Newsletter opt-in failed for class registration ${registration.id}`, error);
+    console.error(`Newsletter opt-in failed for class registration ${result.registration.id}`, error);
   }
+
+  if (!result.sendEmail) return;
 
   await sendClassRegistrationEmails({
     event,
-    registration,
-    accessToken: credential?.token
+    registration: result.registration,
+    accessToken: result.accessToken
   });
 }
 
@@ -372,12 +400,12 @@ async function updatePaidRegistration({
   if (updated.count === 0) {
     const winner = await db.classRegistration.findUnique({ where: { id: existing.id } });
     if (!winner) throw new Error(`Class registration ${existing.id} disappeared during fulfillment.`);
-    return winner;
+    return { registration: winner, sendEmail: false, accessToken: null };
   }
 
   const saved = await db.classRegistration.findUnique({ where: { id: existing.id } });
   if (!saved) throw new Error(`Class registration ${existing.id} disappeared during fulfillment.`);
-  return saved;
+  return { registration: saved, sendEmail: true, accessToken: credential?.token ?? null };
 }
 
 async function createRegistrationForSweptHold({

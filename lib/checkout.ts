@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { notifyStockAlerts } from '@/lib/stock-alerts';
 import {
   CHECKOUT_HOLD_MINUTES,
   holdExpiry,
@@ -93,9 +94,11 @@ export async function attachStripeSessionToOrder(holdId: string, stripeSessionId
 export async function releaseProductHold(orderId: string) {
   const order = await db.order.findUnique({
     where: { id: orderId },
-    include: { items: true }
+    include: { items: { include: { product: { select: { name: true, slug: true, inventory: true } } } } }
   });
   if (!order || order.status !== 'PENDING') return false;
+
+  const restocked: Array<{ id: string; name: string; slug: string }> = [];
 
   await db.$transaction(async (transaction) => {
     const claimed = await transaction.order.updateMany({
@@ -105,12 +108,20 @@ export async function releaseProductHold(orderId: string) {
     if (claimed.count === 0) return;
 
     for (const item of order.items) {
+      const previousInventory = item.product.inventory;
       await transaction.product.update({
         where: { id: item.productId },
         data: { inventory: { increment: item.quantity } }
       });
+      if (previousInventory <= 0) {
+        restocked.push({ id: item.productId, name: item.product.name, slug: item.product.slug });
+      }
     }
   });
+
+  for (const product of restocked) {
+    await notifyStockAlerts(product.id, product.name, product.slug);
+  }
 
   return true;
 }

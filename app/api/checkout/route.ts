@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   try {
     // Each call creates a real Stripe Checkout Session. Unthrottled, that is an
     // unbounded write into the shop's Stripe account from an anonymous caller.
-    if (rateLimited(request, { name: 'checkout', limit: 12, windowMs: 10 * 60_000 })) {
+    if (rateLimited(request, { name: 'checkout', limit: 8, windowMs: 10 * 60_000 })) {
       return NextResponse.json(
         { error: 'Too many checkout attempts. Please wait a few minutes and try again.' },
         { status: 429 }
@@ -82,6 +82,13 @@ export async function POST(request: Request) {
     const site = checkoutReturnOrigin();
     const stripe = new Stripe(secret);
 
+    if (rateLimited(request, { name: 'checkout-hold', limit: 3, windowMs: 35 * 60_000 })) {
+      return NextResponse.json(
+        { error: 'Please finish or wait for an open checkout before starting another.' },
+        { status: 429 }
+      );
+    }
+
     let reservation: Awaited<ReturnType<typeof reserveProductOrder>>;
     try {
       reservation = await reserveProductOrder({
@@ -92,17 +99,22 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       if (error instanceof InsufficientStockError) {
+        const latest = await db.product.findUnique({
+          where: { slug: error.slug },
+          select: { name: true, inventory: true }
+        });
+        const requested = items.find((item) => item.product.slug === error.slug);
         return NextResponse.json(
           {
-            adjustments: items
-              .filter((item) => item.product.slug === error.slug)
-              .map((item) => ({
-                slug: item.product.slug,
-                name: item.product.name,
-                requested: item.quantity,
-                available: 0,
+            adjustments: [
+              {
+                slug: error.slug,
+                name: latest?.name || requested?.product.name || 'That item',
+                requested: requested?.quantity || 1,
+                available: Math.max(0, latest?.inventory ?? 0),
                 reason: 'stock' as const
-              }))
+              }
+            ]
           },
           { status: 409 }
         );

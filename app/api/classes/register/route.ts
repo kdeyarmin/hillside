@@ -30,7 +30,8 @@ const requestSchema = z.object({
 
 async function sendConfirmFor(
   event: Pick<ClassEvent, 'id' | 'title' | 'startsAt' | 'format' | 'location' | 'durationMinutes'>,
-  registration: { id: string; name: string; email: string; seats: number; holdExpiresAt: Date | null }
+  registration: { id: string; name: string; email: string; seats: number; holdExpiresAt: Date | null },
+  resend = false
 ) {
   const expiresAt = registration.holdExpiresAt || freeClassConfirmExpiry(event.startsAt);
   const token = createFreeClassConfirmToken(registration.id, registration.email, event.id, expiresAt);
@@ -38,7 +39,8 @@ async function sendConfirmFor(
   return sendFreeClassConfirmEmail({
     event,
     registration,
-    confirmUrl: absoluteUrl(`/classes/confirm/${token}`)
+    confirmUrl: absoluteUrl(`/classes/confirm/${token}`),
+    resend
   });
 }
 
@@ -87,7 +89,7 @@ export async function POST(request: Request) {
          * rather than occupying a second hold or telling them they already
          * registered when they have not confirmed yet.
          */
-        const emailSent = (await sendConfirmFor(event, claim.pending)).sent;
+        const emailSent = (await sendConfirmFor(event, claim.pending, true)).sent;
         return NextResponse.json({
           ok: true,
           emailSent,
