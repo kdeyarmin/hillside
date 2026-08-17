@@ -17,6 +17,7 @@ type OrderResult = {
   fulfillmentMethod?: string | null;
   shippingMethod?: string | null;
   giftMessage?: string | null;
+  pickupNote?: string | null;
   items: { name: string; quantity: number; unitCents: number }[];
 };
 
@@ -96,7 +97,9 @@ export default function OrderStatusLookup() {
                 {orderStatusHeading(order)}
               </h2>
             </div>
-            <span className={`status-badge ${order.status}`}>{orderStatusBadge(order.status)}</span>
+            <span className={`status-badge ${order.status}`}>
+              {orderStatusBadge(order.status, order.fulfillmentMethod)}
+            </span>
           </div>
           <p className="muted">
             Placed {new Date(order.createdAt).toLocaleDateString('en-US', { dateStyle: 'long' })}
@@ -104,9 +107,15 @@ export default function OrderStatusLookup() {
           {isPickupOrder(order) && (
             <div className="note-box">
               <b>Local pickup</b>
-              {order.status === 'FULFILLED'
-                ? 'This order is ready in Ebensburg. Check the email we sent for the pickup window.'
-                : 'We will email when this is ready. Please do not come until you hear from us.'}
+              {order.status === 'FULFILLED' ? (
+                order.pickupNote ? (
+                  <span style={{ whiteSpace: 'pre-wrap' }}>{order.pickupNote}</span>
+                ) : (
+                  'This order is ready in Ebensburg. Check the email we sent for the pickup window.'
+                )
+              ) : (
+                'We will email when this is ready. Please do not come until you hear from us.'
+              )}
             </div>
           )}
           {order.giftMessage && (

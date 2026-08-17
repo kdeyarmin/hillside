@@ -224,9 +224,15 @@ export default function CartPageClient({
             <strong>{formatMoney(item.priceCents * item.quantity)}</strong>
           </article>
         ))}
-        <Link className="text-link" href="/shop">
-          ← Continue shopping
-        </Link>
+        {catalogEmpty ? (
+          <Link className="text-link" href="/care">
+            ← Browse the care library
+          </Link>
+        ) : (
+          <Link className="text-link" href="/shop">
+            ← Continue shopping
+          </Link>
+        )}
       </div>
 
       <aside className="order-summary" aria-label="Order summary">

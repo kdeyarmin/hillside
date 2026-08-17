@@ -127,7 +127,7 @@ export default async function Home() {
                 ? `Free shipping over ${formatMoneyCompact(freeShippingThreshold)}`
                 : 'Packed by hand'}
             </b>
-            <small>Flat-rate standard shipping on everything else.</small>
+            <small>Flat-rate standard shipping on items that ship.</small>
           </span>
         </div>
         <div>

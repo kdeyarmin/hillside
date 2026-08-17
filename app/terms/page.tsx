@@ -17,7 +17,7 @@ export default function TermsPage() {
       </section>
       <section className="content">
         <article className="narrow prose">
-          <p><strong>Effective August 9, 2026.</strong></p>
+          <p><strong>Effective August 17, 2026.</strong></p>
           <h2>Using the website</h2>
           <p>Visitors may use this website for personal, lawful purposes. A visitor may not interfere with the website, attempt unauthorized access, misuse forms, copy substantial portions of the site for commercial use or use the service in a way that harms The Hillside Gardens or another person.</p>
 
@@ -25,8 +25,8 @@ export default function TermsPage() {
           <p>Living plants and handmade products naturally vary. Photographs are representative and do not promise identical size, shape, color or pattern. Inventory can change quickly. Placing an item in a cart does not reserve it; an order is accepted only after successful payment and confirmation.</p>
           <p>The Hillside Gardens may correct pricing, description or inventory errors and may cancel or refund an affected order. Product information, ingredients, allergens, use directions and care notes should be reviewed before purchase or use.</p>
 
-          <h2>Payments, taxes and shipping</h2>
-          <p>Stripe processes online payments. Customers agree to provide accurate payment, contact and shipping information. Applicable taxes, shipping charges and discounts are shown during checkout. The customer is responsible for address errors, unavailable delivery locations and promptly retrieving packages after delivery.</p>
+          <h2>Payments, taxes, shipping and pickup</h2>
+          <p>Stripe processes online payments. Customers agree to provide accurate payment and contact information. For shipped orders, a deliverable shipping address is also required. Applicable taxes, shipping charges and discounts are shown during checkout. Local pickup is available only after a time has been arranged with The Hillside Gardens and then selected at checkout. Pickup orders are not ready to collect until we send confirmation. For shipped orders, the customer is responsible for address errors, unavailable delivery locations and promptly retrieving packages after delivery.</p>
 
           <h2>Plant care and results</h2>
           <p>Care sheets and classes provide general educational information. Plant health depends on light, temperature, water, soil, pests, local conditions and ongoing care outside our control. The Hillside Gardens cannot guarantee that a plant will continue to thrive after delivery or pickup.</p>

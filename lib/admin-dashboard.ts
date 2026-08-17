@@ -132,6 +132,8 @@ export const ADMIN_ERRORS: Record<string, string> = {
     'Confirmation mail is only sent for paid orders that have not shipped yet.',
   'pickup-note':
     'Add the arranged pickup window before marking this ready. The customer is told to check their email for the time.',
+  'pickup-email-failed':
+    'The pickup-ready email could not be sent. The window is saved on the order — use Resend pickup email after checking RESEND_API_KEY.',
   'registration-email-failed':
     'The class confirmation could not be sent. The guest’s previous classroom link is still valid. Check that RESEND_API_KEY is set.',
   'collection-invalid': 'A collection needs a name.',

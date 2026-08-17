@@ -388,12 +388,14 @@ export async function updateOrder(formData: FormData) {
     await releaseProductHold(id);
     await db.order.update({
       where: { id },
-      data: { trackingCarrier, trackingNumber, internalNotes }
+      data: { trackingCarrier, trackingNumber, internalNotes, pickupNote: pickupNote || before.pickupNote }
     });
     refresh('/order-status');
     redirect(adminDashboardPath({ notice: 'order-saved', order: id, section: 'orders' }));
     return;
   }
+
+  const savedPickupNote = pickupNote || before.pickupNote || null;
 
   const order = await db.order.update({
     where: { id },
@@ -402,6 +404,7 @@ export async function updateOrder(formData: FormData) {
       trackingCarrier,
       trackingNumber,
       internalNotes,
+      pickupNote: savedPickupNote,
       fulfilledAt: status === OrderStatus.FULFILLED ? before.fulfilledAt || new Date() : null
     },
     include: { items: true }
@@ -435,20 +438,69 @@ export async function updateOrder(formData: FormData) {
         : '';
     const statusUrl = absoluteUrl('/order-status');
     const body = pickup
-      ? `<p>Hi ${escapeHtml(order.customerName)},</p><p>Order <strong>${escapeHtml(order.invoiceNumber)}</strong> is ready for pickup in Ebensburg.</p><p><strong>Pickup window:</strong></p><p style="white-space:pre-line">${escapeHtml(pickupNote)}</p><p>Please come during that window. Reply to this email if you need to change it.</p>`
+      ? pickupReadyHtml(order.customerName, order.invoiceNumber, savedPickupNote || pickupNote)
       : `<p>Hi ${escapeHtml(order.customerName)},</p><p>We have marked order <strong>${escapeHtml(order.invoiceNumber)}</strong> as shipped.</p>${tracking}<p>Look this order up any time with your HG number and checkout email: <a href="${escapeHtml(statusUrl)}">${escapeHtml(statusUrl)}</a></p>`;
-    await sendEmail({
+    const delivery = await sendEmail({
       to: order.email,
       subject: pickup
         ? `Your Hillside order ${order.invoiceNumber} is ready for pickup`
         : `Your Hillside order ${order.invoiceNumber} has shipped`,
-      idempotencyKey: `shipping-update/${order.id}/${trackingNumber || 'fulfilled'}`,
+      idempotencyKey: pickup
+        ? `pickup-ready/${order.id}`
+        : `shipping-update/${order.id}/${trackingNumber || 'fulfilled'}`,
       html: emailShell(pickup ? 'Your order is ready for pickup' : 'Your order is on the way', body)
     });
+    if (pickup && !delivery.sent) {
+      redirect(
+        adminDashboardPath({ error: 'pickup-email-failed', order: order.id, section: 'orders' })
+      );
+    }
   }
 
   refresh('/order-status');
   redirect(adminDashboardPath({ notice: 'order-saved', order: order.id, section: 'orders' }));
+}
+
+function pickupReadyHtml(customerName: string, invoiceNumber: string, pickupNote: string) {
+  return `<p>Hi ${escapeHtml(customerName)},</p><p>Order <strong>${escapeHtml(invoiceNumber)}</strong> is ready for pickup in Ebensburg.</p><p><strong>Pickup window:</strong></p><p style="white-space:pre-line">${escapeHtml(pickupNote)}</p><p>Please come during that window. Reply to this email if you need to change it.</p>`;
+}
+
+export async function resendPickupReady(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  if (!id) redirect(adminDashboardPath({ error: 'order-missing', section: 'orders' }));
+
+  const order = await db.order.findUnique({ where: { id } });
+  if (!order) redirect(adminDashboardPath({ error: 'order-missing', section: 'orders' }));
+  if (!isPickupOrder(order)) {
+    redirect(adminDashboardPath({ error: 'order-not-confirmable', order: id, section: 'orders' }));
+  }
+  const pickupNote = text(formData, 'pickupNote') || order.pickupNote || '';
+  if (!pickupNote) {
+    redirect(adminDashboardPath({ error: 'pickup-note', order: id, section: 'orders' }));
+  }
+  if (!order.email) {
+    redirect(adminDashboardPath({ error: 'order-no-email', order: id, section: 'orders' }));
+  }
+
+  if (pickupNote !== order.pickupNote) {
+    await db.order.update({ where: { id }, data: { pickupNote } });
+  }
+
+  const delivery = await sendEmail({
+    to: order.email,
+    subject: `Your Hillside order ${order.invoiceNumber} is ready for pickup`,
+    idempotencyKey: `pickup-ready/${order.id}/${Date.now()}`,
+    html: emailShell(
+      'Your order is ready for pickup',
+      pickupReadyHtml(order.customerName, order.invoiceNumber, pickupNote)
+    )
+  });
+  if (!delivery.sent) {
+    redirect(adminDashboardPath({ error: 'pickup-email-failed', order: id, section: 'orders' }));
+  }
+  refresh('/order-status');
+  redirect(adminDashboardPath({ notice: 'order-saved', order: id, section: 'orders' }));
 }
 
 export async function resendOrderConfirmation(formData: FormData) {

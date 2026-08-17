@@ -10,11 +10,13 @@ export default function OrderSuccessClient({
   invoiceUrl,
   sessionId,
   shouldClearCart,
+  catalogEmpty,
   purchase
 }: {
   invoiceUrl?: string | null;
   sessionId?: string | null;
   shouldClearCart?: boolean;
+  catalogEmpty?: boolean;
   purchase?: {
     invoiceNumber: string;
     totalCents: number;
@@ -66,9 +68,15 @@ export default function OrderSuccessClient({
           <FileText size={17} /> View Stripe invoice
         </a>
       )}
-      <Link className="btn outline" href="/shop">
-        Continue shopping
-      </Link>
+      {catalogEmpty ? (
+        <Link className="btn outline" href="/care">
+          Plant care library
+        </Link>
+      ) : (
+        <Link className="btn outline" href="/shop">
+          Continue shopping
+        </Link>
+      )}
     </div>
   );
 }

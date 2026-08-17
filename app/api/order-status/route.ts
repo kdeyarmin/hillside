@@ -51,6 +51,7 @@ export async function POST(request: Request) {
       fulfillmentMethod: order.fulfillmentMethod,
       shippingMethod: order.shippingMethod,
       giftMessage: order.giftMessage,
+      pickupNote: order.pickupNote,
       items: order.items
     });
   } catch (error) {

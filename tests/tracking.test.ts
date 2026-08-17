@@ -79,6 +79,8 @@ describe('orderStatusBadge', () => {
   it('never prints the raw enum', () => {
     assert.equal(orderStatusBadge('PARTIALLY_REFUNDED'), 'Partially refunded');
     assert.equal(orderStatusBadge('FULFILLED'), 'Shipped');
+    assert.equal(orderStatusBadge('FULFILLED', 'PICKUP'), 'Ready for pickup');
+    assert.equal(orderStatusBadge('PAID', 'PICKUP'), 'Preparing pickup');
     assert.doesNotMatch(orderStatusBadge('PARTIALLY_REFUNDED'), /_/);
   });
 });
@@ -86,7 +88,9 @@ describe('orderStatusBadge', () => {
 describe('orderStatusLabel', () => {
   it('never dumps a raw enum at the customer', () => {
     assert.equal(orderStatusLabel('FULFILLED'), 'Your order has shipped.');
+    assert.equal(orderStatusLabel('FULFILLED', 'PICKUP'), 'Your order is ready for pickup.');
     assert.equal(orderStatusLabel('PAID'), 'We are preparing your order.');
+    assert.equal(orderStatusLabel('PAID', 'PICKUP'), 'We are preparing your pickup.');
     assert.equal(orderStatusLabel('PARTIALLY_REFUNDED'), 'Part of this order was refunded.');
     assert.equal(orderStatusLabel('REFUNDED'), 'This order was refunded.');
     assert.equal(orderStatusLabel('CANCELLED'), 'This order was cancelled.');

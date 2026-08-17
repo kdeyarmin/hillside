@@ -38,7 +38,7 @@ export default function CheckoutOptions({ compact = false }: { compact?: boolean
                 onChange={() => setFulfillment('SHIP')}
               />
               <span>
-                <b>Ship to me</b>
+                Ship to me
                 <small>US shipping. The exact charge is shown before you pay.</small>
               </span>
             </label>
@@ -53,7 +53,7 @@ export default function CheckoutOptions({ compact = false }: { compact?: boolean
                 onChange={() => setFulfillment('PICKUP')}
               />
               <span>
-                <b>Local pickup</b>
+                Local pickup
                 <small>Arrange a time with us first, then choose this option.</small>
               </span>
             </label>
