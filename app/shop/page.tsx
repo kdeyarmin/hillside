@@ -95,13 +95,27 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
     reviewCount: ratings.get(product.id)?.count ?? 0
   }));
 
+  const catalogEmpty = products.length === 0;
+
   return (
     <>
       <section className="pagehero">
         <div className="container">
           <div className="eyebrow">Plants • Teas • Botanicals</div>
-          <h1>Shop The Hillside.</h1>
-          <p>Hand-selected plants and small-batch goods from our garden-inspired collection.</p>
+          {catalogEmpty ? (
+            <>
+              <h1>The bench is between batches.</h1>
+              <p>
+                We only list what is actually ready to go home. New plants and small-batch goods
+                appear here as they are potted and photographed.
+              </p>
+            </>
+          ) : (
+            <>
+              <h1>Shop The Hillside.</h1>
+              <p>Hand-selected plants and small-batch goods from our garden-inspired collection.</p>
+            </>
+          )}
           {collections.length > 0 && (
             <div className="pagehero-links">
               <span>Jump to a collection:</span>

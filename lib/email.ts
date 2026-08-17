@@ -1,4 +1,4 @@
-import { normalizeHillsideDomain } from '@/lib/store';
+import { normalizeHillsideDomain } from './store.ts';
 
 type EmailInput = {
   to: string | string[];
@@ -11,11 +11,11 @@ type EmailInput = {
 
 export function escapeHtml(value: unknown) {
   return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
+    .replaceAll('&', '\u0026amp;')
+    .replaceAll('<', '\u0026lt;')
+    .replaceAll('>', '\u0026gt;')
+    .replaceAll('"', '\u0026quot;')
+    .replaceAll("'", '\u0026#039;');
 }
 
 export async function sendEmail(input: EmailInput) {
@@ -56,6 +56,9 @@ export async function sendEmail(input: EmailInput) {
   }
 }
 
-export function emailShell(title: string, content: string) {
-  return `<!doctype html><html><body style="margin:0;background:#f7f4ec;font-family:Arial,sans-serif;color:#1d2a21"><div style="max-width:640px;margin:0 auto;padding:32px 18px"><div style="background:#ffffff;border:1px solid #dfe4dc;border-radius:18px;overflow:hidden"><div style="background:#203f2b;color:#ffffff;padding:24px 28px"><h1 style="font-family:Georgia,serif;font-weight:500;margin:0;font-size:30px">${escapeHtml(title)}</h1></div><div style="padding:28px">${content}</div><div style="padding:18px 28px;background:#edf1e9;color:#315a3d;font-size:12px">The Hillside Gardens • Plants • Teas • Botanicals</div></div></div></body></html>`;
+export function emailShell(title: string, content: string, options?: { unsubscribeUrl?: string }) {
+  const unsubscribe = options?.unsubscribeUrl
+    ? `<br><a href="${escapeHtml(options.unsubscribeUrl)}" style="color:#315a3d">Unsubscribe from The Hillside Notes</a>`
+    : '';
+  return `<!doctype html><html><body style="margin:0;background:#f7f4ec;font-family:Arial,sans-serif;color:#1d2a21"><div style="max-width:640px;margin:0 auto;padding:32px 18px"><div style="background:#ffffff;border:1px solid #dfe4dc;border-radius:18px;overflow:hidden"><div style="background:#203f2b;color:#ffffff;padding:24px 28px"><h1 style="font-family:Georgia,serif;font-weight:500;margin:0;font-size:30px">${escapeHtml(title)}</h1></div><div style="padding:28px">${content}</div><div style="padding:18px 28px;background:#edf1e9;color:#315a3d;font-size:12px">The Hillside Gardens • Plants • Teas • Botanicals${unsubscribe}</div></div></div></body></html>`;
 }

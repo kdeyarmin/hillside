@@ -1,9 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Search } from 'lucide-react';
 import ProductCard, { type ProductCardProduct } from '@/components/ProductCard';
 import { trackSearch } from '@/lib/analytics';
+import { contactHref } from '@/lib/contact';
+import { matchesAnySearchField } from '@/lib/search';
 import { CATEGORY_GROUPS, categoryTypes, discountPercent, productTypeLabel } from '@/lib/store';
 
 type Product = ProductCardProduct & {
@@ -45,9 +48,13 @@ export default function ShopClient({
     const requested = initialCategory.toUpperCase();
     if (requested === 'ALL') return 'ALL';
     const types = categoryTypes(requested);
-    return types.some((type) => products.some((product) => product.type === type)) ? requested : 'ALL';
+    return types.some((type) => products.some((product) => product.type === type))
+      ? requested
+      : 'ALL';
   });
-  const [sort, setSort] = useState<SortOption>(isSortOption(initialSort) ? initialSort : 'featured');
+  const [sort, setSort] = useState<SortOption>(
+    isSortOption(initialSort) ? initialSort : 'featured'
+  );
 
   useEffect(() => {
     const term = initialSearch.trim();
@@ -105,21 +112,21 @@ export default function ShopClient({
   }, [products]);
 
   const saleCount = useMemo(
-    () => products.filter((product) => discountPercent(product.priceCents, product.compareAtCents) > 0).length,
+    () =>
+      products.filter((product) => discountPercent(product.priceCents, product.compareAtCents) > 0)
+        .length,
     [products]
   );
 
   const visibleProducts = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const term = search.trim();
     const allowedTypes = categoryTypes(category);
     const filtered = products.filter((product) => {
       const inCategory = !allowedTypes.length || allowedTypes.includes(product.type);
       const onSale = !onSaleOnly || discountPercent(product.priceCents, product.compareAtCents) > 0;
       const matchesSearch =
         !term ||
-        product.name.toLowerCase().includes(term) ||
-        product.description.toLowerCase().includes(term) ||
-        (product.shortDescription || '').toLowerCase().includes(term);
+        matchesAnySearchField([product.name, product.description, product.shortDescription], term);
       return inCategory && onSale && matchesSearch;
     });
 
@@ -141,6 +148,27 @@ export default function ShopClient({
     setCategory('ALL');
     setOnSaleOnly(false);
   };
+
+  if (products.length === 0) {
+    return (
+      <div className="empty-state wide">
+        <Search size={38} />
+        <h3>Nothing is on the bench right now.</h3>
+        <p>
+          We only list plants and goods that are ready to go home. Ask about a custom arrangement or
+          a local pickup, or browse the care library while the next batch is potted.
+        </p>
+        <div className="actions" style={{ justifyContent: 'center' }}>
+          <Link className="btn" href={contactHref({ subject: 'Custom planter arrangement' })}>
+            Ask about a custom arrangement
+          </Link>
+          <Link className="btn outline" href="/care">
+            Plant care library
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -165,7 +193,9 @@ export default function ShopClient({
               onChange={(event) => setSort(event.target.value as SortOption)}
             >
               {SORT_LABELS.map(([option, label]) => (
-                <option value={option} key={option}>{label}</option>
+                <option value={option} key={option}>
+                  {label}
+                </option>
               ))}
             </select>
           </label>
@@ -196,7 +226,9 @@ export default function ShopClient({
       </div>
 
       <div className="toolbar">
-        <b>{visibleProducts.length} {visibleProducts.length === 1 ? 'product' : 'products'}</b>
+        <b>
+          {visibleProducts.length} {visibleProducts.length === 1 ? 'product' : 'products'}
+        </b>
         <span className="muted">Stock counts update as each piece is potted and sold</span>
       </div>
 
@@ -204,8 +236,18 @@ export default function ShopClient({
         <div className="empty-state">
           <Search size={38} />
           <h3>No products matched that search.</h3>
-          <p>Try another word or choose a different collection.</p>
-          <button className="btn" type="button" onClick={clearAll}>Show everything</button>
+          <p>Try another word, or ask whether something similar is coming back onto the bench.</p>
+          <div className="actions" style={{ justifyContent: 'center' }}>
+            <button className="btn" type="button" onClick={clearAll}>
+              Show everything
+            </button>
+            <Link
+              className="btn outline"
+              href={contactHref({ subject: 'Availability or restock' })}
+            >
+              Ask about availability
+            </Link>
+          </div>
         </div>
       ) : (
         <div className={`product-grid${visibleProducts.length < 3 ? ' sparse' : ''}`}>

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import ProductGrid from '@/components/ProductGrid';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
+import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { absoluteUrl, resolveImageUrl } from '@/lib/store';
@@ -49,7 +50,9 @@ export async function generateMetadata({
   if (!collection) return { title: 'Collection not found' };
 
   const description =
-    collection.description || collection.tagline || `Shop the ${collection.title} collection at The Hillside Gardens.`;
+    collection.description ||
+    collection.tagline ||
+    `Shop the ${collection.title} collection at The Hillside Gardens.`;
 
   return pageMetadata({
     path: `/collections/${collection.slug}`,
@@ -71,6 +74,9 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
     averageRating: ratings.get(product.id)?.average ?? null,
     reviewCount: ratings.get(product.id)?.count ?? 0
   }));
+
+  const catalogCount =
+    products.length > 0 ? products.length : await db.product.count({ where: { active: true } });
 
   const listJsonLd = {
     '@context': 'https://schema.org',
@@ -108,8 +114,10 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
       <section className="pagehero collection-hero">
         <div className="container">
           <div className="breadcrumbs centered">
-            <Link href="/">Home</Link><span>/</span>
-            <Link href="/collections">Collections</Link><span>/</span>
+            <Link href="/">Home</Link>
+            <span>/</span>
+            <Link href="/collections">Collections</Link>
+            <span>/</span>
             <span>{collection.title}</span>
           </div>
           <div className="eyebrow">{collection.tagline || 'Shop the garden'}</div>
@@ -123,18 +131,38 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
           {products.length ? (
             <>
               <div className="toolbar">
-                <b>{products.length} {products.length === 1 ? 'item' : 'items'}</b>
-                <Link className="text-link" href="/shop">Browse everything →</Link>
+                <b>
+                  {products.length} {products.length === 1 ? 'item' : 'items'}
+                </b>
+                <Link className="text-link" href="/shop">
+                  Browse everything →
+                </Link>
               </div>
               <ProductGrid products={products} />
             </>
           ) : (
-            <div className="empty-state">
+            <div className="empty-state wide">
               <h3>This collection is being restocked.</h3>
               <p>New pieces are potted and photographed as they are ready.</p>
               <div className="actions" style={{ justifyContent: 'center' }}>
-                <Link className="btn" href="/shop">Browse the shop</Link>
-                <Link className="btn outline" href="/contact">Ask what&rsquo;s coming</Link>
+                {catalogCount > 0 ? (
+                  <Link className="btn" href="/shop">
+                    Browse the shop
+                  </Link>
+                ) : (
+                  <Link className="btn" href="/care">
+                    Open the care library
+                  </Link>
+                )}
+                <Link
+                  className="btn outline"
+                  href={contactHref({
+                    subject: 'Availability or restock',
+                    message: `I'd like to ask about the ${collection.title} collection — is anything coming back onto the bench soon?`
+                  })}
+                >
+                  Ask what&rsquo;s coming
+                </Link>
               </div>
             </div>
           )}
@@ -154,9 +182,13 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
                 come up, written for real homes rather than greenhouses.
               </p>
               <div className="actions">
-                <Link className="btn" href="/care">Open the care library</Link>
+                <Link className="btn" href="/care">
+                  Open the care library
+                </Link>
                 {CLASSES_PUBLICLY_VISIBLE && (
-                  <Link className="btn outline" href="/classes">Join a class</Link>
+                  <Link className="btn outline" href="/classes">
+                    Join a class
+                  </Link>
                 )}
               </div>
             </div>

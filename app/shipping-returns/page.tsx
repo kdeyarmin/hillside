@@ -21,7 +21,7 @@ export default function ShippingReturnsPage() {
       <section className="content">
         <div className="container">
           <article className="narrow prose">
-            <p><strong>Last updated: August 9, 2026.</strong></p>
+            <p><strong>Last updated: August 16, 2026.</strong></p>
             <h2>Order preparation</h2>
             <p>Most in-stock orders are prepared within 2–4 business days. Handmade, custom-potted or made-to-order items may need additional time. Estimated delivery dates begin after the carrier receives the package and are not guaranteed.</p>
 
@@ -33,7 +33,7 @@ export default function ShippingReturnsPage() {
             <p>Customers are responsible for providing a deliverable address and retrieving live-plant packages promptly after delivery. The Hillside Gardens is not responsible for damage caused by a package left outdoors after confirmed delivery.</p>
 
             <h2>Local pickup</h2>
-            <p>Local pickup is offered only when shown on the product or arranged directly with us. A pickup is not ready until the customer receives confirmation. Exact pickup instructions are provided privately for safety and scheduling.</p>
+            <p>Local pickup is arranged through the contact form rather than selected at checkout. A pickup is not ready until the customer receives confirmation. Exact pickup instructions are provided privately for safety and scheduling.</p>
 
             <h2>Damage in transit</h2>
             <p>Open packages promptly. If an item arrives materially damaged, contact The Hillside Gardens within 48 hours of delivery and include the order number, a description, photographs of the item, packaging and shipping label. We will review the situation and may offer a replacement, store credit or refund depending on inventory and the type of damage.</p>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import GalleryGrid from '@/components/GalleryGrid';
 import ProductGrid from '@/components/ProductGrid';
 import { pointsAtHiddenClasses } from '@/lib/class-visibility';
+import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { pageMetadata } from '@/lib/seo';
@@ -47,29 +48,45 @@ export default async function Gallery() {
         <div className="container">
           {items.length ? (
             <>
-            <h2 className="sr-only">Planter arrangements</h2>
-            <GalleryGrid
-              items={items.map(({ id, title, imageUrl, caption, linkUrl, linkLabel }) => {
-                // A gallery link is typed in the dashboard, so one of them can
-                // point at a class. While classes are hidden that is a button
-                // promising a class over a 404, so it is dropped, not rendered.
-                const hidden = pointsAtHiddenClasses(linkUrl);
-                return {
-                  id,
-                  title,
-                  imageUrl,
-                  caption,
-                  linkUrl: hidden ? null : linkUrl,
-                  linkLabel: hidden ? null : linkLabel
-                };
-              })}
-            />
+              <h2 className="sr-only">Planter arrangements</h2>
+              <GalleryGrid
+                items={items.map(({ id, title, imageUrl, caption, linkUrl, linkLabel }) => {
+                  // A gallery link is typed in the dashboard, so one of them can
+                  // point at a class. While classes are hidden that is a button
+                  // promising a class over a 404, so it is dropped, not rendered.
+                  const hidden = pointsAtHiddenClasses(linkUrl);
+                  return {
+                    id,
+                    title,
+                    imageUrl,
+                    caption,
+                    linkUrl: hidden ? null : linkUrl,
+                    linkLabel: hidden ? null : linkLabel
+                  };
+                })}
+              />
             </>
           ) : (
-            <div className="empty-state">
+            <div className="empty-state wide">
               <h3>Gallery coming soon.</h3>
               <p>We are preparing photographs of past planter arrangements.</p>
-              <Link className="btn" href="/shop">Browse the shop meanwhile</Link>
+              <div className="actions" style={{ justifyContent: 'center' }}>
+                {shopProducts.length > 0 ? (
+                  <Link className="btn" href="/shop">
+                    Browse the shop meanwhile
+                  </Link>
+                ) : (
+                  <Link className="btn" href="/care">
+                    Browse plant care
+                  </Link>
+                )}
+                <Link
+                  className="btn outline"
+                  href={contactHref({ subject: 'Custom planter arrangement' })}
+                >
+                  Ask about a custom arrangement
+                </Link>
+              </div>
             </div>
           )}
 
@@ -89,7 +106,12 @@ export default async function Gallery() {
               <div className="eyebrow">Have something in mind?</div>
               <h3>Ask us about a custom arrangement.</h3>
             </div>
-            <Link className="btn gold" href="/contact">Start a conversation</Link>
+            <Link
+              className="btn gold"
+              href={contactHref({ subject: 'Custom planter arrangement' })}
+            >
+              Start a conversation
+            </Link>
           </div>
         </div>
       </section>
