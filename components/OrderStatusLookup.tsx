@@ -3,7 +3,6 @@
 import { FormEvent, useState } from 'react';
 import { PackageSearch } from 'lucide-react';
 import { formatMoney } from '@/lib/store';
-import { formatMoney } from '@/lib/store';
 import { isPickupOrder, orderStatusHeading } from '@/lib/fulfillment';
 import { describeTracking, orderStatusBadge } from '@/lib/tracking';
 

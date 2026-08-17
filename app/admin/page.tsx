@@ -53,7 +53,6 @@ function ProductFields({
 }: {
   collections: Array<{ id: string; title: string }>;
   product?: {
-  product?: {
     id: string;
     name: string;
     slug: string;

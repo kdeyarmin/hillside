@@ -26,7 +26,6 @@ import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/l
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
 import { isPickupOrder } from '@/lib/fulfillment';
 import { absoluteUrl } from '@/lib/store';
-import { describeTracking } from '@/lib/tracking';
 
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
 const checked = (form: FormData, name: string) =>
@@ -430,12 +429,10 @@ export async function updateOrder(formData: FormData) {
 
   if (status === OrderStatus.FULFILLED && before.status !== OrderStatus.FULFILLED && order.email) {
     const pickup = isPickupOrder(order);
-    const track = !pickup && trackingNumber ? describeTracking(trackingNumber, trackingCarrier) : null;
-    const tracking = track
-      ? track.url
-        ? `<p><strong>Tracking:</strong> <a href="${escapeHtml(track.url)}">${escapeHtml(track.label)}</a></p>`
-        : `<p><strong>Tracking:</strong> ${escapeHtml(track.label)}</p>`
-      : '';
+    const tracking =
+      !pickup && trackingNumber
+        ? `<p><strong>Tracking:</strong> ${escapeHtml(trackingCarrier || 'Carrier')} ${escapeHtml(trackingNumber)}</p>`
+        : '';
     const statusUrl = absoluteUrl('/order-status');
     const body = pickup
       ? `<p>Hi ${escapeHtml(order.customerName)},</p><p>Order <strong>${escapeHtml(order.invoiceNumber)}</strong> is ready for pickup in Ebensburg.</p><p><strong>Pickup window:</strong></p><p style="white-space:pre-line">${escapeHtml(pickupNote)}</p><p>Please come during that window. Reply to this email if you need to change it.</p>`
