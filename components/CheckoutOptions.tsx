@@ -1,0 +1,68 @@
+'use client';
+
+import { cartFulfillment, GIFT_MESSAGE_MAX } from '@/lib/fulfillment';
+import { useCart } from '@/components/CartProvider';
+
+export default function CheckoutOptions({ compact = false }: { compact?: boolean }) {
+  const { items, fulfillment, setFulfillment, giftMessage, setGiftMessage } = useCart();
+  const options = cartFulfillment(items);
+
+  if (!items.length) return null;
+
+  return (
+    <div className={compact ? 'checkout-options compact' : 'checkout-options'}>
+      {options.conflict ? (
+        <p className="drawer-error" role="alert">
+          This cart mixes pieces that only ship with pieces that are pickup only. Remove one group
+          to continue.
+        </p>
+      ) : (
+        <fieldset className="fulfillment-picker">
+          <legend>How should we get this to you?</legend>
+          {options.canShip && (
+            <label>
+              <input
+                type="radio"
+                name={compact ? 'drawer-fulfillment' : 'cart-fulfillment'}
+                checked={fulfillment === 'SHIP'}
+                onChange={() => setFulfillment('SHIP')}
+              />
+              <span>
+                <b>Ship to me</b>
+                <small>US shipping. The exact charge is shown before you pay.</small>
+              </span>
+            </label>
+          )}
+          {options.canPickup && (
+            <label>
+              <input
+                type="radio"
+                name={compact ? 'drawer-fulfillment' : 'cart-fulfillment'}
+                checked={fulfillment === 'PICKUP'}
+                onChange={() => setFulfillment('PICKUP')}
+              />
+              <span>
+                <b>Local pickup</b>
+                <small>Ebensburg. We email when it is ready — please wait for that note.</small>
+              </span>
+            </label>
+          )}
+        </fieldset>
+      )}
+
+      <label className="gift-message-field">
+        <span>Gift message (optional)</span>
+        <textarea
+          value={giftMessage}
+          maxLength={GIFT_MESSAGE_MAX}
+          rows={compact ? 2 : 3}
+          onChange={(event) => setGiftMessage(event.target.value)}
+          placeholder="A short note for the recipient. We include it with the order."
+        />
+        <small>
+          {giftMessage.length}/{GIFT_MESSAGE_MAX}
+        </small>
+      </label>
+    </div>
+  );
+}

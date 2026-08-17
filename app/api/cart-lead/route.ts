@@ -144,7 +144,9 @@ export async function GET(request: Request) {
       priceCents: true,
       imageUrl: true,
       inventory: true,
-      type: true
+      type: true,
+      ships: true,
+      pickup: true
     }
   });
 
@@ -160,6 +162,8 @@ export async function GET(request: Request) {
         imageUrl: product.imageUrl,
         inventory: product.inventory,
         type: product.type,
+        ships: product.ships,
+        pickup: product.pickup,
         quantity: clampQuantity(requested.quantity, product.inventory)
       }
     ];

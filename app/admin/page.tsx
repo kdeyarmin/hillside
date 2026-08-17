@@ -53,6 +53,7 @@ function ProductFields({
 }: {
   collections: Array<{ id: string; title: string }>;
   product?: {
+  product?: {
     id: string;
     name: string;
     slug: string;
@@ -62,6 +63,8 @@ function ProductFields({
     details: string | null;
     careNotes: string | null;
     shippingNote: string | null;
+    ships?: boolean;
+    pickup?: boolean;
     type: ProductType;
     priceCents: number;
     compareAtCents: number | null;
@@ -253,6 +256,13 @@ function ProductFields({
         <label className="admin-checkbox">
           <input name="featured" type="checkbox" defaultChecked={product?.featured ?? false} />{' '}
           Featured
+        </label>
+        <label className="admin-checkbox">
+          <input name="ships" type="checkbox" defaultChecked={product?.ships ?? true} /> Ships
+        </label>
+        <label className="admin-checkbox">
+          <input name="pickup" type="checkbox" defaultChecked={product?.pickup ?? true} /> Local
+          pickup
         </label>
       </div>
     </>
@@ -611,7 +621,7 @@ export default async function Admin({
           <div className="toolbar">
             <div>
               <h2>Orders and fulfillment</h2>
-              <p className="muted">Update tracking, print documents and mark orders shipped.</p>
+              <p className="muted">Update tracking, print documents and mark orders shipped or picked up.</p>
             </div>
             <div className="admin-actions">
               <a className="btn small" href="/api/admin/shipping.csv">
@@ -633,6 +643,8 @@ export default async function Admin({
                   <summary>
                     <span>
                       {order.invoiceNumber} • {order.customerName} • {formatMoney(order.totalCents)}
+                      {order.fulfillmentMethod === 'PICKUP' ? ' • Pickup' : ''}
+                      {order.giftMessage ? ' • Gift note' : ''}
                     </span>
                     <span className={`status-badge ${order.status}`}>{order.status}</span>
                   </summary>
@@ -672,19 +684,35 @@ export default async function Admin({
                         )}
                       </div>
                       <div>
-                        <b>Ship to</b>
+                        <b>{order.fulfillmentMethod === 'PICKUP' ? 'Pickup' : 'Ship to'}</b>
                         <br />
-                        {order.address1}
-                        {order.address2 && (
+                        {order.fulfillmentMethod === 'PICKUP' ? (
                           <>
+                            Local pickup in Ebensburg
+                            {order.phone && (
+                              <>
+                                <br />
+                                {order.phone}
+                              </>
+                            )}
                             <br />
-                            {order.address2}
+                            {order.email}
+                          </>
+                        ) : (
+                          <>
+                            {order.address1}
+                            {order.address2 && (
+                              <>
+                                <br />
+                                {order.address2}
+                              </>
+                            )}
+                            <br />
+                            {order.city}, {order.state} {order.postalCode}
+                            <br />
+                            {order.country}
                           </>
                         )}
-                        <br />
-                        {order.city}, {order.state} {order.postalCode}
-                        <br />
-                        {order.country}
                       </div>
                     </div>
                     <div style={{ margin: '18px 0' }}>
@@ -709,6 +737,12 @@ export default async function Admin({
                         <span>{formatMoney(order.totalCents)}</span>
                       </div>
                     </div>
+                    {order.giftMessage && (
+                      <div className="note-box" style={{ marginBottom: 18 }}>
+                        <b>Gift message</b>
+                        {order.giftMessage}
+                      </div>
+                    )}
                     <form action={updateOrder}>
                       <input type="hidden" name="id" value={order.id} />
                       <div className="admin-form-grid">

@@ -13,8 +13,22 @@ export async function GET() {
     include: { items: true }
   });
   const header = [
-    'OrderNumber', 'RecipientName', 'Company', 'Address1', 'Address2', 'City', 'State',
-    'PostalCode', 'Country', 'Email', 'Phone', 'ShippingMethod', 'Items', 'OrderTotal'
+    'OrderNumber',
+    'RecipientName',
+    'Company',
+    'Address1',
+    'Address2',
+    'City',
+    'State',
+    'PostalCode',
+    'Country',
+    'Email',
+    'Phone',
+    'ShippingMethod',
+    'Fulfillment',
+    'GiftMessage',
+    'Items',
+    'OrderTotal'
   ];
   const rows = orders.map((order) => [
     order.invoiceNumber,
@@ -29,6 +43,8 @@ export async function GET() {
     order.email,
     order.phone,
     order.shippingMethod || 'Standard shipping',
+    order.fulfillmentMethod === 'PICKUP' ? 'PICKUP' : 'SHIP',
+    order.giftMessage || '',
     order.items.map((item) => `${item.quantity} x ${item.name}`).join('; '),
     (order.totalCents / 100).toFixed(2)
   ]);

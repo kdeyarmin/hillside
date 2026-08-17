@@ -16,6 +16,13 @@ import {
 } from '@/lib/checkout';
 import { rateLimited } from '@/lib/rate-limit';
 import { checkoutReturnOrigin, newInvoiceNumber } from '@/lib/store';
+import {
+  cartFulfillment,
+  readFulfillmentChoice,
+  readGiftMessage,
+  resolveFulfillment,
+  shippingMethodLabel
+} from '@/lib/fulfillment';
 
 export const runtime = 'nodejs';
 
@@ -69,6 +76,17 @@ export async function POST(request: Request) {
       );
     }
 
+    const fulfillment = resolveFulfillment(
+      readFulfillmentChoice(body),
+      cartFulfillment(items.map(({ product }) => product))
+    );
+    if (!fulfillment.ok) {
+      return NextResponse.json({ error: fulfillment.error }, { status: 400 });
+    }
+
+    const giftMessage = readGiftMessage(body);
+    const pickup = fulfillment.method === 'PICKUP';
+
     const subtotalCents = items.reduce(
       (total, item) => total + item.product.priceCents * item.quantity,
       0
@@ -78,8 +96,11 @@ export async function POST(request: Request) {
       Number(process.env.FREE_SHIPPING_THRESHOLD_CENTS || 7500)
     );
     const flatShippingCents = Math.max(0, Number(process.env.FLAT_SHIPPING_CENTS || 895));
-    const shippingCents =
-      freeShippingThreshold > 0 && subtotalCents >= freeShippingThreshold ? 0 : flatShippingCents;
+    const shippingCents = pickup
+      ? 0
+      : freeShippingThreshold > 0 && subtotalCents >= freeShippingThreshold
+        ? 0
+        : flatShippingCents;
     const invoiceNumber = newInvoiceNumber();
     const site = checkoutReturnOrigin();
     const stripe = new Stripe(secret);
@@ -97,7 +118,9 @@ export async function POST(request: Request) {
         invoiceNumber,
         items,
         subtotalCents,
-        shippingCents
+        shippingCents,
+        fulfillmentMethod: fulfillment.method,
+        giftMessage
       });
     } catch (error) {
       if (error instanceof InsufficientStockError) {
@@ -153,21 +176,25 @@ export async function POST(request: Request) {
         expires_at: holdExpiryUnix(reservation.expiresAt),
         success_url: `${site}/order/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${site}/cart`,
-        billing_address_collection: 'auto',
-        shipping_address_collection: { allowed_countries: ['US'] },
-        shipping_options: [
-          {
-            shipping_rate_data: {
-              type: 'fixed_amount',
-              fixed_amount: { amount: shippingCents, currency: 'usd' },
-              display_name: shippingCents === 0 ? 'Free standard shipping' : 'Standard shipping',
-              delivery_estimate: {
-                minimum: { unit: 'business_day', value: 3 },
-                maximum: { unit: 'business_day', value: 7 }
-              }
-            }
-          }
-        ],
+        billing_address_collection: pickup ? 'required' : 'auto',
+        ...(pickup
+          ? {}
+          : {
+              shipping_address_collection: { allowed_countries: ['US'] as const },
+              shipping_options: [
+                {
+                  shipping_rate_data: {
+                    type: 'fixed_amount' as const,
+                    fixed_amount: { amount: shippingCents, currency: 'usd' },
+                    display_name: shippingMethodLabel('SHIP', shippingCents),
+                    delivery_estimate: {
+                      minimum: { unit: 'business_day' as const, value: 3 },
+                      maximum: { unit: 'business_day' as const, value: 7 }
+                    }
+                  }
+                }
+              ]
+            }),
         phone_number_collection: { enabled: true },
         automatic_tax: { enabled: process.env.STRIPE_AUTOMATIC_TAX === 'true' },
         invoice_creation: { enabled: true },
@@ -175,20 +202,34 @@ export async function POST(request: Request) {
         consent_collection: { promotions: 'auto' },
         payment_intent_data: {
           description: `The Hillside Gardens ${invoiceNumber}`,
-          metadata: { invoiceNumber, kind: 'PRODUCT_ORDER', orderId: reservation.order.id }
+          metadata: {
+            invoiceNumber,
+            kind: 'PRODUCT_ORDER',
+            orderId: reservation.order.id,
+            fulfillment: fulfillment.method
+          }
         },
-        custom_text: {
-          shipping_address: {
-            message:
-              'Plants and temperature-sensitive goods are packed with care. We may contact you if weather could delay safe shipment.'
-          },
-          submit: { message: 'You will receive an emailed receipt and invoice after payment.' }
-        },
+        custom_text: pickup
+          ? {
+              submit: {
+                message:
+                  'Local pickup in Ebensburg. We will email when the order is ready — please do not come until you hear from us.'
+              }
+            }
+          : {
+              shipping_address: {
+                message:
+                  'Plants and temperature-sensitive goods are packed with care. We may contact you if weather could delay safe shipment.'
+              },
+              submit: { message: 'You will receive an emailed receipt and invoice after payment.' }
+            },
         metadata: {
           kind: 'PRODUCT_ORDER',
           invoiceNumber,
           orderId: reservation.order.id,
           held: '1',
+          fulfillment: fulfillment.method,
+          ...(giftMessage ? { gift: giftMessage } : {}),
           /**
            * Compact backup. Fulfillment prefers the reserved order and Stripe
            * line items; this remains so sessions already in flight during a

@@ -27,6 +27,7 @@ import {
   returnPolicyForType,
   resolveImageUrl
 } from '@/lib/store';
+import { fulfillmentBlurb, offersPickup, offersShipping } from '@/lib/fulfillment';
 
 export const dynamic = 'force-dynamic';
 
@@ -259,12 +260,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   : `${product.inventory} available`}
             </p>
 
-            {threshold > 0 && (
+            {threshold > 0 && offersShipping(product) && (
               <p className="shipping-nudge">
                 <Truck size={17} aria-hidden="true" />
                 {product.priceCents >= threshold
                   ? 'This order qualifies for free standard shipping.'
                   : `Free standard shipping on orders over ${formatMoney(threshold)}.`}
+              </p>
+            )}
+            {!offersShipping(product) && offersPickup(product) && (
+              <p className="shipping-nudge">
+                <Truck size={17} aria-hidden="true" />
+                Local pickup only — this piece does not ship.
               </p>
             )}
 
@@ -282,6 +289,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 </div>
               )}
               <div className="note-box">
+                <b>How it gets home</b>
+                {fulfillmentBlurb(product)}
+              </div>
+              <div className="note-box">
                 <b>Secure checkout</b>Payment is processed by Stripe. A receipt and invoice are
                 emailed after purchase.
               </div>
@@ -297,7 +308,9 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   priceCents: product.priceCents,
                   imageUrl: product.imageUrl,
                   inventory: product.inventory,
-                  type: product.type
+                  type: product.type,
+                  ships: product.ships,
+                  pickup: product.pickup
                 }}
               />
             )}

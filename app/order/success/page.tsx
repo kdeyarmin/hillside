@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import OrderSuccessClient from '@/components/OrderSuccessClient';
 import { db } from '@/lib/db';
 import { formatMoney } from '@/lib/store';
+import { isPickupOrder } from '@/lib/fulfillment';
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -65,15 +66,16 @@ export default async function Success({
 
   const paid = Boolean(
     order?.status === 'PAID' ||
-      order?.status === 'FULFILLED' ||
-      session?.payment_status === 'paid' ||
-      session?.payment_status === 'no_payment_required'
+    order?.status === 'FULFILLED' ||
+    session?.payment_status === 'paid' ||
+    session?.payment_status === 'no_payment_required'
   );
   if (!paid && !order) notFound();
 
   const invoiceNumber = order?.invoiceNumber || session?.metadata?.invoiceNumber || 'Pending';
   const totalCents = order?.totalCents ?? session?.amount_total ?? 0;
   const email = order?.email || session?.customer_details?.email || session?.customer_email;
+  const pickup = order ? isPickupOrder(order) : session?.metadata?.fulfillment === 'PICKUP';
 
   return (
     <section className="content">
@@ -86,11 +88,16 @@ export default async function Success({
           style={{ width: 260, height: 'auto', margin: '0 auto 20px' }}
         />
         <div className="eyebrow">Order received</div>
-        <h1 className="display-title" style={{ fontSize: 56, color: 'var(--forest)', margin: '10px 0' }}>
+        <h1
+          className="display-title"
+          style={{ fontSize: 56, color: 'var(--forest)', margin: '10px 0' }}
+        >
           Thank you for shopping small.
         </h1>
         <p style={{ fontSize: 18 }}>
-          Your payment was successful. We will begin preparing your Hillside order.
+          {pickup
+            ? 'Your payment was successful. This order is for local pickup in Ebensburg. We will email when it is ready — please wait for that note before you come by.'
+            : 'Your payment was successful. We will begin preparing your Hillside order.'}
         </p>
         <div className="admin-card" style={{ textAlign: 'left', margin: '28px 0' }}>
           <div className="summary-row">
@@ -107,6 +114,14 @@ export default async function Success({
               <strong>{email}</strong>
             </div>
           )}
+          {order?.giftMessage && (
+            <div className="summary-row">
+              <span>Gift message</span>
+              <strong style={{ whiteSpace: 'pre-wrap', fontWeight: 500 }}>
+                {order.giftMessage}
+              </strong>
+            </div>
+          )}
           {order?.items.map((item) => (
             <div className="summary-row" key={item.id}>
               <span>
@@ -117,13 +132,14 @@ export default async function Success({
           ))}
         </div>
         <p>
-          A Stripe receipt and invoice are emailed after purchase. Another update will be sent when
-          the order ships.
+          {pickup
+            ? 'A Stripe receipt and invoice are emailed after purchase. Another update will be sent when the order is ready to pick up.'
+            : 'A Stripe receipt and invoice are emailed after purchase. Another update will be sent when the order ships.'}
         </p>
         {!order && (
           <p className="muted" style={{ fontSize: 13 }}>
-            Your payment is confirmed. The full order details take a few seconds to finish
-            recording — refresh this page, or look them up any time on the order-status page.
+            Your payment is confirmed. The full order details take a few seconds to finish recording
+            — refresh this page, or look them up any time on the order-status page.
           </p>
         )}
         <OrderSuccessClient

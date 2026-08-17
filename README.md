@@ -21,6 +21,8 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Individual SEO-ready product pages with live inventory, multiple photographs and customer reviews
 - Back-in-stock email alerts on sold-out products
 - Persistent shopping cart and secure Stripe Checkout
+- Optional gift message at checkout, printed on the packing slip
+- Local pickup in Ebensburg at checkout, or standard US shipping
 - Configurable flat or free standard shipping
 - Customer order-confirmation page and Stripe invoice link
 - Self-service order-status lookup
@@ -39,7 +41,7 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 The dashboard at `/admin` includes:
 
 - Revenue and operations overview
-- Order fulfillment, private notes, carrier and tracking entry
+- Order fulfillment, private notes, carrier and tracking entry, gift messages and pickup orders
 - Automatic customer shipping-update email when an order is marked fulfilled
 - Packing-slip and 4 × 6 shipping-label printing
 - Shipping-address, full-order and newsletter-subscriber CSV exports

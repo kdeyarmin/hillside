@@ -238,6 +238,38 @@
 .save-cart-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .save-cart-row .form-input { flex: 1 1 160px; }
 
+.checkout-options { display: grid; gap: 16px; margin: 18px 0 8px; }
+.checkout-options.compact { margin: 0 0 14px; gap: 12px; }
+.fulfillment-picker { margin: 0; padding: 0; border: 0; display: grid; gap: 8px; }
+.fulfillment-picker legend { padding: 0; margin-bottom: 8px; color: var(--forest); font-size: 13px; font-weight: 800; }
+.fulfillment-picker label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+  cursor: pointer;
+}
+.fulfillment-picker label:has(input:checked) { border-color: var(--forest); background: var(--sage-light); }
+.fulfillment-picker input { margin-top: 3px; }
+.fulfillment-picker b { display: block; color: var(--forest); font-size: 14px; }
+.fulfillment-picker small { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.gift-message-field { display: grid; gap: 6px; }
+.gift-message-field span { color: var(--forest); font-size: 13px; font-weight: 800; }
+.gift-message-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  font: inherit;
+  resize: vertical;
+  min-height: 64px;
+}
+.gift-message-field small { color: var(--muted); font-size: 12px; justify-self: end; }
+
 /* ---- care library ---- */
 .care-load-more { margin-top: 34px; text-align: center; }
 .care-load-more p { margin-bottom: 12px; }
