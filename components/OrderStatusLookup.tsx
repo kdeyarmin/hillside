@@ -3,7 +3,8 @@
 import { FormEvent, useState } from 'react';
 import { PackageSearch } from 'lucide-react';
 import { formatMoney } from '@/lib/store';
-import { describeTracking, orderStatusBadge, orderStatusLabel } from '@/lib/tracking';
+import { isPickupOrder, orderStatusHeading } from '@/lib/fulfillment';
+import { describeTracking, orderStatusBadge } from '@/lib/tracking';
 
 type OrderResult = {
   invoiceNumber: string;
@@ -13,6 +14,9 @@ type OrderResult = {
   totalCents: number;
   trackingCarrier: string | null;
   trackingNumber: string | null;
+  fulfillmentMethod?: string | null;
+  shippingMethod?: string | null;
+  giftMessage?: string | null;
   items: { name: string; quantity: number; unitCents: number }[];
 };
 
@@ -89,7 +93,7 @@ export default function OrderStatusLookup() {
                 className="display-title"
                 style={{ color: 'var(--forest)', fontSize: 38, margin: '5px 0' }}
               >
-                {orderStatusLabel(order.status)}
+                {orderStatusHeading(order)}
               </h2>
             </div>
             <span className={`status-badge ${order.status}`}>{orderStatusBadge(order.status)}</span>
@@ -97,7 +101,21 @@ export default function OrderStatusLookup() {
           <p className="muted">
             Placed {new Date(order.createdAt).toLocaleDateString('en-US', { dateStyle: 'long' })}
           </p>
-          {order.trackingNumber && (
+          {isPickupOrder(order) && (
+            <div className="note-box">
+              <b>Local pickup</b>
+              {order.status === 'FULFILLED'
+                ? 'This order is ready in Ebensburg. Check the email we sent for the pickup window.'
+                : 'We will email when this is ready. Please do not come until you hear from us.'}
+            </div>
+          )}
+          {order.giftMessage && (
+            <div className="note-box">
+              <b>Gift message</b>
+              <span style={{ whiteSpace: 'pre-wrap' }}>{order.giftMessage}</span>
+            </div>
+          )}
+          {!isPickupOrder(order) && order.trackingNumber && (
             <TrackingNote number={order.trackingNumber} carrier={order.trackingCarrier} />
           )}
           <div style={{ marginTop: 20 }}>

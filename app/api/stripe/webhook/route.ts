@@ -7,6 +7,13 @@ import { findHoldBySessionOrHoldId, releaseHold, seatsRemaining } from '@/lib/cl
 import { parseCheckoutItems, releaseExpiredProductHolds, releaseProductHold } from '@/lib/checkout';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
+import {
+  isPickupOrder,
+  pickupPlaceholderAddress,
+  sanitizeGiftMessage,
+  shippingMethodLabel,
+  type FulfillmentChoice
+} from '@/lib/fulfillment';
 import { formatMoney, newInvoiceNumber } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -61,17 +68,35 @@ async function findReservedOrder(session: Stripe.Checkout.Session) {
   return db.order.findUnique({ where: { stripeSessionId: session.id }, include: { items: true } });
 }
 
-function customerFieldsFromSession(session: Stripe.Checkout.Session) {
+function giftFromSession(session: Stripe.Checkout.Session, fallback: string | null) {
+  const field = session.custom_fields?.find((entry) => entry.key === 'gift_message');
+  return (
+    sanitizeGiftMessage(field?.text?.value) ||
+    sanitizeGiftMessage(session.metadata?.gift) ||
+    fallback
+  );
+}
+
+function fulfillmentFromSession(
+  session: Stripe.Checkout.Session,
+  fallback: FulfillmentChoice = 'SHIP'
+): FulfillmentChoice {
+  return session.metadata?.fulfillment === 'PICKUP' || fallback === 'PICKUP' ? 'PICKUP' : 'SHIP';
+}
+
+function customerFieldsFromSession(session: Stripe.Checkout.Session, pickup: boolean) {
   const shippingDetails = collectedShipping(session);
   const address = shippingDetails?.address || session.customer_details?.address;
+  const placeholder = pickupPlaceholderAddress();
+  const line1 = address?.line1 || '';
   return {
     customerName: shippingDetails?.name || session.customer_details?.name || 'Customer',
     email: session.customer_details?.email || session.customer_email || '',
     phone: session.customer_details?.phone || null,
-    address1: address?.line1 || '',
+    address1: line1 || (pickup ? placeholder.address1 : ''),
     address2: address?.line2 || null,
-    city: address?.city || '',
-    state: address?.state || '',
+    city: address?.city || (pickup ? placeholder.city : ''),
+    state: address?.state || (pickup ? placeholder.state : ''),
     postalCode: address?.postal_code || '',
     country: address?.country || 'US'
   };
@@ -88,13 +113,16 @@ async function completeReservedOrder(
   order: NonNullable<Awaited<ReturnType<typeof findReservedOrder>>>,
   session: Stripe.Checkout.Session
 ) {
-  const customer = customerFieldsFromSession(session);
+  const pickup = isPickupOrder(order) || fulfillmentFromSession(session) === 'PICKUP';
+  const customer = customerFieldsFromSession(session, pickup);
   const taxCents = session.total_details?.amount_tax || 0;
   const discountCents = session.total_details?.amount_discount || 0;
   const totalCents = session.amount_total ?? order.totalCents;
-  const shippingCents =
-    session.shipping_cost?.amount_total ??
-    Math.max(0, totalCents - order.subtotalCents - taxCents + discountCents);
+  const shippingCents = pickup
+    ? 0
+    : (session.shipping_cost?.amount_total ??
+      Math.max(0, totalCents - order.subtotalCents - taxCents + discountCents));
+  const fulfillmentMethod: 'PICKUP' | 'SHIP' = pickup ? 'PICKUP' : 'SHIP';
   const paidFields = {
     stripeSessionId: session.id,
     paymentIntentId: objectId(session.payment_intent),
@@ -105,7 +133,9 @@ async function completeReservedOrder(
     discountCents,
     totalCents,
     shippingCents,
-    shippingMethod: shippingCents === 0 ? 'Free standard shipping' : 'Standard shipping'
+    fulfillmentMethod,
+    giftMessage: giftFromSession(session, order.giftMessage),
+    shippingMethod: shippingMethodLabel(fulfillmentMethod, shippingCents)
   };
 
   try {
@@ -222,7 +252,9 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
     );
   }
 
-  const customer = customerFieldsFromSession(session);
+  const fulfillmentMethod: 'PICKUP' | 'SHIP' = fulfillmentFromSession(session);
+  const pickup = fulfillmentMethod === 'PICKUP';
+  const customer = customerFieldsFromSession(session, pickup);
   const subtotalCents = lineItems.reduce(
     (total, item) => total + item.unitCents * item.quantity,
     0
@@ -230,9 +262,10 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
   const taxCents = session.total_details?.amount_tax || 0;
   const discountCents = session.total_details?.amount_discount || 0;
   const totalCents = session.amount_total ?? subtotalCents;
-  const shippingCents =
-    session.shipping_cost?.amount_total ??
-    Math.max(0, totalCents - subtotalCents - taxCents + discountCents);
+  const shippingCents = pickup
+    ? 0
+    : (session.shipping_cost?.amount_total ??
+      Math.max(0, totalCents - subtotalCents - taxCents + discountCents));
   const invoiceNumber =
     session.metadata?.invoiceNumber || session.client_reference_id || newInvoiceNumber();
 
@@ -250,7 +283,9 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
         taxCents,
         totalCents,
         discountCents,
-        shippingMethod: shippingCents === 0 ? 'Free standard shipping' : 'Standard shipping',
+        fulfillmentMethod,
+        giftMessage: giftFromSession(session, null),
+        shippingMethod: shippingMethodLabel(fulfillmentMethod, shippingCents),
         items: { create: lineItems }
       },
       include: { items: true }
@@ -291,18 +326,32 @@ async function sendOrderEmails(orderId: string) {
 
   const order = await db.order.findUnique({
     where: { id: orderId },
-    select: { invoiceNumber: true, customerName: true, totalCents: true }
+    select: {
+      invoiceNumber: true,
+      customerName: true,
+      totalCents: true,
+      giftMessage: true,
+      fulfillmentMethod: true,
+      shippingMethod: true
+    }
   });
   if (!order) return;
+  const pickup = isPickupOrder(order);
 
   const businessEmail = process.env.BUSINESS_EMAIL;
   if (businessEmail) {
+    const giftNote = order.giftMessage
+      ? `<p><strong>Gift message</strong><br>${escapeHtml(order.giftMessage).replaceAll('\n', '<br>')}</p>`
+      : '';
+    const pickupNote = pickup
+      ? '<p><strong>Local pickup</strong> — email the customer when this is ready. Do not print a shipping label unless they change their mind.</p>'
+      : '<p>Open the owner dashboard to review, print the packing slip and create the shipping label.</p>';
     await sendEmail({
       to: businessEmail,
-      subject: `New order ${order.invoiceNumber} • ${formatMoney(order.totalCents)}`,
+      subject: `${pickup ? 'Pickup order' : 'New order'} ${order.invoiceNumber} • ${formatMoney(order.totalCents)}`,
       html: emailShell(
         `New order ${order.invoiceNumber}`,
-        `<p><strong>${escapeHtml(order.customerName)}</strong> placed a paid order for ${formatMoney(order.totalCents)}.</p><p>Open the owner dashboard to review, print the packing slip and create the shipping label.</p>`
+        `<p><strong>${escapeHtml(order.customerName)}</strong> placed a paid order for ${formatMoney(order.totalCents)}.</p>${pickupNote}${giftNote}`
       ),
       idempotencyKey: `new-order-admin/${orderId}`
     });

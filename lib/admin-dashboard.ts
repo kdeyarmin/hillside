@@ -130,6 +130,8 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'order-no-email': 'That order has no customer email to write to.',
   'order-not-confirmable':
     'Confirmation mail is only sent for paid orders that have not shipped yet.',
+  'pickup-note':
+    'Add the arranged pickup window before marking this ready. The customer is told to check their email for the time.',
   'registration-email-failed':
     'The class confirmation could not be sent. The guest’s previous classroom link is still valid. Check that RESEND_API_KEY is set.',
   'collection-invalid': 'A collection needs a name.',

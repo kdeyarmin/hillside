@@ -24,6 +24,27 @@ describe('orderConfirmationHtml', () => {
     assert.match(html, /Spring Hill, PA 15129/);
     assert.match(html, /\$45\.90/);
     assert.match(html, /\/order-status/);
+    assert.match(html, /when the order ships/);
+  });
+
+  it('uses pickup language and the gift note when the order will be collected', () => {
+    const html = orderConfirmationHtml({
+      invoiceNumber: 'HG-PICKUP',
+      customerName: 'Jane Grove',
+      address1: 'Local pickup',
+      address2: null,
+      city: 'Ebensburg',
+      state: 'PA',
+      postalCode: '',
+      totalCents: 2000,
+      giftMessage: 'Happy birthday',
+      fulfillmentMethod: 'PICKUP',
+      items: [{ name: 'Fern', quantity: 1, unitCents: 2000 }]
+    });
+
+    assert.match(html, /local pickup, as arranged/);
+    assert.match(html, /Happy birthday/);
+    assert.equal(html.includes('when the order ships'), false);
   });
 
   it('escapes a name that would otherwise break the markup', () => {

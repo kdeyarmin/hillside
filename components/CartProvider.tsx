@@ -10,8 +10,16 @@ import {
   useState
 } from 'react';
 import { toGtagItem, trackAddToCart, trackBeginCheckout } from '@/lib/analytics';
-import { clampQuantity } from '@/lib/store';
 import { checkoutAdjustmentNotice } from '@/lib/checkout-format';
+import {
+  cartFulfillment,
+  GIFT_MESSAGE_MAX,
+  readFulfillmentChoice,
+  resolveFulfillment,
+  sanitizeGiftMessage,
+  type FulfillmentChoice
+} from '@/lib/fulfillment';
+import { clampQuantity } from '@/lib/store';
 
 export type CartProduct = {
   slug: string;
@@ -20,6 +28,8 @@ export type CartProduct = {
   imageUrl: string | null;
   inventory: number;
   type?: string;
+  ships?: boolean;
+  pickup?: boolean;
 };
 
 export type CartLine = CartProduct & { quantity: number };
@@ -42,11 +52,17 @@ type CartContextValue = {
   checkoutError: string | null;
   checkoutNotice: string | null;
   lastAdded: string | null;
+  fulfillment: FulfillmentChoice;
+  giftMessage: string;
+  pickupArranged: boolean;
   addItem: (product: CartProduct, quantity?: number) => void;
   setQuantity: (slug: string, quantity: number) => void;
   removeItem: (slug: string) => void;
   replaceItems: (lines: CartLine[]) => void;
   clearCart: () => void;
+  setFulfillment: (method: FulfillmentChoice) => void;
+  setGiftMessage: (value: string) => void;
+  setPickupArranged: (value: boolean) => void;
   openCart: () => void;
   closeCart: () => void;
   checkout: () => Promise<void>;
@@ -54,6 +70,21 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 const STORAGE_KEY = 'hillside-cart-v2';
+const PREFS_KEY = 'hillside-checkout-prefs-v1';
+
+function readStoredPrefs(): { fulfillment: FulfillmentChoice; giftMessage: string } {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') as unknown;
+    if (!saved || typeof saved !== 'object') return { fulfillment: 'SHIP', giftMessage: '' };
+    const raw = saved as { fulfillment?: unknown; giftMessage?: unknown };
+    return {
+      fulfillment: readFulfillmentChoice({ fulfillment: raw.fulfillment }),
+      giftMessage: sanitizeGiftMessage(raw.giftMessage) || ''
+    };
+  } catch {
+    return { fulfillment: 'SHIP', giftMessage: '' };
+  }
+}
 
 function noticeForAdjustment(change: CheckoutAdjustment) {
   return checkoutAdjustmentNotice(change);
@@ -67,6 +98,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
+  const [fulfillment, setFulfillmentState] = useState<FulfillmentChoice>('SHIP');
+  const [giftMessage, setGiftMessageState] = useState('');
+  const [pickupArranged, setPickupArranged] = useState(false);
   const checkoutLock = useRef(false);
 
   useEffect(() => {
@@ -86,6 +120,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               imageUrl: line.imageUrl ? String(line.imageUrl) : null,
               inventory,
               type: line.type ? String(line.type) : undefined,
+              ships: line.ships !== false,
+              pickup: line.pickup !== false,
               quantity: clampQuantity(Number(line.quantity) || 1, inventory)
             }
           ];
@@ -95,6 +131,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     } catch {
       localStorage.removeItem(STORAGE_KEY);
     } finally {
+      const prefs = readStoredPrefs();
+      setFulfillmentState(prefs.fulfillment);
+      setGiftMessageState(prefs.giftMessage);
       setReady(true);
     }
   }, []);
@@ -102,6 +141,36 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (ready) localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ fulfillment, giftMessage }));
+  }, [fulfillment, giftMessage, ready]);
+
+  useEffect(() => {
+    const options = cartFulfillment(items);
+    if (options.forced && options.forced !== fulfillment) {
+      setFulfillmentState(options.forced);
+    }
+  }, [fulfillment, items]);
+
+  const setFulfillment = useCallback(
+    (method: FulfillmentChoice) => {
+      const options = cartFulfillment(items);
+      if (options.forced) {
+        setFulfillmentState(options.forced);
+        return;
+      }
+      if (method === 'PICKUP' && !options.canPickup) return;
+      if (method === 'SHIP' && !options.canShip) return;
+      setFulfillmentState(method);
+    },
+    [items]
+  );
+
+  const setGiftMessage = useCallback((value: string) => {
+    setGiftMessageState(value.slice(0, GIFT_MESSAGE_MAX));
+  }, []);
 
   const addItem = useCallback((product: CartProduct, quantity = 1) => {
     trackAddToCart(toGtagItem(product, quantity));
@@ -147,12 +216,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems(lines);
   }, []);
 
-  const clearCart = useCallback(() => setItems([]), []);
+  const clearCart = useCallback(() => {
+    setItems([]);
+    setGiftMessageState('');
+    setPickupArranged(false);
+  }, []);
   const openCart = useCallback(() => setDrawerOpen(true), []);
   const closeCart = useCallback(() => setDrawerOpen(false), []);
 
   const checkout = useCallback(async () => {
     if (!items.length || checkoutLock.current) return;
+    const options = cartFulfillment(items);
+    const resolved = resolveFulfillment(fulfillment, options, pickupArranged);
+    if (!resolved.ok) {
+      setCheckoutError(resolved.error);
+      return;
+    }
     checkoutLock.current = true;
     setCheckoutLoading(true);
     setCheckoutError(null);
@@ -166,6 +245,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          fulfillment: resolved.method,
+          pickupArranged,
+          giftMessage,
           items: items.map((item) => ({
             id: item.slug,
             quantity: item.quantity,
@@ -205,7 +287,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       checkoutLock.current = false;
       setCheckoutLoading(false);
     }
-  }, [items]);
+  }, [fulfillment, giftMessage, items, pickupArranged]);
 
   const count = useMemo(() => items.reduce((total, item) => total + item.quantity, 0), [items]);
   const subtotalCents = useMemo(
@@ -223,11 +305,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       checkoutError,
       checkoutNotice,
       lastAdded,
+      fulfillment,
+      giftMessage,
+      pickupArranged,
       addItem,
       setQuantity,
       removeItem,
       replaceItems,
       clearCart,
+      setFulfillment,
+      setGiftMessage,
+      setPickupArranged,
       openCart,
       closeCart,
       checkout
@@ -241,11 +329,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       checkoutError,
       checkoutNotice,
       lastAdded,
+      fulfillment,
+      giftMessage,
+      pickupArranged,
       addItem,
       setQuantity,
       removeItem,
       replaceItems,
       clearCart,
+      setFulfillment,
+      setGiftMessage,
+      setPickupArranged,
       openCart,
       closeCart,
       checkout

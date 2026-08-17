@@ -5,6 +5,8 @@ import { useEffect, useState } from 'react';
 import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
 import { useCart, type CartLine } from '@/components/CartProvider';
+import CheckoutOptions from '@/components/CheckoutOptions';
+import { cartFulfillment } from '@/lib/fulfillment';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
 import FormStatus from '@/components/FormStatus';
 
@@ -23,6 +25,8 @@ export default function CartPageClient({
     checkoutLoading,
     checkoutError,
     checkoutNotice,
+    fulfillment,
+    pickupArranged,
     setQuantity,
     removeItem,
     replaceItems,
@@ -149,6 +153,9 @@ export default function CartPageClient({
     freeShippingThreshold > 0
       ? Math.min(100, Math.round((subtotalCents / freeShippingThreshold) * 100))
       : 100;
+  const pickup = fulfillment === 'PICKUP';
+  const options = cartFulfillment(items);
+  const checkoutBlocked = options.conflict || (pickup && !pickupArranged);
 
   return (
     <div className="cart-page">
@@ -229,15 +236,17 @@ export default function CartPageClient({
           <strong>{formatMoney(subtotalCents)}</strong>
         </div>
         <div className="summary-row">
-          <span>Shipping</span>
-          <span>Calculated at checkout</span>
+          <span>{pickup ? 'Pickup' : 'Shipping'}</span>
+          <span>{pickup ? 'Free — local pickup' : 'Calculated at checkout'}</span>
         </div>
         <div className="summary-row total">
           <span>Current total</span>
           <span>{formatMoney(subtotalCents)}</span>
         </div>
 
-        {freeShippingThreshold > 0 && (
+        <CheckoutOptions />
+
+        {!pickup && freeShippingThreshold > 0 && (
           <div style={{ margin: '18px 0' }}>
             <div
               className="progress-track"
@@ -263,14 +272,15 @@ export default function CartPageClient({
           className="btn full"
           type="button"
           onClick={checkout}
-          disabled={checkoutLoading || restoreState === 'loading'}
+          disabled={checkoutLoading || restoreState === 'loading' || checkoutBlocked}
           aria-busy={checkoutLoading}
         >
           {checkoutLoading ? 'Opening secure checkout…' : 'Continue to secure checkout'}
         </button>
         <p className="muted" style={{ fontSize: 12 }}>
-          Stripe securely collects payment, billing and shipping information. Promotion codes can be
-          entered during checkout.
+          {pickup
+            ? 'Arrange pickup with us first. Stripe then collects payment and a contact address.'
+            : 'Stripe securely collects payment, billing and shipping information. Promotion codes can be entered during checkout.'}
         </p>
 
         <form className="save-cart" onSubmit={saveCart}>

@@ -31,7 +31,9 @@ async function loadCollection(slug: string) {
           compareAtCents: true,
           inventory: true,
           imageUrl: true,
-          badge: true
+          badge: true,
+          ships: true,
+          pickup: true
         },
         orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
         take: 200

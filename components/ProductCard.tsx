@@ -18,6 +18,8 @@ export type ProductCardProduct = {
   inventory: number;
   imageUrl: string | null;
   badge: string | null;
+  ships?: boolean;
+  pickup?: boolean;
   averageRating?: number | null;
   reviewCount?: number;
 };
@@ -37,7 +39,10 @@ function Stars({ rating, count }: { rating: number; count: number }) {
       </span>
       <span className="rating-stars" aria-hidden="true">
         {[1, 2, 3, 4, 5].map((step) => (
-          <span className={step <= rounded ? 'on' : step - 0.5 === rounded ? 'half' : ''} key={step}>
+          <span
+            className={step <= rounded ? 'on' : step - 0.5 === rounded ? 'half' : ''}
+            key={step}
+          >
             ★
           </span>
         ))}
@@ -75,7 +80,9 @@ export default function ProductCard({
       </Link>
       <div className="product-copy">
         <span className="pill">{productTypeLabel(product.type)}</span>
-        <h3><Link href={`/shop/${product.slug}`}>{product.name}</Link></h3>
+        <h3>
+          <Link href={`/shop/${product.slug}`}>{product.name}</Link>
+        </h3>
         {product.reviewCount ? (
           <Stars rating={product.averageRating || 0} count={product.reviewCount} />
         ) : null}
@@ -87,7 +94,11 @@ export default function ProductCard({
           )}
         </p>
         <span className={`stock ${soldOut ? 'out' : product.inventory <= 3 ? 'low' : ''}`}>
-          {soldOut ? 'Sold out' : product.inventory <= 3 ? `Only ${product.inventory} left` : 'In stock'}
+          {soldOut
+            ? 'Sold out'
+            : product.inventory <= 3
+              ? `Only ${product.inventory} left`
+              : 'In stock'}
         </span>
         <div className="product-actions">
           <Link className="text-link" href={`/shop/${product.slug}`}>
@@ -104,7 +115,9 @@ export default function ProductCard({
                 priceCents: product.priceCents,
                 imageUrl: product.imageUrl,
                 inventory: product.inventory,
-                type: product.type
+                type: product.type,
+                ships: product.ships,
+                pickup: product.pickup
               });
               openCart();
             }}

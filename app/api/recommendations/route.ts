@@ -24,7 +24,9 @@ export async function GET(request: Request) {
         priceCents: true,
         imageUrl: true,
         inventory: true,
-        type: true
+        type: true,
+        ships: true,
+        pickup: true
       }
     });
 

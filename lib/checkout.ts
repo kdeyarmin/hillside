@@ -6,6 +6,7 @@ import {
   InsufficientStockError,
   type CheckoutLine
 } from '@/lib/checkout-format';
+import { shippingMethodLabel, type FulfillmentChoice } from '@/lib/fulfillment';
 
 export {
   CHECKOUT_HOLD_MINUTES,
@@ -31,12 +32,16 @@ export async function reserveProductOrder({
   invoiceNumber,
   items,
   subtotalCents,
-  shippingCents
+  shippingCents,
+  fulfillmentMethod,
+  giftMessage
 }: {
   invoiceNumber: string;
   items: CheckoutLine[];
   subtotalCents: number;
   shippingCents: number;
+  fulfillmentMethod: FulfillmentChoice;
+  giftMessage?: string | null;
 }) {
   const expiresAt = holdExpiry();
   const holdId = `hold_${crypto.randomUUID()}`;
@@ -68,7 +73,9 @@ export async function reserveProductOrder({
         shippingCents,
         taxCents: 0,
         totalCents: subtotalCents + shippingCents,
-        shippingMethod: shippingCents === 0 ? 'Free standard shipping' : 'Standard shipping',
+        fulfillmentMethod,
+        giftMessage: giftMessage || null,
+        shippingMethod: shippingMethodLabel(fulfillmentMethod, shippingCents),
         items: {
           create: items.map((item) => ({
             productId: item.product.id,
@@ -94,7 +101,9 @@ export async function attachStripeSessionToOrder(holdId: string, stripeSessionId
 export async function releaseProductHold(orderId: string) {
   const order = await db.order.findUnique({
     where: { id: orderId },
-    include: { items: { include: { product: { select: { name: true, slug: true, inventory: true } } } } }
+    include: {
+      items: { include: { product: { select: { name: true, slug: true, inventory: true } } } }
+    }
   });
   if (!order || order.status !== 'PENDING') return false;
 

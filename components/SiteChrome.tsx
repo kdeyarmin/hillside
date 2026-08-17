@@ -16,8 +16,10 @@ import {
 } from 'lucide-react';
 import NewsletterForm from '@/components/NewsletterForm';
 import ResilientImage from '@/components/ResilientImage';
+import CheckoutOptions from '@/components/CheckoutOptions';
 import { useCart } from '@/components/CartProvider';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
+import { cartFulfillment } from '@/lib/fulfillment';
 import { focusableElements, trapTabKey } from '@/lib/focus-trap';
 import {
   DEFAULT_BUSINESS_EMAIL,
@@ -91,6 +93,8 @@ type Suggestion = {
   imageUrl: string | null;
   inventory: number;
   type: string;
+  ships?: boolean;
+  pickup?: boolean;
 };
 
 function CartDrawerSuggestions() {
@@ -157,6 +161,8 @@ function CartDrawer({
     checkoutLoading,
     checkoutError,
     checkoutNotice,
+    fulfillment,
+    pickupArranged,
     closeCart,
     setQuantity,
     removeItem,
@@ -324,12 +330,19 @@ function CartDrawer({
             </div>
             <CartDrawerSuggestions />
             <div className="drawer-total">
+            {fulfillment !== 'PICKUP' && (
               <FreeShippingMeter subtotalCents={subtotalCents} threshold={freeShippingThreshold} />
+            )}
+            <CheckoutOptions compact />
               <div>
                 <span>Subtotal</span>
                 <strong>{formatMoney(subtotalCents)}</strong>
               </div>
-              <p>Shipping and any applicable tax are calculated securely in Stripe Checkout.</p>
+              <p>
+                {fulfillment === 'PICKUP'
+                  ? 'No shipping charge. Tax is calculated securely in Stripe Checkout.'
+                  : 'Shipping and any applicable tax are calculated securely in Stripe Checkout.'}
+              </p>
               {checkoutError && (
                 <p className="drawer-error" role="alert">
                   {checkoutError}
@@ -344,7 +357,11 @@ function CartDrawer({
                 className="btn full"
                 type="button"
                 onClick={checkout}
-                disabled={checkoutLoading}
+                disabled={
+                  checkoutLoading ||
+                  cartFulfillment(items).conflict ||
+                  (fulfillment === 'PICKUP' && !pickupArranged)
+                }
                 aria-busy={checkoutLoading}
               >
                 {checkoutLoading ? 'Opening secure checkout…' : 'Secure checkout'}

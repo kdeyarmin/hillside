@@ -24,8 +24,8 @@ import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { releaseProductHold } from '@/lib/checkout';
 import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
+import { isPickupOrder } from '@/lib/fulfillment';
 import { absoluteUrl } from '@/lib/store';
-import { describeTracking } from '@/lib/tracking';
 
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
 const checked = (form: FormData, name: string) =>
@@ -114,6 +114,8 @@ export async function saveProduct(formData: FormData) {
     details: text(formData, 'details') || null,
     careNotes: text(formData, 'careNotes') || null,
     shippingNote: text(formData, 'shippingNote') || null,
+    ships: checked(formData, 'ships'),
+    pickup: checked(formData, 'pickup'),
     type,
     priceCents,
     compareAtCents: compareAtText ? money(formData.get('compareAt')) : null,
@@ -128,6 +130,11 @@ export async function saveProduct(formData: FormData) {
       .filter(Boolean)
       .slice(0, 8)
   };
+
+  if (!data.ships && !data.pickup) {
+    data.ships = true;
+    data.pickup = true;
+  }
 
   if (!name || !slug || !data.description || priceCents < 0) {
     redirect(
@@ -366,6 +373,16 @@ export async function updateOrder(formData: FormData) {
   const trackingCarrier = text(formData, 'trackingCarrier') || null;
   const trackingNumber = text(formData, 'trackingNumber') || null;
   const internalNotes = text(formData, 'internalNotes') || null;
+  const pickupNote = text(formData, 'pickupNote');
+
+  if (
+    status === OrderStatus.FULFILLED &&
+    before.status !== OrderStatus.FULFILLED &&
+    isPickupOrder(before) &&
+    !pickupNote
+  ) {
+    redirect(adminDashboardPath({ error: 'pickup-note', order: before.id, section: 'orders' }));
+  }
 
   if (status === OrderStatus.CANCELLED && before.status === OrderStatus.PENDING) {
     await releaseProductHold(id);
@@ -411,21 +428,22 @@ export async function updateOrder(formData: FormData) {
   }
 
   if (status === OrderStatus.FULFILLED && before.status !== OrderStatus.FULFILLED && order.email) {
-    const track = trackingNumber ? describeTracking(trackingNumber, trackingCarrier) : null;
-    const tracking = track
-      ? track.url
-        ? `<p><strong>Tracking:</strong> <a href="${escapeHtml(track.url)}">${escapeHtml(track.label)}</a></p>`
-        : `<p><strong>Tracking:</strong> ${escapeHtml(track.label)}</p>`
-      : '';
+    const pickup = isPickupOrder(order);
+    const tracking =
+      !pickup && trackingNumber
+        ? `<p><strong>Tracking:</strong> ${escapeHtml(trackingCarrier || 'Carrier')} ${escapeHtml(trackingNumber)}</p>`
+        : '';
     const statusUrl = absoluteUrl('/order-status');
+    const body = pickup
+      ? `<p>Hi ${escapeHtml(order.customerName)},</p><p>Order <strong>${escapeHtml(order.invoiceNumber)}</strong> is ready for pickup in Ebensburg.</p><p><strong>Pickup window:</strong></p><p style="white-space:pre-line">${escapeHtml(pickupNote)}</p><p>Please come during that window. Reply to this email if you need to change it.</p>`
+      : `<p>Hi ${escapeHtml(order.customerName)},</p><p>We have marked order <strong>${escapeHtml(order.invoiceNumber)}</strong> as shipped.</p>${tracking}<p>Look this order up any time with your HG number and checkout email: <a href="${escapeHtml(statusUrl)}">${escapeHtml(statusUrl)}</a></p>`;
     await sendEmail({
       to: order.email,
-      subject: `Your Hillside order ${order.invoiceNumber} has shipped`,
+      subject: pickup
+        ? `Your Hillside order ${order.invoiceNumber} is ready for pickup`
+        : `Your Hillside order ${order.invoiceNumber} has shipped`,
       idempotencyKey: `shipping-update/${order.id}/${trackingNumber || 'fulfilled'}`,
-      html: emailShell(
-        'Your order is on the way',
-        `<p>Hi ${escapeHtml(order.customerName)},</p><p>We have marked order <strong>${escapeHtml(order.invoiceNumber)}</strong> as shipped.</p>${tracking}<p>Look this order up any time with your HG number and checkout email: <a href="${escapeHtml(statusUrl)}">${escapeHtml(statusUrl)}</a></p>`
-      )
+      html: emailShell(pickup ? 'Your order is ready for pickup' : 'Your order is on the way', body)
     });
   }
 

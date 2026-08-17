@@ -8,7 +8,8 @@ import { pageMetadata } from '@/lib/seo';
 export const metadata = pageMetadata({
   path: '/contact',
   title: 'Contact us',
-  description: 'Contact The Hillside Gardens about plants, products, orders or custom arrangements.'
+  description:
+    'Contact The Hillside Gardens about plants, products, orders, local pickup or custom arrangements.'
 });
 
 export default async function ContactPage({
@@ -68,8 +69,8 @@ export default async function ContactPage({
                 <MapPin size={20} />
                 <b>Local pickup</b>
                 <span>
-                  Pickup is arranged through this form. Exact details are shared directly with
-                  confirmed customers.
+                  Arrange a time with us first, then choose local pickup at checkout. Exact
+                  instructions are sent after we confirm.
                 </span>
               </div>
             </div>

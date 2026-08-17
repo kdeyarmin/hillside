@@ -32,6 +32,11 @@ enum RegistrationStatus {
   REFUNDED
 }
 
+enum FulfillmentMethod {
+  SHIP
+  PICKUP
+}
+
 enum MessageStatus {
   NEW
   READ
@@ -67,6 +72,8 @@ model Product {
   details          String?
   careNotes        String?
   shippingNote     String?
+  ships            Boolean      @default(true)
+  pickup           Boolean      @default(true)
   type             ProductType
   priceCents       Int
   compareAtCents   Int?
@@ -112,6 +119,8 @@ model Order {
   // Stripe event cannot inflate inventory.
   inventoryRestoredAt     DateTime?
   shippingMethod          String?
+  fulfillmentMethod       FulfillmentMethod @default(SHIP)
+  giftMessage             String?
   trackingCarrier         String?
   trackingNumber          String?
   internalNotes           String?

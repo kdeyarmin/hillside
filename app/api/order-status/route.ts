@@ -18,8 +18,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Enter your order number and email.' }, { status: 400 });
     }
     const data = body as { invoiceNumber?: unknown; email?: unknown };
-    const invoiceNumber = String(data.invoiceNumber || '').trim().toUpperCase().replaceAll(' ', '');
-    const email = String(data.email || '').trim().toLowerCase();
+    const invoiceNumber = String(data.invoiceNumber || '')
+      .trim()
+      .toUpperCase()
+      .replaceAll(' ', '');
+    const email = String(data.email || '')
+      .trim()
+      .toLowerCase();
     if (!invoiceNumber || !email) {
       return NextResponse.json({ error: 'Enter your order number and email.' }, { status: 400 });
     }
@@ -43,6 +48,9 @@ export async function POST(request: Request) {
       totalCents: order.totalCents,
       trackingCarrier: order.trackingCarrier,
       trackingNumber: order.trackingNumber,
+      fulfillmentMethod: order.fulfillmentMethod,
+      shippingMethod: order.shippingMethod,
+      giftMessage: order.giftMessage,
       items: order.items
     });
   } catch (error) {
