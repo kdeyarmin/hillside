@@ -71,6 +71,20 @@ export function adminDashboardPath(query: Record<string, string | undefined | nu
   return encoded ? `/admin?${encoded}` : '/admin';
 }
 
+/**
+ * Next can hand a repeated query string through as `string[]`. The dashboard
+ * used to call `.trim()` on `params.q` directly, so `/admin?q=one&q=two`
+ * crashed the whole owner page.
+ */
+export function firstSearchParam(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    const first = value.find((entry) => typeof entry === 'string');
+    return typeof first === 'string' ? first : '';
+  }
+  return '';
+}
+
 export const ADMIN_NOTICES: Record<string, string> = {
   'product-saved': 'Product saved.',
   'product-created': 'Product created.',
@@ -95,6 +109,10 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'order-missing': 'That order is no longer here.',
   'order-email-failed':
     'The confirmation email could not be sent. Check that RESEND_API_KEY is set.',
+  'order-not-confirmable':
+    'Confirmation mail is only sent for paid orders that have not shipped yet.',
+  'registration-email-failed':
+    'The class confirmation could not be sent. The guest’s previous classroom link is still valid. Check that RESEND_API_KEY is set.',
   throttled: 'Too many sign-in attempts. Please wait a few minutes and try again.',
   '1': 'That email address and password didn’t match an admin account.'
 };

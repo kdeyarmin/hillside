@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   adminDashboardPath,
+  firstSearchParam,
   parseAdminStockFilter,
   productMatchesAdminFilter,
   productNeedsPhoto,
@@ -82,5 +83,15 @@ describe('adminDashboardPath', () => {
       }),
       '/admin?notice=product-live&product=monstera&section=inventory'
     );
+  });
+});
+
+describe('firstSearchParam', () => {
+  it('takes the first string when Next repeats a query key', () => {
+    assert.equal(firstSearchParam('monstera'), 'monstera');
+    assert.equal(firstSearchParam(['one', 'two']), 'one');
+    assert.equal(firstSearchParam([]), '');
+    assert.equal(firstSearchParam(undefined), '');
+    assert.equal(firstSearchParam(null), '');
   });
 });

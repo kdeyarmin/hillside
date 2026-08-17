@@ -144,7 +144,7 @@ export async function saveProduct(formData: FormData) {
     .filter(Boolean);
 
   const previous = id
-    ? await db.product.findUnique({ where: { id }, select: { inventory: true } })
+    ? await db.product.findUnique({ where: { id }, select: { inventory: true, slug: true } })
     : null;
 
   let product;
@@ -192,7 +192,7 @@ export async function saveProduct(formData: FormData) {
       redirect(
         adminDashboardPath({
           error: field === 'sku' ? 'sku' : 'slug',
-          product: slug || undefined,
+          product: previous?.slug,
           section: id ? 'inventory' : 'add-product'
         })
       );
@@ -401,10 +401,17 @@ export async function resendOrderConfirmation(formData: FormData) {
   if (!id) redirect(adminDashboardPath({ error: 'order-missing', section: 'orders' }));
 
   const result = await sendOrderConfirmationEmail(id, { force: true });
+  const error = result.sent
+    ? undefined
+    : result.reason === 'missing'
+      ? 'order-missing'
+      : result.reason === 'not-confirmable'
+        ? 'order-not-confirmable'
+        : 'order-email-failed';
   redirect(
     adminDashboardPath({
       notice: result.sent ? 'order-emailed' : undefined,
-      error: result.sent ? undefined : 'order-email-failed',
+      error,
       order: id,
       section: 'orders'
     })
@@ -482,36 +489,58 @@ export async function prepareClassRoom(formData: FormData) {
 export async function resendClassConfirmation(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
-  if (!id) return;
+  const next = text(formData, 'next');
+  if (!id) {
+    if (next === 'dashboard') redirect(adminDashboardPath({ section: 'registrations' }));
+    return;
+  }
   const registration = await db.classRegistration.findUnique({
     where: { id },
     include: { classEvent: true }
   });
-  if (!registration || registration.status !== RegistrationStatus.PAID) return;
+  if (!registration || registration.status !== RegistrationStatus.PAID) {
+    if (next === 'dashboard') redirect(adminDashboardPath({ section: 'registrations' }));
+    return;
+  }
 
+  /**
+   * Send first. Rotating `joinTokenHash` before the mail goes out would
+   * invalidate the guest's current classroom link even when Resend is
+   * unconfigured or rejects the message.
+   */
   const credential = isOnlineClass(registration.classEvent.format)
     ? createClassJoinCredential()
     : null;
-  const updated = credential
-    ? await db.classRegistration.update({
-        where: { id: registration.id },
-        data: { joinTokenHash: credential.hash, confirmationEmailSentAt: null }
-      })
-    : await db.classRegistration.update({
-        where: { id: registration.id },
-        data: { confirmationEmailSentAt: null }
-      });
 
-  await sendClassRegistrationEmails({
+  const result = await sendClassRegistrationEmails({
     event: registration.classEvent,
-    registration: updated,
-    accessToken: credential?.token
+    registration,
+    accessToken: credential?.token,
+    resend: true
   });
-  const next = text(formData, 'next');
-  if (next === 'dashboard') {
-    redirect(adminDashboardPath({ notice: 'registration-emailed', section: 'registrations' }));
+
+  if (result.sent && credential) {
+    await db.classRegistration.update({
+      where: { id: registration.id },
+      data: { joinTokenHash: credential.hash }
+    });
   }
-  refresh('/admin', '/admin/content');
+
+  if (next === 'dashboard') {
+    redirect(
+      adminDashboardPath({
+        notice: result.sent ? 'registration-emailed' : undefined,
+        error: result.sent ? undefined : 'registration-email-failed',
+        section: 'registrations'
+      })
+    );
+  }
+
+  redirect(
+    `/admin/classes/${registration.classEvent.id}/studio?${
+      result.sent ? 'notice=emailed' : 'error=email'
+    }`
+  );
 }
 
 export async function saveGalleryItem(formData: FormData) {

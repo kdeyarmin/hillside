@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { orderConfirmationHtml } from '@/lib/order-email';
 import { sendEmail } from '@/lib/email';
+import { isAwaitingShipment } from '@/lib/orders';
 
 /**
  * Sends (or resends) the customer order confirmation and records the result
@@ -13,6 +14,9 @@ export async function sendOrderConfirmationEmail(
 ): Promise<{ sent: boolean; reason?: string; invoiceNumber?: string }> {
   const order = await db.order.findUnique({ where: { id: orderId }, include: { items: true } });
   if (!order) return { sent: false, reason: 'missing' };
+  if (!isAwaitingShipment(order.status)) {
+    return { sent: false, reason: 'not-confirmable', invoiceNumber: order.invoiceNumber };
+  }
   if (!options.force && order.confirmationEmailSentAt) {
     return { sent: true, reason: 'already-sent', invoiceNumber: order.invoiceNumber };
   }

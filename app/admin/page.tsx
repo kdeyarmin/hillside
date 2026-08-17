@@ -11,6 +11,7 @@ import {
   ADMIN_ERRORS,
   ADMIN_NOTICES,
   adminDashboardPath,
+  firstSearchParam,
   parseAdminStockFilter,
   productMatchesAdminFilter,
   productNeedsPhoto
@@ -262,15 +263,15 @@ export default async function Admin({
   searchParams
 }: {
   searchParams: Promise<{
-    error?: string;
-    notice?: string;
-    product?: string;
-    order?: string;
-    message?: string;
-    review?: string;
-    q?: string;
-    stock?: string;
-    section?: string;
+    error?: string | string[];
+    notice?: string | string[];
+    product?: string | string[];
+    order?: string | string[];
+    message?: string | string[];
+    review?: string | string[];
+    q?: string | string[];
+    stock?: string | string[];
+    section?: string | string[];
   }>;
 }) {
   const admin = await currentAdmin();
@@ -296,9 +297,9 @@ export default async function Admin({
               <p style={{ textAlign: 'center' }}>
                 Sign in with your admin email address and password.
               </p>
-              {params.error && (
+              {firstSearchParam(params.error) && (
                 <p role="alert" style={{ color: 'var(--danger)', textAlign: 'center' }}>
-                  <b>{ADMIN_ERRORS[params.error] || ADMIN_ERRORS['1']}</b>
+                  <b>{ADMIN_ERRORS[firstSearchParam(params.error)] || ADMIN_ERRORS['1']}</b>
                 </p>
               )}
               <form action={loginAdmin}>
@@ -424,23 +425,24 @@ export default async function Admin({
   const undeliveredEmails = orders.filter((order) => Boolean(order.confirmationEmailError)).length;
   const activeCount = products.filter((product) => product.active).length;
   const archivedCount = products.length - activeCount;
-  const stockFilter = parseAdminStockFilter(params.stock);
-  const productQuery = params.q || '';
+  const stockFilter = parseAdminStockFilter(firstSearchParam(params.stock));
+  const productQuery = firstSearchParam(params.q);
   const visibleProducts = products.filter((product) =>
     productMatchesAdminFilter(product, productQuery, stockFilter)
   );
   const archivedProducts = products.filter((product) => !product.active);
-  const notice = params.notice ? ADMIN_NOTICES[params.notice] : undefined;
-  const errorMessage = params.error ? ADMIN_ERRORS[params.error] : undefined;
-  const focusProduct = params.product || '';
-  const focusOrder = params.order || '';
-  const focusMessage = params.message || '';
-  const focusReview = params.review || '';
+  const notice = ADMIN_NOTICES[firstSearchParam(params.notice)];
+  const errorMessage = ADMIN_ERRORS[firstSearchParam(params.error)];
+  const focusProduct = firstSearchParam(params.product);
+  const focusOrder = firstSearchParam(params.order);
+  const focusMessage = firstSearchParam(params.message);
+  const focusReview = firstSearchParam(params.review);
+  const focusSection = firstSearchParam(params.section);
 
   return (
     <div className="adminshell">
       <AdminDeepLink
-        section={params.section}
+        section={focusSection || undefined}
         focusId={
           (focusProduct && `product-${focusProduct}`) ||
           (focusOrder && `order-${focusOrder}`) ||
@@ -756,14 +758,16 @@ export default async function Admin({
                         </Link>
                       </div>
                     </form>
-                    <form action={resendOrderConfirmation} style={{ marginTop: 10 }}>
-                      <input type="hidden" name="id" value={order.id} />
-                      <button className="text-button">
-                        {order.confirmationEmailError
-                          ? 'Retry confirmation email'
-                          : 'Resend confirmation email'}
-                      </button>
-                    </form>
+                    {isAwaitingShipment(order.status) && (
+                      <form action={resendOrderConfirmation} style={{ marginTop: 10 }}>
+                        <input type="hidden" name="id" value={order.id} />
+                        <button className="text-button">
+                          {order.confirmationEmailError
+                            ? 'Retry confirmation email'
+                            : 'Resend confirmation email'}
+                        </button>
+                      </form>
+                    )}
                   </div>
                 </details>
               ))}
