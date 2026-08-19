@@ -23,6 +23,8 @@ import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { releaseProductHold } from '@/lib/checkout';
 import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
+import { amazonPickDraft, DEFAULT_PICK_TITLE, extractAsin, isAmazonLink } from '@/lib/amazon-pick';
+import { associateTag, lookupAmazonProduct } from '@/lib/amazon-lookup';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
 import { isPickupOrder } from '@/lib/fulfillment';
 import { absoluteUrl } from '@/lib/store';
@@ -710,27 +712,172 @@ export async function saveGalleryItem(formData: FormData) {
   );
 }
 
+/**
+ * Whether a pick carries a name of its own. `DEFAULT_PICK_TITLE` is the
+ * placeholder for a link that gave up nothing readable, so it is the one title
+ * a later lookup is allowed to replace.
+ */
+const hasOwnName = (title: string) => Boolean(title.trim()) && title.trim() !== DEFAULT_PICK_TITLE;
+
+/** New picks land at the end of the shelf rather than on top of the first one. */
+async function nextAmazonSortOrder() {
+  const last = await db.amazonPick.aggregate({ _max: { sortOrder: true } });
+  return (last._max.sortOrder ?? 0) + 1;
+}
+
+/**
+ * The same product pasted twice — off the storefront one week, out of the phone
+ * app the next — is one pick, not two. Matching on the ASIN is what makes the
+ * two spellings of the link meet.
+ */
+async function findExistingPick(amazonUrl: string) {
+  const asin = extractAsin(amazonUrl);
+  return asin
+    ? await db.amazonPick.findFirst({
+        where: { amazonUrl: { contains: asin, mode: 'insensitive' } }
+      })
+    : await db.amazonPick.findFirst({ where: { amazonUrl } });
+}
+
+/**
+ * Publishing a pick from nothing but the link.
+ *
+ * Everything else on this page asks for a title, a photo URL, a blurb and a
+ * category before it will save, which is four fields between Tammy and a
+ * recommendation she wanted to make in ten seconds. Here the link is the whole
+ * form: we read the item page for the name, photograph, blurb and department,
+ * and when Amazon will not answer — it does refuse servers it does not know —
+ * the pick still publishes, named from the link itself, for her to finish by
+ * hand.
+ */
+export async function addAmazonPickByUrl(formData: FormData) {
+  await guard();
+  const pasted = text(formData, 'amazonUrl');
+  if (!isAmazonLink(pasted)) {
+    redirect(adminContentPath({ error: 'amazon-url', section: 'add-amazon' }));
+  }
+
+  const lookup = await lookupAmazonProduct(pasted);
+  const draft = amazonPickDraft(lookup.resolvedUrl || pasted, lookup.details, associateTag());
+
+  const existing = await findExistingPick(draft.amazonUrl);
+  if (existing) {
+    // Re-pasting an archived pick plainly means "put it back", and anything the
+    // lookup found now fills a gap the first attempt left — including the name,
+    // when the first attempt could not read one and left the placeholder.
+    await db.amazonPick.update({
+      where: { id: existing.id },
+      data: {
+        active: true,
+        title: hasOwnName(existing.title) ? existing.title : draft.title,
+        imageUrl: existing.imageUrl || draft.imageUrl,
+        description: existing.description || draft.description,
+        category: existing.category || draft.category
+      }
+    });
+    refresh('/amazon', '/admin/content');
+    redirect(
+      adminContentPath({ notice: 'amazon-duplicate', section: 'amazon', item: existing.id })
+    );
+  }
+
+  const item = await db.amazonPick.create({
+    data: { ...draft, active: true, sortOrder: await nextAmazonSortOrder() }
+  });
+  refresh('/amazon', '/admin/content');
+  redirect(
+    adminContentPath({
+      notice: lookup.outcome === 'ok' ? 'amazon-added' : 'amazon-added-basic',
+      section: 'amazon',
+      item: item.id
+    })
+  );
+}
+
+/**
+ * A second run at the item page for a pick whose first lookup came back empty.
+ *
+ * It only fills blanks. Tammy's own wording is the reason a pick is on the
+ * page at all, so a refresh must never quietly replace it with Amazon's.
+ */
+export async function fillAmazonPickFromLink(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  if (!id) return;
+  const pick = await db.amazonPick.findUnique({ where: { id } });
+  if (!pick) redirect(adminContentPath({ error: 'content-missing', section: 'amazon' }));
+
+  const lookup = await lookupAmazonProduct(pick.amazonUrl);
+  const draft = amazonPickDraft(
+    lookup.resolvedUrl || pick.amazonUrl,
+    lookup.details,
+    associateTag()
+  );
+  const data = {
+    title: hasOwnName(pick.title) ? pick.title : draft.title,
+    imageUrl: pick.imageUrl || draft.imageUrl,
+    description: pick.description || draft.description,
+    category: pick.category || draft.category,
+    amazonUrl: draft.amazonUrl
+  };
+  const filledSomething =
+    data.title !== pick.title ||
+    data.imageUrl !== pick.imageUrl ||
+    data.description !== pick.description ||
+    data.category !== pick.category;
+
+  /**
+   * A short link that finally resolved changes nothing Tammy can see, but it is
+   * the address the pick is matched on — leaving the old one stored is how the
+   * same product gets added twice later.
+   */
+  if (filledSomething || data.amazonUrl !== pick.amazonUrl) {
+    await db.amazonPick.update({ where: { id }, data });
+  }
+  refresh('/amazon', '/admin/content');
+  redirect(
+    adminContentPath({
+      notice: filledSomething ? 'amazon-filled' : 'amazon-fill-empty',
+      section: 'amazon',
+      item: id
+    })
+  );
+}
+
 export async function saveAmazonPick(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
-  const data = {
-    title: text(formData, 'title'),
-    description: text(formData, 'description') || null,
-    imageUrl: text(formData, 'imageUrl') || null,
-    amazonUrl: text(formData, 'amazonUrl'),
-    category: text(formData, 'category') || null,
-    active: checked(formData, 'active'),
-    sortOrder: integer(formData.get('sortOrder'))
-  };
-  if (!data.title || !data.amazonUrl) {
+  const pastedUrl = text(formData, 'amazonUrl');
+  if (!isAmazonLink(pastedUrl)) {
     redirect(
       adminContentPath({
-        error: 'content-invalid',
+        error: 'amazon-url',
         section: id ? 'amazon' : 'add-amazon',
         item: id || undefined
       })
     );
   }
+
+  // The typed fields win; the link only supplies what was left blank, so a pick
+  // saved by hand still ends up with a name and a tagged affiliate URL.
+  const draft = amazonPickDraft(
+    pastedUrl,
+    {
+      title: text(formData, 'title'),
+      description: text(formData, 'description'),
+      imageUrl: text(formData, 'imageUrl'),
+      category: text(formData, 'category')
+    },
+    associateTag()
+  );
+  const data = {
+    ...draft,
+    active: checked(formData, 'active'),
+    sortOrder: formData.has('sortOrder')
+      ? integer(formData.get('sortOrder'))
+      : await nextAmazonSortOrder()
+  };
+
   const item = id
     ? await db.amazonPick.update({ where: { id }, data })
     : await db.amazonPick.create({ data });
