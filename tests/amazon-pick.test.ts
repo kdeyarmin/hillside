@@ -65,6 +65,14 @@ describe('recognising an Amazon link', () => {
     assert.equal(isAmazonLink('amazon.com/dp/B0000AX2VU'), true);
   });
 
+  it('accepts the subdomains Amazon still answers on', () => {
+    // A phone shares `m.`, and old bookmarks and emails still say `smile.`.
+    // Both render the product page, so both are links Tammy may well paste.
+    assert.equal(isAmazonLink('https://smile.amazon.com/dp/B0000AX2VU'), true);
+    assert.equal(isAmazonLink('https://m.amazon.com/gp/aw/d/B0000AX2VU'), true);
+    assert.equal(isAmazonLink('https://m.amazon.co.uk/dp/B0000AX2VU'), true);
+  });
+
   it('rejects everything else, including lookalike hosts', () => {
     assert.equal(isAmazonLink(''), false);
     assert.equal(isAmazonLink('not a url'), false);
@@ -135,6 +143,10 @@ describe('canonicalAmazonUrl', () => {
   it('normalizes the host so one product is not two picks', () => {
     assert.equal(
       canonicalAmazonUrl('https://smile.amazon.com/dp/B01N5IB20Q'),
+      'https://www.amazon.com/dp/B01N5IB20Q'
+    );
+    assert.equal(
+      canonicalAmazonUrl('https://m.amazon.com/gp/aw/d/B01N5IB20Q'),
       'https://www.amazon.com/dp/B01N5IB20Q'
     );
     assert.equal(

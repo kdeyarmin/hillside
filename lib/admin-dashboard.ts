@@ -152,7 +152,7 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'content-invalid': 'That form was missing a required field.',
   'content-missing': 'That item is no longer here.',
   'amazon-url':
-    'That does not look like an Amazon link. Paste the address of the item — it starts with amazon.com, a.co or amzn.to.',
+    'That does not look like an Amazon link. Paste the item’s own address — an amazon.com one (or any other Amazon country address), or a shortened a.co or amzn.to link.',
   throttled: 'Too many sign-in attempts. Please wait a few minutes and try again.',
   '1': 'That email address and password didn’t match an admin account.'
 };

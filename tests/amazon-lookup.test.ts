@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { associateTag, lookupAmazonProduct, resolveShortAmazonLink } from '../lib/amazon-lookup.ts';
+import {
+  associateTag,
+  lookupAmazonProduct,
+  readCapped,
+  resolveShortAmazonLink
+} from '../lib/amazon-lookup.ts';
 
 const PRODUCT_PAGE = `<html><head>
 <title>Amazon.com : Copper Watering Can : Patio, Lawn &amp; Garden</title>
@@ -23,6 +28,22 @@ function respond(body: string, init: { status?: number; url?: string } = {}) {
   Object.defineProperty(response, 'url', {
     value: init.url ?? 'https://www.amazon.com/dp/B01N5IB20Q'
   });
+  return response;
+}
+
+function streamOf(chunks: Uint8Array[]) {
+  let index = 0;
+  return new ReadableStream<Uint8Array>({
+    pull(controller) {
+      if (index >= chunks.length) controller.close();
+      else controller.enqueue(chunks[index++]);
+    }
+  });
+}
+
+function streamResponse(stream: ReadableStream<Uint8Array>) {
+  const response = new Response(stream, { status: 200 });
+  Object.defineProperty(response, 'url', { value: 'https://www.amazon.com/dp/B01N5IB20Q' });
   return response;
 }
 
@@ -129,6 +150,36 @@ describe('lookupAmazonProduct', () => {
     const result = await lookupAmazonProduct('https://etsy.com/listing/1', { fetchImpl: impl });
     assert.equal(result.outcome, 'invalid');
     assert.equal(calls.length, 0);
+  });
+
+  it('decodes a character that a chunk boundary splits in half', async () => {
+    // Amazon writes ™, — and accented names into its titles, and a socket hands
+    // the body over in chunks that land wherever they land.
+    const page =
+      '<html><body><span id="productTitle">Grosche Milano Café Press ™</span>' +
+      '<div><img id="landingImage" data-old-hires="https://m.media-amazon.com/images/I/71a.jpg" /></div></body></html>';
+    const bytes = new TextEncoder().encode(page);
+    const trademarkAt = new TextEncoder().encode(page.slice(0, page.indexOf('™'))).length;
+    const stream = streamOf([bytes.slice(0, trademarkAt + 1), bytes.slice(trademarkAt + 1)]);
+
+    const { impl } = stubFetch(() => streamResponse(stream));
+    const result = await lookupAmazonProduct('https://www.amazon.com/dp/B01N5IB20Q', {
+      fetchImpl: impl
+    });
+    assert.equal(result.details.title, 'Grosche Milano Café Press ™');
+  });
+
+  it('does not swallow the bytes a chunk boundary cut a character in half', async () => {
+    // The streaming decoder holds an incomplete character back until it is told
+    // the text has ended. Stopping at the cap without saying so drops it, and
+    // the page quietly loses whatever the cut landed on.
+    const text = 'Copper Watering Can — 1.5 Gallon';
+    const bytes = new TextEncoder().encode(text);
+    const dashAt = new TextEncoder().encode(text.slice(0, text.indexOf('—'))).length;
+    const stream = streamOf([bytes.slice(0, dashAt + 1), bytes.slice(dashAt + 1)]);
+
+    const read = await readCapped(streamResponse(stream), dashAt + 1);
+    assert.equal(read, 'Copper Watering Can \uFFFD');
   });
 
   it('stops reading once it has enough, instead of pulling an unbounded body', async () => {

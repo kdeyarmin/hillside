@@ -72,8 +72,13 @@ export function associateTag() {
   return process.env.AMAZON_ASSOCIATE_TAG?.trim() || '';
 }
 
-/** Reads at most `maxBytes` of the response, then stops pulling. */
-async function readCapped(response: Response, maxBytes: number) {
+/**
+ * Reads at most `maxBytes` of the response, then stops pulling.
+ *
+ * Exported for the test that holds it to the chunk boundaries: what it does
+ * with a character split across two of them is invisible from the outside.
+ */
+export async function readCapped(response: Response, maxBytes: number) {
   const body = response.body;
   if (!body) return await response.text();
 
@@ -95,7 +100,12 @@ async function readCapped(response: Response, maxBytes: number) {
     // half-read when the cap trips.
     await reader.cancel().catch(() => {});
   }
-  return html;
+
+  // A chunk boundary can land in the middle of a multi-byte character, and the
+  // streaming decoder holds those bytes back until it is told the text has
+  // ended. Without this the last character of the page — or of the truncated
+  // read — silently disappears.
+  return html + decoder.decode();
 }
 
 /**

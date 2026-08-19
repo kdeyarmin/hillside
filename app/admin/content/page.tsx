@@ -125,7 +125,7 @@ function AmazonFields({ item }: { item?: AmazonPick }) {
       <div className="admin-form-grid">
         <label className="admin-label">Product title<input className="admin-input" name="title" defaultValue={item?.title} required /></label>
         <label className="admin-label">Category<input className="admin-input" name="category" defaultValue={item?.category || ''} placeholder="Plant tools" /></label>
-        <label className="admin-label full">Amazon link<input className="admin-input" name="amazonUrl" type="url" defaultValue={item?.amazonUrl} required /></label>
+        <label className="admin-label full">Amazon link<input className="admin-input" name="amazonUrl" type="text" inputMode="url" defaultValue={item?.amazonUrl} required /></label>
         <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={item?.imageUrl || ''} /></label>
         <label className="admin-label full">Why we recommend it<textarea className="admin-input" name="description" rows={3} defaultValue={item?.description || ''} /></label>
         <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={item?.sortOrder ?? 0} /></label>
