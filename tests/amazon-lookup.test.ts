@@ -47,6 +47,10 @@ function streamResponse(stream: ReadableStream<Uint8Array>) {
   return response;
 }
 
+function redirectTo(location: string, status = 302) {
+  return new Response(null, { status, headers: { location } });
+}
+
 /** Records what the lookup asked for, and answers with what the test wants. */
 function stubFetch(handler: (url: string, init?: RequestInit) => Response | Promise<Response>) {
   const calls: Array<{ url: string; init?: RequestInit }> = [];
@@ -80,18 +84,110 @@ describe('lookupAmazonProduct', () => {
     const headers = calls[0].init?.headers as Record<string, string>;
     assert.match(headers['User-Agent'], /Mozilla\/5\.0/);
     assert.match(headers['Accept-Language'], /en-US/);
-    assert.equal(calls[0].init?.redirect, 'follow');
+    // Redirects are walked a hop at a time rather than handed to fetch, so
+    // every destination can be checked before it is requested.
+    assert.equal(calls[0].init?.redirect, 'manual');
   });
 
   it('keeps the address a short link redirected to, which is the only place its ASIN lives', async () => {
-    const { impl } = stubFetch(() =>
-      respond(PRODUCT_PAGE, {
-        url: 'https://www.amazon.com/Copper-Watering-Can/dp/B01N5IB20Q?ref=share'
-      })
+    const { impl, calls } = stubFetch((url) =>
+      url.includes('a.co')
+        ? redirectTo('https://www.amazon.com/Copper-Watering-Can/dp/B01N5IB20Q?ref=share')
+        : respond(PRODUCT_PAGE)
     );
     const result = await lookupAmazonProduct('https://a.co/d/9xKq2mB', { fetchImpl: impl });
     assert.equal(result.outcome, 'ok');
     assert.match(result.resolvedUrl, /\/dp\/B01N5IB20Q/);
+    assert.equal(calls.length, 2);
+  });
+
+  it('reads a relative redirect against the address it came from', async () => {
+    const { impl } = stubFetch((url) =>
+      url.endsWith('.com/dp/B01N5IB20Q')
+        ? redirectTo('/Copper-Watering-Can/dp/B01N5IB20Q')
+        : respond(PRODUCT_PAGE)
+    );
+    const result = await lookupAmazonProduct('https://www.amazon.com/dp/B01N5IB20Q', {
+      fetchImpl: impl
+    });
+    assert.equal(result.outcome, 'ok');
+    assert.equal(result.resolvedUrl, 'https://www.amazon.com/Copper-Watering-Can/dp/B01N5IB20Q');
+  });
+
+  it('will not follow a redirect off Amazon, and does not request it', async () => {
+    // Whoever wrote the link decides where the chain goes. Following it blind
+    // would point this server at whatever they picked — the cloud metadata
+    // service, an internal host — and publish what came back onto the page.
+    for (const destination of [
+      'http://169.254.169.254/latest/meta-data/iam/security-credentials/',
+      'http://localhost:5432/',
+      'https://evil.example/amazon.com/dp/B01N5IB20Q'
+    ]) {
+      const { impl, calls } = stubFetch(() => redirectTo(destination));
+      const result = await lookupAmazonProduct('https://a.co/d/9xKq2mB', { fetchImpl: impl });
+      assert.equal(result.outcome, 'blocked', destination);
+      assert.equal(result.details.title, '');
+      // Every request made stayed on the link the owner actually pasted.
+      for (const call of calls) assert.equal(call.url, 'https://a.co/d/9xKq2mB', destination);
+    }
+  });
+
+  it('gives up on a redirect that never settles', async () => {
+    const { impl, calls } = stubFetch(() => redirectTo('https://www.amazon.com/dp/B01N5IB20Q'));
+    const result = await lookupAmazonProduct('https://www.amazon.com/dp/B01N5IB20Q', {
+      fetchImpl: impl
+    });
+    assert.equal(result.outcome, 'unreachable');
+    assert.ok(calls.length <= 7, `made ${calls.length} requests`);
+  });
+
+  it('refuses a sign-in wall or a different product, rather than publishing it', async () => {
+    const signIn = `<html><head><title>Amazon Sign-In</title>
+      <meta property="og:image" content="https://m.media-amazon.com/images/G/01/logo.png" /></head>
+      <body><span id="productTitle">Amazon Sign-In</span></body></html>`;
+
+    const wall = stubFetch((url) =>
+      url.includes('/dp/')
+        ? redirectTo('https://www.amazon.com/ap/signin?openid=x')
+        : respond(signIn)
+    );
+    const walled = await lookupAmazonProduct('https://www.amazon.com/dp/B01N5IB20Q', {
+      fetchImpl: wall.impl
+    });
+    assert.equal(walled.outcome, 'blocked');
+    assert.equal(walled.details.title, '');
+    // And the wall's address is not what the pick gets stored as, or the pick
+    // would be called "Signin" and point at the sign-in page for good.
+    assert.equal(walled.resolvedUrl, 'https://www.amazon.com/dp/B01N5IB20Q');
+
+    // Landing on some other item is the same problem wearing a product page.
+    const elsewhere = stubFetch((url) =>
+      url.endsWith('/dp/B01N5IB20Q')
+        ? redirectTo('https://www.amazon.com/dp/B0999OTHER')
+        : respond(PRODUCT_PAGE)
+    );
+    const wrong = await lookupAmazonProduct('https://www.amazon.com/dp/B01N5IB20Q', {
+      fetchImpl: elsewhere.impl
+    });
+    assert.equal(wrong.outcome, 'blocked');
+    assert.equal(wrong.details.title, '');
+    assert.equal(wrong.resolvedUrl, 'https://www.amazon.com/dp/B01N5IB20Q');
+  });
+
+  it('still gets a short link its real address when the page itself is refused', async () => {
+    // Amazon refuses the page read but the share link still redirects, which is
+    // the difference between a pick called "Copper Watering Can" and one called
+    // "Amazon pick" — and the only thing that can match it to a duplicate.
+    const { impl, calls } = stubFetch((url, init) => {
+      if (init?.method !== 'HEAD') return respond(CAPTCHA_PAGE, { status: 503 });
+      return url.includes('a.co')
+        ? redirectTo('https://www.amazon.com/Copper-Watering-Can/dp/B01N5IB20Q')
+        : respond('');
+    });
+    const result = await lookupAmazonProduct('https://a.co/d/9xKq2mB', { fetchImpl: impl });
+    assert.equal(result.outcome, 'blocked');
+    assert.equal(result.resolvedUrl, 'https://www.amazon.com/Copper-Watering-Can/dp/B01N5IB20Q');
+    assert.equal(calls.filter((call) => call.init?.method === 'HEAD').length, 2);
   });
 
   it('reports a page that answered but held something back', async () => {
@@ -211,12 +307,33 @@ describe('lookupAmazonProduct', () => {
 
 describe('resolveShortAmazonLink', () => {
   it('follows a share link to the product it stands for', async () => {
-    const { impl, calls } = stubFetch(() =>
-      respond('', { url: 'https://www.amazon.com/Copper-Watering-Can/dp/B01N5IB20Q' })
+    const { impl, calls } = stubFetch((url) =>
+      url.includes('a.co')
+        ? redirectTo('https://www.amazon.com/Copper-Watering-Can/dp/B01N5IB20Q')
+        : respond('')
     );
     const resolved = await resolveShortAmazonLink('https://a.co/d/9xKq2mB', { fetchImpl: impl });
     assert.equal(resolved, 'https://www.amazon.com/Copper-Watering-Can/dp/B01N5IB20Q');
     assert.equal(calls[0].init?.method, 'HEAD');
+  });
+
+  it('does not hand back the sign-in wall as the product address', async () => {
+    const { impl } = stubFetch((url) =>
+      url.includes('a.co') ? redirectTo('https://www.amazon.com/ap/signin?openid=x') : respond('')
+    );
+    assert.equal(
+      await resolveShortAmazonLink('https://a.co/d/9xKq2mB', { fetchImpl: impl }),
+      'https://a.co/d/9xKq2mB'
+    );
+  });
+
+  it('will not be walked off Amazon either', async () => {
+    const { impl, calls } = stubFetch(() => redirectTo('http://169.254.169.254/latest/meta-data/'));
+    assert.equal(
+      await resolveShortAmazonLink('https://a.co/d/9xKq2mB', { fetchImpl: impl }),
+      'https://a.co/d/9xKq2mB'
+    );
+    assert.equal(calls.length, 1);
   });
 
   it('leaves a full link, and a dead short link, exactly as pasted', async () => {

@@ -9,6 +9,7 @@
 
 import {
   EMPTY_DETAILS,
+  extractAsin,
   isAmazonLink,
   isShortAmazonLink,
   looksLikeRobotCheck,
@@ -51,6 +52,27 @@ const DEFAULT_TIMEOUT_MS = 9_000;
  * only ever looks at the head of the document anyway.
  */
 const DEFAULT_MAX_BYTES = 3_000_000;
+
+/** Enough for Amazon's own country and canonical-path hops, and no more. */
+const MAX_REDIRECTS = 5;
+
+/**
+ * Amazon answers with these when it wants a person rather than the product —
+ * a sign-in wall, a consent page, an error. They carry a title and a logo, so
+ * a parse would happily publish a pick called "Amazon Sign-In".
+ */
+const NON_PRODUCT_PATHS = [
+  '/ap/signin',
+  '/ap/register',
+  '/ap/cvf',
+  '/errors/',
+  '/gp/help',
+  '/gp/css/',
+  '/gp/cart',
+  '/gp/navigation',
+  '/privacy',
+  '/cookieprefs'
+];
 
 /**
  * Amazon serves a stripped page — no title block, no image map — to anything
@@ -108,6 +130,77 @@ export async function readCapped(response: Response, maxBytes: number) {
   return html + decoder.decode();
 }
 
+type PageFetch =
+  | { response: Response; url: string }
+  | { failure: Exclude<AmazonLookupOutcome, 'ok' | 'partial'>; url: string };
+
+/**
+ * Walks the redirect chain a hop at a time, checking where each one points
+ * before going there.
+ *
+ * `redirect: 'follow'` would have this server request and read whatever the
+ * chain ended at — and the chain is written by whoever controls the link.
+ * A pasted `amzn.to` that redirects to `169.254.169.254` would have been
+ * fetched, parsed, and its contents published onto the picks page. Every hop
+ * is therefore checked against the Amazon hosts before it is followed, and a
+ * chain that leaves them is treated as a lookup that did not happen.
+ */
+async function fetchFollowingAmazon(
+  startUrl: string,
+  fetchImpl: typeof fetch,
+  method: 'GET' | 'HEAD',
+  timeoutMs: number
+): Promise<PageFetch> {
+  let current = startUrl;
+
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
+    let response: Response;
+    try {
+      response = await fetchImpl(current, {
+        method,
+        redirect: 'manual',
+        headers: BROWSER_HEADERS,
+        signal: AbortSignal.timeout(timeoutMs)
+      });
+    } catch {
+      return { failure: 'unreachable', url: current };
+    }
+
+    if (response.status < 300 || response.status >= 400) return { response, url: current };
+
+    const location = response.headers.get('location');
+    let next = '';
+    try {
+      next = location ? new URL(location, current).toString() : '';
+    } catch {
+      next = '';
+    }
+    if (!next || !isAmazonLink(next)) return { failure: 'blocked', url: current };
+    current = next;
+  }
+
+  // A chain this long is a loop or a fight with a cookie wall, not a product.
+  return { failure: 'unreachable', url: current };
+}
+
+/**
+ * Whether the page we were sent to is still the item that was asked for.
+ *
+ * Amazon answers a request it does not like by redirecting to a sign-in or
+ * consent page rather than by failing, and those pages parse perfectly well.
+ * The ASIN out of the pasted link is the check: land somewhere that is not
+ * that product and the lookup counts as refused, so the pick is published from
+ * the link instead of from Amazon's furniture.
+ */
+function isProductDestination(requestedUrl: string, resolvedUrl: string) {
+  const path = normalizeAmazonUrl(resolvedUrl)?.pathname.toLowerCase() || '';
+  if (NON_PRODUCT_PATHS.some((prefix) => path.startsWith(prefix))) return false;
+
+  const requested = extractAsin(requestedUrl);
+  if (!requested) return true;
+  return extractAsin(resolvedUrl) === requested;
+}
+
 /**
  * Fetches the product page and reads what it can out of it.
  *
@@ -132,45 +225,57 @@ export async function lookupAmazonProduct(
   if (typeof fetchImpl !== 'function') {
     return { outcome: 'unreachable', resolvedUrl: pasted, details: { ...EMPTY_DETAILS } };
   }
-
-  let response: Response;
-  try {
-    response = await fetchImpl(pasted, {
-      redirect: 'follow',
-      headers: BROWSER_HEADERS,
-      signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
-    });
-  } catch {
-    return { outcome: 'unreachable', resolvedUrl: pasted, details: { ...EMPTY_DETAILS } };
-  }
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   /**
    * A short link is only worth anything once it has been followed, so the
-   * address we ended up at is what the pick is built from. When the fetch
-   * fails we keep the pasted link — a dead `amzn.to` is still the owner's link.
+   * address we ended up at is what the pick is built from. When even that
+   * fails, a HEAD is one more chance at the real address — and failing that
+   * the pasted link stands, because a dead `amzn.to` is still the owner's
+   * link.
+   *
+   * Where we ended up is only kept if it is still the item that was asked for.
+   * A link redirected to the sign-in wall reaches a perfectly good Amazon
+   * address, and storing that one would leave the pick pointing at the wall,
+   * named "Signin", and unmatchable against the same product pasted again.
    */
-  const resolvedUrl = response.url && isAmazonLink(response.url) ? response.url : pasted;
+  const giveUp = async (outcome: AmazonLookupOutcome, reached: string) => {
+    const worthKeeping =
+      reached !== pasted && isAmazonLink(reached) && isProductDestination(pasted, reached);
+    const resolvedUrl = worthKeeping ? reached : pasted;
+    if (!isShortAmazonLink(resolvedUrl)) {
+      return { outcome, resolvedUrl, details: { ...EMPTY_DETAILS } };
+    }
+    return {
+      outcome,
+      resolvedUrl: await resolveShortAmazonLink(resolvedUrl, options),
+      details: { ...EMPTY_DETAILS }
+    };
+  };
+
+  const fetched = await fetchFollowingAmazon(pasted, fetchImpl, 'GET', timeoutMs);
+  if ('failure' in fetched) return await giveUp(fetched.failure, fetched.url);
+
+  const { response, url: resolvedUrl } = fetched;
 
   if (!response.ok) {
     // 503 with a captcha body is Amazon's usual way of refusing a server.
     const refused = response.status === 403 || response.status === 503 || response.status === 429;
-    return {
-      outcome: refused ? 'blocked' : 'unreachable',
-      resolvedUrl,
-      details: { ...EMPTY_DETAILS }
-    };
+    return await giveUp(refused ? 'blocked' : 'unreachable', resolvedUrl);
+  }
+
+  if (!isProductDestination(pasted, resolvedUrl)) {
+    return await giveUp('blocked', resolvedUrl);
   }
 
   let html: string;
   try {
     html = await readCapped(response, options.maxBytes ?? DEFAULT_MAX_BYTES);
   } catch {
-    return { outcome: 'unreachable', resolvedUrl, details: { ...EMPTY_DETAILS } };
+    return await giveUp('unreachable', resolvedUrl);
   }
 
-  if (looksLikeRobotCheck(html)) {
-    return { outcome: 'blocked', resolvedUrl, details: { ...EMPTY_DETAILS } };
-  }
+  if (looksLikeRobotCheck(html)) return await giveUp('blocked', resolvedUrl);
 
   const details = parseAmazonProductHtml(html);
   const complete = Boolean(details.title && details.imageUrl);
@@ -180,26 +285,31 @@ export async function lookupAmazonProduct(
 /**
  * Short links carry nothing readable — no ASIN, no product name — so following
  * one is the difference between a pick called "Garden Shears" and a pick
- * called "Amazon pick". The page fetch above already follows redirects, so
- * this only runs when the lookup itself could not be made.
+ * called "Amazon pick". The page read above already walks the redirects, so
+ * this is the second try for a link whose page could not be read at all: the
+ * address is worth having on its own, because it is what names the pick and
+ * what makes two share codes for one product meet.
  */
 export async function resolveShortAmazonLink(
   rawUrl: string,
   options: LookupOptions = {}
 ): Promise<string> {
-  if (!isShortAmazonLink(rawUrl)) return String(rawUrl || '').trim();
+  const trimmed = String(rawUrl || '').trim();
+  if (!isShortAmazonLink(trimmed)) return trimmed;
   const fetchImpl = options.fetchImpl || globalThis.fetch;
-  if (typeof fetchImpl !== 'function') return rawUrl;
+  if (typeof fetchImpl !== 'function') return trimmed;
 
-  try {
-    const response = await fetchImpl(rawUrl, {
-      method: 'HEAD',
-      redirect: 'follow',
-      headers: BROWSER_HEADERS,
-      signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
-    });
-    return response.url && isAmazonLink(response.url) ? response.url : rawUrl;
-  } catch {
-    return rawUrl;
-  }
+  const reached = await fetchFollowingAmazon(
+    trimmed,
+    fetchImpl,
+    'HEAD',
+    options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  );
+  // Cancelling rather than reading: only the address was ever wanted.
+  if ('response' in reached) await reached.response.body?.cancel().catch(() => {});
+
+  const landed = reached.url;
+  const usable =
+    isAmazonLink(landed) && !isShortAmazonLink(landed) && isProductDestination(trimmed, landed);
+  return usable ? landed : trimmed;
 }

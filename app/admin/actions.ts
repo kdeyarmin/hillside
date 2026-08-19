@@ -712,6 +712,13 @@ export async function saveGalleryItem(formData: FormData) {
   );
 }
 
+/**
+ * Whether a pick carries a name of its own. `DEFAULT_PICK_TITLE` is the
+ * placeholder for a link that gave up nothing readable, so it is the one title
+ * a later lookup is allowed to replace.
+ */
+const hasOwnName = (title: string) => Boolean(title.trim()) && title.trim() !== DEFAULT_PICK_TITLE;
+
 /** New picks land at the end of the shelf rather than on top of the first one. */
 async function nextAmazonSortOrder() {
   const last = await db.amazonPick.aggregate({ _max: { sortOrder: true } });
@@ -756,11 +763,13 @@ export async function addAmazonPickByUrl(formData: FormData) {
   const existing = await findExistingPick(draft.amazonUrl);
   if (existing) {
     // Re-pasting an archived pick plainly means "put it back", and anything the
-    // lookup found now fills a gap the first attempt left.
+    // lookup found now fills a gap the first attempt left — including the name,
+    // when the first attempt could not read one and left the placeholder.
     await db.amazonPick.update({
       where: { id: existing.id },
       data: {
         active: true,
+        title: hasOwnName(existing.title) ? existing.title : draft.title,
         imageUrl: existing.imageUrl || draft.imageUrl,
         description: existing.description || draft.description,
         category: existing.category || draft.category
@@ -804,10 +813,8 @@ export async function fillAmazonPickFromLink(formData: FormData) {
     lookup.details,
     associateTag()
   );
-  const named = pick.title.trim() && pick.title.trim() !== DEFAULT_PICK_TITLE;
-
   const data = {
-    title: named ? pick.title : draft.title,
+    title: hasOwnName(pick.title) ? pick.title : draft.title,
     imageUrl: pick.imageUrl || draft.imageUrl,
     description: pick.description || draft.description,
     category: pick.category || draft.category,
@@ -819,7 +826,14 @@ export async function fillAmazonPickFromLink(formData: FormData) {
     data.description !== pick.description ||
     data.category !== pick.category;
 
-  if (filledSomething) await db.amazonPick.update({ where: { id }, data });
+  /**
+   * A short link that finally resolved changes nothing Tammy can see, but it is
+   * the address the pick is matched on — leaving the old one stored is how the
+   * same product gets added twice later.
+   */
+  if (filledSomething || data.amazonUrl !== pick.amazonUrl) {
+    await db.amazonPick.update({ where: { id }, data });
+  }
   refresh('/amazon', '/admin/content');
   redirect(
     adminContentPath({
