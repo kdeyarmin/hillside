@@ -28,7 +28,7 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Self-service order-status lookup
 - Printable houseplant care sheets and detailed care pages
 - Gallery of Tammy’s past planter arrangements
-- Tammy’s Amazon influencer picks with affiliate disclosure
+- Tammy’s Amazon influencer picks with affiliate disclosure, published by pasting the item’s link
 - Newsletter signup, cart saving and customer contact form
 - Care guides that link through to the plant they describe
 - Google Analytics 4 ecommerce events (opt-in through an environment variable)
@@ -56,7 +56,7 @@ The dashboard at `/admin` includes:
 - Visibility of products still missing their own photograph
 - Order confirmation email delivery status
 - Admin account management at `/admin/accounts` — add an admin, change a password, revoke access
-- A separate content manager at `/admin/content` for classes, gallery items and Amazon picks
+- A separate content manager at `/admin/content` for classes, gallery items and Amazon picks — a pick is added by pasting the item’s Amazon link and nothing else
 - A plant care library manager at `/admin/care` for plant profiles, problem guides and seasonal checklists
 - Online class creation, Telnyx room preparation and a private host studio
 - Online-class confirmation status, attendee last-join time and secure link resending
@@ -183,6 +183,39 @@ adding or replacing photography, and commit the output.
 only choose a `sizeRole` (`hero`, `card`, `tile`, `detail`, `thumb`). Owner-uploaded
 photographs served from `/media/` have no variants and fall back to a plain `src`.
 
+## Amazon influencer picks
+
+Adding a pick is one field. Paste the item's Amazon address into **Add a pick**
+at `/admin/content#add-amazon` — the long link from the browser's address bar,
+the short `a.co` or `amzn.to` link the Amazon app shares, either one — and the
+item is on `/amazon`. There is no title, photo URL, category or blurb to fill in
+first.
+
+What happens to the link:
+
+- the ASIN is read out of it, and the pick is stored as a clean
+  `https://www.amazon.com/dp/<ASIN>?tag=<associate tag>` — no session or
+  placement tracking travels on to the customer
+- a tag already on the pasted link is kept, because an influencer pulling links
+  out of their own storefront is carrying the tracking id that pays them.
+  Otherwise `AMAZON_ASSOCIATE_TAG` is applied; with neither, the link simply
+  carries no tag
+- the item page is then read for the product's name, photograph, description and
+  department. See [`lib/amazon-pick.ts`](lib/amazon-pick.ts) for the parsing and
+  [`lib/amazon-lookup.ts`](lib/amazon-lookup.ts) for the request
+- pasting the same item twice does not make two picks. It finds the one already
+  there, un-archives it if it was archived, and opens it
+
+**When Amazon does not answer.** Amazon refuses requests from servers it does not
+recognise, answering with a captcha page rather than an error. That is treated as
+a lookup that did not happen, never as a product: the pick still publishes, named
+from the link itself — `/Fiskars-Bypass-Pruning-Shears/dp/…` becomes "Fiskars
+Bypass Pruning Shears" — and the dashboard says so plainly instead of claiming
+success. The row is then marked **No photo**, and carries a **Get details from
+Amazon** button that tries again and fills only what is still blank, so nothing
+Tammy wrote herself is overwritten. Failing that, the photo field takes an upload
+from her phone like every other photo on the site.
+
 ## Classes are hidden from the public website
 
 Classes are switched off for customers by a single flag,
@@ -291,6 +324,7 @@ Before accepting live orders or class registrations:
 - Confirm that inventory decrements once and customer emails arrive as expected.
 - Complete the Telnyx two-device test in `docs/telnyx-video-classes.md`.
 - Replace sample gallery images with Tammy’s real work.
+- Set `AMAZON_ASSOCIATE_TAG` to Tammy’s associate tag, then add one pick from a link and confirm it appears on `/amazon` with the tag on its button.
 - Create Tammy’s admin account, confirm she can sign in with it, and unset the shared `ADMIN_PASSWORD` once every admin has their own.
 - Verify mobile navigation, checkout, online classroom, admin login and label printing on Tammy’s actual devices.
 

@@ -113,6 +113,13 @@ export const ADMIN_NOTICES: Record<string, string> = {
   'gallery-deleted': 'Gallery photo deleted.',
   'amazon-saved': 'Amazon pick saved.',
   'amazon-created': 'Amazon pick published.',
+  'amazon-added': 'Added from the link. The name, photo and details came from Amazon.',
+  'amazon-added-basic':
+    'Added from the link and live on the picks page. Amazon did not send the item’s details just now — open the pick to add a photo, or use “Get details from Amazon” to try again.',
+  'amazon-duplicate': 'That item is already one of your picks. Here it is.',
+  'amazon-filled': 'Filled in from Amazon. Anything you had written yourself was kept.',
+  'amazon-fill-empty':
+    'Amazon sent nothing new, so the pick is unchanged. It is still live — add a photo below if it needs one.',
   'care-saved': 'Care sheet saved.',
   'care-created': 'Care sheet published.',
   'content-archived': 'Archived. It is no longer on the public website.'
@@ -143,6 +150,9 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'class-room-failed':
     'The class was saved, but the Telnyx room could not be prepared. Check TELNYX_API_KEY and try Prepare room again.',
   'content-invalid': 'That form was missing a required field.',
+  'content-missing': 'That item is no longer here.',
+  'amazon-url':
+    'That does not look like an Amazon link. Paste the address of the item — it starts with amazon.com, a.co or amzn.to.',
   throttled: 'Too many sign-in attempts. Please wait a few minutes and try again.',
   '1': 'That email address and password didn’t match an admin account.'
 };

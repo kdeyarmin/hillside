@@ -5,6 +5,7 @@ import type { AmazonPick, ClassEvent, Collection, GalleryItem } from '@prisma/cl
 import { ClassFormat } from '@prisma/client';
 import AdminDeepLink from '@/components/AdminDeepLink';
 import ConfirmSubmit from '@/components/ConfirmSubmit';
+import PendingSubmit from '@/components/PendingSubmit';
 import { isAdmin } from '@/lib/admin';
 import {
   ADMIN_ERRORS,
@@ -18,8 +19,10 @@ import { isNavigationCollection } from '@/lib/collections';
 import { db } from '@/lib/db';
 import { telnyxVideoConfigured } from '@/lib/telnyx-video';
 import {
+  addAmazonPickByUrl,
   archiveContent,
   deleteCollection,
+  fillAmazonPickFromLink,
   prepareClassRoom,
   saveAmazonPick,
   saveClassEvent,
@@ -122,7 +125,7 @@ function AmazonFields({ item }: { item?: AmazonPick }) {
       <div className="admin-form-grid">
         <label className="admin-label">Product title<input className="admin-input" name="title" defaultValue={item?.title} required /></label>
         <label className="admin-label">Category<input className="admin-input" name="category" defaultValue={item?.category || ''} placeholder="Plant tools" /></label>
-        <label className="admin-label full">Amazon affiliate URL<input className="admin-input" name="amazonUrl" type="url" defaultValue={item?.amazonUrl} required /></label>
+        <label className="admin-label full">Amazon link<input className="admin-input" name="amazonUrl" type="url" defaultValue={item?.amazonUrl} required /></label>
         <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={item?.imageUrl || ''} /></label>
         <label className="admin-label full">Why we recommend it<textarea className="admin-input" name="description" rows={3} defaultValue={item?.description || ''} /></label>
         <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={item?.sortOrder ?? 0} /></label>
@@ -356,13 +359,53 @@ export default async function ContentManager({
         </section>
 
         <section className="admin-section" id="amazon">
-          <div className="toolbar"><div><h2>Amazon influencer picks</h2><p className="muted">Affiliate disclosure remains visible on the public page.</p></div><Link className="btn outline small" href="/amazon">View our Picks</Link></div>
-          <div className="admin-list">
+          <div className="toolbar"><div><h2>Amazon influencer picks</h2><p className="muted">Paste the link, and the item is on the page. The affiliate disclosure stays visible to customers.</p></div><Link className="btn outline small" href="/amazon">View our Picks</Link></div>
+          <div className="admin-card" id="add-amazon">
+            <h2 style={{ marginTop: 0 }}>Add a pick</h2>
+            <p className="muted">
+              Paste the item&rsquo;s address from Amazon — the long one in the address bar, or the
+              short a.co link the Amazon app shares. The name, photograph and department come off
+              the item page; you can edit any of it afterwards.
+            </p>
+            <form action={addAmazonPickByUrl} className="admin-url-form">
+              <label className="admin-label">
+                Amazon link
+                <input
+                  className="admin-input"
+                  name="amazonUrl"
+                  type="text"
+                  inputMode="url"
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder="https://www.amazon.com/dp/B01N5IB20Q"
+                  required
+                />
+              </label>
+              <PendingSubmit className="btn" pendingLabel="Reading the item…">Add to the picks page</PendingSubmit>
+            </form>
+          </div>
+          <div className="admin-list" style={{ marginTop: 20 }}>
+            {picks.length === 0 && <p className="muted">Nothing here yet. Paste a link above and it appears on the page.</p>}
             {picks.map((item) => (
-              <details key={item.id} id={`amazon-${item.id}`} open={focusItem === item.id}><summary><span>{item.title}</span><span className={`status-badge ${item.active ? 'PAID' : 'CANCELLED'}`}>{item.active ? 'Published' : 'Archived'}</span></summary><div><form action={saveAmazonPick}><AmazonFields item={item} /><div className="admin-actions"><button className="btn small">Save Amazon pick</button></div></form>{item.active && <form action={archiveContent} style={{ marginTop: 10 }}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="kind" value="amazon" /><ConfirmSubmit className="text-button danger" message={`Archive “${item.title}”? It will leave the public picks page.`}>Archive pick</ConfirmSubmit></form>}</div></details>
+              <details key={item.id} id={`amazon-${item.id}`} open={focusItem === item.id}>
+                <summary><span>{item.title}</span><span className="admin-badges">{!item.imageUrl && <span className="status-badge">No photo</span>}<span className={`status-badge ${item.active ? 'PAID' : 'CANCELLED'}`}>{item.active ? 'Published' : 'Archived'}</span></span></summary>
+                <div>
+                  {/* A lookup can come back empty — Amazon does refuse servers it does
+                      not recognise — so this is the second try, without making Tammy
+                      go and find the photograph herself. */}
+                  <form action={fillAmazonPickFromLink}>
+                    <input type="hidden" name="id" value={item.id} />
+                    <div className="admin-actions" style={{ marginTop: 0 }}>
+                      <PendingSubmit className="btn outline small" pendingLabel="Asking Amazon…">Get details from Amazon</PendingSubmit>
+                      <span className="muted">Fills in whatever is still blank. Anything you wrote yourself is kept.</span>
+                    </div>
+                  </form>
+                  <form action={saveAmazonPick}><AmazonFields item={item} /><div className="admin-actions"><button className="btn small">Save Amazon pick</button></div></form>
+                  {item.active && <form action={archiveContent} style={{ marginTop: 10 }}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="kind" value="amazon" /><ConfirmSubmit className="text-button danger" message={`Archive “${item.title}”? It will leave the public picks page.`}>Archive pick</ConfirmSubmit></form>}
+                </div>
+              </details>
             ))}
           </div>
-          <div className="admin-card" id="add-amazon" style={{ marginTop: 20 }}><h2 style={{ marginTop: 0 }}>Add an Amazon pick</h2><form action={saveAmazonPick}><AmazonFields /><button className="btn" style={{ marginTop: 16 }}>Publish pick</button></form></div>
         </section>
 
         <section className="admin-section" id="care">
