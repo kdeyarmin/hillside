@@ -91,9 +91,10 @@ export function breadcrumbJsonLd(trail: Array<{ name: string; path: string }>) {
 }
 
 /**
- * Declares the site's search endpoint so results can carry a sitelinks searchbox.
- * The site has had `/search` and a header search form throughout; it just never
- * said so in a form a crawler reads.
+ * Site-level WebSite node. Search used to be advertised here as a SearchAction
+ * targeting `/search?q={search_term_string}`, but `robots.txt` disallows
+ * `/search` so crawlers were being pointed at a URL they are told not to fetch.
+ * The header search form still works for visitors.
  */
 export function websiteJsonLd() {
   return {
@@ -102,14 +103,6 @@ export function websiteJsonLd() {
     '@id': absoluteUrl('/#website'),
     name: 'The Hillside Gardens',
     url: absoluteUrl('/'),
-    publisher: { '@id': absoluteUrl('/#business') },
-    potentialAction: {
-      '@type': 'SearchAction',
-      target: {
-        '@type': 'EntryPoint',
-        urlTemplate: absoluteUrl('/search?q={search_term_string}')
-      },
-      'query-input': 'required name=search_term_string'
-    }
+    publisher: { '@id': absoluteUrl('/#business') }
   };
 }

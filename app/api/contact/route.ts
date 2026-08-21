@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
+import { allowedContactSubjects, type ContactSubject } from '@/lib/contact';
 import { rateLimited } from '@/lib/rate-limit';
 import { businessEmail as hillsideBusinessEmail } from '@/lib/store';
 
@@ -11,7 +12,14 @@ const requestSchema = z.object({
   name: z.string().trim().min(1).max(120),
   email: z.string().trim().toLowerCase().email().max(254),
   phone: z.string().trim().max(40).optional().default(''),
-  subject: z.string().trim().min(1).max(160),
+  subject: z
+    .string()
+    .trim()
+    .min(1)
+    .max(160)
+    .refine((value): value is ContactSubject =>
+      allowedContactSubjects().includes(value as ContactSubject)
+    ),
   message: z.string().trim().min(10).max(5000),
   /**
    * Honeypot. Bounded rather than required-empty: `max(0)` made a filled
@@ -39,7 +47,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const parsed = requestSchema.safeParse(await request.json());
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: 'Please enter your name, a valid email and a little more detail.' },
+        { status: 400 }
+      );
+    }
+    const parsed = requestSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
         { error: 'Please enter your name, a valid email and a little more detail.' },
@@ -80,6 +97,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: 'Thanks — we received your message.' });
   } catch (error) {
     console.error('Contact form failed', error);
-    return NextResponse.json({ error: 'The message could not be sent. Please try again.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'The message could not be sent. Please try again.' },
+      { status: 500 }
+    );
   }
 }

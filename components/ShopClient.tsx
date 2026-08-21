@@ -176,12 +176,13 @@ export default function ShopClient({
     setSearch('');
     setCategory('ALL');
     setOnSaleOnly(false);
+    setSort(isSortOption(initialSort) ? initialSort : 'featured');
   };
 
   if (products.length === 0) {
     return (
       <div className="empty-state wide">
-        <Search size={38} />
+        <Search size={38} aria-hidden="true" />
         <h3>Nothing is on the bench right now.</h3>
         <p>
           We only list plants and goods that are ready to go home. Ask about a custom arrangement or
@@ -229,7 +230,7 @@ export default function ShopClient({
             </select>
           </label>
         </div>
-        <div className="filter-row" aria-label="Product categories">
+        <div className="filter-row" role="group" aria-label="Product categories">
           {categories.map(({ key, label }) => (
             <button
               className={`filter-chip${category === key ? ' active' : ''}`}
@@ -263,7 +264,7 @@ export default function ShopClient({
 
       {visibleProducts.length === 0 ? (
         <div className="empty-state">
-          <Search size={38} />
+          <Search size={38} aria-hidden="true" />
           <h3>No products matched that search.</h3>
           <p>Try another word, or ask whether something similar is coming back onto the bench.</p>
           <div className="actions" style={{ justifyContent: 'center' }}>

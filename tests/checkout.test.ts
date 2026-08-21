@@ -12,6 +12,7 @@ const {
   readCheckoutItems,
   stripeProductDescription,
   stripeProductImages,
+  stripeCheckoutItemsMetadata,
   STRIPE_METADATA_VALUE_MAX
 } = await import('../lib/checkout-format.ts');
 
@@ -220,26 +221,50 @@ describe('encode/parse checkout items', () => {
     ]);
   });
 
-  it('drops the snapshot whole rather than handing Stripe an over-long value', () => {
-    // Stripe refuses a metadata value past its cap, and refusing it fails the
-    // whole session — a full basket the customer cannot pay for. The reserved
-    // order row carries fulfillment; this snapshot is only the backup.
-    const many = Array.from({ length: 20 }, (_, index) => ({
+  it('omits a sized snapshot whole rather than shortening it', () => {
+    // Size labels make each line longer, so a sized basket reaches Stripe's cap
+    // sooner. It is dropped rather than trimmed: the legacy path only checks
+    // that it resolved as many lines as it parsed, so a short list would look
+    // complete and record a paid order missing whatever had been cut.
+    const line = (index: number) => ({
       product: { id: `cmf3k2j9x0000abcd1234ef${String(index).padStart(2, '0')}` },
       quantity: 1,
       size: '6" pot'
-    }));
-    const encoded = encodeCheckoutItems(many);
-    assert.ok(encoded.length <= STRIPE_METADATA_VALUE_MAX);
-    // Not a short list, which the legacy path would mistake for a complete one.
-    assert.equal(encoded, '[]');
+    });
+    const many = Array.from({ length: 20 }, (_, index) => line(index));
+    assert.ok(encodeCheckoutItems(many).length > STRIPE_METADATA_VALUE_MAX);
+    assert.equal(stripeCheckoutItemsMetadata(many), undefined);
 
-    const few = many.slice(0, 3);
-    assert.equal(parseCheckoutItems(encodeCheckoutItems(few)).length, 3);
+    const few = [line(0), line(1), line(2)];
+    const snapshot = stripeCheckoutItemsMetadata(few);
+    assert.ok(snapshot);
+    assert.equal(parseCheckoutItems(snapshot).length, 3);
   });
 
   it('returns an empty list for garbage', () => {
     assert.deepEqual(parseCheckoutItems('not-json'), []);
     assert.deepEqual(parseCheckoutItems('{}'), []);
+  });
+
+  it('omits the Stripe metadata snapshot when it would exceed 500 characters', () => {
+    const small = stripeCheckoutItemsMetadata([{ product: { id: 'a' }, quantity: 1 }]);
+    assert.ok(small);
+    assert.ok(small.length <= STRIPE_METADATA_VALUE_MAX);
+
+    const bulky = stripeCheckoutItemsMetadata(
+      Array.from({ length: 20 }, (_, index) => ({
+        product: { id: `cuid_abcdefghijklmnopqrstuv${index}` },
+        quantity: 1
+      }))
+    );
+    assert.equal(bulky, undefined);
+    assert.ok(
+      encodeCheckoutItems(
+        Array.from({ length: 20 }, (_, index) => ({
+          product: { id: `cuid_abcdefghijklmnopqrstuv${index}` },
+          quantity: 1
+        }))
+      ).length > STRIPE_METADATA_VALUE_MAX
+    );
   });
 });

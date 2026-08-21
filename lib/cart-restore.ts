@@ -27,9 +27,13 @@ function safeEqual(left: string, right: string) {
   }
 }
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+export const CART_RESTORE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-export function createCartRestoreToken(email: string, items: RestorableCartItem[]) {
+export function createCartRestoreToken(
+  email: string,
+  items: RestorableCartItem[],
+  now = Date.now()
+) {
   const key = signingKey();
   if (!key) return null;
   const payload: RestorePayload = {
@@ -40,7 +44,7 @@ export function createCartRestoreToken(email: string, items: RestorableCartItem[
       // A saved basket that forgot the size would come back as the wrong pot.
       ...(item.size ? { size: String(item.size).slice(0, 60) } : {})
     })),
-    exp: Date.now() + THIRTY_DAYS_MS
+    exp: now + CART_RESTORE_TTL_MS
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
   return `${encoded}.${sign(encoded, key)}`;

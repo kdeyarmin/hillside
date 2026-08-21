@@ -94,7 +94,14 @@ export function discountPercent(priceCents: number, compareAtCents?: number | nu
 }
 
 export function freeShippingThresholdCents() {
-  return Math.max(0, Number(process.env.FREE_SHIPPING_THRESHOLD_CENTS || 7500));
+  return Math.max(
+    0,
+    Number(
+      process.env.FREE_SHIPPING_THRESHOLD_CENTS ||
+        process.env.NEXT_PUBLIC_FREE_SHIPPING_THRESHOLD_CENTS ||
+        7500
+    )
+  );
 }
 
 /** The standard shipping rate, read from the same value Stripe Checkout charges. */
@@ -120,7 +127,14 @@ export function priceValidUntil(from = new Date()) {
  * `freeShippingThresholdCents` is the one Stripe Checkout actually charges by.
  */
 export function publicFreeShippingThresholdCents() {
-  return Math.max(0, Number(process.env.NEXT_PUBLIC_FREE_SHIPPING_THRESHOLD_CENTS || 7500));
+  return Math.max(
+    0,
+    Number(
+      process.env.NEXT_PUBLIC_FREE_SHIPPING_THRESHOLD_CENTS ||
+        process.env.FREE_SHIPPING_THRESHOLD_CENTS ||
+        7500
+    )
+  );
 }
 
 /**

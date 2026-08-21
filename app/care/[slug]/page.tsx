@@ -51,7 +51,11 @@ function Lines({ value }: { value: string }) {
   if (lines.length <= 1) return <p>{value}</p>;
   return (
     <ul className="care-checklist">
-      {lines.map((line) => <li key={line}><Check size={17} /> <span>{line}</span></li>)}
+      {lines.map((line, index) => (
+        <li key={`${index}-${line.slice(0, 24)}`}>
+          <Check size={17} /> <span>{line}</span>
+        </li>
+      ))}
     </ul>
   );
 }
@@ -86,10 +90,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     id: { not: sheet.id }
   };
   if (sheet.category) {
-    relatedWhere.OR = [
-      { guideType: sheet.guideType },
-      { category: sheet.category }
-    ];
+    relatedWhere.OR = [{ guideType: sheet.guideType }, { category: sheet.category }];
   } else {
     relatedWhere.guideType = sheet.guideType;
   }
@@ -100,9 +101,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { plantName: 'asc' }],
       take: 3
     }),
-    sheet.productId
-      ? db.product.findFirst({ where: { id: sheet.productId, active: true } })
-      : null,
+    sheet.productId ? db.product.findFirst({ where: { id: sheet.productId, active: true } }) : null,
     CLASSES_PUBLICLY_VISIBLE
       ? db.classEvent.findFirst({
           where: { active: true, startsAt: { gte: new Date() } },
@@ -170,11 +169,12 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     [ShieldCheck, 'How to prevent it', sheet.prevention, 'prevention']
   ].filter((item): item is [typeof SearchCheck, string, string, string] => Boolean(item[2]));
 
-  const HeroIcon = sheet.guideType === CareGuideType.PROBLEM
-    ? AlertTriangle
-    : sheet.guideType === CareGuideType.SEASONAL
-      ? CalendarRange
-      : Leaf;
+  const HeroIcon =
+    sheet.guideType === CareGuideType.PROBLEM
+      ? AlertTriangle
+      : sheet.guideType === CareGuideType.SEASONAL
+        ? CalendarRange
+        : Leaf;
 
   return (
     <section className="content care-guide-page">
@@ -196,8 +196,10 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
       />
       <div className="container">
         <div className="breadcrumbs no-print">
-          <Link href="/">Home</Link><span>/</span>
-          <Link href="/care">Plant care</Link><span>/</span>
+          <Link href="/">Home</Link>
+          <span>/</span>
+          <Link href="/care">Plant care</Link>
+          <span>/</span>
           <span>{sheet.plantName}</span>
         </div>
 
@@ -216,7 +218,9 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
               decoding="async"
             />
             <div>
-              <div className="care-guide-type"><HeroIcon size={16} /> {guideTypeLabel(sheet.guideType)}</div>
+              <div className="care-guide-type">
+                <HeroIcon size={16} /> {guideTypeLabel(sheet.guideType)}
+              </div>
               <h1>{sheet.plantName}</h1>
               {sheet.botanical && <p className="care-botanical-name">{sheet.botanical}</p>}
               <div className="care-guide-tags">
@@ -226,7 +230,9 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
               <p className="care-guide-lead">{sheet.summary}</p>
               <div className="actions no-print">
                 <PrintButton label="Print guide" />
-                <Link className="btn outline" href="/care">Back to care library</Link>
+                <Link className="btn outline" href="/care">
+                  Back to care library
+                </Link>
               </div>
             </div>
           </div>
@@ -243,7 +249,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
             </section>
           )}
 
-          {sheet.guideType === CareGuideType.PROBLEM && (
+          {sheet.guideType === CareGuideType.PROBLEM && problemSections.length > 0 && (
             <section className="care-problem-grid">
               {problemSections.map(([Icon, heading, text, key]) => (
                 <div className={`care-problem-section care-problem-${key}`} key={key}>
@@ -255,7 +261,8 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
             </section>
           )}
 
-          {(sheet.guideType === CareGuideType.GENERAL || sheet.guideType === CareGuideType.SEASONAL) && (
+          {(sheet.guideType === CareGuideType.GENERAL ||
+            sheet.guideType === CareGuideType.SEASONAL) && (
             <section className="care-lesson-layout">
               <div className="care-lesson-main">
                 <span className="eyebrow">Our practical guidance</span>
@@ -294,7 +301,9 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
                 </div>
                 <div className="admin-card">
                   <div className="eyebrow">Pet awareness</div>
-                  <h2 className="display-title"><HeartPulse size={25} /> Home and pet safety.</h2>
+                  <h2 className="display-title">
+                    <HeartPulse size={25} /> Home and pet safety.
+                  </h2>
                   <p>
                     {sheet.petSafety ||
                       'No pet-safety note has been added for this plant. Confirm the exact plant identity with your veterinarian or a trusted plant-toxicity resource before placing it within reach of pets or children.'}
@@ -348,15 +357,15 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
         {shopProducts.length > 0 && (
           <section className="product-details-section no-print care-shop-cta">
             <div className="sectionhead">
-              <div className="eyebrow">{linkedProduct ? 'From our shop' : 'Ready for a new plant?'}</div>
+              <div className="eyebrow">
+                {linkedProduct ? 'From our shop' : 'Ready for a new plant?'}
+              </div>
               <h2>
                 {linkedProduct
                   ? `Bring ${linkedProduct.name} home.`
                   : 'Plants we have on the bench right now.'}
               </h2>
-              <p>
-                Every plant is potted here and leaves with the same care notes you just read.
-              </p>
+              <p>Every plant is potted here and leaves with the same care notes you just read.</p>
             </div>
             <ProductGrid products={shopProducts} />
           </section>
@@ -393,10 +402,14 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
               {related.map((item) => (
                 <article className="care-related-card" key={item.id}>
                   <span>{guideTypeLabel(item.guideType)}</span>
-                  <h3><Link href={`/care/${item.slug}`}>{item.plantName}</Link></h3>
+                  <h3>
+                    <Link href={`/care/${item.slug}`}>{item.plantName}</Link>
+                  </h3>
                   {item.botanical && <p className="botanical">{item.botanical}</p>}
                   <p>{item.summary}</p>
-                  <Link className="text-link" href={`/care/${item.slug}`}>Read guide →</Link>
+                  <Link className="text-link" href={`/care/${item.slug}`}>
+                    Read guide →
+                  </Link>
                 </article>
               ))}
             </div>

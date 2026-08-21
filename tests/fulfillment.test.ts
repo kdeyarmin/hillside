@@ -168,5 +168,17 @@ describe('labels', () => {
       orderStatusHeading({ status: 'FULFILLED', fulfillmentMethod: 'SHIP' }),
       'Your order has shipped.'
     );
+    assert.equal(
+      orderStatusHeading({ status: 'PARTIALLY_REFUNDED', fulfillmentMethod: 'SHIP' }),
+      'Part of this order was refunded. We are still preparing the rest.'
+    );
+    assert.equal(
+      orderStatusHeading({
+        status: 'PARTIALLY_REFUNDED',
+        fulfillmentMethod: 'SHIP',
+        fulfilledAt: new Date()
+      }),
+      'Your order has shipped. Part of the order was refunded.'
+    );
   });
 });

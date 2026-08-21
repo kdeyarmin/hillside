@@ -13,6 +13,7 @@ type OrderResult = {
   createdAt: string;
   fulfilledAt: string | null;
   totalCents: number;
+  refundedCents: number;
   trackingCarrier: string | null;
   trackingNumber: string | null;
   fulfillmentMethod?: string | null;
@@ -108,7 +109,7 @@ export default function OrderStatusLookup() {
           {isPickupOrder(order) && (
             <div className="note-box">
               <b>Local pickup</b>
-              {order.status === 'FULFILLED' ? (
+              {order.status === 'FULFILLED' || order.fulfilledAt ? (
                 order.pickupNote ? (
                   <span style={{ whiteSpace: 'pre-wrap' }}>{order.pickupNote}</span>
                 ) : (
@@ -141,6 +142,12 @@ export default function OrderStatusLookup() {
               <span>Total</span>
               <span>{formatMoney(order.totalCents)}</span>
             </div>
+            {order.refundedCents > 0 && (
+              <div className="summary-row">
+                <span>Refunded</span>
+                <span>−{formatMoney(order.refundedCents)}</span>
+              </div>
+            )}
           </div>
         </div>
       )}

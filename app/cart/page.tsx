@@ -15,9 +15,9 @@ export const metadata = pageMetadata({
 export default async function CartPage({
   searchParams
 }: {
-  searchParams: Promise<{ restore?: string }>;
+  searchParams: Promise<{ restore?: string; canceled?: string }>;
 }) {
-  const { restore } = await searchParams;
+  const { restore, canceled } = await searchParams;
   const [catalogEmpty, freeShippingThreshold] = await Promise.all([
     catalogHasActiveProducts().then((hasStock) => !hasStock),
     Promise.resolve(freeShippingThresholdCents())
@@ -41,6 +41,7 @@ export default async function CartPage({
             catalogEmpty={catalogEmpty}
             freeShippingThreshold={freeShippingThreshold}
             restoreToken={restore || null}
+            canceledSessionId={canceled || null}
           />
         </div>
       </section>

@@ -18,6 +18,9 @@ export default function ContactForm({
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
+  const [subject, setSubject] = useState(initialSubject);
+  const [body, setBody] = useState(initialMessage);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatus('loading');
@@ -43,6 +46,13 @@ export default function ContactForm({
       setStatus('success');
       setMessage(result.message || 'Thanks — we received your message.');
       form.reset();
+      /**
+       * `reset()` restores `defaultValue`, so a visitor who arrived with
+       * `?subject=&message=` would see the prefill come back and think the
+       * send failed. Clear the controlled fields so the form is actually empty.
+       */
+      setSubject('General question');
+      setBody('');
     } catch (error) {
       setStatus('error');
       setMessage(error instanceof Error ? error.message : 'Unable to send your message.');
@@ -91,7 +101,8 @@ export default function ContactForm({
             className="form-input"
             id="contact-subject"
             name="subject"
-            defaultValue={initialSubject}
+            value={subject}
+            onChange={(event) => setSubject(event.target.value as ContactSubject)}
             required
           >
             {SUBJECTS.map((subject) => (
@@ -106,7 +117,8 @@ export default function ContactForm({
             id="contact-message"
             name="message"
             placeholder="Tell us a little about what you need."
-            defaultValue={initialMessage}
+            value={body}
+            onChange={(event) => setBody(event.target.value)}
             required
             minLength={10}
           />

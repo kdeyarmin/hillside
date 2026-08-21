@@ -16,5 +16,7 @@ describe('csvCell', () => {
     assert.equal(csvCell('+1-814-555-0100'), '"\'+1-814-555-0100"');
     assert.equal(csvCell('-refund'), '"\'-refund"');
     assert.equal(csvCell('@sum'), '"\'@sum"');
+    assert.equal(csvCell(' =HYPERLINK("http://evil")'), '"\' =HYPERLINK(""http://evil"")"');
+    assert.equal(csvCell('＝cmd'), '"\'＝cmd"');
   });
 });

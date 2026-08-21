@@ -152,8 +152,10 @@ export function orderStatusHeading(order: {
   status: string;
   fulfillmentMethod?: string | null;
   shippingMethod?: string | null;
+  fulfilledAt?: Date | string | null;
 }) {
   const pickup = isPickupOrder(order);
+  const alreadyFulfilled = Boolean(order.fulfilledAt);
   if (order.status === 'FULFILLED') {
     return pickup ? 'Your order is ready for pickup.' : 'Your order has shipped.';
   }
@@ -161,8 +163,20 @@ export function orderStatusHeading(order: {
     return pickup ? 'We are preparing your pickup.' : 'We are preparing your order.';
   }
   if (order.status === 'CANCELLED') return 'This order was cancelled.';
-  if (order.status === 'REFUNDED') return 'This order was refunded.';
+  if (order.status === 'REFUNDED') {
+    if (alreadyFulfilled) {
+      return pickup
+        ? 'This pickup was completed. The order was later refunded.'
+        : 'Your order shipped. It was later refunded.';
+    }
+    return 'This order was refunded.';
+  }
   if (order.status === 'PARTIALLY_REFUNDED') {
+    if (alreadyFulfilled) {
+      return pickup
+        ? 'This pickup was completed. Part of the order was refunded.'
+        : 'Your order has shipped. Part of the order was refunded.';
+    }
     return pickup
       ? 'Part of this pickup order was refunded. We are still preparing the rest.'
       : 'Part of this order was refunded. We are still preparing the rest.';

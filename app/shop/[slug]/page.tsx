@@ -277,7 +277,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             <p className="product-detail-price">
               {formatSizePriceRange(sizes, product.priceCents)}
               {saving > 0 && compareAt && (
-                <span className="compare-price">{formatMoney(compareAt)}</span>
+                <span className="compare-price">
+                  <span className="sr-only">Was </span>
+                  {formatMoney(compareAt)}
+                </span>
               )}
             </p>
             <p className={`stock ${soldOut ? 'out' : product.inventory <= 3 ? 'low' : ''}`}>
@@ -291,8 +294,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             {threshold > 0 && offersShipping(product) && (
               <p className="shipping-nudge">
                 <Truck size={17} aria-hidden="true" />
+                {/* Quoted against the cheapest size, so the promise holds
+                    whichever one the shopper picks. */}
                 {priceSpan.minCents >= threshold
-                  ? 'This order qualifies for free standard shipping.'
+                  ? 'This item alone qualifies for free standard shipping on a shipped order.'
                   : `Free standard shipping on orders over ${formatMoney(threshold)}.`}
               </p>
             )}
@@ -378,7 +383,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <div className="product-details-section">
             <div className="sectionhead">
               <div className="eyebrow">Keep it thriving</div>
-              <h2>Care guides for this plant.</h2>
+              <h2>
+                {product.type === 'PLANT'
+                  ? 'Care guides for this plant.'
+                  : 'Care guides for this item.'}
+              </h2>
             </div>
             <div className="care-related-grid">
               {product.careSheets.map((sheet) => (
@@ -491,7 +500,11 @@ function RetiredProduct({
           <div className="product-details-section">
             <div className="sectionhead">
               <div className="eyebrow">Keep it thriving</div>
-              <h2>Care guides for this plant.</h2>
+              <h2>
+                {product.type === 'PLANT'
+                  ? 'Care guides for this plant.'
+                  : 'Care guides for this item.'}
+              </h2>
             </div>
             <div className="care-related-grid">
               {product.careSheets.map((sheet) => (

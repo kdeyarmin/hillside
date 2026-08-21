@@ -454,7 +454,9 @@ export default async function Admin({
   );
 
   const lowStock = products.filter((product) => product.active && product.inventory <= 3).length;
-  const openOrders = orders.filter((order) => isAwaitingShipment(order.status)).length;
+  const openOrders = orders.filter((order) =>
+    isAwaitingShipment(order.status, order.fulfilledAt)
+  ).length;
   const unreadMessages = messages.filter((message) => message.status === MessageStatus.NEW).length;
   const activeSubscribers = subscribers.filter((subscriber) => subscriber.active).length;
   const pendingReviews = reviews.filter((review) => review.status === ReviewStatus.PENDING).length;
@@ -650,7 +652,9 @@ export default async function Admin({
           <div className="toolbar">
             <div>
               <h2>Orders and fulfillment</h2>
-              <p className="muted">Update tracking, print documents and mark orders shipped or picked up.</p>
+              <p className="muted">
+                Update tracking, print documents and mark orders shipped or picked up.
+              </p>
             </div>
             <div className="admin-actions">
               <a className="btn small" href="/api/admin/shipping.csv">
@@ -665,7 +669,9 @@ export default async function Admin({
             <div className="admin-list">
               {orders.map((order) => (
                 <details
-                  open={isAwaitingShipment(order.status) || order.id === focusOrder}
+                  open={
+                    isAwaitingShipment(order.status, order.fulfilledAt) || order.id === focusOrder
+                  }
                   id={`order-${order.id}`}
                   key={order.id}
                 >
@@ -769,7 +775,10 @@ export default async function Admin({
                       </div>
                     </div>
                     {order.giftMessage && (
-                      <div className="note-box" style={{ marginBottom: 18, whiteSpace: 'pre-wrap' }}>
+                      <div
+                        className="note-box"
+                        style={{ marginBottom: 18, whiteSpace: 'pre-wrap' }}
+                      >
                         <b>Gift message</b>
                         {order.giftMessage}
                       </div>
@@ -782,31 +791,31 @@ export default async function Admin({
                           <select className="admin-input" name="status" defaultValue={order.status}>
                             {Object.values(OrderStatus).map((status) => (
                               <option value={status} key={status}>
-                                {status}
+                                {orderStatusBadge(status, order.fulfillmentMethod)}
                               </option>
                             ))}
                           </select>
                         </label>
                         {order.fulfillmentMethod !== 'PICKUP' && (
-                        <label className="admin-label">
-                          Carrier
-                          <input
-                            className="admin-input"
-                            name="trackingCarrier"
-                            defaultValue={order.trackingCarrier || ''}
-                            placeholder="USPS, UPS, FedEx"
-                          />
-                        </label>
+                          <label className="admin-label">
+                            Carrier
+                            <input
+                              className="admin-input"
+                              name="trackingCarrier"
+                              defaultValue={order.trackingCarrier || ''}
+                              placeholder="USPS, UPS, FedEx"
+                            />
+                          </label>
                         )}
                         {order.fulfillmentMethod !== 'PICKUP' && (
-                        <label className="admin-label">
-                          Tracking number
-                          <input
-                            className="admin-input"
-                            name="trackingNumber"
-                            defaultValue={order.trackingNumber || ''}
-                          />
-                        </label>
+                          <label className="admin-label">
+                            Tracking number
+                            <input
+                              className="admin-input"
+                              name="trackingNumber"
+                              defaultValue={order.trackingNumber || ''}
+                            />
+                          </label>
                         )}
                         {order.fulfillmentMethod === 'PICKUP' && (
                           <label className="admin-label full">
@@ -846,7 +855,7 @@ export default async function Admin({
                         </Link>
                       </div>
                     </form>
-                    {isAwaitingShipment(order.status) && (
+                    {isAwaitingShipment(order.status, order.fulfilledAt) && (
                       <form action={resendOrderConfirmation} style={{ marginTop: 10 }}>
                         <input type="hidden" name="id" value={order.id} />
                         <button className="text-button">

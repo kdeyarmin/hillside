@@ -17,11 +17,13 @@ const lineName = (line: { name: string; size?: string | null }) => sizedName(lin
 export default function CartPageClient({
   catalogEmpty,
   freeShippingThreshold,
-  restoreToken
+  restoreToken,
+  canceledSessionId
 }: {
   catalogEmpty?: boolean;
   freeShippingThreshold: number;
   restoreToken?: string | null;
+  canceledSessionId?: string | null;
 }) {
   const {
     items,
@@ -44,6 +46,48 @@ export default function CartPageClient({
   const [restoreState, setRestoreState] = useState<'idle' | 'loading' | 'ok' | 'error'>(
     restoreToken ? 'loading' : 'idle'
   );
+  const [cancelNotice, setCancelNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!canceledSessionId) return;
+    const controller = new AbortController();
+    fetch('/api/checkout/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: canceledSessionId }),
+      signal: controller.signal
+    })
+      .then(async (response) => {
+        const result = (await response.json()) as {
+          released?: boolean;
+          reason?: string;
+          error?: string;
+        };
+        const paid = result.reason === 'paid';
+        const released = response.ok && Boolean(result.released);
+        if (paid || released) {
+          window.history.replaceState(null, '', '/cart');
+        }
+        if (paid) return;
+        if (!released) {
+          setCancelNotice(
+            result.error ||
+              'Checkout was cancelled. If an item still looks sold out, wait a moment and try again.'
+          );
+          return;
+        }
+        setCancelNotice(
+          'Checkout was cancelled. Those plants are back on the shelf if you want to try again.'
+        );
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setCancelNotice(
+          'Checkout was cancelled. If an item still looks sold out, wait a moment and refresh.'
+        );
+      });
+    return () => controller.abort();
+  }, [canceledSessionId]);
 
   useEffect(() => {
     if (!restoreToken) return;
@@ -116,7 +160,7 @@ export default function CartPageClient({
   if (!items.length && restoreState !== 'loading') {
     return (
       <div className="empty-state">
-        <ShoppingBag size={42} />
+        <ShoppingBag size={42} aria-hidden="true" />
         {catalogEmpty ? (
           <>
             <h3>Nothing is on the bench right now.</h3>
@@ -125,6 +169,7 @@ export default function CartPageClient({
               browse the care library while the next batch is potted.
             </p>
             <FormStatus message={checkoutNotice} tone="notice" />
+            <FormStatus message={cancelNotice} tone="notice" />
             <FormStatus
               message={saveState.message}
               tone={saveState.type === 'ok' ? 'success' : 'error'}
@@ -143,6 +188,7 @@ export default function CartPageClient({
             <h3>Your cart is empty.</h3>
             <p>Explore our current plants, teas and handmade botanical goods.</p>
             <FormStatus message={checkoutNotice} tone="notice" />
+            <FormStatus message={cancelNotice} tone="notice" />
             <FormStatus
               message={saveState.message}
               tone={saveState.type === 'ok' ? 'success' : 'error'}
@@ -283,6 +329,7 @@ export default function CartPageClient({
 
         <FormStatus message={checkoutError} tone="error" />
         <FormStatus message={checkoutNotice} tone="notice" />
+        <FormStatus message={cancelNotice} tone="notice" />
         <button
           className="btn full"
           type="button"

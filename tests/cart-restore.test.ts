@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 
 process.env.ADMIN_SESSION_SECRET ||= 'test-admin-session-secret-long-enough';
 
-const { cartRestoreDropped, createCartRestoreToken, readCartRestoreToken } =
+const { cartRestoreDropped, CART_RESTORE_TTL_MS, createCartRestoreToken, readCartRestoreToken } =
   await import('../lib/cart-restore.ts');
 
 describe('cart restore tokens', () => {
@@ -49,6 +49,14 @@ describe('cart restore tokens', () => {
     assert.ok(token);
     const payload = readCartRestoreToken(token);
     assert.equal(payload?.items[0].quantity, 20);
+
+    const expired = createCartRestoreToken(
+      'a@b.com',
+      [{ slug: 'tea', quantity: 1 }],
+      Date.now() - CART_RESTORE_TTL_MS - 1_000
+    );
+    assert.ok(expired);
+    assert.equal(readCartRestoreToken(expired), null);
   });
 });
 

@@ -108,7 +108,10 @@ export default function ProductCard({
         <p>
           <strong className="price">{formatSizePriceRange(sizes, product.priceCents)}</strong>
           {saving > 0 && compareAt && (
-            <span className="compare-price">{formatMoney(compareAt)}</span>
+            <span className="compare-price">
+              <span className="sr-only">Was </span>
+              {formatMoney(compareAt)}
+            </span>
           )}
         </p>
         <span className={`stock ${soldOut ? 'out' : product.inventory <= 3 ? 'low' : ''}`}>

@@ -11,6 +11,13 @@ const allowedTypes = {
 
 export type AllowedImageType = keyof typeof allowedTypes;
 
+export class UploadValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UploadValidationError';
+  }
+}
+
 /**
  * Where owner-uploaded photographs live.
  *
@@ -87,25 +94,32 @@ function hasValidSignature(bytes: Buffer, type: AllowedImageType) {
   return false;
 }
 
-export async function saveUploadedImage(file: File) {
-  const type = file.type as AllowedImageType;
-  const extension = allowedTypes[type];
-  if (!extension) {
-    throw new Error('Use a JPEG, PNG, WebP or GIF image.');
-  }
+/**
+ * Trust the file bytes, not `file.type`. A mismatched Content-Type used to pick
+ * the wrong extension and skip the matching magic-byte check; a JPEG labelled
+ * as PNG would be stored as `.png` and served as `image/png`.
+ */
+export function detectImageType(bytes: Buffer): AllowedImageType | null {
+  const types = Object.keys(allowedTypes) as AllowedImageType[];
+  return types.find((type) => hasValidSignature(bytes, type)) || null;
+}
 
+export async function saveUploadedImage(file: File) {
   const maxBytes = Math.max(1, Number(process.env.UPLOAD_MAX_BYTES || 8 * 1024 * 1024));
-  if (file.size <= 0) throw new Error('The selected file is empty.');
+  if (file.size <= 0) throw new UploadValidationError('The selected file is empty.');
   if (file.size > maxBytes) {
-    throw new Error(`The image is too large. Maximum size is ${Math.round(maxBytes / 1024 / 1024)} MB.`);
+    throw new UploadValidationError(
+      `The image is too large. Maximum size is ${Math.round(maxBytes / 1024 / 1024)} MB.`
+    );
   }
 
   const bytes = Buffer.from(await file.arrayBuffer());
-  if (!hasValidSignature(bytes, type)) {
-    throw new Error('The selected file does not appear to be a valid image.');
+  const type = detectImageType(bytes);
+  if (!type) {
+    throw new UploadValidationError('Use a JPEG, PNG, WebP or GIF image.');
   }
 
-  const filename = `${crypto.randomUUID()}${extension}`;
+  const filename = `${crypto.randomUUID()}${allowedTypes[type]}`;
   const directory = uploadDirectory();
   await mkdir(directory, { recursive: true });
   await writeFile(path.join(directory, filename), bytes, { flag: 'wx', mode: 0o644 });

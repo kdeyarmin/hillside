@@ -234,44 +234,48 @@ export function checkoutAdjustmentNotice(change: {
   return `Only ${change.available} of ${change.name} left — quantity updated.`;
 }
 
-/** Stripe rejects a metadata value longer than this. */
-export const STRIPE_METADATA_VALUE_MAX = 500;
-
 /**
  * The compact backup snapshot written into Stripe session metadata. Fulfillment
  * prefers the reserved order row; this only has to resolve a session that is
  * already in flight when the hold row is missing.
  *
- * It is emitted whole or not at all, and never over Stripe's cap. A basket of a
- * dozen distinct products already encoded past 500 characters, which Stripe
- * refuses outright — the customer saw "Unable to start checkout" with a full
- * basket and no way through — and a size label makes each line longer still. A
- * *truncated* snapshot would be worse than none: the legacy path checks that it
- * resolved as many lines as it parsed, so a short list would look complete and
- * record a paid order missing whatever had been cut.
- *
- * A per-line price is deliberately not in here for the same reason: it costs
- * about nine characters a line to protect a path that only runs when the order
- * row is gone, and it would push a smaller basket over the cap.
+ * A per-line price is deliberately not in here: it costs about nine characters
+ * a line to protect a path that only runs when the order row is gone, and the
+ * budget it would spend is the scarce one guarded below.
  */
 export function encodeCheckoutItems(
   items: Array<{ product: { id: string }; quantity: number; size?: string | null }>
 ) {
-  const encoded = JSON.stringify(
+  return JSON.stringify(
     items.map(({ product, quantity, size }) => ({
       id: product.id,
       q: quantity,
       ...(size ? { s: size } : {})
     }))
   );
-  if (encoded.length <= STRIPE_METADATA_VALUE_MAX) return encoded;
+}
 
-  console.warn(
-    `[hillside] Checkout snapshot for ${items.length} lines is ${encoded.length} characters, ` +
-      `over Stripe's ${STRIPE_METADATA_VALUE_MAX}-character metadata limit. Omitting it; the ` +
-      `reserved order row carries this checkout.`
-  );
-  return '[]';
+/**
+ * Stripe metadata values are capped at 500 characters. A reserved order is the
+ * source of truth (`orderId` is always sent); this snapshot is only a backup
+ * for sessions that outlive a deploy. Once the cart is large enough that the
+ * JSON no longer fits, omitting it is safer than throwing — `sessions.create`
+ * would 500 and the customer could not pay for a basket the shop was happy to
+ * sell.
+ *
+ * A size label costs another dozen or so characters a line, so a sized basket
+ * reaches that ceiling sooner. Omitting the whole value stays the right answer:
+ * a *truncated* snapshot would be worse than none, because the legacy path only
+ * checks that it resolved as many lines as it parsed, so a short list would look
+ * complete and record a paid order missing whatever had been cut.
+ */
+export const STRIPE_METADATA_VALUE_MAX = 500;
+
+export function stripeCheckoutItemsMetadata(
+  items: Array<{ product: { id: string }; quantity: number; size?: string | null }>
+) {
+  const encoded = encodeCheckoutItems(items);
+  return encoded.length <= STRIPE_METADATA_VALUE_MAX ? encoded : undefined;
 }
 
 export type ParsedCheckoutItem = { id: string; q: number; p?: number; s?: string };
