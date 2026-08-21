@@ -281,6 +281,81 @@ async function auditHeaderInteractions(page, profile, route) {
   }
 }
 
+/**
+ * The drawer is where most baskets are edited, and its item list is the first
+ * thing a tall checkout panel starves: squeezed to a sliver, the items are still
+ * in the cart but no Remove button can be reached. Only a real basket, driven
+ * through the browser, shows that from the outside.
+ */
+async function auditCartDrawer(page, profile, route) {
+  if (route.name !== 'shop') return;
+
+  const addButtons = page.locator('.product-card button:not([disabled]):has-text("Add to cart")');
+  if ((await addButtons.count()) < 2) {
+    recordWarning(profile, route, 'Not enough in-stock products to audit the cart drawer');
+    return;
+  }
+
+  const dialog = page.getByRole('dialog', { name: 'Shopping cart' });
+  await addButtons.nth(0).click();
+  await dialog.waitFor({ state: 'visible', timeout: 5000 });
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'detached', timeout: 5000 });
+  await addButtons.nth(1).click();
+  await dialog.waitFor({ state: 'visible', timeout: 5000 });
+
+  const lines = page.locator('.cart-drawer .cart-line');
+  if ((await lines.count()) !== 2) {
+    recordFailure(profile, route, 'Cart drawer did not list both added items', await lines.count());
+  }
+
+  const basketHeight = await page
+    .locator('.drawer-body')
+    .evaluate((element) => Math.round(element.getBoundingClientRect().height))
+    .catch(() => 0);
+  if (basketHeight < 120) {
+    recordFailure(profile, route, 'Cart drawer leaves too little room for the basket', {
+      basketHeight
+    });
+  }
+
+  /* Hit tested rather than merely measured: a control the checkout panel or the
+     suggestions paint over is as unusable as one that is not rendered at all. */
+  const reachable = (locator) =>
+    locator.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return Boolean(hit && (hit === element || element.contains(hit)));
+    });
+
+  const checkoutButton = page.locator('.drawer-total button', { hasText: 'checkout' }).first();
+  if (!(await reachable(checkoutButton))) {
+    recordFailure(profile, route, 'Cart drawer checkout button is covered or off screen');
+  }
+
+  while ((await lines.count()) > 0) {
+    const remaining = await lines.count();
+    const name = await lines.first().locator('b').first().innerText();
+    const removeButton = lines.first().locator('button', { hasText: 'Remove' });
+    await removeButton.scrollIntoViewIfNeeded();
+    if (!(await reachable(removeButton))) {
+      recordFailure(profile, route, 'A cart line cannot be removed in the drawer', { item: name });
+      break;
+    }
+    await removeButton.click();
+    await page.waitForTimeout(200);
+    if ((await lines.count()) !== remaining - 1) {
+      recordFailure(profile, route, 'Removing a cart line left it in the drawer', { item: name });
+      break;
+    }
+  }
+
+  /* Later routes share this browser context, so the basket goes back to empty. */
+  await page.evaluate(() => localStorage.removeItem('hillside-cart-v2'));
+  await page.keyboard.press('Escape');
+  await dialog.waitFor({ state: 'detached', timeout: 5000 });
+}
+
 const browser = await chromium.launch({
   headless: true,
   // Lets the audit run against a preinstalled browser instead of a downloaded one.
@@ -336,6 +411,7 @@ try {
 
         await settlePage(page);
         await auditHeaderInteractions(page, profile, route);
+        await auditCartDrawer(page, profile, route);
         const metrics = await collectMetrics(page, profile.mobile);
 
         if (!metrics.title.trim()) recordFailure(profile, route, 'Document title is empty');

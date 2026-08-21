@@ -876,6 +876,21 @@ textarea.form-input {
     display: none;
   }
 
+  /* A landscape phone is barely taller than the drawer's own chrome, so the
+     title and the checkout panel give ground to the basket itself. */
+  .drawer-heading {
+    padding: 12px 20px;
+  }
+
+  .drawer-heading h2 {
+    font-size: 24px;
+  }
+
+  .drawer-total {
+    max-height: 45%;
+    padding: 14px 24px 18px;
+  }
+
   .editorial-head-main {
     min-height: 82px;
   }

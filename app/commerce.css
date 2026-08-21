@@ -217,6 +217,8 @@
 .drawer-shipping { margin-bottom: 14px; }
 .drawer-shipping p { margin: 0 0 7px; color: var(--forest); font-size: 13px; }
 .drawer-suggestions { padding: 16px 24px; border-top: 1px solid var(--line); background: var(--sage-light); }
+.drawer-options { padding: 18px 24px; border-top: 1px solid var(--line); }
+.drawer-options .checkout-options.compact { margin: 0; }
 .drawer-suggestion { display: grid; grid-template-columns: 54px 1fr auto; align-items: center; gap: 12px; margin-top: 10px; }
 .drawer-suggestion img { width: 54px; height: 54px; object-fit: cover; border-radius: 10px; }
 .drawer-suggestion b { display: block; color: var(--forest); font-size: 14px; }
