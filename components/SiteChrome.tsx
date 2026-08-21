@@ -269,71 +269,82 @@ function CartDrawer({
           </div>
         ) : (
           <>
-            <div className="cart-lines">
-              {items.map((item) => (
-                <div className="cart-line" key={item.slug}>
-                  <ResilientImage
-                    sizeRole="thumb"
-                    src={item.imageUrl || FALLBACK_PRODUCT_IMAGE}
-                    fallbackSrc="/images/botanical-placeholder.svg"
-                    alt={item.name}
-                    width={80}
-                    height={80}
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <div className="cart-line-copy">
-                    <Link href={`/shop/${item.slug}`} onClick={closeCart}>
-                      <b>{item.name}</b>
-                    </Link>
-                    <span>{formatMoney(item.priceCents)}</span>
-                    <div className="cart-line-actions">
-                      <div
-                        className="quantity-picker small"
-                        role="group"
-                        aria-label={`Quantity for ${item.name}`}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setQuantity(item.slug, item.quantity - 1)}
-                          aria-label={`Decrease ${item.name} quantity`}
+            {/* Lines and suggestions share one scroll region. Given their own
+                boxes, the suggestions and the checkout panel below took their
+                full height first and left the basket a sliver too short to
+                reach a Remove button in. */}
+            <div className="drawer-body">
+              <div className="cart-lines">
+                {items.map((item) => (
+                  <div className="cart-line" key={item.slug}>
+                    <ResilientImage
+                      sizeRole="thumb"
+                      src={item.imageUrl || FALLBACK_PRODUCT_IMAGE}
+                      fallbackSrc="/images/botanical-placeholder.svg"
+                      alt={item.name}
+                      width={80}
+                      height={80}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                    <div className="cart-line-copy">
+                      <Link href={`/shop/${item.slug}`} onClick={closeCart}>
+                        <b>{item.name}</b>
+                      </Link>
+                      <span>{formatMoney(item.priceCents)}</span>
+                      <div className="cart-line-actions">
+                        <div
+                          className="quantity-picker small"
+                          role="group"
+                          aria-label={`Quantity for ${item.name}`}
                         >
-                          <Minus size={14} />
-                        </button>
-                        {/* The live region announced a bare number — "3" — with nothing to
-                            say what changed. */}
-                        <span aria-hidden="true">{item.quantity}</span>
-                        <span className="sr-only" aria-live="polite">
-                          {item.name}: quantity {item.quantity}
-                        </span>
+                          <button
+                            type="button"
+                            onClick={() => setQuantity(item.slug, item.quantity - 1)}
+                            aria-label={`Decrease ${item.name} quantity`}
+                          >
+                            <Minus size={14} />
+                          </button>
+                          {/* The live region announced a bare number — "3" — with nothing to
+                              say what changed. */}
+                          <span aria-hidden="true">{item.quantity}</span>
+                          <span className="sr-only" aria-live="polite">
+                            {item.name}: quantity {item.quantity}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setQuantity(item.slug, item.quantity + 1)}
+                            disabled={item.quantity >= item.inventory}
+                            aria-label={`Increase ${item.name} quantity`}
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
                         <button
+                          className="text-button danger"
                           type="button"
-                          onClick={() => setQuantity(item.slug, item.quantity + 1)}
-                          disabled={item.quantity >= item.inventory}
-                          aria-label={`Increase ${item.name} quantity`}
+                          onClick={() => removeItem(item.slug)}
                         >
-                          <Plus size={14} />
+                          <Trash2 size={14} /> Remove
                         </button>
                       </div>
-                      <button
-                        className="text-button danger"
-                        type="button"
-                        onClick={() => removeItem(item.slug)}
-                      >
-                        <Trash2 size={14} /> Remove
-                      </button>
                     </div>
+                    <b>{formatMoney(item.priceCents * item.quantity)}</b>
                   </div>
-                  <b>{formatMoney(item.priceCents * item.quantity)}</b>
-                </div>
-              ))}
+                ))}
+              </div>
+              <CartDrawerSuggestions />
+              {/* Scrolls with the basket. Pinned beside the subtotal, the
+                  fulfillment picker and gift note were half the drawer's height
+                  and left nothing for the items themselves. */}
+              <div className="drawer-options">
+                <CheckoutOptions compact />
+              </div>
             </div>
-            <CartDrawerSuggestions />
             <div className="drawer-total">
-            {fulfillment !== 'PICKUP' && (
-              <FreeShippingMeter subtotalCents={subtotalCents} threshold={freeShippingThreshold} />
-            )}
-            <CheckoutOptions compact />
+              {fulfillment !== 'PICKUP' && (
+                <FreeShippingMeter subtotalCents={subtotalCents} threshold={freeShippingThreshold} />
+              )}
               <div>
                 <span>Subtotal</span>
                 <strong>{formatMoney(subtotalCents)}</strong>

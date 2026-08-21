@@ -107,14 +107,13 @@ fieldset {
   max-height: 100dvh;
 }
 
-.cart-lines {
-  min-height: 0;
+.drawer-body {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
 
 .drawer-total {
-  flex: 0 0 auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .editorial-nav .mobile-menu {
