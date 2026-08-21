@@ -11,13 +11,16 @@ const {
   parseSizeLines,
   productSizes,
   readStoredSizes,
+  comparableAtCents,
   normalizeSizeLabel,
+  sizeChoiceRejected,
   sizedName,
   sizeFieldLabel,
   sizeLines,
   sizePriceRange,
   sizedPriceCents,
-  sizesArePriced
+  sizesArePriced,
+  withoutRedundantPrices
 } = await import('../lib/product-sizes.ts');
 
 describe('readStoredSizes', () => {
@@ -85,6 +88,69 @@ describe('findSize and sizedPriceCents', () => {
     assert.equal(sizedPriceCents(sizes, null, 1800), null);
     // No size list at all: the product's own price stands.
     assert.equal(sizedPriceCents([], null, 1800), 1800);
+  });
+});
+
+describe('sizeChoiceRejected', () => {
+  const sizes = productSizes([{ label: '2 oz' }, { label: '8 oz', priceCents: 2600 }], 1200);
+
+  it('accepts a size we sell and a product sold one way', () => {
+    assert.equal(sizeChoiceRejected(sizes, '8 oz'), false);
+    assert.equal(sizeChoiceRejected([], null), false);
+    assert.equal(sizeChoiceRejected([], '   '), false);
+  });
+
+  it('refuses a missing choice and one we do not sell', () => {
+    assert.equal(sizeChoiceRejected(sizes, null), true);
+    assert.equal(sizeChoiceRejected(sizes, '4 oz'), true);
+  });
+
+  it('still refuses a size the owner has cleared the list of', () => {
+    // The basket remembers "8 oz" after every option is deleted. Reading the
+    // list length alone let that line through as an ordinary one.
+    assert.equal(sizeChoiceRejected([], '8 oz'), true);
+  });
+});
+
+describe('comparableAtCents', () => {
+  it('keeps a sale on a product priced one way', () => {
+    assert.equal(comparableAtCents([], 1800, 2400), 2400);
+    const flat = productSizes([{ label: 'Small' }, { label: 'Large' }], 1800);
+    assert.equal(comparableAtCents(flat, 1800, 2400), 2400);
+  });
+
+  it('stands the sale down once the sizes disagree about the price', () => {
+    // $18 base against a $24 compare-at once a size costs $32 read as
+    // "$18 – $32, was $24, save 25%" — untrue of the $32 size.
+    const priced = productSizes([{ label: 'Small' }, { label: 'Large', priceCents: 3200 }], 1800);
+    assert.equal(comparableAtCents(priced, 1800, 2400), null);
+  });
+});
+
+describe('withoutRedundantPrices', () => {
+  it('drops a price that only repeats the product price', () => {
+    // Otherwise the size stays pinned at $18 the next time the base price moves.
+    assert.deepEqual(withoutRedundantPrices([{ label: '4" pot', priceCents: 1800 }], 1800), [
+      { label: '4" pot' }
+    ]);
+  });
+
+  it('keeps one that genuinely differs, in both directions', () => {
+    assert.deepEqual(
+      withoutRedundantPrices(
+        [
+          { label: 'Small', priceCents: 1400 },
+          { label: 'Large', priceCents: 3200 },
+          { label: 'Medium' }
+        ],
+        1800
+      ),
+      [
+        { label: 'Small', priceCents: 1400 },
+        { label: 'Large', priceCents: 3200 },
+        { label: 'Medium' }
+      ]
+    );
   });
 });
 

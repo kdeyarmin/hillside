@@ -145,6 +145,19 @@ export function sizedPriceCents(
   return findSize(sizes, label)?.priceCents ?? null;
 }
 
+/**
+ * Whether a basket line's size choice cannot be honoured — because a size is due
+ * and none was chosen, or because the one chosen is not offered any more. The
+ * second case includes a product whose size list has since been cleared
+ * altogether, which is why this asks about the *choice* rather than about the
+ * length of the list. Checkout, the checkout session and a restored saved cart
+ * all have to agree on it, so they ask here.
+ */
+export function sizeChoiceRejected(sizes: SizeOption[], size: string | null | undefined) {
+  if (findSize(sizes, size)) return false;
+  return sizes.length > 0 || Boolean(normalizeSizeLabel(size));
+}
+
 export function sizePriceRange(sizes: SizeOption[], basePriceCents: number) {
   const prices = sizes.length ? sizes.map((size) => size.priceCents) : [basePriceCents];
   return { minCents: Math.min(...prices), maxCents: Math.max(...prices) };
@@ -162,6 +175,24 @@ export function formatSizePriceRange(sizes: SizeOption[], basePriceCents: number
 export function sizesArePriced(sizes: SizeOption[], basePriceCents: number) {
   const { minCents, maxCents } = sizePriceRange(sizes, basePriceCents);
   return minCents !== maxCents;
+}
+
+/**
+ * The compare-at price a sized product may advertise.
+ *
+ * A "was $24, save 25%" is a claim about *the* price, and a product whose sizes
+ * are priced differently does not have one. Left alone, a base of $18 against a
+ * $24 compare-at rendered "$18 – $32", a struck-through $24 and "Save 25%" —
+ * presenting the $32 size as part of a discount it is not in. So the sale
+ * treatment stands down as soon as the sizes disagree about the price; the
+ * range says what each size costs instead.
+ */
+export function comparableAtCents(
+  sizes: SizeOption[],
+  basePriceCents: number,
+  compareAtCents: number | null | undefined
+) {
+  return sizesArePriced(sizes, basePriceCents) ? null : (compareAtCents ?? null);
 }
 
 /** The product name as it should read on an order, a packing slip or in Stripe. */
@@ -209,6 +240,19 @@ export function parseSizeLines(value: string): StoredSize[] {
       if (!Number.isFinite(dollars) || dollars < 0) return { label };
       return { label, priceCents: Math.round(dollars * 100) };
     })
+  );
+}
+
+/**
+ * Drops an override that merely repeats the product's own price, so it is stored
+ * as "the base price" rather than pinned to today's figure. The admin box shows
+ * `4" pot | 18.00` as its example, so an owner following it would otherwise have
+ * left that size behind the next time they raised the price.
+ */
+export function withoutRedundantPrices(sizes: StoredSize[], basePriceCents: number): StoredSize[] {
+  const base = Math.max(0, Math.round(basePriceCents || 0));
+  return sizes.map(({ label, priceCents }) =>
+    priceCents == null || priceCents === base ? { label } : { label, priceCents }
   );
 }
 

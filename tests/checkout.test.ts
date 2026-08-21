@@ -121,6 +121,20 @@ describe('checkoutAdjustments', () => {
     }
   });
 
+  it('still refuses a stale size after the owner clears the whole list', () => {
+    const cleared = [{ slug: 'lotion', name: 'Hillside lotion', inventory: 3, priceCents: 1200 }];
+    const changes = checkoutAdjustments(
+      // Priced the same as the base, so a price adjustment would not catch it.
+      [{ id: 'lotion', size: '2 oz', quantity: 1, priceCents: 1200 }],
+      cleared
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'size');
+
+    // A product that was always sold one way is untouched by that rule.
+    assert.deepEqual(checkoutAdjustments([{ id: 'lotion', quantity: 1 }], cleared), []);
+  });
+
   it('spends one stock count across every size of a product', () => {
     // Three jars on the bench, four asked for across two sizes.
     const changes = checkoutAdjustments(

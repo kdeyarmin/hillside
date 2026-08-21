@@ -13,7 +13,12 @@ import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { jsonLd } from '@/lib/json-ld';
-import { formatSizePriceRange, productSizes, sizePriceRange } from '@/lib/product-sizes';
+import {
+  comparableAtCents,
+  formatSizePriceRange,
+  productSizes,
+  sizePriceRange
+} from '@/lib/product-sizes';
 import { pageMetadata } from '@/lib/seo';
 import {
   absoluteUrl,
@@ -95,10 +100,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     reviewCount: relatedRatings.get(item.id)?.count ?? 0
   }));
 
-  const saving = discountPercent(product.priceCents, product.compareAtCents);
   const threshold = freeShippingThresholdCents();
   const soldOut = product.inventory <= 0;
   const sizes = productSizes(product.sizes, product.priceCents);
+  const compareAt = comparableAtCents(sizes, product.priceCents, product.compareAtCents);
+  const saving = discountPercent(product.priceCents, compareAt);
   /**
    * A product sold in several sizes advertises the span, not one figure. The
    * exact price arrives with the choice, in the dropdown and beneath it.
@@ -270,8 +276,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             <p>{product.description}</p>
             <p className="product-detail-price">
               {formatSizePriceRange(sizes, product.priceCents)}
-              {saving > 0 && product.compareAtCents && (
-                <span className="compare-price">{formatMoney(product.compareAtCents)}</span>
+              {saving > 0 && compareAt && (
+                <span className="compare-price">{formatMoney(compareAt)}</span>
               )}
             </p>
             <p className={`stock ${soldOut ? 'out' : product.inventory <= 3 ? 'low' : ''}`}>

@@ -4,7 +4,12 @@ import Link from 'next/link';
 import { ShoppingBag } from 'lucide-react';
 import BrandedProductVisual from '@/components/BrandedProductVisual';
 import { useCart } from '@/components/CartProvider';
-import { formatSizePriceRange, productSizes, sizeFieldLabel } from '@/lib/product-sizes';
+import {
+  comparableAtCents,
+  formatSizePriceRange,
+  productSizes,
+  sizeFieldLabel
+} from '@/lib/product-sizes';
 import { discountPercent, formatMoney, productTypeLabel } from '@/lib/store';
 
 export type ProductCardProduct = {
@@ -64,9 +69,10 @@ export default function ProductCard({
   priority?: boolean;
 }) {
   const { addItem, openCart } = useCart();
-  const saving = discountPercent(product.priceCents, product.compareAtCents);
   const soldOut = product.inventory <= 0;
   const sizes = productSizes(product.sizes, product.priceCents);
+  const compareAt = comparableAtCents(sizes, product.priceCents, product.compareAtCents);
+  const saving = discountPercent(product.priceCents, compareAt);
   /**
    * A card cannot take the size choice — there is no room for a dropdown beside
    * every photograph, and picking one for the shopper would put the wrong pot in
@@ -101,8 +107,8 @@ export default function ProductCard({
         <p>{product.shortDescription || product.description}</p>
         <p>
           <strong className="price">{formatSizePriceRange(sizes, product.priceCents)}</strong>
-          {saving > 0 && product.compareAtCents && (
-            <span className="compare-price">{formatMoney(product.compareAtCents)}</span>
+          {saving > 0 && compareAt && (
+            <span className="compare-price">{formatMoney(compareAt)}</span>
           )}
         </p>
         <span className={`stock ${soldOut ? 'out' : product.inventory <= 3 ? 'low' : ''}`}>

@@ -167,7 +167,9 @@ costs something different from the product's own price:
 ```
 
 A size with no price after it is sold at the product's price, so raising that
-price moves those sizes with it. **What the size dropdown is called** renames
+price moves those sizes with it — and a price typed in that merely repeats the
+product's own is stored as "the base price" rather than pinned to today's
+figure, so it keeps following along. **What the size dropdown is called** renames
 the field on the storefront — "Pot size", "Jar size" — and defaults to "Size".
 Leave the box empty for anything sold one way, and the storefront behaves
 exactly as it did before.
@@ -189,6 +191,9 @@ What the shop then does:
   they are split between sizes, and checkout says so if a basket asks for more.
   Anything that needs its own stock count, SKU or photograph is a separate
   product.
+- A **compare-at price stands down** on a product whose sizes are priced
+  differently. "Was $24, save 25%" is a claim about _the_ price, and such a
+  product does not have one — the range says what each size costs instead.
 - A size the owner later removes cannot be ordered. A basket or a saved cart
   still holding it is corrected at checkout with a note asking for the size to be
   chosen again, rather than being quietly filled with a different one.

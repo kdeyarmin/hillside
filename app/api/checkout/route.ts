@@ -14,7 +14,7 @@ import {
   stripeProductDescription,
   stripeProductImages
 } from '@/lib/checkout';
-import { findSize, productSizes, sizedName } from '@/lib/product-sizes';
+import { findSize, productSizes, sizeChoiceRejected, sizedName } from '@/lib/product-sizes';
 import { rateLimited } from '@/lib/rate-limit';
 import { checkoutReturnOrigin, newInvoiceNumber } from '@/lib/store';
 import {
@@ -75,8 +75,8 @@ export async function POST(request: Request) {
       const product = products.find((candidate) => candidate.slug === requestedItem.id);
       if (!product || !product.active || product.inventory <= 0) return [];
       const sizes = productSizes(product.sizes, product.priceCents);
-      const chosen = sizes.length ? findSize(sizes, requestedItem.size) : null;
-      if (sizes.length && !chosen) return [];
+      if (sizeChoiceRejected(sizes, requestedItem.size)) return [];
+      const chosen = findSize(sizes, requestedItem.size);
       return [
         {
           product,
@@ -140,25 +140,29 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       if (error instanceof InsufficientStockError) {
-        const latest = await db.product.findUnique({
-          where: { slug: error.slug },
-          select: { name: true, inventory: true }
+        /**
+         * Stock fell between the check above and the reservation. The whole
+         * basket is priced against the shelf again rather than only the line
+         * that failed: sizes of one product share a stock count, so answering
+         * with that product's total would tell a 6" line it could have every
+         * jar the 4" line beside it is already claiming, and the correction
+         * would bounce straight back.
+         */
+        const latest = await db.product.findMany({
+          where: { slug: { in: requested.map((item) => item.id) } }
         });
-        const requested = items.find(
-          (item) => item.product.slug === error.slug && (item.size || null) === error.size
-        );
+        const corrections = checkoutAdjustments(requested, latest);
+        if (corrections.length) {
+          return NextResponse.json({ adjustments: corrections }, { status: 409 });
+        }
+        // Stock came back before we could read it. Nothing to correct, so the
+        // basket stands and the customer only has to ask again.
         return NextResponse.json(
           {
-            adjustments: [
-              {
-                slug: error.slug,
-                name: sizedName(latest?.name || requested?.product.name || 'That item', error.size),
-                requested: requested?.quantity || 1,
-                available: Math.max(0, latest?.inventory ?? 0),
-                reason: 'stock' as const,
-                ...(error.size ? { size: error.size } : {})
-              }
-            ]
+            error: `${sizedName(
+              latest.find((product) => product.slug === error.slug)?.name || 'An item',
+              error.size
+            )} was claimed while we were reserving your basket. Please try checkout again.`
           },
           { status: 409 }
         );

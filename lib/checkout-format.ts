@@ -1,4 +1,11 @@
-import { cartLineKey, findSize, productSizes, sizedName, SIZE_LABEL_MAX } from './product-sizes.ts';
+import {
+  cartLineKey,
+  findSize,
+  productSizes,
+  sizeChoiceRejected,
+  sizedName,
+  SIZE_LABEL_MAX
+} from './product-sizes.ts';
 import { absoluteUrl, formatMoney, resolveImageUrl } from './store.ts';
 
 /**
@@ -152,12 +159,17 @@ export function checkoutAdjustments(
     }
 
     const sizes = productSizes(product.sizes, product.priceCents);
-    const chosen = sizes.length ? findSize(sizes, requestedItem.size) : null;
-    if (sizes.length && !chosen) {
-      /**
-       * The size was retired, renamed or never chosen. Guessing one would pack
-       * the wrong jar, so the line goes back for the shopper to pick again.
-       */
+    const chosen = findSize(sizes, requestedItem.size);
+    /**
+     * A line is refused when a size is due and none was chosen, and equally when
+     * a size was chosen that the shop no longer offers — including the case
+     * where the owner has since cleared the size list altogether. Keying that
+     * second test off `sizes.length` alone let a basket holding "6\" pot" pass
+     * as a plain line once the last option was deleted: the shopper was charged
+     * the base price for an order recorded with no size on it, and if that size
+     * had cost the same as the base, nothing anywhere said so.
+     */
+    if (sizeChoiceRejected(sizes, requestedItem.size)) {
       adjustments.push({
         slug: requestedItem.id,
         name: product.name,

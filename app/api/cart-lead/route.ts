@@ -8,7 +8,7 @@ import {
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { rateLimited } from '@/lib/rate-limit';
-import { findSize, productSizes } from '@/lib/product-sizes';
+import { findSize, productSizes, sizeChoiceRejected } from '@/lib/product-sizes';
 import { absoluteUrl, clampQuantity } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -167,8 +167,8 @@ export async function GET(request: Request) {
      * silently coming back as a size the customer never chose.
      */
     const sizes = productSizes(product.sizes, product.priceCents);
-    const chosen = sizes.length ? findSize(sizes, requested.size) : null;
-    if (sizes.length && !chosen) return [];
+    if (sizeChoiceRejected(sizes, requested.size)) return [];
+    const chosen = findSize(sizes, requested.size);
     return [
       {
         slug: product.slug,

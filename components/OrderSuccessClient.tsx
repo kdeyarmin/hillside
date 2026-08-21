@@ -51,6 +51,9 @@ export default function OrderSuccessClient({
       purchase.items.map((item) => ({
         item_id: item.name,
         item_name: item.name,
+        // Reported here too, so a sized line does not collapse into its
+        // siblings on the one event that records the sale.
+        ...(item.size ? { item_variant: item.size } : {}),
         price: item.unitCents / 100,
         quantity: item.quantity
       })),
