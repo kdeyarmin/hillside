@@ -19,6 +19,7 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Site-wide search across products and care guides
 - Searchable and filterable live product catalog, with sale and new-arrival sorting
 - Individual SEO-ready product pages with live inventory, multiple photographs and customer reviews
+- A size dropdown on products sold in more than one size, each size with its own price
 - Back-in-stock email alerts on sold-out products
 - Persistent shopping cart and secure Stripe Checkout
 - Optional gift message at checkout, printed on the packing slip
@@ -46,6 +47,7 @@ The dashboard at `/admin` includes:
 - Packing-slip and 4 × 6 shipping-label printing
 - Shipping-address, full-order and newsletter-subscriber CSV exports
 - Product creation and editing, price, sale price, SKU, inventory, badges and featured products
+- Per-product size choices, typed one per line, with a price on any size that costs something different
 - Low-stock visibility and product archiving
 - Paid and free class registrations and seat counts
 - Customer website inbox
@@ -150,6 +152,45 @@ refuses a loopback value such as `http://localhost:3000` or `http://127.0.0.1:30
 because those resolve to the visitor's own machine rather than the shop, and logs a
 warning naming the ignored value. Set the variable only to point a build at a genuine
 public origin, such as a Railway preview domain.
+
+## Products sold in more than one size
+
+A product that comes in several sizes — a plant in a 4", 6" or 8" pot, a lotion
+in a 2 oz or an 8 oz jar — gets a **Sizes to choose from** box on its dashboard
+form. Type one size per line, and put a price after a `|` for any size that
+costs something different from the product's own price:
+
+```
+4" pot
+6" pot | 24.00
+8" pot | 32.00
+```
+
+A size with no price after it is sold at the product's price, so raising that
+price moves those sizes with it. **What the size dropdown is called** renames
+the field on the storefront — "Pot size", "Jar size" — and defaults to "Size".
+Leave the box empty for anything sold one way, and the storefront behaves
+exactly as it did before.
+
+What the shop then does:
+
+- The product page shows the price span (`$18.00 – $32.00`) and a dropdown with
+  each size and its price. Nothing is preselected and Add to cart stays disabled
+  until the customer chooses, so a wrong size cannot be added by accident.
+- A shop card cannot take that choice, so on a sized product its button reads
+  **Choose pot size** and leads to the product page.
+- Each size is its own basket line, so one order can hold a 4" and a 6" pot of
+  the same plant. The size travels with the line into Stripe Checkout, the
+  emailed receipt, the confirmation email, the packing slip, the order CSV and
+  the order-status lookup — everywhere the shop has to know which one to pack.
+- **Every size draws on the one quantity on hand.** Sizes are a choice about
+  what to pack, not separate shelves to count: three jars is three jars however
+  they are split between sizes, and checkout says so if a basket asks for more.
+  Anything that needs its own stock count, SKU or photograph is a separate
+  product.
+- A size the owner later removes cannot be ordered. A basket or a saved cart
+  still holding it is corrected at checkout with a note asking for the size to be
+  chosen again, rather than being quietly filled with a different one.
 
 ## Why the database-backed pages are `force-dynamic`
 

@@ -1,5 +1,6 @@
 import { emailShell, escapeHtml } from './email.ts';
 import { isPickupOrder } from './fulfillment.ts';
+import { sizedName } from './product-sizes.ts';
 import { absoluteUrl, formatMoney } from './store.ts';
 
 export type OrderForEmail = {
@@ -14,7 +15,7 @@ export type OrderForEmail = {
   giftMessage?: string | null;
   fulfillmentMethod?: string | null;
   shippingMethod?: string | null;
-  items: Array<{ name: string; quantity: number; unitCents: number }>;
+  items: Array<{ name: string; quantity: number; unitCents: number; size?: string | null }>;
 };
 
 /**
@@ -27,7 +28,7 @@ export function orderConfirmationHtml(order: OrderForEmail) {
   const itemRows = order.items
     .map(
       (item) =>
-        `<tr><td style="padding:8px 0;border-bottom:1px solid #dfe4dc">${escapeHtml(item.name)} × ${item.quantity}</td><td style="padding:8px 0;border-bottom:1px solid #dfe4dc;text-align:right">${formatMoney(item.unitCents * item.quantity)}</td></tr>`
+        `<tr><td style="padding:8px 0;border-bottom:1px solid #dfe4dc">${escapeHtml(sizedName(item.name, item.size))} × ${item.quantity}</td><td style="padding:8px 0;border-bottom:1px solid #dfe4dc;text-align:right">${formatMoney(item.unitCents * item.quantity)}</td></tr>`
     )
     .join('');
   const giftHtml = order.giftMessage

@@ -27,6 +27,27 @@ describe('orderConfirmationHtml', () => {
     assert.match(html, /when the order ships/);
   });
 
+  it('names the size on a line so the packer reaches for the right one', () => {
+    const html = orderConfirmationHtml({
+      invoiceNumber: 'HG-SIZED1',
+      customerName: 'Jane Grove',
+      address1: '12 Hillside Lane',
+      address2: null,
+      city: 'Spring Hill',
+      state: 'PA',
+      postalCode: '15129',
+      totalCents: 9400,
+      items: [
+        { name: 'Monstera Deliciosa', size: '6" pot', quantity: 2, unitCents: 4700 },
+        { name: 'Hillside tea', quantity: 1, unitCents: 1800 }
+      ]
+    });
+
+    assert.match(html, /Monstera Deliciosa — 6&quot; pot × 2/);
+    // A product sold one way still reads as its plain name.
+    assert.match(html, /Hillside tea × 1/);
+  });
+
   it('uses pickup language and the gift note when the order will be collected', () => {
     const html = orderConfirmationHtml({
       invoiceNumber: 'HG-PICKUP',

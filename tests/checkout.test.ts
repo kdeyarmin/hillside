@@ -34,9 +34,33 @@ describe('readCheckoutItems', () => {
     assert.deepEqual(readCheckoutItems({ items: 'nope' }), []);
     assert.deepEqual(readCheckoutItems({ items: [{ quantity: 2 }] }), []);
   });
+
+  it('keeps two sizes of one product apart, and merges each with itself', () => {
+    const items = readCheckoutItems({
+      items: [
+        { id: 'monstera', size: '4" pot', quantity: 1 },
+        { id: 'monstera', size: '6" pot', quantity: 2 },
+        { id: 'monstera', size: '4" pot', quantity: 3 }
+      ]
+    });
+    assert.deepEqual(items, [
+      { id: 'monstera', size: '4" pot', quantity: 4 },
+      { id: 'monstera', size: '6" pot', quantity: 2 }
+    ]);
+  });
 });
 
 describe('checkoutAdjustments', () => {
+  const sized = [
+    {
+      slug: 'lotion',
+      name: 'Hillside lotion',
+      inventory: 3,
+      priceCents: 1200,
+      sizes: [{ label: '2 oz' }, { label: '8 oz', priceCents: 2600 }]
+    }
+  ];
+
   const catalog = [
     { slug: 'monstera', name: 'Monstera', inventory: 2, priceCents: 4500 },
     { slug: 'tea', name: 'Hillside tea', inventory: 10, priceCents: 1800 }
@@ -64,6 +88,52 @@ describe('checkoutAdjustments', () => {
       checkoutAdjustments([{ id: 'tea', quantity: 2, priceCents: 1800 }], catalog),
       []
     );
+  });
+
+  it('charges the chosen size, and reports a basket holding a stale one', () => {
+    assert.deepEqual(
+      checkoutAdjustments([{ id: 'lotion', size: '8 oz', quantity: 1, priceCents: 2600 }], sized),
+      []
+    );
+
+    const changes = checkoutAdjustments(
+      [{ id: 'lotion', size: '8 oz', quantity: 1, priceCents: 1200 }],
+      sized
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'price');
+    assert.equal(changes[0].priceCents, 2600);
+    assert.equal(changes[0].size, '8 oz');
+    assert.equal(changes[0].name, 'Hillside lotion — 8 oz');
+  });
+
+  it('sends back a size we no longer sell rather than picking one', () => {
+    for (const requested of [
+      { id: 'lotion', size: '4 oz', quantity: 1 },
+      { id: 'lotion', quantity: 1 }
+    ]) {
+      const changes = checkoutAdjustments([requested], sized);
+      assert.equal(changes.length, 1);
+      assert.equal(changes[0].reason, 'size');
+      assert.equal(changes[0].available, 0);
+      assert.match(checkoutAdjustmentNotice(changes[0]), /no longer sold in that size/);
+    }
+  });
+
+  it('spends one stock count across every size of a product', () => {
+    // Three jars on the bench, four asked for across two sizes.
+    const changes = checkoutAdjustments(
+      [
+        { id: 'lotion', size: '2 oz', quantity: 2 },
+        { id: 'lotion', size: '8 oz', quantity: 2 }
+      ],
+      sized
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'stock');
+    assert.equal(changes[0].size, '8 oz');
+    assert.equal(changes[0].available, 1);
+    assert.match(checkoutAdjustmentNotice(changes[0]), /Only 1 of Hillside lotion — 8 oz left/);
   });
 
   it('names an archived product instead of calling it sold out', () => {
@@ -120,6 +190,18 @@ describe('encode/parse checkout items', () => {
     assert.deepEqual(parseCheckoutItems(encoded), [
       { id: 'a', q: 5 },
       { id: 'b', q: 1 }
+    ]);
+  });
+
+  it('carries the size, and merges only lines that share one', () => {
+    const encoded = encodeCheckoutItems([
+      { product: { id: 'a' }, quantity: 1, size: '2 oz' },
+      { product: { id: 'a' }, quantity: 2, size: '8 oz' },
+      { product: { id: 'a' }, quantity: 1, size: '2 oz' }
+    ]);
+    assert.deepEqual(parseCheckoutItems(encoded), [
+      { id: 'a', s: '2 oz', q: 2 },
+      { id: 'a', s: '8 oz', q: 2 }
     ]);
   });
 

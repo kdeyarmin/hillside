@@ -53,7 +53,7 @@ export async function reserveProductOrder({
         data: { inventory: { decrement: item.quantity } }
       });
       if (result.count === 0) {
-        throw new InsufficientStockError(item.product.slug);
+        throw new InsufficientStockError(item.product.slug, item.size || null);
       }
     }
 
@@ -80,8 +80,9 @@ export async function reserveProductOrder({
           create: items.map((item) => ({
             productId: item.product.id,
             name: item.product.name,
+            size: item.size || null,
             quantity: item.quantity,
-            unitCents: item.product.priceCents
+            unitCents: item.unitCents
           }))
         }
       }

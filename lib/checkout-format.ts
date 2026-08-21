@@ -1,3 +1,4 @@
+import { cartLineKey, findSize, productSizes, sizedName, SIZE_LABEL_MAX } from './product-sizes.ts';
 import { absoluteUrl, formatMoney, resolveImageUrl } from './store.ts';
 
 /**
@@ -8,22 +9,31 @@ export const CHECKOUT_HOLD_MINUTES = 35;
 
 export class InsufficientStockError extends Error {
   slug: string;
-  constructor(slug: string) {
+  size: string | null;
+  constructor(slug: string, size: string | null = null) {
     super(`Insufficient stock for ${slug}`);
     this.name = 'InsufficientStockError';
     this.slug = slug;
+    this.size = size;
   }
 }
 
-export type CheckoutRequestedItem = { id: string; quantity: number; priceCents?: number };
+export type CheckoutRequestedItem = {
+  id: string;
+  quantity: number;
+  priceCents?: number;
+  /** The chosen size, for products sold in more than one. */
+  size?: string;
+};
 
 export type CheckoutAdjustment = {
   slug: string;
   name: string;
   requested: number;
   available: number;
-  reason: 'stock' | 'price' | 'unavailable';
+  reason: 'stock' | 'price' | 'unavailable' | 'size';
   priceCents?: number;
+  size?: string;
 };
 
 export type CheckoutLine = {
@@ -38,6 +48,9 @@ export type CheckoutLine = {
     imageUrl: string | null;
   };
   quantity: number;
+  size?: string | null;
+  /** What this line is charged, which for a sized line is the size's price. */
+  unitCents: number;
 };
 
 export function holdExpiry(now = new Date()) {
@@ -73,16 +86,27 @@ export function readCheckoutItems(body: unknown): CheckoutRequestedItem[] {
   if (!body || typeof body !== 'object' || !('items' in body)) return [];
   const items = (body as { items?: unknown }).items;
   if (!Array.isArray(items)) return [];
-  const merged = new Map<string, { quantity: number; priceCents?: number }>();
+  /**
+   * Keyed by product *and* size: a basket holding a 4" and a 6" pot of the same
+   * plant is two lines, and merging them on the slug alone would have charged
+   * for two of whichever size happened to arrive first.
+   */
+  const merged = new Map<string, CheckoutRequestedItem>();
   for (const entry of items) {
     if (!entry || typeof entry !== 'object') continue;
-    const raw = entry as { id?: unknown; quantity?: unknown; priceCents?: unknown };
+    const raw = entry as { id?: unknown; quantity?: unknown; priceCents?: unknown; size?: unknown };
     const id = String(raw.id || '').trim();
     if (!id) continue;
+    const size = String(raw.size ?? '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, SIZE_LABEL_MAX);
     const quantity = Math.max(1, Math.min(20, Math.floor(Number(raw.quantity) || 1)));
     const priceCents = Number(raw.priceCents);
-    const current = merged.get(id);
-    merged.set(id, {
+    const current = merged.get(cartLineKey(id, size));
+    merged.set(cartLineKey(id, size), {
+      id,
+      ...(size ? { size } : {}),
       quantity: Math.min(20, (current?.quantity || 0) + quantity),
       ...(Number.isFinite(priceCents) && priceCents >= 0
         ? { priceCents: Math.round(priceCents) }
@@ -91,7 +115,7 @@ export function readCheckoutItems(body: unknown): CheckoutRequestedItem[] {
           : {})
     });
   }
-  return [...merged].map(([id, value]) => ({ id, ...value }));
+  return [...merged.values()];
 }
 
 export function checkoutAdjustments(
@@ -102,9 +126,17 @@ export function checkoutAdjustments(
     inventory: number;
     priceCents: number;
     active?: boolean;
+    sizes?: unknown;
   }>
 ): CheckoutAdjustment[] {
   const adjustments: CheckoutAdjustment[] = [];
+  /**
+   * Sizes are a choice, not a second shelf: every size of a product draws on the
+   * one stock count. Two sized lines checked independently against that count
+   * would each pass on the last three jars, so stock is spent line by line here.
+   */
+  const remaining = new Map<string, number>();
+
   for (const requestedItem of requested) {
     const product = products.find((candidate) => candidate.slug === requestedItem.id);
     if (!product || product.active === false) {
@@ -113,31 +145,58 @@ export function checkoutAdjustments(
         name: product?.name || 'That item',
         requested: requestedItem.quantity,
         available: 0,
-        reason: 'unavailable'
+        reason: 'unavailable',
+        ...(requestedItem.size ? { size: requestedItem.size } : {})
       });
       continue;
     }
 
-    const available = Math.max(0, product.inventory);
-    if (available < requestedItem.quantity) {
+    const sizes = productSizes(product.sizes, product.priceCents);
+    const chosen = sizes.length ? findSize(sizes, requestedItem.size) : null;
+    if (sizes.length && !chosen) {
+      /**
+       * The size was retired, renamed or never chosen. Guessing one would pack
+       * the wrong jar, so the line goes back for the shopper to pick again.
+       */
       adjustments.push({
         slug: requestedItem.id,
         name: product.name,
         requested: requestedItem.quantity,
-        available,
-        reason: 'stock'
+        available: 0,
+        reason: 'size',
+        ...(requestedItem.size ? { size: requestedItem.size } : {})
       });
       continue;
     }
 
-    if (requestedItem.priceCents != null && requestedItem.priceCents !== product.priceCents) {
+    const unitCents = chosen?.priceCents ?? product.priceCents;
+    const sizeFields = requestedItem.size ? { size: requestedItem.size } : {};
+    const available = remaining.get(product.slug) ?? Math.max(0, product.inventory);
+
+    if (available < requestedItem.quantity) {
+      remaining.set(product.slug, 0);
       adjustments.push({
         slug: requestedItem.id,
-        name: product.name,
+        name: sizedName(product.name, requestedItem.size),
+        requested: requestedItem.quantity,
+        available,
+        reason: 'stock',
+        ...sizeFields
+      });
+      continue;
+    }
+
+    remaining.set(product.slug, available - requestedItem.quantity);
+
+    if (requestedItem.priceCents != null && requestedItem.priceCents !== unitCents) {
+      adjustments.push({
+        slug: requestedItem.id,
+        name: sizedName(product.name, requestedItem.size),
         requested: requestedItem.quantity,
         available,
         reason: 'price',
-        priceCents: product.priceCents
+        priceCents: unitCents,
+        ...sizeFields
       });
     }
   }
@@ -147,7 +206,7 @@ export function checkoutAdjustments(
 export function checkoutAdjustmentNotice(change: {
   name: string;
   available: number;
-  reason?: 'stock' | 'price' | 'unavailable';
+  reason?: 'stock' | 'price' | 'unavailable' | 'size';
   priceCents?: number;
 }) {
   if (change.reason === 'price' && change.priceCents != null) {
@@ -156,30 +215,49 @@ export function checkoutAdjustmentNotice(change: {
   if (change.reason === 'unavailable') {
     return `${change.name} is no longer available and was removed.`;
   }
+  if (change.reason === 'size') {
+    return `${change.name} is no longer sold in that size — please choose a size again.`;
+  }
   if (change.available <= 0) return `${change.name} sold out and was removed.`;
   return `Only ${change.available} of ${change.name} left — quantity updated.`;
 }
 
-export function encodeCheckoutItems(items: Array<{ product: { id: string }; quantity: number }>) {
-  return JSON.stringify(items.map(({ product, quantity }) => ({ id: product.id, q: quantity })));
+export function encodeCheckoutItems(
+  items: Array<{ product: { id: string }; quantity: number; size?: string | null }>
+) {
+  return JSON.stringify(
+    items.map(({ product, quantity, size }) => ({
+      id: product.id,
+      q: quantity,
+      // Stripe caps a metadata value at 500 characters, so the size is written
+      // only when there is one. The price is not: it is recovered from the size.
+      ...(size ? { s: size } : {})
+    }))
+  );
 }
 
-export type ParsedCheckoutItem = { id: string; q: number; p?: number };
+export type ParsedCheckoutItem = { id: string; q: number; p?: number; s?: string };
 
 export function parseCheckoutItems(value: string | null | undefined): ParsedCheckoutItem[] {
   try {
     const parsed: unknown = JSON.parse(value || '[]');
     if (!Array.isArray(parsed)) return [];
-    const merged = new Map<string, { q: number; p?: number }>();
+    const merged = new Map<string, ParsedCheckoutItem>();
     for (const entry of parsed) {
       if (!entry || typeof entry !== 'object') continue;
-      const item = entry as { id?: unknown; q?: unknown; p?: unknown };
+      const item = entry as { id?: unknown; q?: unknown; p?: unknown; s?: unknown };
       const id = String(item.id || '').trim();
       if (!id) continue;
+      const s = String(item.s ?? '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, SIZE_LABEL_MAX);
       const q = Math.max(1, Math.min(20, Math.floor(Number(item.q) || 1)));
       const price = Number(item.p);
-      const current = merged.get(id);
-      merged.set(id, {
+      const current = merged.get(cartLineKey(id, s));
+      merged.set(cartLineKey(id, s), {
+        id,
+        ...(s ? { s } : {}),
         q: Math.min(20, (current?.q || 0) + q),
         ...(Number.isFinite(price) && price >= 0
           ? { p: Math.round(price) }
@@ -188,7 +266,7 @@ export function parseCheckoutItems(value: string | null | undefined): ParsedChec
             : {})
       });
     }
-    return [...merged].map(([id, value]) => ({ id, ...value }));
+    return [...merged.values()];
   } catch {
     return [];
   }

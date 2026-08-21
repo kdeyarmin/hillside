@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { PackageSearch } from 'lucide-react';
+import { sizedName } from '@/lib/product-sizes';
 import { formatMoney } from '@/lib/store';
 import { isPickupOrder, orderStatusHeading } from '@/lib/fulfillment';
 import { describeTracking, orderStatusBadge } from '@/lib/tracking';
@@ -18,7 +19,7 @@ type OrderResult = {
   shippingMethod?: string | null;
   giftMessage?: string | null;
   pickupNote?: string | null;
-  items: { name: string; quantity: number; unitCents: number }[];
+  items: { name: string; size?: string | null; quantity: number; unitCents: number }[];
 };
 
 export default function OrderStatusLookup() {
@@ -131,7 +132,7 @@ export default function OrderStatusLookup() {
             {order.items.map((item, index) => (
               <div className="summary-row" key={`${item.name}-${index}`}>
                 <span>
-                  {item.name} × {item.quantity}
+                  {sizedName(item.name, item.size)} × {item.quantity}
                 </span>
                 <span>{formatMoney(item.unitCents * item.quantity)}</span>
               </div>

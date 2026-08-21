@@ -17,16 +17,24 @@ import {
 import NewsletterForm from '@/components/NewsletterForm';
 import ResilientImage from '@/components/ResilientImage';
 import CheckoutOptions from '@/components/CheckoutOptions';
-import { useCart } from '@/components/CartProvider';
+import { lineKey, useCart } from '@/components/CartProvider';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { cartFulfillment } from '@/lib/fulfillment';
 import { focusableElements, trapTabKey } from '@/lib/focus-trap';
+import { formatSizePriceRange, productSizes, sizedName } from '@/lib/product-sizes';
 import {
   DEFAULT_BUSINESS_EMAIL,
   FALLBACK_PRODUCT_IMAGE,
   formatMoney,
   formatMoneyCompact
 } from '@/lib/store';
+
+/**
+ * What a basket line is called out loud. Two sizes of one plant are two lines,
+ * and "Decrease Monstera quantity" on both would have left a screen reader with
+ * no way to tell which button belonged to which pot.
+ */
+const lineName = (line: { name: string; size?: string | null }) => sizedName(line.name, line.size);
 
 /**
  * Every merchandising link is a real path, not a query string. Collections are
@@ -95,10 +103,11 @@ type Suggestion = {
   type: string;
   ships?: boolean;
   pickup?: boolean;
+  sizes?: unknown;
 };
 
 function CartDrawerSuggestions() {
-  const { items, addItem } = useCart();
+  const { items, addItem, closeCart } = useCart();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const slugs = items.map((item) => item.slug).join(',');
 
@@ -122,27 +131,38 @@ function CartDrawerSuggestions() {
   return (
     <div className="drawer-suggestions">
       <span className="eyebrow">Goes well with</span>
-      {suggestions.map((product) => (
-        <div className="drawer-suggestion" key={product.slug}>
-          <ResilientImage
-            sizeRole="thumb"
-            src={product.imageUrl || FALLBACK_PRODUCT_IMAGE}
-            fallbackSrc="/images/botanical-placeholder.svg"
-            alt={product.name}
-            width={54}
-            height={54}
-            loading="lazy"
-            decoding="async"
-          />
-          <div>
-            <b>{product.name}</b>
-            <span>{formatMoney(product.priceCents)}</span>
+      {suggestions.map((product) => {
+        const sizes = productSizes(product.sizes, product.priceCents);
+        return (
+          <div className="drawer-suggestion" key={product.slug}>
+            <ResilientImage
+              sizeRole="thumb"
+              src={product.imageUrl || FALLBACK_PRODUCT_IMAGE}
+              fallbackSrc="/images/botanical-placeholder.svg"
+              alt={product.name}
+              width={54}
+              height={54}
+              loading="lazy"
+              decoding="async"
+            />
+            <div>
+              <b>{product.name}</b>
+              <span>{formatSizePriceRange(sizes, product.priceCents)}</span>
+            </div>
+            {/* A suggestion cannot take a size choice either, so a sized product
+                is offered as a link to the page where the choice lives. */}
+            {sizes.length ? (
+              <Link className="btn small" href={`/shop/${product.slug}`} onClick={closeCart}>
+                Choose
+              </Link>
+            ) : (
+              <button className="btn small" type="button" onClick={() => addItem(product)}>
+                Add
+              </button>
+            )}
           </div>
-          <button className="btn small" type="button" onClick={() => addItem(product)}>
-            Add
-          </button>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -276,7 +296,7 @@ function CartDrawer({
             <div className="drawer-body">
               <div className="cart-lines">
                 {items.map((item) => (
-                  <div className="cart-line" key={item.slug}>
+                  <div className="cart-line" key={lineKey(item)}>
                     <ResilientImage
                       sizeRole="thumb"
                       src={item.imageUrl || FALLBACK_PRODUCT_IMAGE}
@@ -291,17 +311,20 @@ function CartDrawer({
                       <Link href={`/shop/${item.slug}`} onClick={closeCart}>
                         <b>{item.name}</b>
                       </Link>
+                      {/* Named on the line rather than folded into the title, so
+                          two sizes of one plant read as the two lines they are. */}
+                      {item.size && <span className="cart-line-size">{item.size}</span>}
                       <span>{formatMoney(item.priceCents)}</span>
                       <div className="cart-line-actions">
                         <div
                           className="quantity-picker small"
                           role="group"
-                          aria-label={`Quantity for ${item.name}`}
+                          aria-label={`Quantity for ${lineName(item)}`}
                         >
                           <button
                             type="button"
-                            onClick={() => setQuantity(item.slug, item.quantity - 1)}
-                            aria-label={`Decrease ${item.name} quantity`}
+                            onClick={() => setQuantity(lineKey(item), item.quantity - 1)}
+                            aria-label={`Decrease ${lineName(item)} quantity`}
                           >
                             <Minus size={14} />
                           </button>
@@ -309,13 +332,13 @@ function CartDrawer({
                               say what changed. */}
                           <span aria-hidden="true">{item.quantity}</span>
                           <span className="sr-only" aria-live="polite">
-                            {item.name}: quantity {item.quantity}
+                            {lineName(item)}: quantity {item.quantity}
                           </span>
                           <button
                             type="button"
-                            onClick={() => setQuantity(item.slug, item.quantity + 1)}
+                            onClick={() => setQuantity(lineKey(item), item.quantity + 1)}
                             disabled={item.quantity >= item.inventory}
-                            aria-label={`Increase ${item.name} quantity`}
+                            aria-label={`Increase ${lineName(item)} quantity`}
                           >
                             <Plus size={14} />
                           </button>
@@ -323,7 +346,7 @@ function CartDrawer({
                         <button
                           className="text-button danger"
                           type="button"
-                          onClick={() => removeItem(item.slug)}
+                          onClick={() => removeItem(lineKey(item))}
                         >
                           <Trash2 size={14} /> Remove
                         </button>

@@ -26,7 +26,8 @@ export async function GET(request: Request) {
         inventory: true,
         type: true,
         ships: true,
-        pickup: true
+        pickup: true,
+        sizes: true
       }
     });
 

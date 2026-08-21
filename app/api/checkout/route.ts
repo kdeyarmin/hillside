@@ -14,6 +14,7 @@ import {
   stripeProductDescription,
   stripeProductImages
 } from '@/lib/checkout';
+import { findSize, productSizes, sizedName } from '@/lib/product-sizes';
 import { rateLimited } from '@/lib/rate-limit';
 import { checkoutReturnOrigin, newInvoiceNumber } from '@/lib/store';
 import {
@@ -65,10 +66,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ adjustments }, { status: 409 });
     }
 
+    /**
+     * Prices are taken from the product and its size list, never from the
+     * basket: the browser sends what it displayed only so a stale figure can be
+     * reported back as an adjustment above, not so it can set the charge.
+     */
     const items = requested.flatMap((requestedItem) => {
       const product = products.find((candidate) => candidate.slug === requestedItem.id);
       if (!product || !product.active || product.inventory <= 0) return [];
-      return [{ product, quantity: Math.min(requestedItem.quantity, product.inventory) }];
+      const sizes = productSizes(product.sizes, product.priceCents);
+      const chosen = sizes.length ? findSize(sizes, requestedItem.size) : null;
+      if (sizes.length && !chosen) return [];
+      return [
+        {
+          product,
+          quantity: Math.min(requestedItem.quantity, product.inventory),
+          size: chosen?.label || null,
+          unitCents: chosen?.priceCents ?? product.priceCents
+        }
+      ];
     });
 
     if (!items.length) {
@@ -90,10 +106,7 @@ export async function POST(request: Request) {
     const giftMessage = readGiftMessage(body);
     const pickup = fulfillment.method === 'PICKUP';
 
-    const subtotalCents = items.reduce(
-      (total, item) => total + item.product.priceCents * item.quantity,
-      0
-    );
+    const subtotalCents = items.reduce((total, item) => total + item.unitCents * item.quantity, 0);
     const freeShippingThreshold = Math.max(
       0,
       Number(process.env.FREE_SHIPPING_THRESHOLD_CENTS || 7500)
@@ -131,16 +144,19 @@ export async function POST(request: Request) {
           where: { slug: error.slug },
           select: { name: true, inventory: true }
         });
-        const requested = items.find((item) => item.product.slug === error.slug);
+        const requested = items.find(
+          (item) => item.product.slug === error.slug && (item.size || null) === error.size
+        );
         return NextResponse.json(
           {
             adjustments: [
               {
                 slug: error.slug,
-                name: latest?.name || requested?.product.name || 'That item',
+                name: sizedName(latest?.name || requested?.product.name || 'That item', error.size),
                 requested: requested?.quantity || 1,
                 available: Math.max(0, latest?.inventory ?? 0),
-                reason: 'stock' as const
+                reason: 'stock' as const,
+                ...(error.size ? { size: error.size } : {})
               }
             ]
           },
@@ -156,18 +172,24 @@ export async function POST(request: Request) {
         mode: 'payment',
         client_reference_id: invoiceNumber,
         customer_creation: 'always',
-        line_items: items.map(({ product, quantity }) => ({
+        line_items: items.map(({ product, quantity, size, unitCents }) => ({
           quantity,
           price_data: {
             currency: 'usd',
-            unit_amount: product.priceCents,
+            unit_amount: unitCents,
             product_data: {
-              name: product.name,
+              // The size belongs in the name so it reaches the Stripe receipt,
+              // the invoice and the dashboard, none of which read metadata.
+              name: sizedName(product.name, size),
               description: stripeProductDescription(
                 product.shortDescription || product.description
               ),
               images: stripeProductImages(product.imageUrl),
-              metadata: { hillsideProductId: product.id, hillsideSlug: product.slug }
+              metadata: {
+                hillsideProductId: product.id,
+                hillsideSlug: product.slug,
+                ...(size ? { hillsideSize: size } : {})
+              }
             }
           }
         })),

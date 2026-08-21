@@ -13,6 +13,7 @@ import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { jsonLd } from '@/lib/json-ld';
+import { formatSizePriceRange, productSizes, sizePriceRange } from '@/lib/product-sizes';
 import { pageMetadata } from '@/lib/seo';
 import {
   absoluteUrl,
@@ -97,6 +98,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const saving = discountPercent(product.priceCents, product.compareAtCents);
   const threshold = freeShippingThresholdCents();
   const soldOut = product.inventory <= 0;
+  const sizes = productSizes(product.sizes, product.priceCents);
+  /**
+   * A product sold in several sizes advertises the span, not one figure. The
+   * exact price arrives with the choice, in the dropdown and beneath it.
+   */
+  const priceSpan = sizePriceRange(sizes, product.priceCents);
 
   const productJsonLd = {
     '@context': 'https://schema.org',
@@ -137,10 +144,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
      * so the rich result cannot advertise a rate the checkout does not honour.
      */
     offers: {
-      '@type': 'Offer',
+      ...(priceSpan.minCents === priceSpan.maxCents
+        ? { '@type': 'Offer', price: (priceSpan.minCents / 100).toFixed(2) }
+        : {
+            '@type': 'AggregateOffer',
+            lowPrice: (priceSpan.minCents / 100).toFixed(2),
+            highPrice: (priceSpan.maxCents / 100).toFixed(2),
+            offerCount: sizes.length
+          }),
       url: absoluteUrl(`/shop/${product.slug}`),
       priceCurrency: 'USD',
-      price: (product.priceCents / 100).toFixed(2),
       priceValidUntil: priceValidUntil(),
       itemCondition: 'https://schema.org/NewCondition',
       availability: soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
@@ -152,7 +165,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               shippingRate: {
                 '@type': 'MonetaryAmount',
                 value: (
-                  (threshold > 0 && product.priceCents >= threshold ? 0 : flatShippingCents()) / 100
+                  (threshold > 0 && priceSpan.minCents >= threshold ? 0 : flatShippingCents()) / 100
                 ).toFixed(2),
                 currency: 'USD'
               },
@@ -256,7 +269,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             {product.shortDescription && <p className="lead">{product.shortDescription}</p>}
             <p>{product.description}</p>
             <p className="product-detail-price">
-              {formatMoney(product.priceCents)}
+              {formatSizePriceRange(sizes, product.priceCents)}
               {saving > 0 && product.compareAtCents && (
                 <span className="compare-price">{formatMoney(product.compareAtCents)}</span>
               )}
@@ -272,7 +285,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             {threshold > 0 && offersShipping(product) && (
               <p className="shipping-nudge">
                 <Truck size={17} aria-hidden="true" />
-                {product.priceCents >= threshold
+                {priceSpan.minCents >= threshold
                   ? 'This order qualifies for free standard shipping.'
                   : `Free standard shipping on orders over ${formatMoney(threshold)}.`}
               </p>
@@ -311,6 +324,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <StockAlertForm slug={product.slug} name={product.name} />
             ) : (
               <AddToCartButton
+                sizes={sizes}
+                sizeLabel={product.sizeLabel}
                 product={{
                   slug: product.slug,
                   name: product.name,

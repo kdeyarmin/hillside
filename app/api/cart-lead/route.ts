@@ -8,6 +8,7 @@ import {
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { rateLimited } from '@/lib/rate-limit';
+import { findSize, productSizes } from '@/lib/product-sizes';
 import { absoluteUrl, clampQuantity } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -17,7 +18,11 @@ const schema = z.object({
   subtotalCents: z.coerce.number().int().min(0).max(10_000_000).optional().default(0),
   items: z
     .array(
-      z.object({ slug: z.string().max(140), quantity: z.coerce.number().int().min(1).max(50) })
+      z.object({
+        slug: z.string().max(140),
+        quantity: z.coerce.number().int().min(1).max(50),
+        size: z.string().max(60).optional()
+      })
     )
     .max(50)
     .optional()
@@ -34,7 +39,7 @@ const schema = z.object({
 
 async function emailSavedCart(
   email: string,
-  items: Array<{ slug: string; quantity: number }>,
+  items: Array<{ slug: string; quantity: number; size?: string }>,
   subtotalCents: number
 ) {
   const token = createCartRestoreToken(email, items);
@@ -77,7 +82,8 @@ export async function POST(request: Request) {
     const email = input.email.toLowerCase();
     const items = input.items.map((item) => ({
       slug: item.slug,
-      quantity: Math.max(1, Math.min(20, item.quantity))
+      quantity: Math.max(1, Math.min(20, item.quantity)),
+      ...(item.size ? { size: item.size } : {})
     }));
 
     await db.cartLead.upsert({
@@ -146,7 +152,8 @@ export async function GET(request: Request) {
       inventory: true,
       type: true,
       ships: true,
-      pickup: true
+      pickup: true,
+      sizes: true
     }
   });
 
@@ -154,16 +161,25 @@ export async function GET(request: Request) {
   const items = payload.items.flatMap((requested) => {
     const product = products.find((candidate) => candidate.slug === requested.slug);
     if (!product || product.inventory <= 0) return [];
+    /**
+     * A size the shop has since retired cannot be restored: the price behind it
+     * is gone, so the line is dropped and counted as dropped rather than
+     * silently coming back as a size the customer never chose.
+     */
+    const sizes = productSizes(product.sizes, product.priceCents);
+    const chosen = sizes.length ? findSize(sizes, requested.size) : null;
+    if (sizes.length && !chosen) return [];
     return [
       {
         slug: product.slug,
         name: product.name,
-        priceCents: product.priceCents,
+        priceCents: chosen?.priceCents ?? product.priceCents,
         imageUrl: product.imageUrl,
         inventory: product.inventory,
         type: product.type,
         ships: product.ships,
         pickup: product.pickup,
+        size: chosen?.label || null,
         quantity: clampQuantity(requested.quantity, product.inventory)
       }
     ];

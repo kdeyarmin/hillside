@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { ShoppingBag } from 'lucide-react';
 import BrandedProductVisual from '@/components/BrandedProductVisual';
 import { useCart } from '@/components/CartProvider';
+import { formatSizePriceRange, productSizes, sizeFieldLabel } from '@/lib/product-sizes';
 import { discountPercent, formatMoney, productTypeLabel } from '@/lib/store';
 
 export type ProductCardProduct = {
@@ -20,6 +21,9 @@ export type ProductCardProduct = {
   badge: string | null;
   ships?: boolean;
   pickup?: boolean;
+  /** Raw `Product.sizes`; a card only needs to know whether a choice is due. */
+  sizes?: unknown;
+  sizeLabel?: string | null;
   averageRating?: number | null;
   reviewCount?: number;
 };
@@ -62,6 +66,14 @@ export default function ProductCard({
   const { addItem, openCart } = useCart();
   const saving = discountPercent(product.priceCents, product.compareAtCents);
   const soldOut = product.inventory <= 0;
+  const sizes = productSizes(product.sizes, product.priceCents);
+  /**
+   * A card cannot take the size choice — there is no room for a dropdown beside
+   * every photograph, and picking one for the shopper would put the wrong pot in
+   * the basket. So a sized product sends them to its page to choose.
+   */
+  const needsSize = sizes.length > 0;
+  const sizeWord = sizeFieldLabel(product.sizeLabel).toLowerCase();
 
   return (
     <article className="product-card">
@@ -88,7 +100,7 @@ export default function ProductCard({
         ) : null}
         <p>{product.shortDescription || product.description}</p>
         <p>
-          <strong className="price">{formatMoney(product.priceCents)}</strong>
+          <strong className="price">{formatSizePriceRange(sizes, product.priceCents)}</strong>
           {saving > 0 && product.compareAtCents && (
             <span className="compare-price">{formatMoney(product.compareAtCents)}</span>
           )}
@@ -104,26 +116,32 @@ export default function ProductCard({
           <Link className="text-link" href={`/shop/${product.slug}`}>
             {soldOut ? 'Get notified' : 'Details'}
           </Link>
-          <button
-            className="btn small"
-            type="button"
-            disabled={soldOut}
-            onClick={() => {
-              addItem({
-                slug: product.slug,
-                name: product.name,
-                priceCents: product.priceCents,
-                imageUrl: product.imageUrl,
-                inventory: product.inventory,
-                type: product.type,
-                ships: product.ships,
-                pickup: product.pickup
-              });
-              openCart();
-            }}
-          >
-            <ShoppingBag size={16} /> Add to cart
-          </button>
+          {needsSize && !soldOut ? (
+            <Link className="btn small" href={`/shop/${product.slug}`}>
+              <ShoppingBag size={16} /> Choose {sizeWord}
+            </Link>
+          ) : (
+            <button
+              className="btn small"
+              type="button"
+              disabled={soldOut}
+              onClick={() => {
+                addItem({
+                  slug: product.slug,
+                  name: product.name,
+                  priceCents: product.priceCents,
+                  imageUrl: product.imageUrl,
+                  inventory: product.inventory,
+                  type: product.type,
+                  ships: product.ships,
+                  pickup: product.pickup
+                });
+                openCart();
+              }}
+            >
+              <ShoppingBag size={16} /> Add to cart
+            </button>
+          )}
         </div>
       </div>
     </article>

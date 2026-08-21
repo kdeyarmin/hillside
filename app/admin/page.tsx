@@ -19,6 +19,7 @@ import {
 import { db } from '@/lib/db';
 import { currentAdmin } from '@/lib/admin';
 import { REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
+import { sizedName, sizeLines } from '@/lib/product-sizes';
 import { formatMoney, productTypeLabel } from '@/lib/store';
 import { orderStatusBadge } from '@/lib/tracking';
 import {
@@ -76,6 +77,8 @@ function ProductFields({
     featured: boolean;
     sortOrder: number;
     galleryImages: string[];
+    sizes: unknown;
+    sizeLabel: string | null;
     collections?: Array<{ id: string }>;
   };
 }) {
@@ -221,6 +224,31 @@ function ProductFields({
             rows={2}
             defaultValue={product?.shippingNote || ''}
           />
+        </label>
+        <label className="admin-label">
+          What the size dropdown is called
+          <input
+            className="admin-input"
+            name="sizeLabel"
+            defaultValue={product?.sizeLabel || ''}
+            placeholder="Size"
+          />
+        </label>
+        <label className="admin-label full">
+          Sizes to choose from (one per line, leave empty if this is sold one way)
+          <textarea
+            className="admin-input"
+            name="sizes"
+            rows={3}
+            defaultValue={sizeLines(product?.sizes)}
+            placeholder={'4" pot | 18.00\n6" pot | 24.00\n8" pot | 32.00'}
+          />
+          {/* Every size draws on the one quantity above: they are a choice about
+              what to pack, not separate shelves to count. */}
+          <span className="admin-hint">
+            Put the price after a | when a size costs something different. Leave the price off and
+            it uses the price above. All sizes share the quantity on hand.
+          </span>
         </label>
         <label className="admin-label full">
           Extra photo URLs (one per line)
@@ -722,7 +750,7 @@ export default async function Admin({
                       {order.items.map((item) => (
                         <div className="summary-row" key={item.id}>
                           <span>
-                            {item.name} × {item.quantity}
+                            {sizedName(item.name, item.size)} × {item.quantity}
                           </span>
                           <span>{formatMoney(item.unitCents * item.quantity)}</span>
                         </div>

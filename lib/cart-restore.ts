@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-export type RestorableCartItem = { slug: string; quantity: number };
+export type RestorableCartItem = { slug: string; quantity: number; size?: string | null };
 
 type RestorePayload = {
   email: string;
@@ -36,7 +36,9 @@ export function createCartRestoreToken(email: string, items: RestorableCartItem[
     email: email.toLowerCase(),
     items: items.slice(0, 50).map((item) => ({
       slug: String(item.slug).slice(0, 140),
-      quantity: Math.max(1, Math.min(20, Math.floor(item.quantity) || 1))
+      quantity: Math.max(1, Math.min(20, Math.floor(item.quantity) || 1)),
+      // A saved basket that forgot the size would come back as the wrong pot.
+      ...(item.size ? { size: String(item.size).slice(0, 60) } : {})
     })),
     exp: Date.now() + THIRTY_DAYS_MS
   };

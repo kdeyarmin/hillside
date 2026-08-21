@@ -4,11 +4,15 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
-import { useCart, type CartLine } from '@/components/CartProvider';
+import { lineKey, useCart, type CartLine } from '@/components/CartProvider';
 import CheckoutOptions from '@/components/CheckoutOptions';
 import { cartFulfillment } from '@/lib/fulfillment';
+import { sizedName } from '@/lib/product-sizes';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
 import FormStatus from '@/components/FormStatus';
+
+/** See `SiteChrome`: sized lines need names that tell them apart. */
+const lineName = (line: { name: string; size?: string | null }) => sizedName(line.name, line.size);
 
 export default function CartPageClient({
   catalogEmpty,
@@ -89,7 +93,11 @@ export default function CartPageClient({
           email: saveEmail,
           subtotalCents,
           subscribe: saveSubscribe,
-          items: items.map((item) => ({ slug: item.slug, quantity: item.quantity }))
+          items: items.map((item) => ({
+            slug: item.slug,
+            quantity: item.quantity,
+            ...(item.size ? { size: item.size } : {})
+          }))
         })
       });
       const result = (await response.json()) as { message?: string; error?: string };
@@ -161,8 +169,8 @@ export default function CartPageClient({
     <div className="cart-page">
       <div className="cart-page-lines">
         {items.map((item) => (
-          <article className="cart-page-line" key={item.slug}>
-            <Link href={`/shop/${item.slug}`} aria-label={`View ${item.name}`}>
+          <article className="cart-page-line" key={lineKey(item)}>
+            <Link href={`/shop/${item.slug}`} aria-label={`View ${lineName(item)}`}>
               <ResilientImage
                 sizeRole="thumb"
                 src={item.imageUrl || FALLBACK_PRODUCT_IMAGE}
@@ -181,6 +189,7 @@ export default function CartPageClient({
               <h2 className="cart-page-line-title">
                 <Link href={`/shop/${item.slug}`}>{item.name}</Link>
               </h2>
+              {item.size && <p className="cart-line-size">{item.size}</p>}
               <p className="muted" style={{ marginTop: 0 }}>
                 {formatMoney(item.priceCents)} each
               </p>
@@ -188,12 +197,12 @@ export default function CartPageClient({
                 <div
                   className="quantity-picker small"
                   role="group"
-                  aria-label={`Quantity for ${item.name}`}
+                  aria-label={`Quantity for ${lineName(item)}`}
                 >
                   <button
                     type="button"
-                    onClick={() => setQuantity(item.slug, item.quantity - 1)}
-                    aria-label={`Decrease ${item.name} quantity`}
+                    onClick={() => setQuantity(lineKey(item), item.quantity - 1)}
+                    aria-label={`Decrease ${lineName(item)} quantity`}
                   >
                     <Minus size={14} />
                   </button>
@@ -201,13 +210,13 @@ export default function CartPageClient({
                       say what changed. */}
                   <span aria-hidden="true">{item.quantity}</span>
                   <span className="sr-only" aria-live="polite">
-                    {item.name}: quantity {item.quantity}
+                    {lineName(item)}: quantity {item.quantity}
                   </span>
                   <button
                     type="button"
-                    onClick={() => setQuantity(item.slug, item.quantity + 1)}
+                    onClick={() => setQuantity(lineKey(item), item.quantity + 1)}
                     disabled={item.quantity >= item.inventory}
-                    aria-label={`Increase ${item.name} quantity`}
+                    aria-label={`Increase ${lineName(item)} quantity`}
                   >
                     <Plus size={14} />
                   </button>
@@ -215,7 +224,7 @@ export default function CartPageClient({
                 <button
                   className="text-button danger"
                   type="button"
-                  onClick={() => removeItem(item.slug)}
+                  onClick={() => removeItem(lineKey(item))}
                 >
                   <Trash2 size={14} /> Remove
                 </button>

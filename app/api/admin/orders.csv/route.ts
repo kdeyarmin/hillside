@@ -1,6 +1,7 @@
 import { isAdmin } from '@/lib/admin';
 import { csvCell } from '@/lib/csv';
 import { db } from '@/lib/db';
+import { sizedName } from '@/lib/product-sizes';
 
 export const runtime = 'nodejs';
 
@@ -42,7 +43,7 @@ export async function GET() {
     order.trackingCarrier,
     order.trackingNumber,
     order.giftMessage || '',
-    order.items.map((item) => `${item.quantity} x ${item.name}`).join('; ')
+    order.items.map((item) => `${item.quantity} x ${sizedName(item.name, item.size)}`).join('; ')
   ]);
   const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');
   return new Response(`\uFEFF${csv}`, {

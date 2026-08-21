@@ -23,6 +23,18 @@ describe('cart restore tokens', () => {
     assert.ok(payload.exp > Date.now());
   });
 
+  it('carries the size, so a saved basket comes back as the pot that was chosen', () => {
+    const token = createCartRestoreToken('a@b.com', [
+      { slug: 'monstera', quantity: 1, size: '6" pot' },
+      { slug: 'tea', quantity: 1 }
+    ]);
+    assert.ok(token);
+    assert.deepEqual(readCartRestoreToken(token)?.items, [
+      { slug: 'monstera', quantity: 1, size: '6" pot' },
+      { slug: 'tea', quantity: 1 }
+    ]);
+  });
+
   it('rejects a tampered signature', () => {
     const token = createCartRestoreToken('a@b.com', [{ slug: 'tea', quantity: 1 }]);
     assert.ok(token);

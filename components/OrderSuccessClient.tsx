@@ -20,7 +20,7 @@ export default function OrderSuccessClient({
   purchase?: {
     invoiceNumber: string;
     totalCents: number;
-    items: Array<{ name: string; quantity: number; unitCents: number }>;
+    items: Array<{ name: string; size?: string | null; quantity: number; unitCents: number }>;
   } | null;
 }) {
   const { clearCart } = useCart();

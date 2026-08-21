@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import OrderSuccessClient from '@/components/OrderSuccessClient';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { db } from '@/lib/db';
+import { sizedName } from '@/lib/product-sizes';
 import { formatMoney } from '@/lib/store';
 import { isPickupOrder } from '@/lib/fulfillment';
 
@@ -127,7 +128,7 @@ export default async function Success({
           {order?.items.map((item) => (
             <div className="summary-row" key={item.id}>
               <span>
-                {item.name} × {item.quantity}
+                {sizedName(item.name, item.size)} × {item.quantity}
               </span>
               <span>{formatMoney(item.unitCents * item.quantity)}</span>
             </div>
@@ -156,6 +157,7 @@ export default async function Success({
                   totalCents: order.totalCents,
                   items: order.items.map((item) => ({
                     name: item.name,
+                    size: item.size,
                     quantity: item.quantity,
                     unitCents: item.unitCents
                   }))
