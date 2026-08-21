@@ -164,6 +164,23 @@ export function encodeCheckoutItems(items: Array<{ product: { id: string }; quan
   return JSON.stringify(items.map(({ product, quantity }) => ({ id: product.id, q: quantity })));
 }
 
+/**
+ * Stripe metadata values are capped at 500 characters. A reserved order is the
+ * source of truth (`orderId` is always sent); this snapshot is only a backup
+ * for sessions that outlive a deploy. Once the cart is large enough that the
+ * JSON no longer fits, omitting it is safer than throwing — `sessions.create`
+ * would 500 and the customer could not pay for a basket the shop was happy to
+ * sell.
+ */
+export const STRIPE_METADATA_VALUE_MAX = 500;
+
+export function stripeCheckoutItemsMetadata(
+  items: Array<{ product: { id: string }; quantity: number }>
+) {
+  const encoded = encodeCheckoutItems(items);
+  return encoded.length <= STRIPE_METADATA_VALUE_MAX ? encoded : undefined;
+}
+
 export type ParsedCheckoutItem = { id: string; q: number; p?: number };
 
 export function parseCheckoutItems(value: string | null | undefined): ParsedCheckoutItem[] {

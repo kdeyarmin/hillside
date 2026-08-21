@@ -27,9 +27,13 @@ function safeEqual(left: string, right: string) {
   }
 }
 
-const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+export const CART_RESTORE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-export function createCartRestoreToken(email: string, items: RestorableCartItem[]) {
+export function createCartRestoreToken(
+  email: string,
+  items: RestorableCartItem[],
+  now = Date.now()
+) {
   const key = signingKey();
   if (!key) return null;
   const payload: RestorePayload = {
@@ -38,7 +42,7 @@ export function createCartRestoreToken(email: string, items: RestorableCartItem[
       slug: String(item.slug).slice(0, 140),
       quantity: Math.max(1, Math.min(20, Math.floor(item.quantity) || 1))
     })),
-    exp: Date.now() + THIRTY_DAYS_MS
+    exp: now + CART_RESTORE_TTL_MS
   };
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
   return `${encoded}.${sign(encoded, key)}`;

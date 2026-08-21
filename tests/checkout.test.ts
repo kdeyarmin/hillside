@@ -11,7 +11,9 @@ const {
   parseCheckoutItems,
   readCheckoutItems,
   stripeProductDescription,
-  stripeProductImages
+  stripeProductImages,
+  stripeCheckoutItemsMetadata,
+  STRIPE_METADATA_VALUE_MAX
 } = await import('../lib/checkout-format.ts');
 
 describe('readCheckoutItems', () => {
@@ -126,5 +128,27 @@ describe('encode/parse checkout items', () => {
   it('returns an empty list for garbage', () => {
     assert.deepEqual(parseCheckoutItems('not-json'), []);
     assert.deepEqual(parseCheckoutItems('{}'), []);
+  });
+
+  it('omits the Stripe metadata snapshot when it would exceed 500 characters', () => {
+    const small = stripeCheckoutItemsMetadata([{ product: { id: 'a' }, quantity: 1 }]);
+    assert.ok(small);
+    assert.ok(small.length <= STRIPE_METADATA_VALUE_MAX);
+
+    const bulky = stripeCheckoutItemsMetadata(
+      Array.from({ length: 20 }, (_, index) => ({
+        product: { id: `cuid_abcdefghijklmnopqrstuv${index}` },
+        quantity: 1
+      }))
+    );
+    assert.equal(bulky, undefined);
+    assert.ok(
+      encodeCheckoutItems(
+        Array.from({ length: 20 }, (_, index) => ({
+          product: { id: `cuid_abcdefghijklmnopqrstuv${index}` },
+          quantity: 1
+        }))
+      ).length > STRIPE_METADATA_VALUE_MAX
+    );
   });
 });

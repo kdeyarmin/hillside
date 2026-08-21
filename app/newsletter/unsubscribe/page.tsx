@@ -81,7 +81,7 @@ export default async function UnsubscribePage({
             </h1>
             <p>
               Unsubscribe <b>{email}</b> from seasonal notes, plant care and new-arrival messages.
-              Order and class email is separate and will still arrive when you shop or book.
+              Order confirmation and shipping email is separate and will still arrive when you shop.
             </p>
             <form action="/api/newsletter/unsubscribe" method="post">
               <input type="hidden" name="token" value={token} />

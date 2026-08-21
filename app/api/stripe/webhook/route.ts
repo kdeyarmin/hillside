@@ -7,6 +7,7 @@ import { findHoldBySessionOrHoldId, releaseHold, seatsRemaining } from '@/lib/cl
 import { parseCheckoutItems, releaseExpiredProductHolds, releaseProductHold } from '@/lib/checkout';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
+import { refundedOrderStatus, shouldRestoreInventoryOnRefund } from '@/lib/orders';
 import {
   isPickupOrder,
   pickupPlaceholderAddress,
@@ -269,41 +270,59 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
   const invoiceNumber =
     session.metadata?.invoiceNumber || session.client_reference_id || newInvoiceNumber();
 
-  const order = await db.$transaction(async (transaction) => {
-    const created = await transaction.order.create({
-      data: {
-        invoiceNumber,
-        stripeSessionId: session.id,
-        paymentIntentId: objectId(session.payment_intent),
-        stripeInvoiceId: objectId(session.invoice),
-        status: 'PAID',
-        ...customer,
-        subtotalCents,
-        shippingCents,
-        taxCents,
-        totalCents,
-        discountCents,
-        fulfillmentMethod,
-        giftMessage: giftFromSession(session, null),
-        shippingMethod: shippingMethodLabel(fulfillmentMethod, shippingCents),
-        items: { create: lineItems }
-      },
-      include: { items: true }
-    });
-
-    for (const item of lineItems) {
-      const result = await transaction.product.updateMany({
-        where: { id: item.productId, inventory: { gte: item.quantity } },
-        data: { inventory: { decrement: item.quantity } }
+  let order: { id: string; invoiceNumber: string };
+  let oversold = false;
+  try {
+    order = await db.$transaction(async (transaction) => {
+      const created = await transaction.order.create({
+        data: {
+          invoiceNumber,
+          stripeSessionId: session.id,
+          paymentIntentId: objectId(session.payment_intent),
+          stripeInvoiceId: objectId(session.invoice),
+          status: 'PAID',
+          ...customer,
+          subtotalCents,
+          shippingCents,
+          taxCents,
+          totalCents,
+          discountCents,
+          fulfillmentMethod,
+          giftMessage: giftFromSession(session, null),
+          shippingMethod: shippingMethodLabel(fulfillmentMethod, shippingCents),
+          items: { create: lineItems }
+        },
+        include: { items: true }
       });
-      if (result.count === 0) {
-        throw new Error(
-          `Paid session ${session.id} could not decrement stock for ${item.name}. Refusing to hide an oversell.`
-        );
+
+      for (const item of lineItems) {
+        const result = await transaction.product.updateMany({
+          where: { id: item.productId, inventory: { gte: item.quantity } },
+          data: { inventory: { decrement: item.quantity } }
+        });
+        if (result.count === 0) oversold = true;
       }
+      return created;
+    });
+  } catch (error) {
+    /**
+     * A retried webhook after a successful create hits the unique session id.
+     * Honour the existing row instead of 500-looping Stripe.
+     */
+    const existing = await db.order.findUnique({
+      where: { stripeSessionId: session.id },
+      select: { id: true, invoiceNumber: true }
+    });
+    if (existing) {
+      await sendOrderEmails(existing.id);
+      return;
     }
-    return created;
-  });
+    throw error;
+  }
+
+  if (oversold) {
+    await notifyOversell(order.invoiceNumber, lineItems.map((item) => item.name).join(', '));
+  }
 
   try {
     await subscribeFromCheckout(session);
@@ -346,7 +365,7 @@ async function sendOrderEmails(orderId: string) {
     const pickupNote = pickup
       ? '<p><strong>Local pickup</strong> — email the customer when this is ready. Do not print a shipping label unless they change their mind.</p>'
       : '<p>Open the owner dashboard to review, print the packing slip and create the shipping label.</p>';
-    await sendEmail({
+    const delivery = await sendEmail({
       to: businessEmail,
       subject: `${pickup ? 'Pickup order' : 'New order'} ${order.invoiceNumber} • ${formatMoney(order.totalCents)}`,
       html: emailShell(
@@ -355,6 +374,9 @@ async function sendOrderEmails(orderId: string) {
       ),
       idempotencyKey: `new-order-admin/${orderId}`
     });
+    if (!delivery.sent) {
+      console.error(`Admin new-order email failed for ${order.invoiceNumber}: ${delivery.reason}`);
+    }
   }
 }
 
@@ -512,7 +534,6 @@ async function applyRefund(charge: Stripe.Charge) {
   if (!paymentIntentId) return;
 
   const fullyRefunded = charge.refunded || charge.amount_refunded >= charge.amount;
-  const status = fullyRefunded ? 'REFUNDED' : 'PARTIALLY_REFUNDED';
 
   await db.classRegistration.updateMany({
     where: { paymentIntentId },
@@ -525,6 +546,9 @@ async function applyRefund(charge: Stripe.Charge) {
   });
   if (!order) return;
 
+  const alreadyFulfilled = Boolean(order.fulfilledAt);
+  const status = refundedOrderStatus({ fullyRefunded, alreadyFulfilled });
+
   await db.$transaction(async (transaction) => {
     const applied = await transaction.order.updateMany({
       where: { id: order.id, refundedCents: { lte: charge.amount_refunded } },
@@ -532,10 +556,10 @@ async function applyRefund(charge: Stripe.Charge) {
     });
     if (applied.count === 0) return;
 
-    if (!fullyRefunded) return;
+    if (!shouldRestoreInventoryOnRefund({ fullyRefunded, alreadyFulfilled })) return;
 
     const claimed = await transaction.order.updateMany({
-      where: { id: order.id, inventoryRestoredAt: null },
+      where: { id: order.id, inventoryRestoredAt: null, fulfilledAt: null },
       data: { inventoryRestoredAt: new Date() }
     });
     if (claimed.count === 0) return;

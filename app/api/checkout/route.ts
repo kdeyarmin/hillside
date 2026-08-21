@@ -4,18 +4,23 @@ import { db } from '@/lib/db';
 import {
   attachStripeSessionToOrder,
   checkoutAdjustments,
-  encodeCheckoutItems,
   holdExpiryUnix,
   InsufficientStockError,
   readCheckoutItems,
   releaseExpiredProductHolds,
   releaseProductHold,
   reserveProductOrder,
+  stripeCheckoutItemsMetadata,
   stripeProductDescription,
   stripeProductImages
 } from '@/lib/checkout';
 import { rateLimited } from '@/lib/rate-limit';
-import { checkoutReturnOrigin, newInvoiceNumber } from '@/lib/store';
+import {
+  checkoutReturnOrigin,
+  flatShippingCents,
+  freeShippingThresholdCents,
+  newInvoiceNumber
+} from '@/lib/store';
 import {
   cartFulfillment,
   pickupTaxOrigin,
@@ -45,7 +50,15 @@ export async function POST(request: Request) {
 
     await releaseExpiredProductHolds();
 
-    const body: unknown = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: 'Your cart could not be read. Please try again.' },
+        { status: 400 }
+      );
+    }
     const requested = readCheckoutItems(body);
     if (!requested.length)
       return NextResponse.json({ error: 'Your cart is empty.' }, { status: 400 });
@@ -94,16 +107,12 @@ export async function POST(request: Request) {
       (total, item) => total + item.product.priceCents * item.quantity,
       0
     );
-    const freeShippingThreshold = Math.max(
-      0,
-      Number(process.env.FREE_SHIPPING_THRESHOLD_CENTS || 7500)
-    );
-    const flatShippingCents = Math.max(0, Number(process.env.FLAT_SHIPPING_CENTS || 895));
+    const freeShippingThreshold = freeShippingThresholdCents();
     const shippingCents = pickup
       ? 0
       : freeShippingThreshold > 0 && subtotalCents >= freeShippingThreshold
         ? 0
-        : flatShippingCents;
+        : flatShippingCents();
     const invoiceNumber = newInvoiceNumber();
     const site = checkoutReturnOrigin();
     const stripe = new Stripe(secret);
@@ -150,6 +159,8 @@ export async function POST(request: Request) {
       throw error;
     }
 
+    const itemsSnapshot = stripeCheckoutItemsMetadata(items);
+
     let session: Stripe.Checkout.Session;
     try {
       session = await stripe.checkout.sessions.create({
@@ -178,7 +189,14 @@ export async function POST(request: Request) {
          */
         expires_at: holdExpiryUnix(reservation.expiresAt),
         success_url: `${site}/order/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${site}/cart`,
+        /**
+         * Cancel used to land on a bare `/cart` with the hold still live.
+         * Stripe does not emit `checkout.session.expired` when the customer
+         * clicks Cancel — only when `expires_at` hits — so stock stayed
+         * invisible for 35 minutes and a second checkout would 409. The
+         * cart page expires this session and releases the hold immediately.
+         */
+        cancel_url: `${site}/cart?canceled={CHECKOUT_SESSION_ID}`,
         billing_address_collection: pickup ? 'required' : 'auto',
         ...(pickup
           ? {
@@ -246,9 +264,10 @@ export async function POST(request: Request) {
           /**
            * Compact backup. Fulfillment prefers the reserved order and Stripe
            * line items; this remains so sessions already in flight during a
-           * deploy still resolve if the hold row is missing.
+           * deploy still resolve if the hold row is missing. Omitted when it
+           * would exceed Stripe's 500-character metadata cap.
            */
-          items: encodeCheckoutItems(items)
+          ...(itemsSnapshot ? { items: itemsSnapshot } : {})
         }
       });
 

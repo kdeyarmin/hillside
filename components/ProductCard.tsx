@@ -90,7 +90,10 @@ export default function ProductCard({
         <p>
           <strong className="price">{formatMoney(product.priceCents)}</strong>
           {saving > 0 && product.compareAtCents && (
-            <span className="compare-price">{formatMoney(product.compareAtCents)}</span>
+            <span className="compare-price">
+              <span className="sr-only">Was </span>
+              {formatMoney(product.compareAtCents)}
+            </span>
           )}
         </p>
         <span className={`stock ${soldOut ? 'out' : product.inventory <= 3 ? 'low' : ''}`}>

@@ -29,3 +29,60 @@ export const REVENUE_STATUSES = [
 export function isAwaitingShipment(status: OrderStatus) {
   return (AWAITING_SHIPMENT_STATUSES as readonly OrderStatus[]).includes(status);
 }
+
+/**
+ * Status to store after a Stripe (or dashboard) refund.
+ *
+ * A partial refund of an unshipped order must stay `PARTIALLY_REFUNDED` so it
+ * remains on the packing list — that is why `AWAITING_SHIPMENT_STATUSES`
+ * exists. The same partial refund on an already-shipped order must *not* move
+ * it there: Tammy would see a fulfilled plant as "needs shipping" again, and
+ * the customer status page would claim we were still preparing it.
+ *
+ * A full refund always becomes `REFUNDED`. Whether stock comes back is a
+ * separate question (`shouldRestoreInventoryOnRefund`).
+ */
+export function refundedOrderStatus(args: {
+  fullyRefunded: boolean;
+  alreadyFulfilled: boolean;
+}): OrderStatus {
+  if (args.fullyRefunded) return OrderStatus.REFUNDED;
+  if (args.alreadyFulfilled) return OrderStatus.FULFILLED;
+  return OrderStatus.PARTIALLY_REFUNDED;
+}
+
+/**
+ * A full refund of a plant that never left the bench returns it to the shelf.
+ * A refund after ship or pickup does not: the piece is gone, and incrementing
+ * inventory would list it as sellable again.
+ */
+export function shouldRestoreInventoryOnRefund(args: {
+  fullyRefunded: boolean;
+  alreadyFulfilled: boolean;
+}) {
+  return args.fullyRefunded && !args.alreadyFulfilled;
+}
+
+/**
+ * `fulfilledAt` is the ship/pickup stamp, not a mirror of the status enum.
+ * Refunds must keep it so a later partial refund cannot reopen the packing
+ * list. Clearing it is reserved for an explicit un-fulfill (back to paid,
+ * pending, or cancelled) — Tammy putting a mis-clicked "shipped" back on
+ * the bench.
+ */
+export function nextFulfilledAt(
+  previous: { status: OrderStatus; fulfilledAt: Date | null },
+  nextStatus: OrderStatus,
+  now = new Date()
+): Date | null {
+  if (nextStatus === OrderStatus.FULFILLED) return previous.fulfilledAt || now;
+  if (
+    previous.status === OrderStatus.FULFILLED &&
+    (nextStatus === OrderStatus.PAID ||
+      nextStatus === OrderStatus.PENDING ||
+      nextStatus === OrderStatus.CANCELLED)
+  ) {
+    return null;
+  }
+  return previous.fulfilledAt;
+}

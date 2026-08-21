@@ -112,7 +112,11 @@ export default async function Success({
           </div>
           {email && (
             <div className="summary-row">
-              <span>Confirmation sent to</span>
+              <span>
+                {order?.confirmationEmailSentAt
+                  ? 'Confirmation sent to'
+                  : 'Confirmation will be sent to'}
+              </span>
               <strong>{email}</strong>
             </div>
           )}
