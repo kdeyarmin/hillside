@@ -32,6 +32,8 @@ async function loadCollection(slug: string) {
           inventory: true,
           imageUrl: true,
           badge: true,
+          sizes: true,
+          sizeLabel: true,
           ships: true,
           pickup: true
         },

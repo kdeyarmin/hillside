@@ -2,6 +2,7 @@ import { notFound, redirect } from 'next/navigation';
 import PrintButton from '@/components/PrintButton';
 import { isAdmin } from '@/lib/admin';
 import { db } from '@/lib/db';
+import { sizedName } from '@/lib/product-sizes';
 import { formatMoney } from '@/lib/store';
 import { isPickupOrder } from '@/lib/fulfillment';
 import { orderStatusBadge } from '@/lib/tracking';
@@ -103,7 +104,9 @@ export default async function PackingSlip({ params }: { params: Promise<{ id: st
           <tbody>
             {order.items.map((item) => (
               <tr key={item.id}>
-                <td>{item.name}</td>
+                {/* The size is what tells the packer which jar to reach for,
+                    so it prints on the line rather than only in the order. */}
+                <td>{sizedName(item.name, item.size)}</td>
                 <td>{item.quantity}</td>
                 <td>{formatMoney(item.unitCents)}</td>
                 <td>{formatMoney(item.unitCents * item.quantity)}</td>

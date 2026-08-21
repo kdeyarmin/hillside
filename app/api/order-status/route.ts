@@ -36,7 +36,7 @@ export async function POST(request: Request) {
 
     const order = await db.order.findUnique({
       where: { invoiceNumber },
-      include: { items: { select: { name: true, quantity: true, unitCents: true } } }
+      include: { items: { select: { name: true, size: true, quantity: true, unitCents: true } } }
     });
     if (!order || order.email.toLowerCase() !== email) {
       return NextResponse.json(

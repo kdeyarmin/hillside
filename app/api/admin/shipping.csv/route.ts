@@ -3,6 +3,7 @@ import { isAdmin } from '@/lib/admin';
 import { csvCell } from '@/lib/csv';
 import { isPickupOrder } from '@/lib/fulfillment';
 import { AWAITING_SHIPMENT_STATUSES } from '@/lib/orders';
+import { sizedName } from '@/lib/product-sizes';
 
 export const runtime = 'nodejs';
 
@@ -47,7 +48,7 @@ export async function GET() {
     order.shippingMethod || 'Standard shipping',
     order.fulfillmentMethod === 'PICKUP' ? 'PICKUP' : 'SHIP',
     order.giftMessage || '',
-    order.items.map((item) => `${item.quantity} x ${item.name}`).join('; '),
+    order.items.map((item) => `${item.quantity} x ${sizedName(item.name, item.size)}`).join('; '),
     (order.totalCents / 100).toFixed(2)
   ]);
   const csv = [header, ...rows].map((row) => row.map(csvCell).join(',')).join('\r\n');

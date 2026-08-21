@@ -19,6 +19,7 @@ import {
   sanitizeGiftMessage,
   type FulfillmentChoice
 } from '@/lib/fulfillment';
+import { cartLineKey, normalizeSizeLabel } from '@/lib/product-sizes';
 import { clampQuantity } from '@/lib/store';
 
 export type CartProduct = {
@@ -30,6 +31,8 @@ export type CartProduct = {
   type?: string;
   ships?: boolean;
   pickup?: boolean;
+  /** The size the shopper chose, for products sold in more than one size. */
+  size?: string | null;
 };
 
 export type CartLine = CartProduct & { quantity: number };
@@ -39,9 +42,44 @@ export type CheckoutAdjustment = {
   name: string;
   requested: number;
   available: number;
-  reason?: 'stock' | 'price' | 'unavailable';
+  reason?: 'stock' | 'price' | 'unavailable' | 'size';
   priceCents?: number;
+  size?: string | null;
 };
+
+/**
+ * A basket line is a product *and* a size, so every operation below addresses
+ * lines by this key rather than by the slug. Keyed on the slug alone, adding a
+ * 6" pot of a plant already in the basket in 4" would have silently changed the
+ * size of the line that was there.
+ */
+export function lineKey(line: { slug: string; size?: string | null }) {
+  return cartLineKey(line.slug, line.size);
+}
+
+/**
+ * Folds lines that address the same product and size into one. Normalizing a
+ * stored size is not enough on its own: two saved entries can normalize onto the
+ * same key, and duplicate keys mean a duplicate React key and a Remove that
+ * takes a line the shopper did not point at.
+ */
+function mergeByLine(lines: CartLine[]) {
+  const merged = new Map<string, CartLine>();
+  for (const line of lines) {
+    const key = lineKey(line);
+    const existing = merged.get(key);
+    merged.set(
+      key,
+      existing
+        ? {
+            ...existing,
+            quantity: clampQuantity(existing.quantity + line.quantity, line.inventory)
+          }
+        : line
+    );
+  }
+  return [...merged.values()];
+}
 
 type CartContextValue = {
   items: CartLine[];
@@ -56,8 +94,8 @@ type CartContextValue = {
   giftMessage: string;
   pickupArranged: boolean;
   addItem: (product: CartProduct, quantity?: number) => void;
-  setQuantity: (slug: string, quantity: number) => void;
-  removeItem: (slug: string) => void;
+  setQuantity: (key: string, quantity: number) => void;
+  removeItem: (key: string) => void;
   replaceItems: (lines: CartLine[]) => void;
   clearCart: () => void;
   setFulfillment: (method: FulfillmentChoice) => void;
@@ -122,11 +160,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               type: line.type ? String(line.type) : undefined,
               ships: line.ships !== false,
               pickup: line.pickup !== false,
+              /**
+               * Normalized on the way in, because `lineKey` normalizes: a stored
+               * size that differs only in spacing would otherwise be a separate
+               * line carrying the same key, and Remove would take both. Baskets
+               * saved before sizes existed have none and read back as the
+               * one-size lines they were.
+               */
+              size: normalizeSizeLabel(line.size) || null,
               quantity: clampQuantity(Number(line.quantity) || 1, inventory)
             }
           ];
         });
-        setItems(lines);
+        setItems(mergeByLine(lines));
       }
     } catch {
       localStorage.removeItem(STORAGE_KEY);
@@ -174,12 +220,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addItem = useCallback((product: CartProduct, quantity = 1) => {
     trackAddToCart(toGtagItem(product, quantity));
-    setLastAdded(`${product.name} added to your basket.`);
+    setLastAdded(
+      product.size
+        ? `${product.name} (${product.size}) added to your basket.`
+        : `${product.name} added to your basket.`
+    );
     setItems((current) => {
-      const existing = current.find((item) => item.slug === product.slug);
+      const key = lineKey(product);
+      const existing = current.find((item) => lineKey(item) === key);
       if (existing) {
         return current.map((item) =>
-          item.slug === product.slug
+          lineKey(item) === key
             ? {
                 ...item,
                 ...product,
@@ -198,18 +249,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const setQuantity = useCallback((slug: string, quantity: number) => {
+  const setQuantity = useCallback((key: string, quantity: number) => {
     setItems((current) =>
       current.flatMap((item) => {
-        if (item.slug !== slug) return [item];
+        if (lineKey(item) !== key) return [item];
         if (quantity <= 0) return [];
         return [{ ...item, quantity: clampQuantity(quantity, item.inventory) }];
       })
     );
   }, []);
 
-  const removeItem = useCallback((slug: string) => {
-    setItems((current) => current.filter((item) => item.slug !== slug));
+  const removeItem = useCallback((key: string) => {
+    setItems((current) => current.filter((item) => lineKey(item) !== key));
   }, []);
 
   const replaceItems = useCallback((lines: CartLine[]) => {
@@ -251,7 +302,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           items: items.map((item) => ({
             id: item.slug,
             quantity: item.quantity,
-            priceCents: item.priceCents
+            priceCents: item.priceCents,
+            ...(item.size ? { size: item.size } : {})
           }))
         })
       });
@@ -265,12 +317,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         const adjustments = result.adjustments;
         setItems((current) =>
           current.flatMap((item) => {
-            const change = adjustments.find((entry) => entry.slug === item.slug);
+            const change = adjustments.find(
+              (entry) => cartLineKey(entry.slug, entry.size) === lineKey(item)
+            );
             if (!change) return [item];
             if (change.reason === 'price' && change.priceCents != null) {
               return [{ ...item, priceCents: change.priceCents }];
             }
-            if (change.available <= 0) return [];
+            // A size we no longer sell cannot be corrected for the shopper —
+            // the line goes, and the notice sends them back to the dropdown.
+            if (change.reason === 'size' || change.available <= 0) return [];
             return [{ ...item, inventory: change.available, quantity: change.available }];
           })
         );

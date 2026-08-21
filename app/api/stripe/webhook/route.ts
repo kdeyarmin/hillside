@@ -20,6 +20,7 @@ import {
   shippingMethodLabel,
   type FulfillmentChoice
 } from '@/lib/fulfillment';
+import { findSize, productSizes, sizedName } from '@/lib/product-sizes';
 import { formatMoney, newInvoiceNumber } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -163,7 +164,10 @@ async function completeReservedOrder(
   });
 
   if (oversold) {
-    await notifyOversell(order.invoiceNumber, order.items.map((item) => item.name).join(', '));
+    await notifyOversell(
+      order.invoiceNumber,
+      order.items.map((item) => sizedName(item.name, item.size)).join(', ')
+    );
   }
 }
 
@@ -222,16 +226,23 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
     const product = products.find(
       (candidate) => candidate.id === item.id || candidate.slug === item.id
     );
-    return product
-      ? [
-          {
-            productId: product.id,
-            name: product.name,
-            quantity: item.q,
-            unitCents: item.p ?? product.priceCents
-          }
-        ]
-      : [];
+    if (!product) return [];
+    /**
+     * The size is carried in metadata; its price is not, because a metadata
+     * value is capped at 500 characters. The size list on the product is the
+     * cheaper place to look it back up.
+     */
+    const sizes = productSizes(product.sizes, product.priceCents);
+    const chosen = sizes.length ? findSize(sizes, item.s) : null;
+    return [
+      {
+        productId: product.id,
+        name: product.name,
+        size: chosen?.label || null,
+        quantity: item.q,
+        unitCents: item.p ?? chosen?.priceCents ?? product.priceCents
+      }
+    ];
   });
   if (!lineItems.length)
     throw new Error(`No valid line items found for Stripe session ${session.id}`);
@@ -306,7 +317,10 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
   }
 
   if (oversold) {
-    await notifyOversell(order.invoiceNumber, lineItems.map((item) => item.name).join(', '));
+    await notifyOversell(
+      order.invoiceNumber,
+      lineItems.map((item) => sizedName(item.name, item.size)).join(', ')
+    );
   }
 
   try {

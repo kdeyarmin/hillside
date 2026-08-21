@@ -7,6 +7,7 @@ import ProductCard, { type ProductCardProduct } from '@/components/ProductCard';
 import { trackSearch } from '@/lib/analytics';
 import { contactHref } from '@/lib/contact';
 import { matchesAnySearchField } from '@/lib/search';
+import { comparableAtCents, productSizes, sizePriceRange } from '@/lib/product-sizes';
 import { CATEGORY_GROUPS, categoryTypes, discountPercent, productTypeLabel } from '@/lib/store';
 
 type Product = ProductCardProduct & {
@@ -27,6 +28,19 @@ const SORT_LABELS: Array<[SortOption, string]> = [
 
 function isSortOption(value: string): value is SortOption {
   return SORT_LABELS.some(([option]) => option === value);
+}
+
+/**
+ * A card leads with what its sizes cost, so the sale chip and the price sorts
+ * have to read the same figures. Resolved once per product rather than inside
+ * a comparator, which would re-parse the size list on every comparison.
+ */
+function pricingFor(product: Product) {
+  const sizes = productSizes(product.sizes, product.priceCents);
+  return {
+    ...sizePriceRange(sizes, product.priceCents),
+    compareAtCents: comparableAtCents(sizes, product.priceCents, product.compareAtCents)
+  };
 }
 
 export default function ShopClient({
@@ -113,34 +127,49 @@ export default function ShopClient({
 
   const saleCount = useMemo(
     () =>
-      products.filter((product) => discountPercent(product.priceCents, product.compareAtCents) > 0)
-        .length,
+      products.filter(
+        (product) => discountPercent(product.priceCents, pricingFor(product).compareAtCents) > 0
+      ).length,
     [products]
   );
 
   const visibleProducts = useMemo(() => {
     const term = search.trim();
     const allowedTypes = categoryTypes(category);
-    const filtered = products.filter((product) => {
-      const inCategory = !allowedTypes.length || allowedTypes.includes(product.type);
-      const onSale = !onSaleOnly || discountPercent(product.priceCents, product.compareAtCents) > 0;
-      const matchesSearch =
-        !term ||
-        matchesAnySearchField([product.name, product.description, product.shortDescription], term);
-      return inCategory && onSale && matchesSearch;
-    });
+    const filtered = products
+      .map((product) => ({ product, pricing: pricingFor(product) }))
+      .filter(({ product, pricing }) => {
+        const inCategory = !allowedTypes.length || allowedTypes.includes(product.type);
+        const onSale =
+          !onSaleOnly || discountPercent(product.priceCents, pricing.compareAtCents) > 0;
+        const matchesSearch =
+          !term ||
+          matchesAnySearchField(
+            [product.name, product.description, product.shortDescription],
+            term
+          );
+        return inCategory && onSale && matchesSearch;
+      });
 
-    return [...filtered].sort((a, b) => {
-      if (sort === 'name') return a.name.localeCompare(b.name);
-      if (sort === 'price-low') return a.priceCents - b.priceCents;
-      if (sort === 'price-high') return b.priceCents - a.priceCents;
-      if (sort === 'new') return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      return (
-        Number(b.featured) - Number(a.featured) ||
-        a.sortOrder - b.sortOrder ||
-        a.name.localeCompare(b.name)
-      );
-    });
+    return [...filtered]
+      .sort((a, b) => {
+        if (sort === 'name') return a.product.name.localeCompare(b.product.name);
+        /**
+         * Each direction reads the end of the range it is about. Sorting both by
+         * the cheapest size would put a $20–$30 product above a $10–$50 one
+         * under "high to low", with the more expensive piece second.
+         */
+        if (sort === 'price-low') return a.pricing.minCents - b.pricing.minCents;
+        if (sort === 'price-high') return b.pricing.maxCents - a.pricing.maxCents;
+        if (sort === 'new')
+          return new Date(b.product.createdAt).getTime() - new Date(a.product.createdAt).getTime();
+        return (
+          Number(b.product.featured) - Number(a.product.featured) ||
+          a.product.sortOrder - b.product.sortOrder ||
+          a.product.name.localeCompare(b.product.name)
+        );
+      })
+      .map(({ product }) => product);
   }, [category, onSaleOnly, products, search, sort]);
 
   const clearAll = () => {

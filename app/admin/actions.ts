@@ -23,6 +23,7 @@ import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { releaseProductHold, restoreUnshippedOrderInventory } from '@/lib/checkout';
 import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
+import { parseSizeLines, sizeFieldLabel, withoutRedundantPrices } from '@/lib/product-sizes';
 import { amazonPickDraft, DEFAULT_PICK_TITLE, extractAsin, isAmazonLink } from '@/lib/amazon-pick';
 import { associateTag, lookupAmazonProduct } from '@/lib/amazon-lookup';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
@@ -109,6 +110,16 @@ export async function saveProduct(formData: FormData) {
     : ProductType.OTHER;
   const priceCents = money(formData.get('price'));
   const compareAtText = text(formData, 'compareAt');
+  /**
+   * Sizes are stored only when the owner listed some. An empty box means the
+   * product is sold one way, and `DbNull` says that plainly — an empty array
+   * would read as "there is a size list, and it is empty".
+   *
+   * A price that matches the product's own is dropped rather than stored, so the
+   * size keeps following the base price the way the form promises it will.
+   */
+  const sizes = withoutRedundantPrices(parseSizeLines(text(formData, 'sizes')), priceCents);
+  const sizeLabelText = text(formData, 'sizeLabel');
   const data = {
     name,
     slug,
@@ -125,6 +136,9 @@ export async function saveProduct(formData: FormData) {
     compareAtCents: compareAtText ? money(formData.get('compareAt')) : null,
     imageUrl: text(formData, 'imageUrl') || null,
     badge: text(formData, 'badge') || null,
+    sizes: sizes.length ? (sizes as Prisma.InputJsonValue) : Prisma.DbNull,
+    // Only meaningful alongside a size list, and only when the owner renamed it.
+    sizeLabel: sizes.length && sizeLabelText ? sizeFieldLabel(sizeLabelText) : null,
     active: checked(formData, 'active'),
     featured: checked(formData, 'featured'),
     sortOrder: integer(formData.get('sortOrder')),

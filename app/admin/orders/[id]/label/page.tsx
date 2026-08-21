@@ -3,6 +3,7 @@ import PrintButton from '@/components/PrintButton';
 import { isAdmin } from '@/lib/admin';
 import { db } from '@/lib/db';
 import { isPickupOrder } from '@/lib/fulfillment';
+import { sizedName } from '@/lib/product-sizes';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,7 +72,11 @@ export default async function ShippingLabel({ params }: { params: Promise<{ id: 
         <div className="invoice">
           <b>{order.invoiceNumber}</b>
           <br />
-          {order.items.map((item) => `${item.quantity} × ${item.name}`).join(' • ')}
+          {/* The size is on the ticket the packer works from, not only on the
+              packing slip: two sizes of one plant are indistinguishable without it. */}
+          {order.items
+            .map((item) => `${item.quantity} × ${sizedName(item.name, item.size)}`)
+            .join(' • ')}
         </div>
         <div
           style={{

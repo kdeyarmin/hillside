@@ -236,6 +236,17 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 .product-detail-notes { display: grid; gap: 12px; margin: 28px 0; }
 .note-box { padding: 16px 18px; border: 1px solid var(--line); border-radius: 15px; background: var(--cream); }
 .note-box b { display: block; color: var(--forest); margin-bottom: 3px; }
+/* The size choice sits directly above the quantity and the Add button, because
+   it is the first of the three decisions and the other two depend on it. */
+.add-to-cart { display: grid; gap: 16px; }
+.size-picker { display: grid; gap: 6px; max-width: 360px; }
+.size-picker-label { color: var(--forest); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; }
+.size-select { height: 46px; padding: 0 12px; background: var(--white); cursor: pointer; }
+.size-picker-note { margin: 0; color: var(--muted); font-size: 13px; min-height: 19px; }
+/* Both selectors on purpose: `.cart-line-copy span` in the drawer is more
+   specific than a lone class, so the drawer's size line would otherwise keep
+   the muted colour the price beside it uses. */
+.cart-line-size, .cart-line-copy .cart-line-size { margin: 0; color: var(--forest); font-size: 13px; font-weight: 800; }
 .add-to-cart-panel { display: flex; gap: 12px; align-items: stretch; }
 .add-button { flex: 1; }
 .quantity-picker { display: inline-grid; grid-template-columns: 42px 48px 42px; align-items: center; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--white); }
@@ -402,6 +413,7 @@ textarea.form-input { min-height: 145px; resize: vertical; }
 .admin-form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .admin-form-grid .full { grid-column: 1 / -1; }
 .admin-label { display: grid; gap: 5px; color: var(--forest); font-size: 12px; font-weight: 800; }
+.admin-hint { color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1.45; }
 .admin-checkbox { display: inline-flex; align-items: center; gap: 7px; color: var(--forest); font-weight: 800; }
 .admin-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
 /* The paste-a-link form: one field and its button on a line, wrapping to two on

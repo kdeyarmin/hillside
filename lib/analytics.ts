@@ -2,6 +2,7 @@ type GtagItem = {
   item_id: string;
   item_name: string;
   item_category?: string;
+  item_variant?: string;
   price: number;
   quantity?: number;
 };
@@ -56,6 +57,7 @@ export function toGtagItem(
     name: string;
     type?: string;
     priceCents: number;
+    size?: string | null;
   },
   quantity = 1
 ): GtagItem {
@@ -63,6 +65,8 @@ export function toGtagItem(
     item_id: product.slug,
     item_name: product.name,
     item_category: product.type,
+    // Sized lines report the size, so the shop can see which size sells.
+    ...(product.size ? { item_variant: product.size } : {}),
     price: product.priceCents / 100,
     quantity
   };

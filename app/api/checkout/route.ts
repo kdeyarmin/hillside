@@ -14,6 +14,7 @@ import {
   stripeProductDescription,
   stripeProductImages
 } from '@/lib/checkout';
+import { findSize, productSizes, sizeChoiceRejected, sizedName } from '@/lib/product-sizes';
 import { rateLimited } from '@/lib/rate-limit';
 import {
   checkoutReturnOrigin,
@@ -78,10 +79,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ adjustments }, { status: 409 });
     }
 
+    /**
+     * Prices are taken from the product and its size list, never from the
+     * basket: the browser sends what it displayed only so a stale figure can be
+     * reported back as an adjustment above, not so it can set the charge.
+     */
     const items = requested.flatMap((requestedItem) => {
       const product = products.find((candidate) => candidate.slug === requestedItem.id);
       if (!product || !product.active || product.inventory <= 0) return [];
-      return [{ product, quantity: Math.min(requestedItem.quantity, product.inventory) }];
+      const sizes = productSizes(product.sizes, product.priceCents);
+      if (sizeChoiceRejected(sizes, requestedItem.size)) return [];
+      const chosen = findSize(sizes, requestedItem.size);
+      return [
+        {
+          product,
+          quantity: Math.min(requestedItem.quantity, product.inventory),
+          size: chosen?.label || null,
+          unitCents: chosen?.priceCents ?? product.priceCents
+        }
+      ];
     });
 
     if (!items.length) {
@@ -103,10 +119,9 @@ export async function POST(request: Request) {
     const giftMessage = readGiftMessage(body);
     const pickup = fulfillment.method === 'PICKUP';
 
-    const subtotalCents = items.reduce(
-      (total, item) => total + item.product.priceCents * item.quantity,
-      0
-    );
+    // Sized lines are charged their size's price, so the subtotal is summed
+    // from the resolved unit price rather than from the product's own.
+    const subtotalCents = items.reduce((total, item) => total + item.unitCents * item.quantity, 0);
     const freeShippingThreshold = freeShippingThresholdCents();
     const shippingCents = pickup
       ? 0
@@ -136,22 +151,29 @@ export async function POST(request: Request) {
       });
     } catch (error) {
       if (error instanceof InsufficientStockError) {
-        const latest = await db.product.findUnique({
-          where: { slug: error.slug },
-          select: { name: true, inventory: true }
+        /**
+         * Stock fell between the check above and the reservation. The whole
+         * basket is priced against the shelf again rather than only the line
+         * that failed: sizes of one product share a stock count, so answering
+         * with that product's total would tell a 6" line it could have every
+         * jar the 4" line beside it is already claiming, and the correction
+         * would bounce straight back.
+         */
+        const latest = await db.product.findMany({
+          where: { slug: { in: requested.map((item) => item.id) } }
         });
-        const requested = items.find((item) => item.product.slug === error.slug);
+        const corrections = checkoutAdjustments(requested, latest);
+        if (corrections.length) {
+          return NextResponse.json({ adjustments: corrections }, { status: 409 });
+        }
+        // Stock came back before we could read it. Nothing to correct, so the
+        // basket stands and the customer only has to ask again.
         return NextResponse.json(
           {
-            adjustments: [
-              {
-                slug: error.slug,
-                name: latest?.name || requested?.product.name || 'That item',
-                requested: requested?.quantity || 1,
-                available: Math.max(0, latest?.inventory ?? 0),
-                reason: 'stock' as const
-              }
-            ]
+            error: `${sizedName(
+              latest.find((product) => product.slug === error.slug)?.name || 'An item',
+              error.size
+            )} was claimed while we were reserving your basket. Please try checkout again.`
           },
           { status: 409 }
         );
@@ -167,18 +189,24 @@ export async function POST(request: Request) {
         mode: 'payment',
         client_reference_id: invoiceNumber,
         customer_creation: 'always',
-        line_items: items.map(({ product, quantity }) => ({
+        line_items: items.map(({ product, quantity, size, unitCents }) => ({
           quantity,
           price_data: {
             currency: 'usd',
-            unit_amount: product.priceCents,
+            unit_amount: unitCents,
             product_data: {
-              name: product.name,
+              // The size belongs in the name so it reaches the Stripe receipt,
+              // the invoice and the dashboard, none of which read metadata.
+              name: sizedName(product.name, size),
               description: stripeProductDescription(
                 product.shortDescription || product.description
               ),
               images: stripeProductImages(product.imageUrl),
-              metadata: { hillsideProductId: product.id, hillsideSlug: product.slug }
+              metadata: {
+                hillsideProductId: product.id,
+                hillsideSlug: product.slug,
+                ...(size ? { hillsideSize: size } : {})
+              }
             }
           }
         })),

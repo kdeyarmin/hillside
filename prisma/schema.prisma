@@ -80,6 +80,16 @@ model Product {
   inventory        Int          @default(0)
   imageUrl         String?
   badge            String?
+  /**
+   * Optional size choices for a product sold in more than one size, stored as
+   * `[{ label, priceCents? }]`. An option carries a price only when it differs
+   * from `priceCents`, so raising the base price still moves every size with it.
+   */
+  sizes            Json?
+  /**
+   * What the dropdown is called on the product page — "Pot size", "Jar size".
+   */
+  sizeLabel        String?
   active           Boolean      @default(true)
   featured         Boolean      @default(false)
   sortOrder        Int          @default(0)
@@ -138,6 +148,10 @@ model OrderItem {
   orderId   String
   productId String
   name      String
+  /**
+   * The size the customer chose, when the product is sold in more than one.
+   */
+  size      String?
   quantity  Int
   unitCents Int
   order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
