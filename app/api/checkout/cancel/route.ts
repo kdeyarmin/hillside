@@ -63,6 +63,39 @@ export async function POST(request: Request) {
         await stripe.checkout.sessions.expire(sessionId);
       } catch (error) {
         console.error('Unable to expire Stripe checkout session', error);
+        let latest: Stripe.Checkout.Session;
+        try {
+          latest = await stripe.checkout.sessions.retrieve(sessionId);
+        } catch (lookupError) {
+          console.error(
+            'Unable to re-read Stripe checkout session after expire failed',
+            lookupError
+          );
+          return NextResponse.json(
+            {
+              error: 'Unable to cancel that checkout just now. Please try again.',
+              reason: 'expire-failed'
+            },
+            { status: 502 }
+          );
+        }
+        if (latest.payment_status === 'paid' || latest.payment_status === 'no_payment_required') {
+          return NextResponse.json({ released: false, reason: 'paid' });
+        }
+        /**
+         * The session is still open, so the customer can still pay. Releasing
+         * the hold here would put the plant back on the shelf while Stripe
+         * still accepts payment against it.
+         */
+        if (latest.status === 'open') {
+          return NextResponse.json(
+            {
+              error: 'Unable to cancel that checkout just now. Please try again.',
+              reason: 'expire-failed'
+            },
+            { status: 502 }
+          );
+        }
       }
     }
 

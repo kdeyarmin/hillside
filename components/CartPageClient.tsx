@@ -54,15 +54,27 @@ export default function CartPageClient({
       signal: controller.signal
     })
       .then(async (response) => {
-        const result = (await response.json()) as { released?: boolean; reason?: string };
+        const result = (await response.json()) as {
+          released?: boolean;
+          reason?: string;
+          error?: string;
+        };
+        window.history.replaceState(null, '', '/cart');
         if (result.reason === 'paid') return;
+        if (!response.ok || !result.released) {
+          setCancelNotice(
+            result.error ||
+              'Checkout was cancelled. If an item still looks sold out, wait a moment and try again.'
+          );
+          return;
+        }
         setCancelNotice(
           'Checkout was cancelled. Those plants are back on the shelf if you want to try again.'
         );
-        window.history.replaceState(null, '', '/cart');
       })
       .catch(() => {
         if (controller.signal.aborted) return;
+        window.history.replaceState(null, '', '/cart');
         setCancelNotice(
           'Checkout was cancelled. If an item still looks sold out, wait a moment and refresh.'
         );

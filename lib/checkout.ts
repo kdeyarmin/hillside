@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
 import {
@@ -90,6 +91,29 @@ export async function reserveProductOrder({
   });
 
   return { order, holdId, expiresAt };
+}
+
+/**
+ * Decrement `quantity` when the shelf has it. If it does not — a paid order
+ * settling after the hold was released and someone else bought the last of it —
+ * zero whatever is left so the leftover 1–2 cannot be sold again on top of the
+ * oversell. Returns whether the full quantity was taken.
+ */
+export async function takeAvailableInventory(
+  transaction: Prisma.TransactionClient,
+  productId: string,
+  quantity: number
+) {
+  const full = await transaction.product.updateMany({
+    where: { id: productId, inventory: { gte: quantity } },
+    data: { inventory: { decrement: quantity } }
+  });
+  if (full.count > 0) return true;
+  await transaction.product.updateMany({
+    where: { id: productId, inventory: { gt: 0 } },
+    data: { inventory: 0 }
+  });
+  return false;
 }
 
 export async function attachStripeSessionToOrder(holdId: string, stripeSessionId: string) {

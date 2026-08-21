@@ -4,7 +4,12 @@ import { db } from '@/lib/db';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { findHoldBySessionOrHoldId, releaseHold, seatsRemaining } from '@/lib/class-seats';
-import { parseCheckoutItems, releaseExpiredProductHolds, releaseProductHold } from '@/lib/checkout';
+import {
+  parseCheckoutItems,
+  releaseExpiredProductHolds,
+  releaseProductHold,
+  takeAvailableInventory
+} from '@/lib/checkout';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
 import { refundedOrderStatus, shouldRestoreInventoryOnRefund } from '@/lib/orders';
@@ -103,13 +108,6 @@ function customerFieldsFromSession(session: Stripe.Checkout.Session, pickup: boo
   };
 }
 
-class OversellError extends Error {
-  constructor() {
-    super('Could not reacquire inventory for a paid order');
-    this.name = 'OversellError';
-  }
-}
-
 async function completeReservedOrder(
   order: NonNullable<Awaited<ReturnType<typeof findReservedOrder>>>,
   session: Stripe.Checkout.Session
@@ -139,43 +137,33 @@ async function completeReservedOrder(
     shippingMethod: shippingMethodLabel(fulfillmentMethod, shippingCents)
   };
 
-  try {
-    await db.$transaction(async (transaction) => {
-      const current = await transaction.order.findUnique({
-        where: { id: order.id },
-        include: { items: true }
-      });
-      if (!current || (current.status !== 'PENDING' && current.status !== 'CANCELLED')) return;
-
-      const mustReacquire = current.status === 'CANCELLED' || Boolean(current.inventoryRestoredAt);
-      if (mustReacquire) {
-        for (const item of current.items) {
-          const result = await transaction.product.updateMany({
-            where: { id: item.productId, inventory: { gte: item.quantity } },
-            data: { inventory: { decrement: item.quantity } }
-          });
-          if (result.count === 0) throw new OversellError();
-        }
-      }
-
-      const claimed = await transaction.order.updateMany({
-        where: { id: current.id, status: current.status },
-        data: { ...paidFields, inventoryRestoredAt: null }
-      });
-      if (claimed.count === 0) {
-        throw new Error(`Lost the claim on order ${current.id} during fulfillment.`);
-      }
+  let oversold = false;
+  await db.$transaction(async (transaction) => {
+    const current = await transaction.order.findUnique({
+      where: { id: order.id },
+      include: { items: true }
     });
-  } catch (error) {
-    if (!(error instanceof OversellError)) throw error;
+    if (!current || (current.status !== 'PENDING' && current.status !== 'CANCELLED')) return;
 
-    const claimed = await db.order.updateMany({
-      where: { id: order.id, status: { in: ['PENDING', 'CANCELLED'] } },
-      data: paidFields
-    });
-    if (claimed.count > 0) {
-      await notifyOversell(order.invoiceNumber, order.items.map((item) => item.name).join(', '));
+    const mustReacquire = current.status === 'CANCELLED' || Boolean(current.inventoryRestoredAt);
+    if (mustReacquire) {
+      for (const item of current.items) {
+        const took = await takeAvailableInventory(transaction, item.productId, item.quantity);
+        if (!took) oversold = true;
+      }
     }
+
+    const claimed = await transaction.order.updateMany({
+      where: { id: current.id, status: current.status },
+      data: { ...paidFields, inventoryRestoredAt: null }
+    });
+    if (claimed.count === 0) {
+      throw new Error(`Lost the claim on order ${current.id} during fulfillment.`);
+    }
+  });
+
+  if (oversold) {
+    await notifyOversell(order.invoiceNumber, order.items.map((item) => item.name).join(', '));
   }
 }
 
@@ -296,11 +284,8 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
       });
 
       for (const item of lineItems) {
-        const result = await transaction.product.updateMany({
-          where: { id: item.productId, inventory: { gte: item.quantity } },
-          data: { inventory: { decrement: item.quantity } }
-        });
-        if (result.count === 0) oversold = true;
+        const took = await takeAvailableInventory(transaction, item.productId, item.quantity);
+        if (!took) oversold = true;
       }
       return created;
     });
