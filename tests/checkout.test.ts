@@ -11,7 +11,8 @@ const {
   parseCheckoutItems,
   readCheckoutItems,
   stripeProductDescription,
-  stripeProductImages
+  stripeProductImages,
+  STRIPE_METADATA_VALUE_MAX
 } = await import('../lib/checkout-format.ts');
 
 describe('readCheckoutItems', () => {
@@ -203,6 +204,24 @@ describe('encode/parse checkout items', () => {
       { id: 'a', s: '2 oz', q: 2 },
       { id: 'a', s: '8 oz', q: 2 }
     ]);
+  });
+
+  it('drops the snapshot whole rather than handing Stripe an over-long value', () => {
+    // Stripe refuses a metadata value past its cap, and refusing it fails the
+    // whole session — a full basket the customer cannot pay for. The reserved
+    // order row carries fulfillment; this snapshot is only the backup.
+    const many = Array.from({ length: 20 }, (_, index) => ({
+      product: { id: `cmf3k2j9x0000abcd1234ef${String(index).padStart(2, '0')}` },
+      quantity: 1,
+      size: '6" pot'
+    }));
+    const encoded = encodeCheckoutItems(many);
+    assert.ok(encoded.length <= STRIPE_METADATA_VALUE_MAX);
+    // Not a short list, which the legacy path would mistake for a complete one.
+    assert.equal(encoded, '[]');
+
+    const few = many.slice(0, 3);
+    assert.equal(parseCheckoutItems(encodeCheckoutItems(few)).length, 3);
   });
 
   it('returns an empty list for garbage', () => {

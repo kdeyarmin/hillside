@@ -30,12 +30,20 @@ export const DEFAULT_SIZE_FIELD_LABEL = 'Size';
 /** Same ceiling the price field uses, so a stray keystroke cannot store $1M. */
 const MAX_PRICE_CENTS = 10_000_000;
 
-function cleanLabel(value: unknown) {
+/**
+ * The one spelling of a size label. Anything that stores, compares or keys on a
+ * size runs it through here first, so a value that has been round-tripped
+ * through localStorage, an emailed cart link or Stripe metadata still lines up
+ * with the option it came from.
+ */
+export function normalizeSizeLabel(value: unknown) {
   return String(value ?? '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, SIZE_LABEL_MAX);
 }
+
+const cleanLabel = normalizeSizeLabel;
 
 function cleanPriceCents(value: unknown) {
   const number = Number(value);

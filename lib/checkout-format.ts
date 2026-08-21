@@ -222,18 +222,44 @@ export function checkoutAdjustmentNotice(change: {
   return `Only ${change.available} of ${change.name} left — quantity updated.`;
 }
 
+/** Stripe rejects a metadata value longer than this. */
+export const STRIPE_METADATA_VALUE_MAX = 500;
+
+/**
+ * The compact backup snapshot written into Stripe session metadata. Fulfillment
+ * prefers the reserved order row; this only has to resolve a session that is
+ * already in flight when the hold row is missing.
+ *
+ * It is emitted whole or not at all, and never over Stripe's cap. A basket of a
+ * dozen distinct products already encoded past 500 characters, which Stripe
+ * refuses outright — the customer saw "Unable to start checkout" with a full
+ * basket and no way through — and a size label makes each line longer still. A
+ * *truncated* snapshot would be worse than none: the legacy path checks that it
+ * resolved as many lines as it parsed, so a short list would look complete and
+ * record a paid order missing whatever had been cut.
+ *
+ * A per-line price is deliberately not in here for the same reason: it costs
+ * about nine characters a line to protect a path that only runs when the order
+ * row is gone, and it would push a smaller basket over the cap.
+ */
 export function encodeCheckoutItems(
   items: Array<{ product: { id: string }; quantity: number; size?: string | null }>
 ) {
-  return JSON.stringify(
+  const encoded = JSON.stringify(
     items.map(({ product, quantity, size }) => ({
       id: product.id,
       q: quantity,
-      // Stripe caps a metadata value at 500 characters, so the size is written
-      // only when there is one. The price is not: it is recovered from the size.
       ...(size ? { s: size } : {})
     }))
   );
+  if (encoded.length <= STRIPE_METADATA_VALUE_MAX) return encoded;
+
+  console.warn(
+    `[hillside] Checkout snapshot for ${items.length} lines is ${encoded.length} characters, ` +
+      `over Stripe's ${STRIPE_METADATA_VALUE_MAX}-character metadata limit. Omitting it; the ` +
+      `reserved order row carries this checkout.`
+  );
+  return '[]';
 }
 
 export type ParsedCheckoutItem = { id: string; q: number; p?: number; s?: string };

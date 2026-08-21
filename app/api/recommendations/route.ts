@@ -27,7 +27,8 @@ export async function GET(request: Request) {
         type: true,
         ships: true,
         pickup: true,
-        sizes: true
+        sizes: true,
+        sizeLabel: true
       }
     });
 

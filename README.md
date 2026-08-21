@@ -178,7 +178,8 @@ What the shop then does:
   each size and its price. Nothing is preselected and Add to cart stays disabled
   until the customer chooses, so a wrong size cannot be added by accident.
 - A shop card cannot take that choice, so on a sized product its button reads
-  **Choose pot size** and leads to the product page.
+  **Choose pot size** and leads to the product page. A cart-drawer suggestion
+  does the same, in the shorter words its narrow strip has room for.
 - Each size is its own basket line, so one order can hold a 4" and a 6" pot of
   the same plant. The size travels with the line into Stripe Checkout, the
   emailed receipt, the confirmation email, the packing slip, the order CSV and

@@ -21,7 +21,12 @@ import { lineKey, useCart } from '@/components/CartProvider';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { cartFulfillment } from '@/lib/fulfillment';
 import { focusableElements, trapTabKey } from '@/lib/focus-trap';
-import { formatSizePriceRange, productSizes, sizedName } from '@/lib/product-sizes';
+import {
+  formatSizePriceRange,
+  productSizes,
+  sizedName,
+  sizeFieldLabel
+} from '@/lib/product-sizes';
 import {
   DEFAULT_BUSINESS_EMAIL,
   FALLBACK_PRODUCT_IMAGE,
@@ -104,6 +109,7 @@ type Suggestion = {
   ships?: boolean;
   pickup?: boolean;
   sizes?: unknown;
+  sizeLabel?: string | null;
 };
 
 function CartDrawerSuggestions() {
@@ -150,10 +156,22 @@ function CartDrawerSuggestions() {
               <span>{formatSizePriceRange(sizes, product.priceCents)}</span>
             </div>
             {/* A suggestion cannot take a size choice either, so a sized product
-                is offered as a link to the page where the choice lives. */}
+                is offered as a link to the page where the choice lives, and says
+                so: a bare "Choose" reads as an unexplained refusal to add. The
+                visible words stay short because this strip is 272px wide on a
+                small phone and the owner's own label ("Pot size") wrapped the
+                button onto two lines and squeezed the name beside it — the
+                accessible name carries the full, specific version instead. */}
             {sizes.length ? (
-              <Link className="btn small" href={`/shop/${product.slug}`} onClick={closeCart}>
-                Choose
+              <Link
+                className="btn small"
+                href={`/shop/${product.slug}`}
+                onClick={closeCart}
+                aria-label={`Choose a ${sizeFieldLabel(
+                  product.sizeLabel
+                ).toLowerCase()} for ${product.name}`}
+              >
+                Choose size
               </Link>
             ) : (
               <button className="btn small" type="button" onClick={() => addItem(product)}>

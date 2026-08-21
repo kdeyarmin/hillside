@@ -19,7 +19,7 @@ import {
   sanitizeGiftMessage,
   type FulfillmentChoice
 } from '@/lib/fulfillment';
-import { cartLineKey } from '@/lib/product-sizes';
+import { cartLineKey, normalizeSizeLabel } from '@/lib/product-sizes';
 import { clampQuantity } from '@/lib/store';
 
 export type CartProduct = {
@@ -55,6 +55,30 @@ export type CheckoutAdjustment = {
  */
 export function lineKey(line: { slug: string; size?: string | null }) {
   return cartLineKey(line.slug, line.size);
+}
+
+/**
+ * Folds lines that address the same product and size into one. Normalizing a
+ * stored size is not enough on its own: two saved entries can normalize onto the
+ * same key, and duplicate keys mean a duplicate React key and a Remove that
+ * takes a line the shopper did not point at.
+ */
+function mergeByLine(lines: CartLine[]) {
+  const merged = new Map<string, CartLine>();
+  for (const line of lines) {
+    const key = lineKey(line);
+    const existing = merged.get(key);
+    merged.set(
+      key,
+      existing
+        ? {
+            ...existing,
+            quantity: clampQuantity(existing.quantity + line.quantity, line.inventory)
+          }
+        : line
+    );
+  }
+  return [...merged.values()];
 }
 
 type CartContextValue = {
@@ -136,14 +160,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               type: line.type ? String(line.type) : undefined,
               ships: line.ships !== false,
               pickup: line.pickup !== false,
-              // Baskets saved before sizes existed have none, and read back as
-              // the one-size lines they were.
-              size: line.size ? String(line.size) : null,
+              /**
+               * Normalized on the way in, because `lineKey` normalizes: a stored
+               * size that differs only in spacing would otherwise be a separate
+               * line carrying the same key, and Remove would take both. Baskets
+               * saved before sizes existed have none and read back as the
+               * one-size lines they were.
+               */
+              size: normalizeSizeLabel(line.size) || null,
               quantity: clampQuantity(Number(line.quantity) || 1, inventory)
             }
           ];
         });
-        setItems(lines);
+        setItems(mergeByLine(lines));
       }
     } catch {
       localStorage.removeItem(STORAGE_KEY);

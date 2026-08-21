@@ -11,6 +11,7 @@ const {
   parseSizeLines,
   productSizes,
   readStoredSizes,
+  normalizeSizeLabel,
   sizedName,
   sizeFieldLabel,
   sizeLines,
@@ -124,6 +125,23 @@ describe('sizedName and cartLineKey', () => {
     assert.notEqual(cartLineKey('monstera', '4" pot'), cartLineKey('monstera', '6" pot'));
     assert.equal(cartLineKey('monstera', null), 'monstera');
     assert.equal(cartLineKey('monstera', ' 6"  pot '), cartLineKey('monstera', '6" pot'));
+  });
+});
+
+describe('normalizeSizeLabel', () => {
+  it('is the spelling every stored size has to match', () => {
+    assert.equal(normalizeSizeLabel(' 6"  pot '), '6" pot');
+    assert.equal(normalizeSizeLabel('6"\npot'), '6" pot');
+    assert.equal(normalizeSizeLabel(null), '');
+    assert.equal(normalizeSizeLabel('   '), '');
+  });
+
+  it('agrees with the key a basket line is addressed by', () => {
+    // A stored size that normalizes differently from its key is how one line
+    // ends up answering to another line's Remove button.
+    for (const messy of [' 6"  pot ', '6" pot', '6"\tpot']) {
+      assert.equal(cartLineKey('monstera', messy), `monstera::${normalizeSizeLabel(messy)}`);
+    }
   });
 });
 
