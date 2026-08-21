@@ -877,9 +877,10 @@ textarea.form-input {
   }
 
   /* A landscape phone is barely taller than the drawer's own chrome, so the
-     title and the checkout panel give ground to the basket itself. */
+     title and the checkout panel give ground to the basket itself. The insets
+     stay in the padding: landscape is exactly where a notch eats the sides. */
   .drawer-heading {
-    padding: 12px 20px;
+    padding: 12px max(20px, env(safe-area-inset-right)) 12px max(20px, env(safe-area-inset-left));
   }
 
   .drawer-heading h2 {
@@ -888,7 +889,8 @@ textarea.form-input {
 
   .drawer-total {
     max-height: 45%;
-    padding: 14px 24px 18px;
+    padding: 14px max(24px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom))
+      max(24px, env(safe-area-inset-left));
   }
 
   .editorial-head-main {

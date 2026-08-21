@@ -329,7 +329,9 @@ async function auditCartDrawer(page, profile, route) {
     });
 
   const checkoutButton = page.locator('.drawer-total button', { hasText: 'checkout' }).first();
-  if (!(await reachable(checkoutButton))) {
+  if (!(await checkoutButton.count())) {
+    recordFailure(profile, route, 'Cart drawer has no checkout button');
+  } else if (!(await reachable(checkoutButton))) {
     recordFailure(profile, route, 'Cart drawer checkout button is covered or off screen');
   }
 
@@ -343,7 +345,15 @@ async function auditCartDrawer(page, profile, route) {
       break;
     }
     await removeButton.click();
-    await page.waitForTimeout(200);
+    /* Waits on the line count rather than a fixed pause, which a loaded CI
+       runner can outlast; a real failure still falls through to the check. */
+    await page
+      .waitForFunction(
+        (expected) => document.querySelectorAll('.cart-drawer .cart-line').length === expected,
+        remaining - 1,
+        { timeout: 5000 }
+      )
+      .catch(() => undefined);
     if ((await lines.count()) !== remaining - 1) {
       recordFailure(profile, route, 'Removing a cart line left it in the drawer', { item: name });
       break;
