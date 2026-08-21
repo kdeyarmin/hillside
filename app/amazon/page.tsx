@@ -4,7 +4,6 @@ import ProductGrid from '@/components/ProductGrid';
 import ResilientImage from '@/components/ResilientImage';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
-import { FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +16,10 @@ export const metadata = pageMetadata({
 
 export default async function AmazonPage() {
   const [picks, ourProducts] = await Promise.all([
-    db.amazonPick.findMany({ where: { active: true }, orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }] }),
+    db.amazonPick.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }]
+    }),
     db.product.findMany({
       where: { active: true, inventory: { gt: 0 } },
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
@@ -46,8 +48,8 @@ export default async function AmazonPage() {
           <div className="note-box disclosure">
             <ShieldCheck size={20} aria-hidden="true" />
             <b>Affiliate disclosure</b>
-            As an Amazon Associate, The Hillside Gardens may earn from qualifying purchases. Using an
-            affiliate link does not increase the customer&rsquo;s price.
+            As an Amazon Associate, The Hillside Gardens may earn from qualifying purchases. Using
+            an affiliate link does not increase the customer&rsquo;s price.
           </div>
 
           {picks.length ? (
@@ -68,7 +70,7 @@ export default async function AmazonPage() {
                         gives it. */}
                     <ResilientImage
                       src={pick.imageUrl}
-                      fallbackSrc={FALLBACK_PRODUCT_IMAGE}
+                      fallbackSrc="/images/botanical-placeholder.svg"
                       alt={pick.title}
                       sizeRole="card"
                       width={1200}
@@ -97,7 +99,7 @@ export default async function AmazonPage() {
           ) : (
             <div className="empty-state">
               <h3>Our picks are being added.</h3>
-              <p>Recommended products will appear here as we build our influencer collection.</p>
+              <p>Recommended tools and supplies will appear here as we add them.</p>
             </div>
           )}
 
@@ -110,7 +112,9 @@ export default async function AmazonPage() {
               </div>
               <ProductGrid products={shopProducts} />
               <div className="collections-all">
-                <Link className="editorial-link" href="/shop">Shop everything we make →</Link>
+                <Link className="editorial-link" href="/shop">
+                  Shop everything we make →
+                </Link>
               </div>
             </div>
           )}

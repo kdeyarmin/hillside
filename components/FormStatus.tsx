@@ -21,7 +21,7 @@ export default function FormStatus({
   className?: string;
   id?: string;
 }) {
-  const isError = tone === 'error';
+  const isError = Boolean(message) && tone === 'error';
   return (
     <p
       id={id}

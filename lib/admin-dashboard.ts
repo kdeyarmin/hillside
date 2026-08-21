@@ -137,6 +137,9 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'order-no-email': 'That order has no customer email to write to.',
   'order-not-confirmable':
     'Confirmation mail is only sent for paid orders that have not shipped yet.',
+  'order-status': 'That is not a status this shop uses. Refresh the page and try again.',
+  'order-already-paid':
+    'That checkout finished paying while you were cancelling it, so the order was left paid. Refresh and look at it again.',
   'pickup-note':
     'Add the arranged pickup window before marking this ready. The customer is told to check their email for the time.',
   'pickup-email-failed':

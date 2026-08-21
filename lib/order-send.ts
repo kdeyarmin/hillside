@@ -14,7 +14,7 @@ export async function sendOrderConfirmationEmail(
 ): Promise<{ sent: boolean; reason?: string; invoiceNumber?: string }> {
   const order = await db.order.findUnique({ where: { id: orderId }, include: { items: true } });
   if (!order) return { sent: false, reason: 'missing' };
-  if (!isAwaitingShipment(order.status)) {
+  if (!isAwaitingShipment(order.status, order.fulfilledAt)) {
     return { sent: false, reason: 'not-confirmable', invoiceNumber: order.invoiceNumber };
   }
   if (!options.force && order.confirmationEmailSentAt) {

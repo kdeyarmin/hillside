@@ -1,17 +1,8 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
-import {
-  classFormatLabel,
-  classLocationLabel,
-  isOnlineClass
-} from '@/lib/class-access';
-import {
-  attachSessionToHold,
-  holdExpiryUnix,
-  releaseHold,
-  reserveSeats
-} from '@/lib/class-seats';
+import { classFormatLabel, classLocationLabel, isOnlineClass } from '@/lib/class-access';
+import { attachSessionToHold, holdExpiryUnix, releaseHold, reserveSeats } from '@/lib/class-seats';
 import { stripeProductDescription, stripeProductImages } from '@/lib/checkout';
 import { CLASSES_EXIT_LINK, CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { rateLimited } from '@/lib/rate-limit';
@@ -39,10 +30,20 @@ export async function POST(request: Request) {
     }
 
     const secret = process.env.STRIPE_SECRET_KEY;
-    if (!secret) return NextResponse.json({ error: 'Online registration is not configured yet.' }, { status: 503 });
+    if (!secret)
+      return NextResponse.json(
+        { error: 'Online registration is not configured yet.' },
+        { status: 503 }
+      );
 
-    const body: unknown = await request.json();
-    if (!body || typeof body !== 'object') return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
+    }
+    if (!body || typeof body !== 'object')
+      return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
     const raw = body as { classId?: unknown; seats?: unknown };
     const classId = String(raw.classId || '').trim();
     const seats = Math.max(1, Math.min(6, Math.floor(Number(raw.seats) || 1)));
@@ -50,13 +51,22 @@ export async function POST(request: Request) {
 
     const event = await db.classEvent.findFirst({ where: { id: classId, active: true } });
     if (!event || event.startsAt <= new Date()) {
-      return NextResponse.json({ error: 'This class is no longer open for registration.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'This class is no longer open for registration.' },
+        { status: 400 }
+      );
     }
     if (event.registrationDeadline && event.registrationDeadline <= new Date()) {
-      return NextResponse.json({ error: 'Registration for this class has closed.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Registration for this class has closed.' },
+        { status: 400 }
+      );
     }
     if (event.priceCents <= 0) {
-      return NextResponse.json({ error: 'Use the registration form on the class page.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Use the registration form on the class page.' },
+        { status: 400 }
+      );
     }
 
     /**
@@ -126,7 +136,11 @@ export async function POST(request: Request) {
         consent_collection: { promotions: 'auto' },
         payment_intent_data: {
           description: `The Hillside Gardens class: ${event.title}`,
-          metadata: { kind: 'CLASS_REGISTRATION', classEventId: event.id, holdId: reservation.holdId }
+          metadata: {
+            kind: 'CLASS_REGISTRATION',
+            classEventId: event.id,
+            holdId: reservation.holdId
+          }
         },
         custom_text: {
           submit: {

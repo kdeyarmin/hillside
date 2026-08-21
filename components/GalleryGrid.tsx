@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, X, ZoomIn } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
 import { trapTabKey } from '@/lib/focus-trap';
+import { sanitizePublicHref } from '@/lib/public-href';
 
 type GalleryItem = {
   id: string;
@@ -17,6 +18,7 @@ type GalleryItem = {
 };
 
 export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
+  const safeItems = items.map((item) => ({ ...item, linkUrl: sanitizePublicHref(item.linkUrl) }));
   const [selected, setSelected] = useState<GalleryItem | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -61,12 +63,20 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
   return (
     <>
       <div className="grid">
-        {items.map((item) => (
+        {safeItems.map((item) => (
           <article className="card" key={item.id}>
             <button
               type="button"
               onClick={(event) => openItem(item, event.currentTarget)}
-              style={{ display: 'block', width: '100%', padding: 0, border: 0, background: 'transparent', cursor: 'zoom-in', position: 'relative' }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: 0,
+                border: 0,
+                background: 'transparent',
+                cursor: 'zoom-in',
+                position: 'relative'
+              }}
               aria-label={`Enlarge ${item.title}`}
             >
               <ResilientImage
@@ -80,7 +90,9 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
                 loading="lazy"
                 decoding="async"
               />
-              <span className="product-badge" style={{ left: 'auto', right: 14 }}><ZoomIn size={13} /> View</span>
+              <span className="product-badge" style={{ left: 'auto', right: 14 }}>
+                <ZoomIn size={13} /> View
+              </span>
             </button>
             <div className="cardbody">
               <span className="pill">Hillside arrangement</span>
@@ -113,7 +125,8 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
             aria-labelledby="gallery-dialog-title"
             style={{
               position: 'absolute',
-              inset: 'max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left))',
+              inset:
+                'max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left))',
               width: 'min(1000px, calc(100% - 24px))',
               maxWidth: '1000px',
               maxHeight: 'calc(100dvh - 24px)',
@@ -145,11 +158,20 @@ export default function GalleryGrid({ items }: { items: GalleryItem[] }) {
               height={1050}
               loading="eager"
               decoding="async"
-              style={{ width: '100%', maxHeight: '75dvh', objectFit: 'contain', background: 'var(--cream)' }}
+              style={{
+                width: '100%',
+                maxHeight: '75dvh',
+                objectFit: 'contain',
+                background: 'var(--cream)'
+              }}
             />
             <div className="cardbody">
               <div className="eyebrow">The Hillside Gardens</div>
-              <h2 id="gallery-dialog-title" className="display-title" style={{ color: 'var(--forest)', fontSize: 36, margin: '5px 0' }}>
+              <h2
+                id="gallery-dialog-title"
+                className="display-title"
+                style={{ color: 'var(--forest)', fontSize: 36, margin: '5px 0' }}
+              >
                 {selected.title}
               </h2>
               {selected.caption && <p>{selected.caption}</p>}

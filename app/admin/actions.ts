@@ -21,12 +21,14 @@ import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
-import { releaseProductHold } from '@/lib/checkout';
+import { releaseProductHold, restoreUnshippedOrderInventory } from '@/lib/checkout';
 import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
 import { amazonPickDraft, DEFAULT_PICK_TITLE, extractAsin, isAmazonLink } from '@/lib/amazon-pick';
 import { associateTag, lookupAmazonProduct } from '@/lib/amazon-lookup';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
+import { nextFulfilledAt } from '@/lib/orders';
 import { isPickupOrder } from '@/lib/fulfillment';
+import { sanitizePublicHref } from '@/lib/public-href';
 import { absoluteUrl } from '@/lib/store';
 
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
@@ -365,10 +367,11 @@ export async function updateOrder(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
   const rawStatus = text(formData, 'status');
-  const status = Object.values(OrderStatus).includes(rawStatus as OrderStatus)
-    ? (rawStatus as OrderStatus)
-    : OrderStatus.PAID;
   if (!id) return;
+  if (!Object.values(OrderStatus).includes(rawStatus as OrderStatus)) {
+    redirect(adminDashboardPath({ error: 'order-status', order: id, section: 'orders' }));
+  }
+  const status = rawStatus as OrderStatus;
 
   const before = await db.order.findUnique({ where: { id } });
   if (!before) return;
@@ -387,10 +390,18 @@ export async function updateOrder(formData: FormData) {
   }
 
   if (status === OrderStatus.CANCELLED && before.status === OrderStatus.PENDING) {
-    await releaseProductHold(id);
+    const released = await releaseProductHold(id);
+    if (!released) {
+      redirect(adminDashboardPath({ error: 'order-already-paid', order: id, section: 'orders' }));
+    }
     await db.order.update({
       where: { id },
-      data: { trackingCarrier, trackingNumber, internalNotes, pickupNote: pickupNote || before.pickupNote }
+      data: {
+        trackingCarrier,
+        trackingNumber,
+        internalNotes,
+        pickupNote: pickupNote || before.pickupNote
+      }
     });
     refresh('/order-status');
     redirect(adminDashboardPath({ notice: 'order-saved', order: id, section: 'orders' }));
@@ -407,29 +418,16 @@ export async function updateOrder(formData: FormData) {
       trackingNumber,
       internalNotes,
       pickupNote: savedPickupNote,
-      fulfilledAt: status === OrderStatus.FULFILLED ? before.fulfilledAt || new Date() : null
-    },
-    include: { items: true }
+      fulfilledAt: nextFulfilledAt(before, status)
+    }
   });
 
-  if (
-    status === OrderStatus.REFUNDED &&
-    before.status !== OrderStatus.REFUNDED &&
-    !before.inventoryRestoredAt
-  ) {
-    await db.$transaction(async (transaction) => {
-      const claimed = await transaction.order.updateMany({
-        where: { id: order.id, inventoryRestoredAt: null },
-        data: { inventoryRestoredAt: new Date() }
-      });
-      if (claimed.count === 0) return;
-      for (const item of order.items) {
-        await transaction.product.update({
-          where: { id: item.productId },
-          data: { inventory: { increment: item.quantity } }
-        });
-      }
-    });
+  if (status === OrderStatus.REFUNDED) {
+    await restoreUnshippedOrderInventory(order.id);
+  }
+
+  if (status === OrderStatus.CANCELLED && before.status !== OrderStatus.PENDING) {
+    await restoreUnshippedOrderInventory(order.id);
   }
 
   if (status === OrderStatus.FULFILLED && before.status !== OrderStatus.FULFILLED && order.email) {
@@ -686,7 +684,7 @@ export async function saveGalleryItem(formData: FormData) {
     title: text(formData, 'title'),
     imageUrl: text(formData, 'imageUrl'),
     caption: text(formData, 'caption') || null,
-    linkUrl: text(formData, 'linkUrl') || null,
+    linkUrl: sanitizePublicHref(text(formData, 'linkUrl')),
     linkLabel: text(formData, 'linkLabel') || null,
     sortOrder: integer(formData.get('sortOrder'))
   };
@@ -772,7 +770,8 @@ export async function addAmazonPickByUrl(formData: FormData) {
         title: hasOwnName(existing.title) ? existing.title : draft.title,
         imageUrl: existing.imageUrl || draft.imageUrl,
         description: existing.description || draft.description,
-        category: existing.category || draft.category
+        category: existing.category || draft.category,
+        amazonUrl: draft.amazonUrl
       }
     });
     refresh('/amazon', '/admin/content');

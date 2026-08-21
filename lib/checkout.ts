@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
 import {
@@ -18,7 +19,8 @@ export {
   readCheckoutItems,
   checkoutAdjustments,
   encodeCheckoutItems,
-  parseCheckoutItems
+  parseCheckoutItems,
+  stripeCheckoutItemsMetadata
 } from '@/lib/checkout-format';
 
 export type {
@@ -91,6 +93,29 @@ export async function reserveProductOrder({
   return { order, holdId, expiresAt };
 }
 
+/**
+ * Decrement `quantity` when the shelf has it. If it does not — a paid order
+ * settling after the hold was released and someone else bought the last of it —
+ * zero whatever is left so the leftover 1–2 cannot be sold again on top of the
+ * oversell. Returns whether the full quantity was taken.
+ */
+export async function takeAvailableInventory(
+  transaction: Prisma.TransactionClient,
+  productId: string,
+  quantity: number
+) {
+  const full = await transaction.product.updateMany({
+    where: { id: productId, inventory: { gte: quantity } },
+    data: { inventory: { decrement: quantity } }
+  });
+  if (full.count > 0) return true;
+  await transaction.product.updateMany({
+    where: { id: productId, inventory: { gt: 0 } },
+    data: { inventory: 0 }
+  });
+  return false;
+}
+
 export async function attachStripeSessionToOrder(holdId: string, stripeSessionId: string) {
   await db.order.update({
     where: { stripeSessionId: holdId },
@@ -108,6 +133,7 @@ export async function releaseProductHold(orderId: string) {
   if (!order || order.status !== 'PENDING') return false;
 
   const restocked: Array<{ id: string; name: string; slug: string }> = [];
+  let released = false;
 
   await db.$transaction(async (transaction) => {
     const claimed = await transaction.order.updateMany({
@@ -115,6 +141,7 @@ export async function releaseProductHold(orderId: string) {
       data: { status: 'CANCELLED', inventoryRestoredAt: new Date() }
     });
     if (claimed.count === 0) return;
+    released = true;
 
     for (const item of order.items) {
       const previousInventory = item.product.inventory;
@@ -132,7 +159,52 @@ export async function releaseProductHold(orderId: string) {
     await notifyStockAlerts(product.id, product.name, product.slug);
   }
 
-  return true;
+  return released;
+}
+
+/**
+ * Return stock for a paid order that never shipped or was picked up. Used when
+ * Tammy cancels a paid order from the dashboard. Refunds of unshipped orders
+ * use the same `inventoryRestoredAt` + `fulfilledAt` guards in the webhook so
+ * a plant that already left the bench cannot reappear as sellable.
+ */
+export async function restoreUnshippedOrderInventory(orderId: string) {
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    include: {
+      items: { include: { product: { select: { name: true, slug: true, inventory: true } } } }
+    }
+  });
+  if (!order || order.inventoryRestoredAt || order.fulfilledAt) return false;
+
+  const restocked: Array<{ id: string; name: string; slug: string }> = [];
+  let restored = false;
+
+  await db.$transaction(async (transaction) => {
+    const claimed = await transaction.order.updateMany({
+      where: { id: order.id, inventoryRestoredAt: null, fulfilledAt: null },
+      data: { inventoryRestoredAt: new Date() }
+    });
+    if (claimed.count === 0) return;
+    restored = true;
+
+    for (const item of order.items) {
+      const previousInventory = item.product.inventory;
+      await transaction.product.update({
+        where: { id: item.productId },
+        data: { inventory: { increment: item.quantity } }
+      });
+      if (previousInventory <= 0) {
+        restocked.push({ id: item.productId, name: item.product.name, slug: item.product.slug });
+      }
+    }
+  });
+
+  for (const product of restocked) {
+    await notifyStockAlerts(product.id, product.name, product.slug);
+  }
+
+  return restored;
 }
 
 /**

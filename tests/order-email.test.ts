@@ -13,6 +13,7 @@ describe('orderConfirmationHtml', () => {
       state: 'PA',
       postalCode: '15129',
       totalCents: 4590,
+      shippingCents: 895,
       items: [{ name: 'Monstera Deliciosa', quantity: 1, unitCents: 3695 }]
     });
 
@@ -23,6 +24,8 @@ describe('orderConfirmationHtml', () => {
     assert.match(html, /Apt 2/);
     assert.match(html, /Spring Hill, PA 15129/);
     assert.match(html, /\$45\.90/);
+    assert.match(html, /Shipping/);
+    assert.match(html, /\$8\.95/);
     assert.match(html, /\/order-status/);
     assert.match(html, /when the order ships/);
   });
@@ -37,12 +40,14 @@ describe('orderConfirmationHtml', () => {
       state: 'PA',
       postalCode: '',
       totalCents: 2000,
+      shippingCents: 0,
       giftMessage: 'Happy birthday',
       fulfillmentMethod: 'PICKUP',
       items: [{ name: 'Fern', quantity: 1, unitCents: 2000 }]
     });
 
     assert.match(html, /local pickup, as arranged/);
+    assert.match(html, /Pickup/);
     assert.match(html, /Happy birthday/);
     assert.equal(html.includes('when the order ships'), false);
   });

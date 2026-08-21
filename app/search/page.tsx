@@ -9,6 +9,7 @@ import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
 import { SEARCH_CANDIDATE_LIMIT, filterSearchHits, normalizeSearchTerm } from '@/lib/search';
 import { formatMoney } from '@/lib/store';
+import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,11 +19,13 @@ export async function generateMetadata({
   searchParams: Promise<{ q?: string }>;
 }): Promise<Metadata> {
   const { q } = await searchParams;
-  return {
-    title: q?.trim() ? `Search: ${q.trim()}` : 'Search',
+  const term = q?.trim();
+  return pageMetadata({
+    path: '/search',
+    title: term ? `Search: ${term}` : 'Search',
     description: 'Search plants, botanicals and plant care guides at The Hillside Gardens.',
-    robots: { index: false, follow: true }
-  };
+    noindex: true
+  });
 }
 
 export default async function SearchPage({
