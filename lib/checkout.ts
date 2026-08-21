@@ -133,6 +133,7 @@ export async function releaseProductHold(orderId: string) {
   if (!order || order.status !== 'PENDING') return false;
 
   const restocked: Array<{ id: string; name: string; slug: string }> = [];
+  let released = false;
 
   await db.$transaction(async (transaction) => {
     const claimed = await transaction.order.updateMany({
@@ -140,6 +141,7 @@ export async function releaseProductHold(orderId: string) {
       data: { status: 'CANCELLED', inventoryRestoredAt: new Date() }
     });
     if (claimed.count === 0) return;
+    released = true;
 
     for (const item of order.items) {
       const previousInventory = item.product.inventory;
@@ -157,7 +159,7 @@ export async function releaseProductHold(orderId: string) {
     await notifyStockAlerts(product.id, product.name, product.slug);
   }
 
-  return true;
+  return released;
 }
 
 /**

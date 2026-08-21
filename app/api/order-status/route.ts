@@ -51,6 +51,7 @@ export async function POST(request: Request) {
       createdAt: order.createdAt,
       fulfilledAt: order.fulfilledAt,
       totalCents: order.totalCents,
+      refundedCents: order.refundedCents,
       trackingCarrier: order.trackingCarrier,
       trackingNumber: order.trackingNumber,
       fulfillmentMethod: order.fulfillmentMethod,

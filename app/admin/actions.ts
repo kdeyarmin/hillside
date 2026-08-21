@@ -26,7 +26,7 @@ import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/l
 import { amazonPickDraft, DEFAULT_PICK_TITLE, extractAsin, isAmazonLink } from '@/lib/amazon-pick';
 import { associateTag, lookupAmazonProduct } from '@/lib/amazon-lookup';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
-import { nextFulfilledAt, shouldRestoreInventoryOnRefund } from '@/lib/orders';
+import { nextFulfilledAt } from '@/lib/orders';
 import { isPickupOrder } from '@/lib/fulfillment';
 import { sanitizePublicHref } from '@/lib/public-href';
 import { absoluteUrl } from '@/lib/store';
@@ -422,23 +422,11 @@ export async function updateOrder(formData: FormData) {
     }
   });
 
-  if (
-    status === OrderStatus.REFUNDED &&
-    before.status !== OrderStatus.REFUNDED &&
-    shouldRestoreInventoryOnRefund({
-      fullyRefunded: true,
-      alreadyFulfilled: Boolean(before.fulfilledAt)
-    })
-  ) {
+  if (status === OrderStatus.REFUNDED) {
     await restoreUnshippedOrderInventory(order.id);
   }
 
-  if (
-    status === OrderStatus.CANCELLED &&
-    before.status !== OrderStatus.CANCELLED &&
-    before.status !== OrderStatus.PENDING &&
-    !before.fulfilledAt
-  ) {
+  if (status === OrderStatus.CANCELLED && before.status !== OrderStatus.PENDING) {
     await restoreUnshippedOrderInventory(order.id);
   }
 

@@ -426,7 +426,9 @@ export default async function Admin({
   );
 
   const lowStock = products.filter((product) => product.active && product.inventory <= 3).length;
-  const openOrders = orders.filter((order) => isAwaitingShipment(order.status)).length;
+  const openOrders = orders.filter((order) =>
+    isAwaitingShipment(order.status, order.fulfilledAt)
+  ).length;
   const unreadMessages = messages.filter((message) => message.status === MessageStatus.NEW).length;
   const activeSubscribers = subscribers.filter((subscriber) => subscriber.active).length;
   const pendingReviews = reviews.filter((review) => review.status === ReviewStatus.PENDING).length;
@@ -639,7 +641,9 @@ export default async function Admin({
             <div className="admin-list">
               {orders.map((order) => (
                 <details
-                  open={isAwaitingShipment(order.status) || order.id === focusOrder}
+                  open={
+                    isAwaitingShipment(order.status, order.fulfilledAt) || order.id === focusOrder
+                  }
                   id={`order-${order.id}`}
                   key={order.id}
                 >
@@ -823,7 +827,7 @@ export default async function Admin({
                         </Link>
                       </div>
                     </form>
-                    {isAwaitingShipment(order.status) && (
+                    {isAwaitingShipment(order.status, order.fulfilledAt) && (
                       <form action={resendOrderConfirmation} style={{ marginTop: 10 }}>
                         <input type="hidden" name="id" value={order.id} />
                         <button className="text-button">

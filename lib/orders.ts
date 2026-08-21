@@ -11,8 +11,10 @@ import { OrderStatus } from '@prisma/client';
  * asks only for `PAID` drops it out of the packing list and the awaiting-shipment
  * count, and nothing anywhere would say it had gone missing.
  *
- * Use this for anything that answers "what do we still have to send?", so the two
- * states cannot drift apart again.
+ * The same status is also used after a partial refund of an already-shipped
+ * order, so customers can still see that money came back. Those rows keep
+ * `fulfilledAt` set. Anything that answers "what do we still have to send?"
+ * must therefore also require `fulfilledAt: null` — status alone is not enough.
  */
 export const AWAITING_SHIPMENT_STATUSES = [
   OrderStatus.PAID,
@@ -26,29 +28,24 @@ export const REVENUE_STATUSES = [
   OrderStatus.PARTIALLY_REFUNDED
 ] as const;
 
-export function isAwaitingShipment(status: OrderStatus) {
+export function isAwaitingShipment(status: OrderStatus, fulfilledAt: Date | string | null) {
+  if (fulfilledAt) return false;
   return (AWAITING_SHIPMENT_STATUSES as readonly OrderStatus[]).includes(status);
 }
 
 /**
  * Status to store after a Stripe (or dashboard) refund.
  *
- * A partial refund of an unshipped order must stay `PARTIALLY_REFUNDED` so it
- * remains on the packing list — that is why `AWAITING_SHIPMENT_STATUSES`
- * exists. The same partial refund on an already-shipped order must *not* move
- * it there: Tammy would see a fulfilled plant as "needs shipping" again, and
- * the customer status page would claim we were still preparing it.
+ * Partial refunds always stay `PARTIALLY_REFUNDED` so the customer status page
+ * can show that money came back. Unshipped ones remain on the packing list
+ * because `isAwaitingShipment` also requires `fulfilledAt` to be empty.
+ * Shipped ones keep their ship stamp and stay off that list.
  *
  * A full refund always becomes `REFUNDED`. Whether stock comes back is a
  * separate question (`shouldRestoreInventoryOnRefund`).
  */
-export function refundedOrderStatus(args: {
-  fullyRefunded: boolean;
-  alreadyFulfilled: boolean;
-}): OrderStatus {
-  if (args.fullyRefunded) return OrderStatus.REFUNDED;
-  if (args.alreadyFulfilled) return OrderStatus.FULFILLED;
-  return OrderStatus.PARTIALLY_REFUNDED;
+export function refundedOrderStatus(args: { fullyRefunded: boolean }): OrderStatus {
+  return args.fullyRefunded ? OrderStatus.REFUNDED : OrderStatus.PARTIALLY_REFUNDED;
 }
 
 /**
@@ -66,9 +63,10 @@ export function shouldRestoreInventoryOnRefund(args: {
 /**
  * `fulfilledAt` is the ship/pickup stamp, not a mirror of the status enum.
  * Refunds must keep it so a later partial refund cannot reopen the packing
- * list. Clearing it is reserved for an explicit un-fulfill (back to paid,
- * pending, or cancelled) — Tammy putting a mis-clicked "shipped" back on
- * the bench.
+ * list. Clearing it is reserved for an explicit un-fulfill back to paid or
+ * pending — Tammy putting a mis-clicked "shipped" back on the bench.
+ * Cancelling a shipped (or refunded-after-ship) order must keep the stamp so
+ * a retry cannot restock a plant that already left.
  */
 export function nextFulfilledAt(
   previous: { status: OrderStatus; fulfilledAt: Date | null },
@@ -77,10 +75,8 @@ export function nextFulfilledAt(
 ): Date | null {
   if (nextStatus === OrderStatus.FULFILLED) return previous.fulfilledAt || now;
   if (
-    previous.status === OrderStatus.FULFILLED &&
-    (nextStatus === OrderStatus.PAID ||
-      nextStatus === OrderStatus.PENDING ||
-      nextStatus === OrderStatus.CANCELLED)
+    previous.fulfilledAt &&
+    (nextStatus === OrderStatus.PAID || nextStatus === OrderStatus.PENDING)
   ) {
     return null;
   }

@@ -59,9 +59,13 @@ export default function CartPageClient({
           reason?: string;
           error?: string;
         };
-        window.history.replaceState(null, '', '/cart');
-        if (result.reason === 'paid') return;
-        if (!response.ok || !result.released) {
+        const paid = result.reason === 'paid';
+        const released = response.ok && Boolean(result.released);
+        if (paid || released) {
+          window.history.replaceState(null, '', '/cart');
+        }
+        if (paid) return;
+        if (!released) {
           setCancelNotice(
             result.error ||
               'Checkout was cancelled. If an item still looks sold out, wait a moment and try again.'
@@ -74,7 +78,6 @@ export default function CartPageClient({
       })
       .catch(() => {
         if (controller.signal.aborted) return;
-        window.history.replaceState(null, '', '/cart');
         setCancelNotice(
           'Checkout was cancelled. If an item still looks sold out, wait a moment and refresh.'
         );

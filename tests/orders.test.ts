@@ -2,35 +2,32 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { OrderStatus } from '@prisma/client';
 import {
+  isAwaitingShipment,
   nextFulfilledAt,
   refundedOrderStatus,
   shouldRestoreInventoryOnRefund
 } from '../lib/orders.ts';
 
 describe('refundedOrderStatus', () => {
-  it('keeps an unshipped partial refund on the packing list', () => {
-    assert.equal(
-      refundedOrderStatus({ fullyRefunded: false, alreadyFulfilled: false }),
-      OrderStatus.PARTIALLY_REFUNDED
-    );
+  it('records every partial refund as partially refunded', () => {
+    assert.equal(refundedOrderStatus({ fullyRefunded: false }), OrderStatus.PARTIALLY_REFUNDED);
   });
 
-  it('does not reopen a shipped order as awaiting shipment', () => {
-    assert.equal(
-      refundedOrderStatus({ fullyRefunded: false, alreadyFulfilled: true }),
-      OrderStatus.FULFILLED
-    );
+  it('marks a full refund as refunded', () => {
+    assert.equal(refundedOrderStatus({ fullyRefunded: true }), OrderStatus.REFUNDED);
+  });
+});
+
+describe('isAwaitingShipment', () => {
+  it('treats an unshipped partial refund as still to send', () => {
+    assert.equal(isAwaitingShipment(OrderStatus.PARTIALLY_REFUNDED, null), true);
+    assert.equal(isAwaitingShipment(OrderStatus.PAID, null), true);
   });
 
-  it('marks a full refund as refunded either way', () => {
-    assert.equal(
-      refundedOrderStatus({ fullyRefunded: true, alreadyFulfilled: false }),
-      OrderStatus.REFUNDED
-    );
-    assert.equal(
-      refundedOrderStatus({ fullyRefunded: true, alreadyFulfilled: true }),
-      OrderStatus.REFUNDED
-    );
+  it('keeps a shipped partial refund off the packing list', () => {
+    assert.equal(isAwaitingShipment(OrderStatus.PARTIALLY_REFUNDED, new Date()), false);
+    assert.equal(isAwaitingShipment(OrderStatus.PAID, new Date()), false);
+    assert.equal(isAwaitingShipment(OrderStatus.FULFILLED, new Date()), false);
   });
 });
 
@@ -91,14 +88,39 @@ describe('nextFulfilledAt', () => {
     );
   });
 
-  it('clears the stamp only when Tammy reopens a fulfilled order', () => {
+  it('clears the stamp when Tammy reopens a shipped or refunded-after-ship order', () => {
     assert.equal(
       nextFulfilledAt({ status: OrderStatus.FULFILLED, fulfilledAt: shipped }, OrderStatus.PAID),
       null
     );
     assert.equal(
+      nextFulfilledAt({ status: OrderStatus.REFUNDED, fulfilledAt: shipped }, OrderStatus.PAID),
+      null
+    );
+    assert.equal(
+      nextFulfilledAt({ status: OrderStatus.REFUNDED, fulfilledAt: shipped }, OrderStatus.PENDING),
+      null
+    );
+    assert.equal(
       nextFulfilledAt({ status: OrderStatus.PAID, fulfilledAt: null }, OrderStatus.CANCELLED),
       null
+    );
+  });
+
+  it('keeps the stamp when cancelling a shipped or refunded-after-ship order', () => {
+    assert.equal(
+      nextFulfilledAt(
+        { status: OrderStatus.FULFILLED, fulfilledAt: shipped },
+        OrderStatus.CANCELLED
+      )?.toISOString(),
+      shipped.toISOString()
+    );
+    assert.equal(
+      nextFulfilledAt(
+        { status: OrderStatus.REFUNDED, fulfilledAt: shipped },
+        OrderStatus.CANCELLED
+      )?.toISOString(),
+      shipped.toISOString()
     );
   });
 });

@@ -531,17 +531,29 @@ async function applyRefund(charge: Stripe.Charge) {
   });
   if (!order) return;
 
-  const alreadyFulfilled = Boolean(order.fulfilledAt);
-  const status = refundedOrderStatus({ fullyRefunded, alreadyFulfilled });
+  const status = refundedOrderStatus({ fullyRefunded });
 
   await db.$transaction(async (transaction) => {
+    const current = await transaction.order.findUnique({
+      where: { id: order.id },
+      select: { fulfilledAt: true }
+    });
+    if (!current) return;
+
     const applied = await transaction.order.updateMany({
       where: { id: order.id, refundedCents: { lte: charge.amount_refunded } },
       data: { status, refundedCents: charge.amount_refunded }
     });
     if (applied.count === 0) return;
 
-    if (!shouldRestoreInventoryOnRefund({ fullyRefunded, alreadyFulfilled })) return;
+    if (
+      !shouldRestoreInventoryOnRefund({
+        fullyRefunded,
+        alreadyFulfilled: Boolean(current.fulfilledAt)
+      })
+    ) {
+      return;
+    }
 
     const claimed = await transaction.order.updateMany({
       where: { id: order.id, inventoryRestoredAt: null, fulfilledAt: null },

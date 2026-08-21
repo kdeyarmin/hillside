@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 export async function GET() {
   if (!(await isAdmin())) return new Response('Unauthorized', { status: 401 });
   const awaiting = await db.order.findMany({
-    where: { status: { in: [...AWAITING_SHIPMENT_STATUSES] } },
+    where: { status: { in: [...AWAITING_SHIPMENT_STATUSES] }, fulfilledAt: null },
     orderBy: { createdAt: 'asc' },
     include: { items: true }
   });
