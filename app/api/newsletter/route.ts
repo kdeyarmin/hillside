@@ -10,7 +10,13 @@ export const runtime = 'nodejs';
 
 const requestSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
-  name: z.string().trim().max(120).optional().default(''),
+  /**
+   * `nullish`, not `optional`: a client that has no name to send may leave the
+   * key out or send it as null, and both mean the same thing here. Refusing the
+   * null answered a signup with "please enter a valid email address", naming the
+   * one field that was fine.
+   */
+  name: z.string().trim().max(120).nullish(),
   /**
    * Honeypot. Bounded rather than required-empty: `max(0)` made a filled
    * honeypot fail schema validation and return 400, which meant the quiet-success
