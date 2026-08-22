@@ -223,20 +223,38 @@ export async function saveProduct(formData: FormData) {
         }
       });
     } else {
-      const claimed = await db.product.updateMany({
-        where: { id, inventory: expectedInventory },
-        data: { inventory: postedInventory }
+      /**
+       * The claim and the write have to be one transaction, because the write
+       * carries `sizes` and `sizes` now carries stock. As two autocommit
+       * statements the row lock the claim takes is gone the moment it commits,
+       * and a hold landing in the gap decrements both the total and the size it
+       * was for — after which this write puts the form's pre-hold counts back on
+       * the sizes while leaving the newer total alone. The two stop adding up,
+       * and the next stock movement rebuilds the total from the stale counts and
+       * sells the held stock a second time. Held across both writes, the lock
+       * makes the hold wait and the claim fail, which is what the error below is
+       * for.
+       */
+      const saved = await db.$transaction(async (transaction) => {
+        const claimed = await transaction.product.updateMany({
+          where: { id, inventory: expectedInventory },
+          data: { inventory: postedInventory }
+        });
+        if (claimed.count === 0) return null;
+        return transaction.product.update({
+          where: { id },
+          data: {
+            ...data,
+            collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
+          }
+        });
       });
-      if (claimed.count === 0) {
+      // Outside the transaction: `redirect` throws, and rolling the claim back
+      // through that throw would depend on how Prisma re-raises it.
+      if (!saved) {
         redirect(adminDashboardPath({ error: 'inventory', product: slug, section: 'inventory' }));
       }
-      product = await db.product.update({
-        where: { id },
-        data: {
-          ...data,
-          collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
-        }
-      });
+      product = saved;
     }
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

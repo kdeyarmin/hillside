@@ -42,12 +42,14 @@ export type {
  * Moves stock on or off a size's own count, and rewrites the product's total
  * from what the sizes add up to afterwards.
  *
- * Every caller runs this *after* it has already written `Product.inventory` in
- * the same transaction, and that ordering is the whole safety argument: the
- * lock Postgres took on the row for that write is held until the transaction
- * commits, so no second checkout can read these sizes between the read and the
- * write below. Reading the sizes first would put two shoppers on the last 6"
- * pot. It is also why nothing here needs a compare-and-set of its own.
+ * Every caller runs this *after* a write to `Product.inventory` that it has
+ * made sure matched the row, in the same transaction, and that ordering is the
+ * whole safety argument: the lock Postgres took on the row for that write is
+ * held until the transaction commits, so no second checkout can read these
+ * sizes between the read and the write below. Reading the sizes first would put
+ * two shoppers on the last 6" pot. It is also why nothing here needs a
+ * compare-and-set of its own — and why a caller whose write is conditional has
+ * to make the fallback unconditional rather than let a no-op skip the lock.
  *
  * Rewriting the total rather than trusting the caller's increment is what keeps
  * the column and the size list from disagreeing about whether the product is
@@ -211,8 +213,18 @@ export async function takeAvailableInventory(
     data: { inventory: { decrement: quantity } }
   });
   if (full.count === 0) {
+    /**
+     * Unconditional, where this once skipped a row already at zero. Writing zero
+     * over zero changes nothing about the column, but it is still a write, and
+     * the row lock it takes is what `takeSizeStock` reads the size JSON under.
+     * Guarded on `inventory > 0`, a late-settling order against a product whose
+     * total had already reached zero locked nothing at all, and a refund or a
+     * released hold landing in that window would have its returned counts —
+     * including the counts of every other size — overwritten by the stale array
+     * this then wrote back.
+     */
     await transaction.product.updateMany({
-      where: { id: productId, inventory: { gt: 0 } },
+      where: { id: productId },
       data: { inventory: 0 }
     });
   }
