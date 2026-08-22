@@ -127,7 +127,14 @@ export async function sendEmail(input: EmailInput) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        personalizations: [{ to: recipients.map((email) => ({ email })) }],
+        /**
+         * One personalization per address, never one `to` holding all of them.
+         * The compose box accepts up to five unrelated customer addresses, and a
+         * shared `To` header would disclose every customer's address to the
+         * other four. SendGrid sends a separate message per personalization, so
+         * each recipient sees only themselves.
+         */
+        personalizations: recipients.map((email) => ({ to: [{ email }] })),
         from,
         subject: input.subject,
         content,

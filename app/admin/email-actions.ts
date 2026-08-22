@@ -1,10 +1,9 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { MessageStatus } from '@prisma/client';
-import { isAdmin } from '@/lib/admin';
+import { currentAdmin } from '@/lib/admin';
 import { adminEmailPath } from '@/lib/admin-dashboard';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
@@ -15,23 +14,38 @@ import {
   parseRecipients,
   quotedMessageHtml
 } from '@/lib/email-log';
-import { clientKeyFromHeaders, rateLimitedByKey } from '@/lib/rate-limit';
+import { rateLimitedByKey } from '@/lib/rate-limit';
 import { businessEmail } from '@/lib/store';
 
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
 
+/**
+ * Answers with who is signed in, because the send ceiling below is theirs
+ * rather than their network's.
+ */
 async function guard() {
-  if (!(await isAdmin())) redirect('/admin');
+  const admin = await currentAdmin();
+  if (!admin) redirect('/admin');
+  return admin;
 }
 
 /**
  * An authenticated form that can send mail to any address is worth a ceiling of
  * its own. Tammy answering a morning's messages is nowhere near this; a session
  * someone else got hold of being used as a relay runs into it quickly.
+ *
+ * Keyed to the signed-in account, not to a header fingerprint. Keyed by address
+ * this both shared one bucket between two admins on the same connection and
+ * handed a stolen session a fresh bucket for every address it sent from — the
+ * relay case is exactly the one the ceiling is for. `null` is the shared
+ * ADMIN_PASSWORD session, which is one account and buckets as one.
  */
-async function throttled() {
-  const identity = clientKeyFromHeaders(await headers());
-  return rateLimitedByKey(identity, { name: 'admin-email', limit: 40, windowMs: 60 * 60_000 });
+function throttled(adminId: string | null) {
+  return rateLimitedByKey(adminId || 'shared-owner-login', {
+    name: 'admin-email',
+    limit: 40,
+    windowMs: 60 * 60_000
+  });
 }
 
 /**
@@ -49,8 +63,8 @@ function ownerSignature() {
  * conversation back to the shop inbox.
  */
 export async function sendOwnerEmail(formData: FormData) {
-  await guard();
-  if (await throttled()) redirect(adminEmailPath({ error: 'email-throttled' }));
+  const admin = await guard();
+  if (throttled(admin.id)) redirect(adminEmailPath({ error: 'email-throttled' }));
 
   const { addresses, invalid } = parseRecipients(text(formData, 'to'));
   const subject = text(formData, 'subject');
@@ -88,8 +102,8 @@ export async function sendOwnerEmail(formData: FormData) {
  * cold email to the person who wrote it.
  */
 export async function replyToCustomerMessage(formData: FormData) {
-  await guard();
-  if (await throttled()) redirect(adminEmailPath({ error: 'email-throttled' }));
+  const admin = await guard();
+  if (throttled(admin.id)) redirect(adminEmailPath({ error: 'email-throttled' }));
 
   const id = text(formData, 'id');
   const body = text(formData, 'body');
@@ -124,10 +138,14 @@ export async function replyToCustomerMessage(formData: FormData) {
   /**
    * Answered mail is read mail. Only moved off NEW, so a message Tammy had
    * already archived is not pulled back into the working list by a follow-up.
+   *
+   * The NEW test belongs in the `where`, not in an `if` over the snapshot read
+   * before the send: another admin archiving this message while the mail was in
+   * flight would otherwise have that newer status overwritten by this stale one.
    */
-  if (delivery.sent && message.status === MessageStatus.NEW) {
-    await db.contactMessage.update({
-      where: { id: message.id },
+  if (delivery.sent) {
+    await db.contactMessage.updateMany({
+      where: { id: message.id, status: MessageStatus.NEW },
       data: { status: MessageStatus.READ }
     });
   }

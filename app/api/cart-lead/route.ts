@@ -60,6 +60,7 @@ async function emailSavedCart(
     .slice(0, 16);
   return sendEmail({
     to: email,
+    kind: 'CART_RECOVERY',
     subject: 'Your saved cart at The Hillside Gardens',
     html: emailShell(
       'Your cart is waiting',

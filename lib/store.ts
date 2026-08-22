@@ -172,6 +172,22 @@ export function pickForKey<T>(options: readonly T[], key: string): T {
 export const DEFAULT_BUSINESS_EMAIL = 'hello@thehillsidegardens.com';
 
 /**
+ * A single, valid-looking address, or null. Deliberately strict about what it
+ * accepts: it backs both the compose box and the owner-alert recipients, and a
+ * value SendGrid rejects fails the *whole* request it appears in.
+ *
+ * Commas and semicolons are rejected rather than split here, so a variable
+ * holding `a@b.com,c@d.com` reads as the one malformed address it is instead of
+ * quietly widening who gets the shop's mail.
+ */
+export function validEmailAddress(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 254) return null;
+  if (!/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]{2,}$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+/**
  * The address customers are told to write to. Every page used to hardcode it,
  * so changing inboxes meant hunting through the footer, the contact page, the
  * privacy policy and a mailto in the classes empty state.
@@ -200,15 +216,23 @@ export function ownerNotificationEmails() {
   const personal = process.env.OWNER_PERSONAL_EMAIL?.trim();
   const addresses = [businessEmail(), ...(personal ? [normalizeHillsideDomain(personal)] : [])];
   const seen = new Set<string>();
-  return addresses.filter((address) => {
-    const key = address.toLowerCase();
-    // A misconfigured variable is skipped rather than handed to SendGrid, which
-    // rejects the whole request when any one recipient is malformed - that would
-    // lose the business inbox's copy too.
-    if (!address.includes('@') || /\s/.test(address) || seen.has(key)) return false;
+  const valid: string[] = [];
+  for (const address of addresses) {
+    /**
+     * Validated properly, not just checked for an `@`. A variable holding
+     * `tammy@comcast.net,attacker@example.com` reaches SendGrid as one
+     * malformed recipient and fails the whole request — which would lose the
+     * business inbox's copy too, the exact outcome this guard exists to
+     * prevent.
+     */
+    const clean = validEmailAddress(address);
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
     seen.add(key);
-    return true;
-  });
+    valid.push(clean);
+  }
+  return valid;
 }
 
 export function productTypeLabel(type: string) {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   emailBodyHtml,
+  emailSearchText,
   markOwnerText,
   ownerSaidHtml,
   emailFailureLabel,
@@ -112,6 +113,27 @@ describe('ownerSaidHtml', () => {
   });
 });
 
+describe('emailSearchText', () => {
+  it('is the recipients plus what the owner actually typed', () => {
+    const html =
+      '<div><!--body--><p>Hi Oak,</p><!--said--><p>Yes, we ship to PA.</p><!--/said--><p>— Tammy</p><p>The Hillside Gardens</p><!--/body--></div>';
+    assert.equal(
+      emailSearchText(['buyer@example.com'], html),
+      'buyer@example.com Yes, we ship to PA.'
+    );
+  });
+
+  it('is the whole message for automated mail, which has no sign-off to strip', () => {
+    assert.equal(
+      emailSearchText(
+        ['buyer@example.com'],
+        '<div><!--body--><p>Order shipped.</p><!--/body--></div>'
+      ),
+      'buyer@example.com Order shipped.'
+    );
+  });
+});
+
 describe('emailLogMatches', () => {
   const entry = {
     to: ['buyer@example.com'],
@@ -150,6 +172,20 @@ describe('emailLogMatches', () => {
     assert.equal(emailLogMatches(sent, 'Letterhead'), false);
   });
 
+  it('does not match the sign-off on the owner’s own mail either', () => {
+    // A reply carries "The Hillside Gardens" in its signature inside the body
+    // markers, so stripping only the letterhead still matched every one of them.
+    const reply = {
+      to: ['buyer@example.com'],
+      subject: 'Re: Availability',
+      html: '<div><!--body--><p>Hi Oak,</p><!--said--><p>Yes, we ship to PA.</p><!--/said--><p>— Tammy</p><p>The Hillside Gardens • hello@thehillsidegardens.com</p><!--/body--></div>'
+    };
+    assert.equal(emailLogMatches(reply, 'ship to PA'), true);
+    assert.equal(emailLogMatches(reply, 'buyer@example.com'), true);
+    assert.equal(emailLogMatches(reply, 'Hillside'), false);
+    assert.equal(emailLogMatches(reply, 'Tammy'), false);
+  });
+
   it('says no when it means no', () => {
     assert.equal(emailLogMatches(entry, 'fiddle leaf'), false);
   });
@@ -160,6 +196,7 @@ describe('filter parsing', () => {
     assert.equal(parseEmailKindFilter('ORDER_CONFIRMATION'), 'ORDER_CONFIRMATION');
     assert.equal(parseEmailKindFilter('REPLY'), 'REPLY');
     assert.equal(parseEmailKindFilter('REVIEW'), 'REVIEW');
+    assert.equal(parseEmailKindFilter('SHIPPING_UPDATE'), 'SHIPPING_UPDATE');
     assert.equal(parseEmailKindFilter('DROP TABLE'), 'all');
     assert.equal(parseEmailKindFilter(undefined), 'all');
     assert.equal(parseEmailKindFilter(['ORDER_ADMIN']), 'all');
@@ -209,11 +246,29 @@ describe('parseRecipients', () => {
     assert.deepEqual(invalid, ['oops']);
   });
 
-  it('caps the list at five', () => {
-    const { addresses } = parseRecipients(
+  it('reports addresses past the cap rather than dropping them', () => {
+    // Silently keeping the first five let the sender believe the sixth customer
+    // had been written to. The action refuses any list with an `invalid` entry,
+    // so reporting them here is what turns this into a visible error.
+    const { addresses, invalid } = parseRecipients(
       ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map((letter) => `${letter}@example.com`).join(',')
     );
     assert.equal(addresses.length, 5);
+    assert.deepEqual(invalid, ['f@example.com', 'g@example.com']);
+  });
+
+  it('does not count a duplicate against the cap', () => {
+    const { addresses, invalid } = parseRecipients(
+      'a@example.com, A@example.com, b@example.com, c@example.com, d@example.com, e@example.com'
+    );
+    assert.deepEqual(addresses, [
+      'a@example.com',
+      'b@example.com',
+      'c@example.com',
+      'd@example.com',
+      'e@example.com'
+    ]);
+    assert.deepEqual(invalid, []);
   });
 
   it('finds nothing in nothing', () => {
@@ -262,6 +317,8 @@ describe('labels', () => {
     assert.equal(emailKindLabel('ORDER_CONFIRMATION'), 'Order confirmation');
     assert.equal(emailKindLabel('REPLY'), 'Reply to a customer');
     assert.equal(emailKindLabel('REVIEW'), 'Review to approve');
+    assert.equal(emailKindLabel('SHIPPING_UPDATE'), 'Shipping update');
+    assert.equal(emailKindLabel('CART_RECOVERY'), 'Saved cart reminder');
     assert.equal(emailKindLabel('SOMETHING_NEW'), 'something new');
   });
 

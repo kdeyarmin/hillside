@@ -10,15 +10,20 @@
  */
 
 import { escapeHtml } from './email.ts';
+import { validEmailAddress } from './store.ts';
+
+export { validEmailAddress };
 
 export type EmailKindValue =
   | 'ORDER_CONFIRMATION'
   | 'ORDER_ADMIN'
   | 'PICKUP_READY'
+  | 'SHIPPING_UPDATE'
   | 'CLASS_CONFIRMATION'
   | 'CLASS_ADMIN'
   | 'STOCK_ALERT'
   | 'NEWSLETTER'
+  | 'CART_RECOVERY'
   | 'CONTACT'
   | 'REVIEW'
   | 'REPLY'
@@ -27,23 +32,28 @@ export type EmailKindValue =
 
 export type EmailStatusValue = 'SENT' | 'FAILED';
 
-/** How many rows the page reads before filtering the text query in memory. */
-export const EMAIL_LOG_SCAN_LIMIT = 500;
-
-/** How many of those it shows at once. */
+/** How many rows one page of the sent-mail log shows. */
 export const EMAIL_LOG_PAGE_SIZE = 50;
+
+/** How many customer messages one page shows. */
+export const MESSAGE_PAGE_SIZE = 25;
 
 /** The longest body the compose box accepts, matching the contact form's cap. */
 export const EMAIL_BODY_MAX = 5000;
+
+/** How many addresses one composed email may be sent to. */
+export const RECIPIENT_MAX = 5;
 
 export const EMAIL_KIND_LABELS: Record<EmailKindValue, string> = {
   ORDER_CONFIRMATION: 'Order confirmation',
   ORDER_ADMIN: 'New order notice',
   PICKUP_READY: 'Pickup ready',
+  SHIPPING_UPDATE: 'Shipping update',
   CLASS_CONFIRMATION: 'Class confirmation',
   CLASS_ADMIN: 'Class registration notice',
   STOCK_ALERT: 'Back-in-stock alert',
   NEWSLETTER: 'Newsletter',
+  CART_RECOVERY: 'Saved cart reminder',
   CONTACT: 'Contact form',
   REVIEW: 'Review to approve',
   REPLY: 'Reply to a customer',
@@ -170,25 +180,10 @@ export type EmailLogSearchable = {
 export function emailLogMatches(entry: EmailLogSearchable, query: string) {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
-  /**
-   * The body without the letterhead, or every email ever sent would match a
-   * search for "Hillside".
-   */
-  const haystack =
-    `${entry.to.join(' ')} ${entry.subject} ${emailPlainText(emailBodyHtml(entry.html))}`.toLowerCase();
+  // Exactly what `emailSearchText` stores, so an in-memory match and the SQL
+  // one on the page cannot disagree about whether a row matches.
+  const haystack = `${entry.subject} ${emailSearchText(entry.to, entry.html)}`.toLowerCase();
   return haystack.includes(needle);
-}
-
-/**
- * A single, valid-looking address. Deliberately strict about what it accepts:
- * this backs the compose box, which is an authenticated form that can send mail
- * to anywhere, so a typo should be caught here rather than by SendGrid.
- */
-export function validEmailAddress(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed || trimmed.length > 254) return null;
-  if (!/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]{2,}$/.test(trimmed)) return null;
-  return trimmed;
 }
 
 /**
@@ -206,11 +201,20 @@ export function parseRecipients(value: string): { addresses: string[]; invalid: 
   const invalid: string[] = [];
   for (const entry of entries) {
     const valid = validEmailAddress(entry);
-    if (!valid) invalid.push(entry);
-    else if (!addresses.some((seen) => seen.toLowerCase() === valid.toLowerCase()))
-      addresses.push(valid);
+    if (!valid) {
+      invalid.push(entry);
+      continue;
+    }
+    if (addresses.some((seen) => seen.toLowerCase() === valid.toLowerCase())) continue;
+    /**
+     * Past the cap the address is reported rather than dropped. Truncating to
+     * the first five silently was the same failure this function exists to
+     * prevent: the sender believing they had written to someone they had not.
+     */
+    if (addresses.length >= RECIPIENT_MAX) invalid.push(valid);
+    else addresses.push(valid);
   }
-  return { addresses: addresses.slice(0, 5), invalid };
+  return { addresses, invalid };
 }
 
 /**
@@ -239,6 +243,17 @@ export function quotedMessageHtml(from: string, sentAt: Date, message: string) {
   )}</blockquote>`;
 }
 
+/**
+ * What a row is searched on: who it went to, and the message itself.
+ *
+ * `ownerSaidHtml` rather than the whole body, because a reply carries the
+ * shop's sign-off and the customer's quoted words as well as Tammy's own. It
+ * falls back to the full body for automated mail, which is all message.
+ */
+export function emailSearchText(to: string[], html: string | null | undefined) {
+  return `${to.join(' ')} ${emailPlainText(ownerSaidHtml(html))}`.trim();
+}
+
 export type RecordEmailInput = {
   to: string[];
   subject: string;
@@ -263,6 +278,7 @@ export async function recordEmail(entry: RecordEmailInput) {
         to: entry.to,
         subject: entry.subject.slice(0, 500),
         html: entry.html,
+        searchText: emailSearchText(entry.to, entry.html),
         kind: entry.kind || 'OTHER',
         status: entry.status,
         reason: entry.reason || null,

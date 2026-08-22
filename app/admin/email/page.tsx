@@ -14,11 +14,10 @@ import {
   EMAIL_BODY_MAX,
   EMAIL_KIND_LABELS,
   EMAIL_LOG_PAGE_SIZE,
-  EMAIL_LOG_SCAN_LIMIT,
+  MESSAGE_PAGE_SIZE,
   emailBodyHtml,
   emailFailureLabel,
   emailKindLabel,
-  emailLogMatches,
   emailPlainText,
   emailPreview,
   ownerSaidHtml,
@@ -30,6 +29,52 @@ import { replyToCustomerMessage, sendOwnerEmail } from '../email-actions';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Email' };
+
+/** A page index from the query string: never negative, never a surprise. */
+function pageNumber(value: string) {
+  const parsed = Math.floor(Number(value));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+/**
+ * Older and newer links that carry the current filters, so paging through a
+ * search does not silently drop it and show unfiltered rows.
+ */
+function Pager({
+  page,
+  pageSize,
+  total,
+  param,
+  filters
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  param: 'page' | 'mp';
+  filters: Record<string, string | undefined>;
+}) {
+  const pages = Math.ceil(total / pageSize);
+  if (pages <= 1) return null;
+  const href = (target: number) =>
+    adminEmailPath({ ...filters, [param]: target > 0 ? String(target) : undefined });
+  return (
+    <div className="admin-actions">
+      {page > 0 && (
+        <Link className="btn outline small" href={href(page - 1)}>
+          ← Newer
+        </Link>
+      )}
+      <span className="muted" style={{ alignSelf: 'center', fontSize: 13 }}>
+        Page {page + 1} of {pages}
+      </span>
+      {page + 1 < pages && (
+        <Link className="btn outline small" href={href(page + 1)}>
+          Older →
+        </Link>
+      )}
+    </div>
+  );
+}
 
 function When({ value }: { value: Date }) {
   return <>{value.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</>;
@@ -105,36 +150,54 @@ export default async function AdminEmailPage({
   const focusMessage = firstSearchParam(params.message);
   const notice = ADMIN_NOTICES[firstSearchParam(params.notice)];
   const errorMessage = ADMIN_ERRORS[firstSearchParam(params.error)];
+  const sentPage = pageNumber(firstSearchParam(params.page));
+  const messagePage = pageNumber(firstSearchParam(params.mp));
 
-  const [messages, scanned, totals] = await Promise.all([
+  /**
+   * Searched in SQL against the text built when the row was written, so the
+   * whole history is reachable. Reading a window of recent rows and filtering
+   * them in memory made anything past that window unfindable, which is the one
+   * thing an audit log must not do.
+   */
+  const logWhere = {
+    ...(kind === 'all' ? {} : { kind }),
+    ...(status === 'all' ? {} : { status }),
+    ...(query
+      ? {
+          OR: [
+            { subject: { contains: query, mode: 'insensitive' as const } },
+            { searchText: { contains: query, mode: 'insensitive' as const } }
+          ]
+        }
+      : {})
+  };
+
+  const [messages, messageCount, unanswered, entries, matchCount, totals] = await Promise.all([
     db.contactMessage.findMany({
       orderBy: { createdAt: 'desc' },
-      take: 50,
+      skip: messagePage * MESSAGE_PAGE_SIZE,
+      take: MESSAGE_PAGE_SIZE,
       include: { replies: { orderBy: { createdAt: 'asc' } } }
     }),
+    db.contactMessage.count(),
+    db.contactMessage.count({ where: { status: MessageStatus.NEW } }),
     db.emailLog.findMany({
-      where: {
-        ...(kind === 'all' ? {} : { kind }),
-        ...(status === 'all' ? {} : { status })
-      },
+      where: logWhere,
       orderBy: { createdAt: 'desc' },
-      take: EMAIL_LOG_SCAN_LIMIT
+      skip: sentPage * EMAIL_LOG_PAGE_SIZE,
+      take: EMAIL_LOG_PAGE_SIZE
     }),
+    db.emailLog.count({ where: logWhere }),
     db.emailLog.groupBy({ by: ['status'], _count: { _all: true } })
   ]);
 
-  /**
-   * The text query is matched here rather than in SQL because it reads the
-   * message body, and the body is stored as the HTML that was sent. The kind
-   * and status filters above already narrowed the rows; this is the same shape
-   * the product list on the main dashboard uses.
-   */
-  const matched = scanned.filter((entry) => emailLogMatches(entry, query));
-  const visible = matched.slice(0, EMAIL_LOG_PAGE_SIZE);
   const sentCount = totals.find((row) => row.status === 'SENT')?._count._all || 0;
   const failedCount = totals.find((row) => row.status === 'FAILED')?._count._all || 0;
-  const unanswered = messages.filter((message) => message.status === MessageStatus.NEW).length;
   const ownerEmails = ownerNotificationEmails();
+
+  const sentFilters = { q: query, kind, status, section: 'sent' };
+  const firstSent = sentPage * EMAIL_LOG_PAGE_SIZE;
+  const firstMessage = messagePage * MESSAGE_PAGE_SIZE;
 
   return (
     <div className="adminshell">
@@ -176,7 +239,7 @@ export default async function AdminEmailPage({
 
         <div className="statgrid">
           <div className="stat">
-            <span>Delivered</span>
+            <span>Sent</span>
             <strong>{sentCount}</strong>
           </div>
           <div className="stat">
@@ -269,11 +332,15 @@ export default async function AdminEmailPage({
                       {message.subject} • {message.name}
                     </span>
                     <span className="admin-badges">
-                      {message.replies.length > 0 && (
+                      {/* Only replies that actually went. A failed attempt is
+                          still shown in the thread with its error, but calling
+                          the message "Answered" because of one would be a lie
+                          told to the person who has to answer it. */}
+                      {message.replies.some((reply) => reply.status === 'SENT') && (
                         <span className="status-badge SENT">
-                          {message.replies.length === 1
+                          {message.replies.filter((reply) => reply.status === 'SENT').length === 1
                             ? 'Answered'
-                            : `${message.replies.length} replies`}
+                            : `${message.replies.filter((reply) => reply.status === 'SENT').length} replies`}
                         </span>
                       )}
                       <span className={`status-badge ${message.status}`}>{message.status}</span>
@@ -344,9 +411,23 @@ export default async function AdminEmailPage({
           ) : (
             <div className="admin-card">
               <p className="muted" style={{ margin: 0 }}>
-                No website messages yet.
+                {messagePage > 0 ? 'No more messages back here.' : 'No website messages yet.'}
               </p>
             </div>
+          )}
+          {messageCount > MESSAGE_PAGE_SIZE && (
+            <>
+              <p className="muted" style={{ marginTop: 14 }}>
+                Showing {firstMessage + 1}–{firstMessage + messages.length} of {messageCount}.
+              </p>
+              <Pager
+                page={messagePage}
+                pageSize={MESSAGE_PAGE_SIZE}
+                total={messageCount}
+                param="mp"
+                filters={{ section: 'messages' }}
+              />
+            </>
           )}
         </section>
 
@@ -361,6 +442,9 @@ export default async function AdminEmailPage({
           </div>
 
           <form className="admin-card" method="get" style={{ marginTop: 14 }}>
+            {/* Without this the GET wipes the only parameter AdminDeepLink
+                scrolls by, landing the owner back at the compose box. */}
+            <input type="hidden" name="section" value="sent" />
             <div className="admin-form-grid">
               <label className="admin-label">
                 Search
@@ -401,21 +485,26 @@ export default async function AdminEmailPage({
           </form>
 
           <p className="muted" style={{ marginTop: 14 }}>
-            {matched.length === 0
+            {matchCount === 0
               ? 'Nothing matches that yet.'
-              : `Showing ${visible.length} of ${matched.length}${
-                  scanned.length === EMAIL_LOG_SCAN_LIMIT
-                    ? ` from the last ${EMAIL_LOG_SCAN_LIMIT} emails`
-                    : ''
-                }.`}
+              : `Showing ${firstSent + 1}–${firstSent + entries.length} of ${matchCount}.`}
           </p>
 
-          {visible.length > 0 && (
-            <div className="admin-list">
-              {visible.map((entry) => (
-                <SentRow key={entry.id} entry={entry} />
-              ))}
-            </div>
+          {entries.length > 0 && (
+            <>
+              <div className="admin-list">
+                {entries.map((entry) => (
+                  <SentRow key={entry.id} entry={entry} />
+                ))}
+              </div>
+              <Pager
+                page={sentPage}
+                pageSize={EMAIL_LOG_PAGE_SIZE}
+                total={matchCount}
+                param="page"
+                filters={sentFilters}
+              />
+            </>
           )}
         </section>
       </div>

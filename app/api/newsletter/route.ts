@@ -50,6 +50,7 @@ export async function POST(request: Request) {
       const optOut = unsubscribeUrl(email);
       await sendEmail({
         to: email,
+        kind: 'NEWSLETTER',
         subject: 'Welcome to The Hillside Notes',
         idempotencyKey: `newsletter-welcome/${subscriber.id}`,
         html: emailShell(

@@ -291,10 +291,28 @@ describe('ownerNotificationEmails', () => {
   it('skips a malformed personal address instead of losing the shop copy', () => {
     // SendGrid rejects the whole request when any one recipient is malformed,
     // which would take the business inbox's copy down with it.
-    withOwnerEnv({ business: SHOP, personal: 'not an address' }, () => {
+    for (const personal of [
+      'not an address',
+      'tammy at comcast.net',
+      'tammy@',
+      '@comcast.net',
+      'tammy@comcast',
+      'x'.repeat(250) + '@comcast.net'
+    ]) {
+      withOwnerEnv({ business: SHOP, personal }, () => {
+        assert.deepEqual(ownerNotificationEmails(), [SHOP], `should reject ${personal}`);
+      });
+    }
+  });
+
+  it('treats a comma-separated pair as the one malformed address it is', () => {
+    // Checking only for an "@" let this through as a single recipient SendGrid
+    // would reject, failing the whole notice — and read as a way to quietly
+    // widen who receives the shop's owner mail.
+    withOwnerEnv({ business: SHOP, personal: 'tammy@comcast.net,attacker@example.com' }, () => {
       assert.deepEqual(ownerNotificationEmails(), [SHOP]);
     });
-    withOwnerEnv({ business: SHOP, personal: 'tammy at comcast.net' }, () => {
+    withOwnerEnv({ business: SHOP, personal: 'tammy@comcast.net;attacker@example.com' }, () => {
       assert.deepEqual(ownerNotificationEmails(), [SHOP]);
     });
   });
