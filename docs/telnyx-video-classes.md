@@ -16,7 +16,7 @@ CLASS_HOST_NAME=Tammy Hill
 
 `TELNYX_API_KEY` is server-only. It is used to create rooms and issue short-lived Telnyx client tokens. The API key is never included in customer emails or browser JavaScript.
 
-Customer email also requires the existing Resend configuration:
+Customer email also requires the existing SendGrid configuration:
 
 ```text
 SENDGRID_API_KEY=...
@@ -24,7 +24,7 @@ EMAIL_FROM=The Hillside Gardens <orders@thehillsidegardens.com>
 BUSINESS_EMAIL=hello@thehillsidegardens.com
 ```
 
-Without Resend, the registration is still saved, but the customer cannot automatically receive the private online-class link. Tammy can resend a confirmation from the host studio after email is configured.
+Without SendGrid, the registration is still saved, but the customer cannot automatically receive the private online-class link. Tammy can resend a confirmation from the host studio after email is configured.
 
 ## Creating an online class
 
