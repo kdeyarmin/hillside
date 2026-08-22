@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import { readJsonBody } from '@/lib/request-body';
 import { rateLimited } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const parsed = schema.safeParse(await request.json());
+    const parsed = schema.safeParse(await readJsonBody(request));
     if (!parsed.success) {
       return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 });
     }

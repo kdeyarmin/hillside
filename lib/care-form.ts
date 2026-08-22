@@ -4,6 +4,8 @@
  * action.
  */
 
+import { formInteger } from './form-values.ts';
+
 export const CARE_GUIDE_TYPES = ['PLANT', 'GENERAL', 'PROBLEM', 'SEASONAL'] as const;
 export type CareGuideTypeName = (typeof CARE_GUIDE_TYPES)[number];
 
@@ -48,8 +50,7 @@ function checked(form: FormData, name: string) {
 }
 
 function integer(form: FormData, name: string, fallback = 0) {
-  const value = Number(form.get(name));
-  return Number.isFinite(value) ? Math.floor(value) : fallback;
+  return formInteger(form.get(name), fallback);
 }
 
 export function slugifyCare(value: string) {

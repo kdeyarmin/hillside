@@ -357,8 +357,16 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
    when it later fills — so it must simply occupy no space until it has content. */
 .form-status.is-empty { margin: 0; padding: 0; border: 0; font-size: 0; line-height: 0; }
 .form-status.tight { margin-bottom: 0; }
-.form-status.success { color: #cce9d4; }
-.form-status.error { color: #ffd2ca; }
+/* These two are read on white form cards and on the cream cart summary far more
+   often than on a dark panel, so they default to the tokens that are legible
+   there. The pale pair below is the dark-ground variant, and it used to be the
+   only pair: every success and error message outside the footer rendered at
+   about 1.3:1 against its own background — announced to a screen reader,
+   invisible to everyone else. */
+.form-status.success { color: var(--success); }
+.form-status.error { color: var(--danger); }
+.footer .form-status.success { color: #cce9d4; }
+.footer .form-status.error { color: #ffd2ca; }
 .honeypot { position: absolute !important; left: -10000px !important; width: 1px !important; height: 1px !important; opacity: 0 !important; }
 
 .contact-grid { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 50px; align-items: start; }

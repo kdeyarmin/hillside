@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { ClassEvent } from '@prisma/client';
 import { db } from '@/lib/db';
+import { readJsonBody } from '@/lib/request-body';
 import {
   createFreeClassConfirmToken,
   freeClassConfirmExpiry
@@ -50,7 +51,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const parsed = requestSchema.safeParse(await request.json());
+    const parsed = requestSchema.safeParse(await readJsonBody(request));
     if (!parsed.success) {
       return NextResponse.json({ error: 'Please check your name, email and seat count.' }, { status: 400 });
     }
