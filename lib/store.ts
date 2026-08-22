@@ -180,6 +180,34 @@ export function businessEmail() {
   return normalizeHillsideDomain(process.env.BUSINESS_EMAIL?.trim() || DEFAULT_BUSINESS_EMAIL);
 }
 
+/**
+ * Where owner alerts go: the shop inbox, plus Tammy's own address when
+ * `OWNER_PERSONAL_EMAIL` is set. A new order should reach her wherever she is,
+ * while the business inbox keeps the copy the shop's records are read from.
+ *
+ * The personal address is only ever a *recipient*. Mail still goes out as
+ * `EMAIL_FROM` on the authenticated hillside domain, because sending as a
+ * consumer mailbox SendGrid is not authorised for would fail SPF and DKIM
+ * alignment and land in spam.
+ *
+ * Deduplicated case-insensitively so setting both variables to the same inbox
+ * does not send her two of every notice.
+ */
+export function ownerNotificationEmails() {
+  const personal = process.env.OWNER_PERSONAL_EMAIL?.trim();
+  const addresses = [businessEmail(), ...(personal ? [normalizeHillsideDomain(personal)] : [])];
+  const seen = new Set<string>();
+  return addresses.filter((address) => {
+    const key = address.toLowerCase();
+    // A misconfigured variable is skipped rather than handed to SendGrid, which
+    // rejects the whole request when any one recipient is malformed - that would
+    // lose the business inbox's copy too.
+    if (!address.includes('@') || /\s/.test(address) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export function productTypeLabel(type: string) {
   const labels: Record<string, string> = {
     PLANT: 'Plant',

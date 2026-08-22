@@ -22,7 +22,7 @@ import {
   type FulfillmentChoice
 } from '@/lib/fulfillment';
 import { findSize, productSizes, sizedName } from '@/lib/product-sizes';
-import { formatMoney, newInvoiceNumber } from '@/lib/store';
+import { formatMoney, newInvoiceNumber, ownerNotificationEmails } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -178,10 +178,11 @@ async function completeReservedOrder(
 }
 
 async function notifyOversell(invoiceNumber: string, items: string) {
-  const businessEmail = process.env.BUSINESS_EMAIL;
-  if (!businessEmail) return;
+  const ownerEmails = ownerNotificationEmails();
+  if (!ownerEmails.length) return;
   await sendEmail({
-    to: businessEmail,
+    to: ownerEmails,
+    kind: 'ORDER_ADMIN',
     subject: `Oversold order ${invoiceNumber} needs attention`,
     html: emailShell(
       `Oversold order ${invoiceNumber}`,
@@ -367,8 +368,15 @@ async function sendOrderEmails(orderId: string) {
   if (!order) return;
   const pickup = isPickupOrder(order);
 
-  const businessEmail = process.env.BUSINESS_EMAIL;
-  if (businessEmail) {
+  /**
+   * Both the shop inbox and Tammy's own address when she has set one, so a
+   * paid order reaches her wherever she is. This used to read BUSINESS_EMAIL
+   * straight from the environment and send nothing at all when it was unset;
+   * the helper always yields at least the shop's published address, because
+   * silently dropping the notice for a paid order is the worse failure.
+   */
+  const ownerEmails = ownerNotificationEmails();
+  if (ownerEmails.length) {
     const giftNote = order.giftMessage
       ? `<p><strong>Gift message</strong><br>${escapeHtml(order.giftMessage).replaceAll('\n', '<br>')}</p>`
       : '';
@@ -376,7 +384,8 @@ async function sendOrderEmails(orderId: string) {
       ? '<p><strong>Local pickup</strong> — email the customer when this is ready. Do not print a shipping label unless they change their mind.</p>'
       : '<p>Open the owner dashboard to review, print the packing slip and create the shipping label.</p>';
     const delivery = await sendEmail({
-      to: businessEmail,
+      to: ownerEmails,
+      kind: 'ORDER_ADMIN',
       subject: `${pickup ? 'Pickup order' : 'New order'} ${order.invoiceNumber} • ${formatMoney(order.totalCents)}`,
       html: emailShell(
         `New order ${order.invoiceNumber}`,
@@ -513,6 +522,7 @@ async function createRegistrationForSweptHold({
     if (businessEmail) {
       await sendEmail({
         to: businessEmail,
+        kind: 'CLASS_ADMIN',
         subject: `Overbooked class: ${event.title}`,
         html: emailShell(
           'A paid class registration overbooked a class',

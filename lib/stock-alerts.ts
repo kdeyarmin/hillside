@@ -10,6 +10,7 @@ export async function notifyStockAlerts(productId: string, name: string, slug: s
   for (const alert of waiting) {
     const delivery = await sendEmail({
       to: alert.email,
+      kind: 'STOCK_ALERT',
       subject: `${name} is back at The Hillside Gardens`,
       idempotencyKey: `stock-alert/${alert.id}`,
       html: emailShell(

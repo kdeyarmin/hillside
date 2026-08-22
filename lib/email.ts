@@ -1,3 +1,4 @@
+import { recordEmail, type EmailKindValue } from './email-log.ts';
 import { normalizeHillsideDomain } from './store.ts';
 
 type EmailInput = {
@@ -7,6 +8,10 @@ type EmailInput = {
   text?: string;
   replyTo?: string;
   idempotencyKey?: string;
+  /** What this email is for. Drives the filter on the owner's sent-mail page. */
+  kind?: EmailKindValue;
+  /** Set when this is the owner's reply, so the log can thread it under the message. */
+  contactMessageId?: string;
 };
 
 export function escapeHtml(value: unknown) {
@@ -66,17 +71,43 @@ export async function sendEmail(input: EmailInput) {
       process.env.EMAIL_FROM || 'The Hillside Gardens <orders@thehillsidegardens.com>'
     )
   );
-  if (!apiKey) return { sent: false, reason: 'not-configured' as const };
+
+  /**
+   * Read before the checks below so a failed send can still say who it was for,
+   * but *checked* in the order it always was: swapping the two would change
+   * which reason an unconfigured, address-less send reports, and the order
+   * fulfillment path branches on exactly that.
+   */
+  const recipients = (Array.isArray(input.to) ? input.to : [input.to])
+    .map((address) => address.trim())
+    .filter(Boolean);
+
+  const log = (status: 'SENT' | 'FAILED', extra: { reason?: string; providerId?: string | null }) =>
+    recordEmail({
+      to: recipients,
+      subject: input.subject,
+      html: input.html,
+      kind: input.kind,
+      contactMessageId: input.contactMessageId,
+      status,
+      ...extra
+    });
+
+  if (!apiKey) {
+    await log('FAILED', { reason: 'not-configured' });
+    return { sent: false, reason: 'not-configured' as const };
+  }
 
   if (alreadySent(input.idempotencyKey)) {
+    // Deliberately not logged: this is the same message as a row already here,
+    // and a second row would read as Tammy having emailed the customer twice.
     return { sent: true, id: null };
   }
 
-  const recipients = (Array.isArray(input.to) ? input.to : [input.to])
-    .map((address) => address.trim())
-    .filter(Boolean)
-    .map((email) => ({ email }));
-  if (!recipients.length) return { sent: false, reason: 'no-email' as const };
+  if (!recipients.length) {
+    await log('FAILED', { reason: 'no-email' });
+    return { sent: false, reason: 'no-email' as const };
+  }
 
   /**
    * SendGrid rejects a content part whose value is empty and requires the
@@ -96,7 +127,7 @@ export async function sendEmail(input: EmailInput) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        personalizations: [{ to: recipients }],
+        personalizations: [{ to: recipients.map((email) => ({ email })) }],
         from,
         subject: input.subject,
         content,
@@ -106,6 +137,7 @@ export async function sendEmail(input: EmailInput) {
 
     if (!response.ok) {
       console.error('Email send failed', response.status, await response.text());
+      await log('FAILED', { reason: 'provider-error' });
       return { sent: false, reason: 'provider-error' as const };
     }
 
@@ -114,9 +146,12 @@ export async function sendEmail(input: EmailInput) {
      * and no id in it. The message id comes back as a header instead.
      */
     if (input.idempotencyKey) recentSends.set(input.idempotencyKey, Date.now());
-    return { sent: true, id: response.headers.get('x-message-id') };
+    const providerId = response.headers.get('x-message-id');
+    await log('SENT', { providerId });
+    return { sent: true, id: providerId };
   } catch (error) {
     console.error('Email send failed', error);
+    await log('FAILED', { reason: 'network-error' });
     return { sent: false, reason: 'network-error' as const };
   }
 }
@@ -125,5 +160,5 @@ export function emailShell(title: string, content: string, options?: { unsubscri
   const unsubscribe = options?.unsubscribeUrl
     ? `<br><a href="${escapeHtml(options.unsubscribeUrl)}" style="color:#315a3d">Unsubscribe from The Hillside Notes</a>`
     : '';
-  return `<!doctype html><html><body style="margin:0;background:#f7f4ec;font-family:Arial,sans-serif;color:#1d2a21"><div style="max-width:640px;margin:0 auto;padding:32px 18px"><div style="background:#ffffff;border:1px solid #dfe4dc;border-radius:18px;overflow:hidden"><div style="background:#203f2b;color:#ffffff;padding:24px 28px"><h1 style="font-family:Georgia,serif;font-weight:500;margin:0;font-size:30px">${escapeHtml(title)}</h1></div><div style="padding:28px">${content}</div><div style="padding:18px 28px;background:#edf1e9;color:#315a3d;font-size:12px">The Hillside Gardens • Plants • Teas • Botanicals${unsubscribe}</div></div></div></body></html>`;
+  return `<!doctype html><html><body style="margin:0;background:#f7f4ec;font-family:Arial,sans-serif;color:#1d2a21"><div style="max-width:640px;margin:0 auto;padding:32px 18px"><div style="background:#ffffff;border:1px solid #dfe4dc;border-radius:18px;overflow:hidden"><div style="background:#203f2b;color:#ffffff;padding:24px 28px"><h1 style="font-family:Georgia,serif;font-weight:500;margin:0;font-size:30px">${escapeHtml(title)}</h1></div><div style="padding:28px"><!--body-->${content}<!--/body--></div><div style="padding:18px 28px;background:#edf1e9;color:#315a3d;font-size:12px">The Hillside Gardens • Plants • Teas • Botanicals${unsubscribe}</div></div></div></body></html>`;
 }

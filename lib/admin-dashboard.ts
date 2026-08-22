@@ -101,6 +101,10 @@ export function adminContentPath(query: Record<string, string | undefined | null
   return adminDashboardPath(query).replace(/^\/admin/, '/admin/content');
 }
 
+export function adminEmailPath(query: Record<string, string | undefined | null> = {}) {
+  return adminDashboardPath(query).replace(/^\/admin/, '/admin/email');
+}
+
 /**
  * Next can hand a repeated query string through as `string[]`. The dashboard
  * used to call `.trim()` on `params.q` directly, so `/admin?q=one&q=two`
@@ -148,7 +152,9 @@ export const ADMIN_NOTICES: Record<string, string> = {
     'Amazon sent nothing new, so the pick is unchanged. It is still live — add a photo below if it needs one.',
   'care-saved': 'Care sheet saved.',
   'care-created': 'Care sheet published.',
-  'content-archived': 'Archived. It is no longer on the public website.'
+  'content-archived': 'Archived. It is no longer on the public website.',
+  'email-sent': 'Email sent.',
+  'reply-sent': 'Reply sent. It is saved with the message below.'
 };
 
 export const ADMIN_ERRORS: Record<string, string> = {
@@ -183,5 +189,14 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'amazon-url':
     'That does not look like an Amazon link. Paste the item’s own address — an amazon.com one (or any other Amazon country address), or a shortened a.co or amzn.to link.',
   throttled: 'Too many sign-in attempts. Please wait a few minutes and try again.',
-  '1': 'That email address and password didn’t match an admin account.'
+  '1': 'That email address and password didn’t match an admin account.',
+  'email-recipient':
+    'Check the address you are writing to. Separate more than one with a comma, up to five.',
+  'email-empty': 'An email needs a subject and a message.',
+  'email-long': 'That message is too long to send. Shorten it and try again.',
+  'email-failed':
+    'The email could not be sent, so nothing left the shop. Check that SENDGRID_API_KEY is set, then try again.',
+  'email-throttled':
+    'That is a lot of email in a short time. Wait a few minutes and send the rest.',
+  'message-missing': 'That customer message is no longer here.'
 };

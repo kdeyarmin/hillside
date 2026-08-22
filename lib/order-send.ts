@@ -24,6 +24,7 @@ export async function sendOrderConfirmationEmail(
 
   const delivery = await sendEmail({
     to: order.email,
+    kind: 'ORDER_CONFIRMATION',
     subject: `We received your Hillside order ${order.invoiceNumber}`,
     html: orderConfirmationHtml(order),
     idempotencyKey: options.force

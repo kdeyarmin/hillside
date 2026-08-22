@@ -43,6 +43,7 @@ export async function sendFreeClassConfirmEmail({
 
   return sendEmail({
     to: registration.email,
+    kind: 'CLASS_CONFIRMATION',
     subject: `Confirm your seat for ${event.title}`,
     html: emailShell(
       'Confirm your class seat',
@@ -91,6 +92,7 @@ export async function sendClassRegistrationEmails({
   const customerResult = registration.email
     ? await sendEmail({
         to: registration.email,
+        kind: 'CLASS_CONFIRMATION',
         subject: `You’re registered for ${event.title}`,
         html: emailShell(
           'Your class registration is confirmed',
@@ -113,6 +115,7 @@ export async function sendClassRegistrationEmails({
   if (businessEmail) {
     await sendEmail({
       to: businessEmail,
+      kind: 'CLASS_ADMIN',
       subject: `New class registration • ${event.title}`,
       html: emailShell(
         'New class registration',

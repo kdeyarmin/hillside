@@ -377,8 +377,21 @@ SendGrid is required to email online-class access links. To send branded Hillsid
 2. Add `SENDGRID_API_KEY`.
 3. Set `EMAIL_FROM` to an address on the verified domain.
 4. Set `BUSINESS_EMAIL` to Tammy’s inbox.
+5. Optionally set `OWNER_PERSONAL_EMAIL` to her own everyday address. New-order and oversold-order alerts are then sent to both inboxes, deduplicated if the two match. It is a recipient only — outbound mail still comes from `EMAIL_FROM` on the SendGrid-authenticated domain, because sending _as_ a consumer mailbox would fail SPF and DKIM alignment and be filed as spam.
 
 Product ordering still works without SendGrid because Stripe can send payment documents. Online class registrations are saved without SendGrid, but Tammy must configure email and use the host studio’s **Resend link** action before customers can receive their private classroom URL.
+
+## Email page
+
+`/admin/email` is where Tammy reads and writes mail without leaving the dashboard:
+
+- **Write an email** — compose to as many as five addresses. It is sent as the shop, signed, with replies directed back to `BUSINESS_EMAIL`.
+- **Customer messages** — every website contact-form message, answered inline. The reply quotes what the customer wrote, is stored against the message, and moves a `NEW` message to `READ`.
+- **Sent mail** — every email the app has _attempted_, searchable by address, subject or body text and filterable by kind and delivery. Failures are rows too: a confirmation that never left used to be visible only in the server log.
+
+Bodies are shown in a sandboxed frame, so customer-supplied text in a logged message cannot execute in the dashboard. Sending is capped at 40 messages an hour per admin session.
+
+The page reads what the site itself collected and sent. It is not a mailbox client: SendGrid is send-only, so mail arriving at Tammy's own inbox is not mirrored here.
 
 ## Shipping configuration
 

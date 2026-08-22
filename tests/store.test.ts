@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   categoryTypes,
   checkoutReturnOrigin,
+  ownerNotificationEmails,
   clampQuantity,
   discountPercent,
   formatMoney,
@@ -238,5 +239,75 @@ describe('resolveImageUrl', () => {
 describe('priceValidUntil', () => {
   it('is a year out, as an ISO date', () => {
     assert.equal(priceValidUntil(new Date('2026-08-12T00:00:00Z')), '2027-08-12');
+  });
+});
+
+describe('ownerNotificationEmails', () => {
+  const SHOP = 'hello@thehillsidegardens.com';
+
+  function withOwnerEnv(values: { business?: string; personal?: string }, run: () => void) {
+    const previousBusiness = process.env.BUSINESS_EMAIL;
+    const previousPersonal = process.env.OWNER_PERSONAL_EMAIL;
+    if (values.business === undefined) delete process.env.BUSINESS_EMAIL;
+    else process.env.BUSINESS_EMAIL = values.business;
+    if (values.personal === undefined) delete process.env.OWNER_PERSONAL_EMAIL;
+    else process.env.OWNER_PERSONAL_EMAIL = values.personal;
+    try {
+      run();
+    } finally {
+      if (previousBusiness === undefined) delete process.env.BUSINESS_EMAIL;
+      else process.env.BUSINESS_EMAIL = previousBusiness;
+      if (previousPersonal === undefined) delete process.env.OWNER_PERSONAL_EMAIL;
+      else process.env.OWNER_PERSONAL_EMAIL = previousPersonal;
+    }
+  }
+
+  it('is the shop inbox alone when no personal address is set', () => {
+    withOwnerEnv({ business: SHOP }, () => {
+      assert.deepEqual(ownerNotificationEmails(), [SHOP]);
+    });
+  });
+
+  it('falls back to the published address rather than alerting nobody', () => {
+    // A paid order going unannounced is the worse failure, so an unset
+    // BUSINESS_EMAIL still reaches the shop's own address.
+    withOwnerEnv({}, () => {
+      assert.deepEqual(ownerNotificationEmails(), [SHOP]);
+    });
+  });
+
+  it('adds the personal inbox alongside the shop one', () => {
+    withOwnerEnv({ business: SHOP, personal: 'tammy@comcast.net' }, () => {
+      assert.deepEqual(ownerNotificationEmails(), [SHOP, 'tammy@comcast.net']);
+    });
+  });
+
+  it('does not send two of every notice when both point at one inbox', () => {
+    withOwnerEnv({ business: SHOP, personal: SHOP.toUpperCase() }, () => {
+      assert.deepEqual(ownerNotificationEmails(), [SHOP]);
+    });
+  });
+
+  it('skips a malformed personal address instead of losing the shop copy', () => {
+    // SendGrid rejects the whole request when any one recipient is malformed,
+    // which would take the business inbox's copy down with it.
+    withOwnerEnv({ business: SHOP, personal: 'not an address' }, () => {
+      assert.deepEqual(ownerNotificationEmails(), [SHOP]);
+    });
+    withOwnerEnv({ business: SHOP, personal: 'tammy at comcast.net' }, () => {
+      assert.deepEqual(ownerNotificationEmails(), [SHOP]);
+    });
+  });
+
+  it('ignores a blank variable', () => {
+    withOwnerEnv({ business: SHOP, personal: '   ' }, () => {
+      assert.deepEqual(ownerNotificationEmails(), [SHOP]);
+    });
+  });
+
+  it('repairs the singular-domain typo in either variable', () => {
+    withOwnerEnv({ business: 'hello@thehillsidegarden.com', personal: '' }, () => {
+      assert.deepEqual(ownerNotificationEmails(), [SHOP]);
+    });
   });
 });

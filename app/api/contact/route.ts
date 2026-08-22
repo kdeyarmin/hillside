@@ -75,6 +75,7 @@ export async function POST(request: Request) {
     await Promise.all([
       sendEmail({
         to: businessEmail,
+        kind: 'CONTACT',
         subject: `Website message: ${subject}`,
         replyTo: email,
         idempotencyKey: `contact-admin/${saved.id}`,
@@ -85,6 +86,7 @@ export async function POST(request: Request) {
       }),
       sendEmail({
         to: email,
+        kind: 'CONTACT',
         subject: 'We received your Hillside Gardens message',
         idempotencyKey: `contact-customer/${saved.id}`,
         html: emailShell(

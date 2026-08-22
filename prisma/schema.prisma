@@ -55,6 +55,30 @@ enum ReviewStatus {
   REJECTED
 }
 
+enum EmailStatus {
+  SENT
+  FAILED
+}
+
+/**
+ * What an outbound email was for. Kept as an enum rather than free text so the
+ * owner's sent-mail page can filter on it without matching subject lines, which
+ * change whenever the copy is edited.
+ */
+enum EmailKind {
+  ORDER_CONFIRMATION
+  ORDER_ADMIN
+  PICKUP_READY
+  CLASS_CONFIRMATION
+  CLASS_ADMIN
+  STOCK_ALERT
+  NEWSLETTER
+  CONTACT
+  REPLY
+  MANUAL
+  OTHER
+}
+
 enum CareGuideType {
   PLANT
   GENERAL
@@ -282,6 +306,42 @@ model ContactMessage {
   status    MessageStatus @default(NEW)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
+  replies   EmailLog[]
+}
+
+/**
+ * Every outbound email the app attempts, kept so the owner can answer "did she
+ * ever get her receipt?" from the dashboard instead of from SendGrid's console.
+ *
+ * Failures are rows too, and that is the point of the table: a confirmation
+ * that never left was previously visible only as a line in the server log.
+ */
+model EmailLog {
+  id               String          @id @default(cuid())
+  /**
+   * Every recipient the send was addressed to. A list because the owner's new
+   * order notice goes to the business inbox and her personal one together.
+   */
+  to               String[]        @default([])
+  subject          String
+  /** The exact body that was sent, so the page can show what she actually wrote. */
+  html             String
+  kind             EmailKind       @default(OTHER)
+  status           EmailStatus
+  /** Why a failed send failed: not-configured, provider-error, network-error. */
+  reason           String?
+  /** SendGrid's x-message-id, for tracing a delivery in their dashboard. */
+  providerId       String?
+  /**
+   * Set when this email is the owner's reply to a customer message, which is
+   * what threads the reply under the message on the email page.
+   */
+  contactMessageId String?
+  createdAt        DateTime        @default(now())
+  contactMessage   ContactMessage? @relation(fields: [contactMessageId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([contactMessageId])
 }
 
 model Collection {
