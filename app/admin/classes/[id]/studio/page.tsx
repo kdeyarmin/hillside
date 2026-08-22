@@ -100,7 +100,7 @@ export default async function HostClassStudio({
           {query.error === 'email' && (
             <div className="admin-card admin-alert" role="alert">
               <b>The confirmation could not be sent.</b> The guest’s previous classroom link is
-              still valid. Check that RESEND_API_KEY is set.
+              still valid. Check that SENDGRID_API_KEY is set.
             </div>
           )}
           {event.registrations.length ? (
