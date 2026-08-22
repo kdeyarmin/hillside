@@ -40,6 +40,13 @@ body:has(.adminshell) .footer,
 body:has(.adminshell) .topbar { display: none; }
 a { color: inherit; text-decoration: none; }
 img { display: block; max-width: 100%; }
+/* An author `display` beats the UA sheet's `[hidden] { display: none }` whatever
+   the specificity, so the rule above — and `.btn`, and `.text-button` — quietly
+   un-hid everything the upload enhancer hides. Tammy's product form carried a
+   broken-image box reading "Selected admin photo preview", a "Remove photo"
+   button with no photo to remove, and a "Remove last extra photo" button with no
+   extra photos, on every form, always. `hidden` means hidden. */
+[hidden] { display: none !important; }
 button, input, textarea, select { font: inherit; }
 button:disabled { cursor: not-allowed; opacity: 0.58; }
 ::selection { background: var(--gold-light); color: var(--forest-3); }
