@@ -48,15 +48,24 @@
   cursor: pointer;
 }
 .header-search svg { flex: 0 0 auto; color: var(--forest); }
+/* Sized from the column it sits in, not from the viewport. `16vw` kept growing
+   after `.container` stopped at 1180px, so the cap it needed for narrow desktops
+   was still in force at 1920px — the field stayed 230px wide with 267px of empty
+   header beside it, and its own placeholder was cut off mid-word on every page.
+   Flexing into the grid column uses that room; the ellipsis keeps the one
+   viewport band that is genuinely too narrow reading as truncation. */
 .header-search input {
-  width: clamp(140px, 16vw, 230px);
+  flex: 1 1 auto;
+  width: auto;
   min-width: 0;
+  max-width: 280px;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--white);
   padding: 9px 14px;
   color: var(--ink);
   font-size: 14px;
+  text-overflow: ellipsis;
 }
 .header-search input:focus {
   border-color: var(--gold);

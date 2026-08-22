@@ -223,8 +223,11 @@
   gap: 8px;
 }
 
+/* 44px, the size the responsive audit measures against: these five chips were
+   the only controls on the storefront it still flagged, on every phone and
+   tablet profile it runs. */
 .care-filter-row button {
-  min-height: 40px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
   gap: 8px;

@@ -248,6 +248,24 @@ export function productTypeLabel(type: string) {
 }
 
 /**
+ * The same labels as a plural noun, for the places that talk about a group of
+ * products rather than one. Written out rather than derived: "Tea supply" does
+ * not pluralise by adding an "s", and the product page's related-items heading
+ * lowercased the singular and read "More in plant."
+ */
+export function productTypePlural(type: string) {
+  const plurals: Record<string, string> = {
+    PLANT: 'Plants',
+    TEA: 'Teas',
+    TEA_SUPPLY: 'Tea supplies',
+    LOTION: 'Lotions',
+    SOAP: 'Soaps',
+    OTHER: 'Botanical goods'
+  };
+  return plurals[type] || `${productTypeLabel(type)}s`;
+}
+
+/**
  * The return terms to advertise in a product's structured data, by product type.
  *
  * This has to be derived rather than stated once, because the published policy is

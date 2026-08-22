@@ -30,6 +30,7 @@ import {
   HANDLING_MIN_DAYS,
   priceValidUntil,
   productTypeLabel,
+  productTypePlural,
   returnPolicyForType,
   resolveImageUrl
 } from '@/lib/store';
@@ -427,9 +428,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <div className="product-details-section">
             <div className="sectionhead">
               {/* The query behind this list matches on product type, not on the
-                  collections above, so the heading says type. */}
+                  collections above, so the heading says type — as a plural,
+                  because it introduces a shelf of them, not one. */}
               <div className="eyebrow">You may also like</div>
-              <h2>More in {productTypeLabel(product.type).toLowerCase()}.</h2>
+              <h2>More in {productTypePlural(product.type).toLowerCase()}.</h2>
             </div>
             <ProductGrid products={relatedProducts} />
           </div>

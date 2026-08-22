@@ -23,6 +23,7 @@ const routes = process.argv.slice(2).length
       '/shop',
       '/shop/monstera-deliciosa',
       '/collections',
+      '/collections/plants',
       // '/classes' is hidden from the storefront (lib/class-visibility.ts) and
       // answers 404; restore this line with the flag.
       '/care',
@@ -33,7 +34,14 @@ const routes = process.argv.slice(2).length
       '/contact',
       '/cart',
       '/faq',
-      '/order-status'
+      '/order-status',
+      '/search?q=monstera',
+      '/shipping-returns',
+      '/privacy',
+      '/terms',
+      /* The sign-in form is the one page an owner cannot get past, so its labels
+         and its error message have to be reachable. */
+      '/admin'
     ];
 
 const browser = await chromium.launch(

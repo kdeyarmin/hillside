@@ -180,6 +180,14 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 .price { color: var(--forest) !important; font-size: 23px; font-weight: 900; }
 .compare-price { margin-left: 8px; color: var(--muted); text-decoration: line-through; font-size: 15px; }
 .split { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 56px; }
+/* `1fr` is `minmax(auto, 1fr)`, so a track never shrinks below its content's
+   min-content width — and a photo frame carrying both `aspect-ratio: 4 / 3` and
+   `min-height: 560px` has a min-content width of 747px whatever the column is
+   worth. The homepage story panel therefore took 747px of a 924px container and
+   left its heading and buttons 163px, painted past the viewport edge and clipped
+   there by `body { overflow-x: clip }`. Halves are the point of this layout; this
+   is what lets them be halves. */
+.split > * { min-width: 0; }
 .portrait { width: 100%; border-radius: 28px; box-shadow: var(--shadow); }
 .quote { color: var(--forest); font: 500 30px/1.3 Georgia, serif; }
 .featuregrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
@@ -318,15 +326,24 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
 .progress-track { height: 8px; overflow: hidden; border-radius: 999px; background: #dfe5db; }
 .progress-track span { display: block; height: 100%; border-radius: inherit; background: var(--gold); }
 
-.newsletter { display: flex; align-items: center; justify-content: space-between; gap: 34px; padding: 50px; border-radius: 30px; background: var(--forest); color: var(--white); }
+.newsletter { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 34px; padding: 50px; border-radius: 30px; background: var(--forest); color: var(--white); }
 /* Eyebrows default to --gold-strong, tuned for light backgrounds, which measures
    2.16:1 on this panel's forest green. --gold-light is the token for dark grounds.
    Scoped away from .editorial-newsletter, which shares the class but repaints the
    panel cream — there --gold-strong is already correct. */
 .newsletter:not(.editorial-newsletter) .eyebrow { color: var(--gold-light); }
 .newsletter h3, .footer-newsletter h3 { margin: 4px 0 0; font: 500 37px/1.15 Georgia, serif; }
-.newsletter-form { display: grid; grid-template-columns: minmax(130px, 0.7fr) minmax(220px, 1fr) auto; gap: 10px; align-items: start; }
+/* The compact form has carried `min-width` since it was written; the two-field
+   one had none, and `form { min-width: 0 }` in responsive-hardening.css let it be
+   squeezed to 372px by the heading beside it. Its tracks kept their own minimums
+   regardless, so the grid overflowed the form and starved the button: "Join the
+   list" was an 88px block wrapped onto three lines from 901px all the way to
+   1180px, with the arrow cut off the panel entirely. The floor plus `flex-wrap`
+   above lets the panel put the form on its own line when the row is genuinely
+   too narrow, instead of shipping a broken button. */
+.newsletter-form { display: grid; grid-template-columns: minmax(130px, 0.7fr) minmax(220px, 1fr) auto; gap: 10px; align-items: start; min-width: min(530px, 100%); }
 .newsletter-form.compact { grid-template-columns: minmax(220px, 1fr) auto; min-width: min(520px, 100%); }
+.newsletter > div:first-child, .footer-newsletter > div:first-child { flex: 1 1 300px; }
 .newsletter-form input { min-height: 48px; border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 999px; padding: 0 17px; background: var(--white); color: var(--ink); }
 .form-status { grid-column: 1 / -1; font-size: 13px; }
 /* The live region stays in the DOM while empty — that is what makes it announce
@@ -377,7 +394,7 @@ textarea.form-input { min-height: 145px; resize: vertical; }
 .faq-list summary { color: var(--forest); font-weight: 900; cursor: pointer; }
 
 .footer { background: var(--forest-3); color: #dbe3dc; padding: 0 0 28px; }
-.footer-newsletter { transform: translateY(-1px); display: flex; align-items: center; justify-content: space-between; gap: 28px; padding: 45px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+.footer-newsletter { transform: translateY(-1px); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 28px; padding: 45px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
 .footergrid { display: grid; grid-template-columns: 1.7fr repeat(3, 1fr); gap: 42px; padding: 52px 0 36px; }
 .footer h4 { color: var(--white); margin-top: 0; }
 .footer p { margin: 8px 0; }

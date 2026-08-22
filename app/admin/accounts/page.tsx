@@ -143,7 +143,17 @@ export default async function AdminAccounts({ searchParams }: { searchParams: Pr
               </label>
               <label className="admin-label">
                 Email address
-                <input className="admin-input" name="email" type="email" required placeholder="name@example.com" />
+                {/* Deliberately off: this field is the new person's address, and
+                    the browser's first suggestion here is the signed-in admin's
+                    own. */}
+                <input
+                  className="admin-input"
+                  name="email"
+                  type="email"
+                  autoComplete="off"
+                  required
+                  placeholder="name@example.com"
+                />
               </label>
               <label className="admin-label">
                 Password

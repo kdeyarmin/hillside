@@ -5,11 +5,21 @@ import path from 'node:path';
 const baseURL = (process.env.AUDIT_BASE_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
 const outputDir = path.resolve(process.env.AUDIT_OUTPUT_DIR || 'responsive-audit-output');
 
+/**
+ * `laptop-960` is not a spare wide profile. The desktop header, the two-column
+ * `.split` panels and the newsletter row all switch on at 901px, and the next
+ * profile after 768 used to be 1280 — so the band where those layouts are at
+ * their tightest was the one band never measured. Two breaks lived there: the
+ * homepage story panel took 747px of a 924px container and painted its heading
+ * off the side of the page, and the newsletter's "Join the list" button was an
+ * 88px block with its label wrapped onto three lines.
+ */
 const profiles = [
   { name: 'phone-320', width: 320, height: 568, mobile: true, fullRoutes: true },
   { name: 'phone-390', width: 390, height: 844, mobile: true, fullRoutes: true },
   { name: 'phone-430', width: 430, height: 932, mobile: true, fullRoutes: false },
   { name: 'tablet-768', width: 768, height: 1024, mobile: true, fullRoutes: true },
+  { name: 'laptop-960', width: 960, height: 900, mobile: false, fullRoutes: true },
   { name: 'laptop-1280', width: 1280, height: 800, mobile: false, fullRoutes: true },
   { name: 'desktop-1600', width: 1600, height: 1000, mobile: false, fullRoutes: true },
   { name: 'desktop-1920', width: 1920, height: 1080, mobile: false, fullRoutes: false }
@@ -19,6 +29,8 @@ const routes = [
   { name: 'home', path: '/' },
   { name: 'shop', path: '/shop' },
   { name: 'product', path: '/shop/monstera-deliciosa' },
+  { name: 'collections', path: '/collections' },
+  { name: 'collection', path: '/collections/plants' },
   // '/classes' is hidden from the storefront (lib/class-visibility.ts) and
   // answers 404; restore this line with the flag.
   { name: 'care', path: '/care' },
@@ -26,6 +38,10 @@ const routes = [
   { name: 'about', path: '/about' },
   { name: 'contact', path: '/contact' },
   { name: 'gallery', path: '/gallery' },
+  { name: 'picks', path: '/amazon' },
+  /* A search term is the one piece of arbitrary text the storefront prints into
+     a heading, so it is the page most likely to be widened by its own content. */
+  { name: 'search', path: '/search?q=monstera' },
   { name: 'shipping', path: '/shipping-returns' },
   { name: 'faq', path: '/faq' },
   { name: 'cart', path: '/cart' },

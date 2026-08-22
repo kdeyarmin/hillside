@@ -56,6 +56,7 @@ export default function StockAlertForm({ slug, name }: { slug: string; name: str
           className="form-input"
           type="email"
           name="email"
+          autoComplete="email"
           required
           value={email}
           onChange={(event) => setEmail(event.target.value)}
