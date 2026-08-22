@@ -8,6 +8,7 @@ import {
   freeClassConfirmExpiry
 } from '@/lib/class-confirm';
 import { sendFreeClassConfirmEmail } from '@/lib/class-registration-email';
+import { seatsShortLabel } from '@/lib/class-access';
 import { claimFreeSeat } from '@/lib/class-seats';
 import { rateLimited } from '@/lib/rate-limit';
 import { absoluteUrl } from '@/lib/store';
@@ -106,7 +107,7 @@ export async function POST(request: Request) {
         );
       }
       return NextResponse.json(
-        { error: claim.seatsLeft ? `Only ${claim.seatsLeft} seats remain.` : 'This class is sold out.' },
+        { error: seatsShortLabel(claim.seatsLeft) },
         { status: 400 }
       );
     }
