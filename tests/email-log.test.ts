@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   emailBodyHtml,
+  redactSecretLinks,
   emailSearchText,
   markOwnerText,
   ownerSaidHtml,
@@ -110,6 +111,45 @@ describe('ownerSaidHtml', () => {
     );
     assert.equal(ownerSaidHtml(''), '');
     assert.equal(ownerSaidHtml(null), '');
+  });
+});
+
+describe('redactSecretLinks', () => {
+  it('removes a live classroom token, which the database otherwise only holds hashed', () => {
+    const html =
+      '<a href="https://thehillsidegardens.com/classes/access/Ab3-_x9ZqQ">Open my online classroom</a>';
+    const redacted = redactSecretLinks(html);
+    assert.equal(redacted.includes('Ab3-_x9ZqQ'), false);
+    assert.equal(redacted.includes('/classes/access/[removed]'), true);
+    // Still a link, still readable — only the secret is gone.
+    assert.equal(redacted.includes('Open my online classroom'), true);
+  });
+
+  it('removes a seat-confirmation token', () => {
+    const redacted = redactSecretLinks(
+      '<a href="https://thehillsidegardens.com/classes/confirm/tok_ABC123">Confirm my seat</a>'
+    );
+    assert.equal(redacted.includes('tok_ABC123'), false);
+    assert.equal(redacted.includes('/classes/confirm/[removed]'), true);
+  });
+
+  it('removes an unsubscribe token, which acts on someone else’s subscription', () => {
+    const redacted = redactSecretLinks(
+      '<a href="https://thehillsidegardens.com/newsletter/unsubscribe?token=abc%3D123">Unsubscribe</a>'
+    );
+    assert.equal(redacted.includes('abc%3D123'), false);
+    assert.equal(redacted.includes('token=[removed]'), true);
+  });
+
+  it('leaves ordinary shop links alone', () => {
+    const html =
+      '<a href="https://thehillsidegardens.com/shop/monstera">Monstera</a><a href="https://thehillsidegardens.com/order-status">Look up your order</a>';
+    assert.equal(redactSecretLinks(html), html);
+  });
+
+  it('is safe on nothing', () => {
+    assert.equal(redactSecretLinks(null), '');
+    assert.equal(redactSecretLinks(undefined), '');
   });
 });
 

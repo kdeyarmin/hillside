@@ -389,7 +389,11 @@ Product ordering still works without SendGrid because Stripe can send payment do
 - **Customer messages** — every website contact-form message, answered inline. The reply quotes what the customer wrote, is stored against the message, and moves a `NEW` message to `READ`.
 - **Sent mail** — every email the app has _attempted_, searchable by address, subject or body text and filterable by kind and delivery. Failures are rows too: a confirmation that never left used to be visible only in the server log.
 
-Bodies are shown in a sandboxed frame, so customer-supplied text in a logged message cannot execute in the dashboard. Sending is capped at 40 messages an hour per admin session.
+Bodies are shown in a sandboxed frame, so customer-supplied text in a logged message cannot execute in the dashboard. Sending is capped at 40 messages an hour per admin account, and a repeated submission of the same message inside two minutes is treated as the double-click it almost always is.
+
+Secrets are stripped from a body before it is stored: classroom access links, seat-confirmation links and newsletter unsubscribe links keep their shape but not their token. `ClassRegistration.joinTokenHash` holds only a hash so that reading the database cannot produce a working classroom link, and the log is not allowed to undo that.
+
+**Every admin account has the same access.** Anyone who can sign in to the dashboard can send mail as the shop to any address, read every message the shop has sent, and create further admin accounts. There are no per-account roles.
 
 The page reads what the site itself collected and sent. It is not a mailbox client: SendGrid is send-only, so mail arriving at Tammy's own inbox is not mirrored here.
 

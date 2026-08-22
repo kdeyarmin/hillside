@@ -254,6 +254,27 @@ export function emailSearchText(to: string[], html: string | null | undefined) {
   return `${to.join(' ')} ${emailPlainText(ownerSaidHtml(html))}`.trim();
 }
 
+/**
+ * Strips the live credentials out of a body before it is stored.
+ *
+ * `ClassRegistration.joinTokenHash` holds a SHA-256 *hash* precisely so that
+ * reading the database cannot yield a working classroom link — the plaintext
+ * token is supposed to exist only in the customer's own inbox. Storing the sent
+ * HTML put it back in the database in the clear, which handed anyone who can
+ * read this table, or a backup of it, a live class credential. Seat-confirmation
+ * links and newsletter unsubscribe tokens go the same way: one confirms someone
+ * else's seat, the other unsubscribes them.
+ *
+ * The email stays readable and the link stays visible as a link; only the
+ * secret in it is replaced. Nothing is lost by that — resending a classroom
+ * link is its own action in the class studio, and it mints a fresh token.
+ */
+export function redactSecretLinks(html: string | null | undefined) {
+  return String(html || '')
+    .replace(/(\/classes\/(?:access|confirm)\/)[A-Za-z0-9._~%-]+/g, '$1[removed]')
+    .replace(/([?&]token=)[^"'&\s<>]+/g, '$1[removed]');
+}
+
 export type RecordEmailInput = {
   to: string[];
   subject: string;
@@ -273,12 +294,15 @@ export type RecordEmailInput = {
 export async function recordEmail(entry: RecordEmailInput) {
   try {
     const { db } = await import('./db.ts');
+    // Redacted before it is stored, not on the way out: a row that never held
+    // the token cannot leak it through a backup, an export or a later feature.
+    const html = redactSecretLinks(entry.html);
     await db.emailLog.create({
       data: {
         to: entry.to,
         subject: entry.subject.slice(0, 500),
-        html: entry.html,
-        searchText: emailSearchText(entry.to, entry.html),
+        html,
+        searchText: emailSearchText(entry.to, html),
         kind: entry.kind || 'OTHER',
         status: entry.status,
         reason: entry.reason || null,
