@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { MessageStatus, type EmailLog } from '@prisma/client';
 import AdminDeepLink from '@/components/AdminDeepLink';
+import PendingButton from '@/components/PendingButton';
 import { isAdmin } from '@/lib/admin';
 import {
   ADMIN_ERRORS,
@@ -304,7 +305,9 @@ export default async function AdminEmailPage({
               </label>
             </div>
             <div className="admin-actions">
-              <button className="btn gold">Send email</button>
+              <PendingButton className="btn gold" pendingLabel="Sending…">
+                Send email
+              </PendingButton>
             </div>
           </form>
         </section>
@@ -401,7 +404,9 @@ export default async function AdminEmailPage({
                         </span>
                       </label>
                       <div className="admin-actions">
-                        <button className="btn gold small">Send reply</button>
+                        <PendingButton className="btn gold small" pendingLabel="Sending…">
+                          Send reply
+                        </PendingButton>
                       </div>
                     </form>
                   </div>

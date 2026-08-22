@@ -1,5 +1,6 @@
 'use server';
 
+import { createHash } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { MessageStatus } from '@prisma/client';
@@ -62,6 +63,49 @@ function ownerSignature() {
  * hillside domain whatever the recipient is; `replyTo` is what carries the
  * conversation back to the shop inbox.
  */
+/**
+ * One send's claim on itself. A double-click on a submit button can reach a
+ * server action twice, and these two sends carried no idempotency key at all —
+ * every automated sender in the app has one, and a duplicate delivery is the
+ * kind of thing the owner hears about from the customer.
+ *
+ * The claim is taken *before* the send so two clicks racing cannot both get
+ * through, and released again when the send fails, so a provider error does not
+ * leave her retry answered with a success it never had. That release is the
+ * whole reason this is not the rate limiter: claiming through `rateLimitedByKey`
+ * cannot be undone, and a failed send would lock out the retry for two minutes
+ * while telling her it had gone.
+ *
+ * A short window: two identical notes a minute apart are a stuck button, two an
+ * hour apart are a decision. Best-effort in the same way `sendEmail`'s own key
+ * is — this lives in process memory, so a restart or a second replica keeps its
+ * own, and the failure it guards against is a double-click rather than a
+ * determined caller.
+ */
+const REPEAT_WINDOW_MS = 2 * 60_000;
+const inFlight = new Map<string, number>();
+
+function sendFingerprint(adminId: string | null, parts: string[]) {
+  const digest = createHash('sha1').update(parts.join('\u0000')).digest('base64url');
+  return `${adminId || 'shared-owner-login'}:${digest}`;
+}
+
+/** True when this send is ours to make; false when an identical one just was. */
+function claimSend(key: string) {
+  const now = Date.now();
+  for (const [seen, at] of inFlight) {
+    if (now - at > REPEAT_WINDOW_MS) inFlight.delete(seen);
+  }
+  if (inFlight.has(key)) return false;
+  inFlight.set(key, now);
+  return true;
+}
+
+/** Hands the send back so she can try again at once. */
+function releaseSend(key: string) {
+  inFlight.delete(key);
+}
+
 export async function sendOwnerEmail(formData: FormData) {
   const admin = await guard();
   if (throttled(admin.id)) redirect(adminEmailPath({ error: 'email-throttled' }));
@@ -80,6 +124,16 @@ export async function sendOwnerEmail(formData: FormData) {
     redirect(adminEmailPath({ error: 'email-long', section: 'compose' }));
   }
 
+  /**
+   * Answered as the first send's success rather than refused, because to the
+   * owner this *was* one send — the same answer `sendEmail` gives when its own
+   * idempotency key has already been used.
+   */
+  const claim = sendFingerprint(admin.id, ['compose', ...addresses, subject, body]);
+  if (!claimSend(claim)) {
+    redirect(adminEmailPath({ notice: 'email-sent' }));
+  }
+
   const delivery = await sendEmail({
     to: addresses,
     kind: 'MANUAL',
@@ -87,6 +141,7 @@ export async function sendOwnerEmail(formData: FormData) {
     replyTo: businessEmail(),
     html: emailShell(subject, `${markOwnerText(ownerMessageHtml(body))}${ownerSignature()}`)
   });
+  if (!delivery.sent) releaseSend(claim);
 
   revalidatePath('/admin/email');
   redirect(
@@ -119,6 +174,11 @@ export async function replyToCustomerMessage(formData: FormData) {
   }
 
   const subject = text(formData, 'subject') || `Re: ${message.subject}`;
+  const claim = sendFingerprint(admin.id, ['reply', message.id, subject, body]);
+  if (!claimSend(claim)) {
+    redirect(adminEmailPath({ notice: 'reply-sent', message: id }));
+  }
+
   const delivery = await sendEmail({
     to: message.email,
     kind: 'REPLY',
@@ -143,6 +203,8 @@ export async function replyToCustomerMessage(formData: FormData) {
    * before the send: another admin archiving this message while the mail was in
    * flight would otherwise have that newer status overwritten by this stale one.
    */
+  if (!delivery.sent) releaseSend(claim);
+
   if (delivery.sent) {
     await db.contactMessage.updateMany({
       where: { id: message.id, status: MessageStatus.NEW },
