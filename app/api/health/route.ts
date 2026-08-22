@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Reports which integrations are actually wired. Email in particular used to
- * fail silently: without RESEND_API_KEY every order confirmation was dropped
+ * fail silently: without SENDGRID_API_KEY every order confirmation was dropped
  * with nothing anywhere recording it.
  *
  * The public body is liveness only. A detailed map of which keys are missing
@@ -19,7 +19,7 @@ export async function GET() {
     database: false,
     stripe: Boolean(process.env.STRIPE_SECRET_KEY),
     stripeWebhook: Boolean(process.env.STRIPE_WEBHOOK_SECRET),
-    email: Boolean(process.env.RESEND_API_KEY),
+    email: Boolean(process.env.SENDGRID_API_KEY),
     telnyxVideo: Boolean(process.env.TELNYX_API_KEY),
     adminAuth: false,
     analytics: Boolean(process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID)
