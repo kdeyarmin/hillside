@@ -40,8 +40,10 @@ const routes = process.argv.slice(2).length
       '/privacy',
       '/terms',
       /* The sign-in form is the one page an owner cannot get past, so its labels
-         and its error message have to be reachable. */
-      '/admin'
+         and its error message have to be reachable. The error code is what makes
+         that true: without one the page renders the plain form and the
+         `role="alert"` branch is never in the tree to be audited. */
+      '/admin?error=1'
     ];
 
 const browser = await chromium.launch(

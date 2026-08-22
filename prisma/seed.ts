@@ -32,6 +32,15 @@ async function main() {
       compareAtCents: null,
       inventory: 8,
       imageUrl: '/images/catalog/house-plants.webp',
+      /* The one seeded product with more than one photograph, so a fresh install
+         shows what the gallery looks like — and so the responsive audit has a
+         product whose pinned column carries a thumbnail strip to reach. With a
+         single image the gallery markup never renders at all. */
+      galleryImages: [
+        '/images/catalog/live-plant-planters.webp',
+        '/images/gallery/soft-greens.webp',
+        '/images/scenes/potting-bench.webp'
+      ],
       badge: 'Our pick',
       featured: true,
       sortOrder: 1
