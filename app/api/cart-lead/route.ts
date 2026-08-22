@@ -9,7 +9,7 @@ import {
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { rateLimited } from '@/lib/rate-limit';
-import { findSize, productSizes, sizeChoiceRejected } from '@/lib/product-sizes';
+import { findSize, productSizes, sizeAvailable, sizeChoiceRejected } from '@/lib/product-sizes';
 import { absoluteUrl, clampQuantity } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -180,18 +180,22 @@ export async function GET(request: Request) {
     const sizes = productSizes(product.sizes, product.priceCents);
     if (sizeChoiceRejected(sizes, requested.size)) return [];
     const chosen = findSize(sizes, requested.size);
+    // A size that has since sold out comes back as dropped rather than as a
+    // line the shopper would only lose again at checkout.
+    const available = sizeAvailable(chosen, product.inventory);
+    if (available <= 0) return [];
     return [
       {
         slug: product.slug,
         name: product.name,
         priceCents: chosen?.priceCents ?? product.priceCents,
         imageUrl: product.imageUrl,
-        inventory: product.inventory,
+        inventory: available,
         type: product.type,
         ships: product.ships,
         pickup: product.pickup,
         size: chosen?.label || null,
-        quantity: clampQuantity(requested.quantity, product.inventory)
+        quantity: clampQuantity(requested.quantity, available)
       }
     ];
   });

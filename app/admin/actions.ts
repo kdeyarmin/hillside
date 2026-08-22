@@ -23,7 +23,13 @@ import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { releaseProductHold, restoreUnshippedOrderInventory } from '@/lib/checkout';
 import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
-import { parseSizeLines, sizeFieldLabel, withoutRedundantPrices } from '@/lib/product-sizes';
+import {
+  parseSizeLines,
+  productInventoryForSizes,
+  sizeFieldLabel,
+  storedSizesTrackStock,
+  withoutRedundantPrices
+} from '@/lib/product-sizes';
 import { amazonPickDraft, DEFAULT_PICK_TITLE, extractAsin, isAmazonLink } from '@/lib/amazon-pick';
 import { associateTag, lookupAmazonProduct } from '@/lib/amazon-lookup';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
@@ -164,7 +170,17 @@ export async function saveProduct(formData: FormData) {
     );
   }
 
-  const postedInventory = Math.max(0, integer(formData.get('inventory')));
+  /**
+   * A product whose sizes carry their own counts has no separate quantity to
+   * type: the column is the sum of them, and taking it from the size lines is
+   * what keeps the two from drifting. The quantity box still answers for a
+   * product sold one way, or sold in sizes off one shelf.
+   */
+  const tracksSizeStock = storedSizesTrackStock(sizes);
+  const postedInventory = productInventoryForSizes(
+    sizes,
+    Math.max(0, integer(formData.get('inventory')))
+  );
   const expectedInventory = integer(formData.get('expectedInventory'), postedInventory);
 
   const collectionIds = formData
@@ -186,11 +202,18 @@ export async function saveProduct(formData: FormData) {
           collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) }
         }
       });
-    } else if (postedInventory === expectedInventory) {
+    } else if (postedInventory === expectedInventory && !tracksSizeStock) {
       /**
        * The owner did not change the quantity box. Leave the column alone so a
        * checkout hold that landed while this form was open is not written back
        * over with the stale on-hand figure.
+       *
+       * Counted sizes never take this path, even when the total happens to
+       * match. Their counts live in `sizes`, which this save rewrites either
+       * way, so a hold that landed while the form was open has to be caught by
+       * the claim below — leaving the column alone would keep the hold's
+       * decrement on the product while putting the pre-hold count back on the
+       * size, and the two would stop adding up.
        */
       product = await db.product.update({
         where: { id },
@@ -200,20 +223,38 @@ export async function saveProduct(formData: FormData) {
         }
       });
     } else {
-      const claimed = await db.product.updateMany({
-        where: { id, inventory: expectedInventory },
-        data: { inventory: postedInventory }
+      /**
+       * The claim and the write have to be one transaction, because the write
+       * carries `sizes` and `sizes` now carries stock. As two autocommit
+       * statements the row lock the claim takes is gone the moment it commits,
+       * and a hold landing in the gap decrements both the total and the size it
+       * was for — after which this write puts the form's pre-hold counts back on
+       * the sizes while leaving the newer total alone. The two stop adding up,
+       * and the next stock movement rebuilds the total from the stale counts and
+       * sells the held stock a second time. Held across both writes, the lock
+       * makes the hold wait and the claim fail, which is what the error below is
+       * for.
+       */
+      const saved = await db.$transaction(async (transaction) => {
+        const claimed = await transaction.product.updateMany({
+          where: { id, inventory: expectedInventory },
+          data: { inventory: postedInventory }
+        });
+        if (claimed.count === 0) return null;
+        return transaction.product.update({
+          where: { id },
+          data: {
+            ...data,
+            collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
+          }
+        });
       });
-      if (claimed.count === 0) {
+      // Outside the transaction: `redirect` throws, and rolling the claim back
+      // through that throw would depend on how Prisma re-raises it.
+      if (!saved) {
         redirect(adminDashboardPath({ error: 'inventory', product: slug, section: 'inventory' }));
       }
-      product = await db.product.update({
-        where: { id },
-        data: {
-          ...data,
-          collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
-        }
-      });
+      product = saved;
     }
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {

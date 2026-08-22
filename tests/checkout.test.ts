@@ -136,6 +136,89 @@ describe('checkoutAdjustments', () => {
     assert.deepEqual(checkoutAdjustments([{ id: 'lotion', quantity: 1 }], cleared), []);
   });
 
+  it('meters each counted size on its own shelf', () => {
+    // Two 4" pots and one 6" left. A basket taking the last of each is fine,
+    // where one pooled count of three would have refused the second line.
+    const perSize = [
+      {
+        slug: 'monstera',
+        name: 'Monstera',
+        inventory: 3,
+        priceCents: 4500,
+        sizes: [
+          { label: '4" pot', inventory: 2 },
+          { label: '6" pot', priceCents: 6500, inventory: 1 }
+        ]
+      }
+    ];
+
+    assert.deepEqual(
+      checkoutAdjustments(
+        [
+          { id: 'monstera', size: '4" pot', quantity: 2, priceCents: 4500 },
+          { id: 'monstera', size: '6" pot', quantity: 1, priceCents: 6500 }
+        ],
+        perSize
+      ),
+      []
+    );
+
+    // The plant has three altogether, but only one of them is a 6" pot.
+    const changes = checkoutAdjustments(
+      [{ id: 'monstera', size: '6" pot', quantity: 2, priceCents: 6500 }],
+      perSize
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'stock');
+    assert.equal(changes[0].available, 1);
+    assert.match(checkoutAdjustmentNotice(changes[0]), /Only 1 of Monstera — 6" pot left/);
+  });
+
+  it('still spends a counted size line by line', () => {
+    const perSize = [
+      {
+        slug: 'monstera',
+        name: 'Monstera',
+        inventory: 2,
+        priceCents: 4500,
+        sizes: [{ label: '4" pot', inventory: 2 }]
+      }
+    ];
+    // Two lines of the same size draw on the same two pots, not two each.
+    const changes = checkoutAdjustments(
+      [
+        { id: 'monstera', size: '4" pot', quantity: 2, priceCents: 4500 },
+        { id: 'monstera', size: '4"  POT', quantity: 1, priceCents: 4500 }
+      ],
+      perSize
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'stock');
+    assert.equal(changes[0].available, 0);
+  });
+
+  it('sells nothing of a size the owner counted down to none', () => {
+    const changes = checkoutAdjustments(
+      [{ id: 'lotion', size: '8 oz', quantity: 1, priceCents: 2600 }],
+      [
+        {
+          slug: 'lotion',
+          name: 'Hillside lotion',
+          inventory: 4,
+          priceCents: 1200,
+          sizes: [
+            { label: '2 oz', inventory: 4 },
+            { label: '8 oz', priceCents: 2600, inventory: 0 }
+          ]
+        }
+      ]
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'stock');
+    assert.equal(changes[0].available, 0);
+    assert.match(checkoutAdjustmentNotice(changes[0]), /sold out and was removed/);
+  });
+
   it('spends one stock count across every size of a product', () => {
     // Three jars on the bench, four asked for across two sizes.
     const changes = checkoutAdjustments(

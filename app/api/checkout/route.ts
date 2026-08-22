@@ -14,7 +14,13 @@ import {
   stripeProductDescription,
   stripeProductImages
 } from '@/lib/checkout';
-import { findSize, productSizes, sizeChoiceRejected, sizedName } from '@/lib/product-sizes';
+import {
+  findSize,
+  productSizes,
+  sizeAvailable,
+  sizeChoiceRejected,
+  sizedName
+} from '@/lib/product-sizes';
 import { rateLimited } from '@/lib/rate-limit';
 import {
   checkoutReturnOrigin,
@@ -90,10 +96,14 @@ export async function POST(request: Request) {
       const sizes = productSizes(product.sizes, product.priceCents);
       if (sizeChoiceRejected(sizes, requestedItem.size)) return [];
       const chosen = findSize(sizes, requestedItem.size);
+      // Against the chosen size's own count where the owner keeps one, so a
+      // plant with plenty of 4" pots cannot back a line of 6" ones.
+      const available = sizeAvailable(chosen, product.inventory);
+      if (available <= 0) return [];
       return [
         {
           product,
-          quantity: Math.min(requestedItem.quantity, product.inventory),
+          quantity: Math.min(requestedItem.quantity, available),
           size: chosen?.label || null,
           unitCents: chosen?.priceCents ?? product.priceCents
         }

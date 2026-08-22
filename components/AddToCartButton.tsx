@@ -3,7 +3,13 @@
 import { useId, useState } from 'react';
 import { Minus, Plus, ShoppingBag } from 'lucide-react';
 import { useCart, type CartProduct } from '@/components/CartProvider';
-import { sizeFieldLabel, sizesArePriced, type SizeOption } from '@/lib/product-sizes';
+import {
+  sizeAvailable,
+  sizeFieldLabel,
+  sizesArePriced,
+  sizesTrackStock,
+  type SizeOption
+} from '@/lib/product-sizes';
 import { formatMoney } from '@/lib/store';
 
 export default function AddToCartButton({
@@ -17,7 +23,7 @@ export default function AddToCartButton({
   sizeLabel?: string | null;
 }) {
   const { addItem, openCart } = useCart();
-  const [quantity, setQuantity] = useState(1);
+  const [wanted, setWanted] = useState(1);
   /**
    * Nothing is preselected. A default would let a shopper add a 4" pot while
    * meaning to buy the 6", so the button stays disabled until they say which.
@@ -28,14 +34,32 @@ export default function AddToCartButton({
   const chosen = sizes.find((option) => option.label === size) || null;
   const needsSize = sizes.length > 0 && !chosen;
   const showPrices = sizesArePriced(sizes, product.priceCents);
+  const countedSizes = sizesTrackStock(sizes);
   const fieldLabel = sizeFieldLabel(sizeLabel);
 
+  /**
+   * What the stepper may climb to. Before a size is picked that is the whole
+   * product; after, it is that size's own count where the owner keeps one — a
+   * plant with nine on the bench and two 6" pots left may be added twice, not
+   * nine times.
+   */
+  const available = chosen
+    ? sizeAvailable(chosen, product.inventory)
+    : Math.max(0, product.inventory);
+  const chosenSoldOut = Boolean(chosen) && available <= 0;
+  // Clamped as it is rendered rather than reset by an effect, so switching from
+  // a size with six left to one with two corrects the number on the same paint.
+  const quantity = Math.max(1, Math.min(wanted, available || 1));
+
   function add() {
-    if (soldOut || needsSize) return;
+    if (soldOut || needsSize || chosenSoldOut) return;
     addItem(
       {
         ...product,
         priceCents: chosen?.priceCents ?? product.priceCents,
+        // The basket line caps itself against the size it holds, not against the
+        // product's total, so the drawer cannot climb past what is on the bench.
+        inventory: available,
         size: chosen?.label || null
       },
       quantity
@@ -57,19 +81,35 @@ export default function AddToCartButton({
             onChange={(event) => setSize(event.target.value)}
           >
             <option value="">Choose {fieldLabel.toLowerCase()}…</option>
-            {sizes.map((option) => (
-              <option key={option.label} value={option.label}>
-                {showPrices ? `${option.label} — ${formatMoney(option.priceCents)}` : option.label}
-              </option>
-            ))}
+            {sizes.map((option) => {
+              const stock = sizeAvailable(option, product.inventory);
+              return (
+                /**
+                 * A size with none on the bench is shown and disabled rather
+                 * than dropped: a shopper who came for the 6" pot needs to see
+                 * that it exists and is out, not to wonder whether the shop
+                 * stopped making it.
+                 */
+                <option key={option.label} value={option.label} disabled={stock <= 0}>
+                  {showPrices
+                    ? `${option.label} — ${formatMoney(option.priceCents)}`
+                    : option.label}
+                  {countedSizes && stock <= 0 ? ' (sold out)' : ''}
+                </option>
+              );
+            })}
           </select>
           {/* Announced rather than merely shown: the price above the panel is a
               range for a product whose sizes are priced differently, so the
               figure that actually applies has to arrive with the choice. */}
           <p className="size-picker-note" aria-live="polite">
-            {chosen
-              ? `${chosen.label} · ${formatMoney(chosen.priceCents)} each`
-              : `Choose a ${fieldLabel.toLowerCase()} to add this to your basket.`}
+            {!chosen
+              ? `Choose a ${fieldLabel.toLowerCase()} to add this to your basket.`
+              : chosenSoldOut
+                ? `${chosen.label} is sold out just now — try another ${fieldLabel.toLowerCase()}.`
+                : `${chosen.label} · ${formatMoney(chosen.priceCents)} each${
+                    countedSizes && available <= 3 ? ` · only ${available} left` : ''
+                  }`}
           </p>
         </div>
       )}
@@ -79,7 +119,7 @@ export default function AddToCartButton({
         <div className="quantity-picker" role="group" aria-label="Quantity">
           <button
             type="button"
-            onClick={() => setQuantity((value) => Math.max(1, value - 1))}
+            onClick={() => setWanted(Math.max(1, quantity - 1))}
             aria-label="Decrease quantity"
           >
             <Minus size={16} />
@@ -90,9 +130,9 @@ export default function AddToCartButton({
           </span>
           <button
             type="button"
-            onClick={() => setQuantity((value) => Math.min(product.inventory, value + 1))}
+            onClick={() => setWanted(Math.min(available, quantity + 1))}
             aria-label="Increase quantity"
-            disabled={quantity >= product.inventory}
+            disabled={quantity >= available}
           >
             <Plus size={16} />
           </button>
@@ -100,11 +140,11 @@ export default function AddToCartButton({
         <button
           className="btn add-button"
           type="button"
-          disabled={soldOut || needsSize}
+          disabled={soldOut || needsSize || chosenSoldOut}
           onClick={add}
         >
           <ShoppingBag size={18} />
-          {soldOut
+          {soldOut || chosenSoldOut
             ? 'Sold out'
             : needsSize
               ? `Choose a ${fieldLabel.toLowerCase()}`

@@ -8,6 +8,7 @@ import {
   parseCheckoutItems,
   releaseExpiredProductHolds,
   releaseProductHold,
+  returnSizeStock,
   takeAvailableInventory
 } from '@/lib/checkout';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
@@ -149,7 +150,12 @@ async function completeReservedOrder(
     const mustReacquire = current.status === 'CANCELLED' || Boolean(current.inventoryRestoredAt);
     if (mustReacquire) {
       for (const item of current.items) {
-        const took = await takeAvailableInventory(transaction, item.productId, item.quantity);
+        const took = await takeAvailableInventory(
+          transaction,
+          item.productId,
+          item.quantity,
+          item.size
+        );
         if (!took) oversold = true;
       }
     }
@@ -295,7 +301,12 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
       });
 
       for (const item of lineItems) {
-        const took = await takeAvailableInventory(transaction, item.productId, item.quantity);
+        const took = await takeAvailableInventory(
+          transaction,
+          item.productId,
+          item.quantity,
+          item.size
+        );
         if (!took) oversold = true;
       }
       return created;
@@ -580,6 +591,8 @@ async function applyRefund(charge: Stripe.Charge) {
         where: { id: item.productId },
         data: { inventory: { increment: item.quantity } }
       });
+      // Back onto the size that was refunded, not onto the product at large.
+      await returnSizeStock(transaction, item.productId, item.size, item.quantity);
     }
   });
 }

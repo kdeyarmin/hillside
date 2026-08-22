@@ -3,6 +3,8 @@
  * `npm test` can cover the filter and error mapping Tammy hits every day.
  */
 
+import { readStoredSizes, storedSizesTrackStock } from './product-sizes.ts';
+
 export type AdminStockFilter = 'all' | 'active' | 'archived' | 'photo' | 'low';
 
 export type AdminProductFilterable = {
@@ -12,7 +14,12 @@ export type AdminProductFilterable = {
   active: boolean;
   inventory: number;
   imageUrl: string | null;
+  /** Raw `Product.sizes`; only the per-size counts are read from it. */
+  sizes?: unknown;
 };
+
+/** Where "Only 3 left" starts, on the shop card and on the dashboard chip. */
+export const LOW_STOCK_AT = 3;
 
 /**
  * A product with no photograph of its own falls back to shared catalog artwork,
@@ -22,6 +29,25 @@ export type AdminProductFilterable = {
 export function productNeedsPhoto(imageUrl: string | null | undefined) {
   if (!imageUrl?.trim()) return true;
   return imageUrl.includes('/images/catalog/') || imageUrl.includes('/images/scenes/');
+}
+
+/**
+ * What the Low stock chip counts. On a product counted per size that is any one
+ * size running down, not the total: a plant with nine on the bench and none of
+ * them in 6" pots has a size to pot up, and the total alone would keep it off
+ * the list Tammy works from until the 4" ones ran out too.
+ */
+export function productIsLowStock(product: {
+  active: boolean;
+  inventory: number;
+  sizes?: unknown;
+}) {
+  if (!product.active) return false;
+  const stored = readStoredSizes(product.sizes);
+  if (storedSizesTrackStock(stored)) {
+    return stored.some((size) => (size.inventory ?? 0) <= LOW_STOCK_AT);
+  }
+  return product.inventory <= LOW_STOCK_AT;
 }
 
 export function parseAdminStockFilter(value?: string | null): AdminStockFilter {
@@ -43,7 +69,7 @@ export function productMatchesAdminFilter(
   if (stock === 'active') return product.active;
   if (stock === 'archived') return !product.active;
   if (stock === 'photo') return product.active && productNeedsPhoto(product.imageUrl);
-  if (stock === 'low') return product.active && product.inventory <= 3;
+  if (stock === 'low') return productIsLowStock(product);
   return true;
 }
 

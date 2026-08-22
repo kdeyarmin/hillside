@@ -5,6 +5,7 @@ import {
   adminDashboardPath,
   firstSearchParam,
   parseAdminStockFilter,
+  productIsLowStock,
   productMatchesAdminFilter,
   productNeedsPhoto,
   uniqueConstraintField
@@ -51,6 +52,42 @@ describe('productMatchesAdminFilter', () => {
     assert.equal(productMatchesAdminFilter(tea, '', 'low'), true);
     assert.equal(productMatchesAdminFilter(tea, '', 'photo'), false);
     assert.equal(productMatchesAdminFilter(monstera, '', 'photo'), false);
+  });
+});
+
+describe('productIsLowStock', () => {
+  const base = { active: true, inventory: 9 };
+
+  it('reads the product total when the sizes are not counted', () => {
+    assert.equal(productIsLowStock(base), false);
+    assert.equal(productIsLowStock({ ...base, inventory: 3 }), true);
+    assert.equal(productIsLowStock({ ...base, inventory: 3, active: false }), false);
+    // Sizes sharing one shelf still answer with that shelf.
+    assert.equal(productIsLowStock({ ...base, sizes: [{ label: '4\" pot' }] }), false);
+  });
+
+  it('flags a counted size running down even when the product is full', () => {
+    // Nine on the bench and none of them in 6" pots: a size to pot up.
+    assert.equal(
+      productIsLowStock({
+        ...base,
+        sizes: [
+          { label: '4\" pot', inventory: 9 },
+          { label: '6\" pot', inventory: 0 }
+        ]
+      }),
+      true
+    );
+    assert.equal(
+      productIsLowStock({
+        ...base,
+        sizes: [
+          { label: '4\" pot', inventory: 5 },
+          { label: '6\" pot', inventory: 4 }
+        ]
+      }),
+      false
+    );
   });
 });
 
