@@ -158,8 +158,9 @@ export default async function AdminEmailPage({
         <h1>Email</h1>
         <p className="muted">
           Write to a customer, answer a website message, and look back at everything the shop has
-          sent. Mail goes out as <strong>{businessEmail()}</strong>, and replies come back there. A
-          new order is announced to {ownerEmails.join(' and ')}.
+          sent. Mail goes out as <strong>{businessEmail()}</strong>, and replies come back there.
+          Anything the shop needs to tell you about — an order, a message, a registration, a review
+          — is announced to {ownerEmails.join(' and ')}.
         </p>
 
         {notice && (
@@ -187,7 +188,7 @@ export default async function AdminEmailPage({
             <strong>{unanswered}</strong>
           </div>
           <div className="stat">
-            <span>New orders alert</span>
+            <span>Owner alerts reach</span>
             <strong>
               {ownerEmails.length} {ownerEmails.length === 1 ? 'inbox' : 'inboxes'}
             </strong>

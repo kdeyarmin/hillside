@@ -159,6 +159,7 @@ describe('filter parsing', () => {
   it('accepts the kinds it knows and falls back to all', () => {
     assert.equal(parseEmailKindFilter('ORDER_CONFIRMATION'), 'ORDER_CONFIRMATION');
     assert.equal(parseEmailKindFilter('REPLY'), 'REPLY');
+    assert.equal(parseEmailKindFilter('REVIEW'), 'REVIEW');
     assert.equal(parseEmailKindFilter('DROP TABLE'), 'all');
     assert.equal(parseEmailKindFilter(undefined), 'all');
     assert.equal(parseEmailKindFilter(['ORDER_ADMIN']), 'all');
@@ -260,6 +261,7 @@ describe('labels', () => {
   it('names each kind in words rather than in enum case', () => {
     assert.equal(emailKindLabel('ORDER_CONFIRMATION'), 'Order confirmation');
     assert.equal(emailKindLabel('REPLY'), 'Reply to a customer');
+    assert.equal(emailKindLabel('REVIEW'), 'Review to approve');
     assert.equal(emailKindLabel('SOMETHING_NEW'), 'something new');
   });
 

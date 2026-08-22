@@ -20,6 +20,7 @@ export type EmailKindValue =
   | 'STOCK_ALERT'
   | 'NEWSLETTER'
   | 'CONTACT'
+  | 'REVIEW'
   | 'REPLY'
   | 'MANUAL'
   | 'OTHER';
@@ -44,6 +45,7 @@ export const EMAIL_KIND_LABELS: Record<EmailKindValue, string> = {
   STOCK_ALERT: 'Back-in-stock alert',
   NEWSLETTER: 'Newsletter',
   CONTACT: 'Contact form',
+  REVIEW: 'Review to approve',
   REPLY: 'Reply to a customer',
   MANUAL: 'Written by hand',
   OTHER: 'Other'

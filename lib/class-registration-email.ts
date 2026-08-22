@@ -2,7 +2,7 @@ import type { ClassEvent, ClassRegistration } from '@prisma/client';
 import { db } from '@/lib/db';
 import { classFormatLabel, classLocationLabel, isOnlineClass } from '@/lib/class-access';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
-import { absoluteUrl, formatMoney } from '@/lib/store';
+import { absoluteUrl, formatMoney, ownerNotificationEmails } from '@/lib/store';
 
 type RegistrationEmailEvent = Pick<
   ClassEvent,
@@ -111,10 +111,10 @@ export async function sendClassRegistrationEmails({
     });
   }
 
-  const businessEmail = process.env.BUSINESS_EMAIL;
-  if (businessEmail) {
+  const ownerEmails = ownerNotificationEmails();
+  if (ownerEmails.length) {
     await sendEmail({
-      to: businessEmail,
+      to: ownerEmails,
       kind: 'CLASS_ADMIN',
       subject: `New class registration • ${event.title}`,
       html: emailShell(

@@ -4,7 +4,7 @@ import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { allowedContactSubjects, type ContactSubject } from '@/lib/contact';
 import { rateLimited } from '@/lib/rate-limit';
-import { businessEmail as hillsideBusinessEmail } from '@/lib/store';
+import { ownerNotificationEmails } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -71,10 +71,9 @@ export async function POST(request: Request) {
       data: { name, email, phone, subject, message }
     });
 
-    const businessEmail = hillsideBusinessEmail();
     await Promise.all([
       sendEmail({
-        to: businessEmail,
+        to: ownerNotificationEmails(),
         kind: 'CONTACT',
         subject: `Website message: ${subject}`,
         replyTo: email,

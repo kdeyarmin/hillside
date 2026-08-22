@@ -377,7 +377,7 @@ SendGrid is required to email online-class access links. To send branded Hillsid
 2. Add `SENDGRID_API_KEY`.
 3. Set `EMAIL_FROM` to an address on the verified domain.
 4. Set `BUSINESS_EMAIL` to Tammy’s inbox.
-5. Optionally set `OWNER_PERSONAL_EMAIL` to her own everyday address. New-order and oversold-order alerts are then sent to both inboxes, deduplicated if the two match. It is a recipient only — outbound mail still comes from `EMAIL_FROM` on the SendGrid-authenticated domain, because sending _as_ a consumer mailbox would fail SPF and DKIM alignment and be filed as spam.
+5. Optionally set `OWNER_PERSONAL_EMAIL` to her own everyday address. Every owner alert is then sent to both inboxes, deduplicated if the two match: new orders, oversold orders, website messages, class registrations, overbooked classes and reviews awaiting approval. Customer mail is unaffected. It is a recipient only — outbound mail still comes from `EMAIL_FROM` on the SendGrid-authenticated domain, because sending _as_ a consumer mailbox would fail SPF and DKIM alignment and be filed as spam.
 
 Product ordering still works without SendGrid because Stripe can send payment documents. Online class registrations are saved without SendGrid, but Tammy must configure email and use the host studio’s **Resend link** action before customers can receive their private classroom URL.
 

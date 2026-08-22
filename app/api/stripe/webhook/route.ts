@@ -518,10 +518,10 @@ async function createRegistrationForSweptHold({
         `seat(s) with only ${seatsLeft} remaining, because the seat hold had already expired ` +
         `when Stripe session ${session.id} settled. Contact the customer.`
     );
-    const businessEmail = process.env.BUSINESS_EMAIL;
-    if (businessEmail) {
+    const ownerEmails = ownerNotificationEmails();
+    if (ownerEmails.length) {
       await sendEmail({
-        to: businessEmail,
+        to: ownerEmails,
         kind: 'CLASS_ADMIN',
         subject: `Overbooked class: ${event.title}`,
         html: emailShell(

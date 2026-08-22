@@ -182,8 +182,11 @@ export function businessEmail() {
 
 /**
  * Where owner alerts go: the shop inbox, plus Tammy's own address when
- * `OWNER_PERSONAL_EMAIL` is set. A new order should reach her wherever she is,
- * while the business inbox keeps the copy the shop's records are read from.
+ * `OWNER_PERSONAL_EMAIL` is set. Everything the shop tells her about — a paid
+ * order, an oversell, a website message, a class registration, an overbooked
+ * class, a review waiting on her — should reach her wherever she is, while the
+ * business inbox keeps the copy the shop's records are read from. Customer mail
+ * does not come through here.
  *
  * The personal address is only ever a *recipient*. Mail still goes out as
  * `EMAIL_FROM` on the authenticated hillside domain, because sending as a
