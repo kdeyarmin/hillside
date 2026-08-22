@@ -19,7 +19,7 @@ CLASS_HOST_NAME=Tammy Hill
 Customer email also requires the existing Resend configuration:
 
 ```text
-RESEND_API_KEY=...
+SENDGRID_API_KEY=...
 EMAIL_FROM=The Hillside Gardens <orders@thehillsidegardens.com>
 BUSINESS_EMAIL=hello@thehillsidegardens.com
 ```
