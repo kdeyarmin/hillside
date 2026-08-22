@@ -159,7 +159,7 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'product-invalid': 'A product needs a name, a description and a price of zero or more.',
   'order-missing': 'That order is no longer here.',
   'order-email-failed':
-    'The confirmation email could not be sent. Check that RESEND_API_KEY is set.',
+    'The confirmation email could not be sent. Check that SENDGRID_API_KEY is set.',
   'order-no-email': 'That order has no customer email to write to.',
   'order-not-confirmable':
     'Confirmation mail is only sent for paid orders that have not shipped yet.',
@@ -169,9 +169,9 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'pickup-note':
     'Add the arranged pickup window before marking this ready. The customer is told to check their email for the time.',
   'pickup-email-failed':
-    'The pickup-ready email could not be sent. The window is saved on the order — use Resend pickup email after checking RESEND_API_KEY.',
+    'The pickup-ready email could not be sent. The window is saved on the order — use Resend pickup email after checking SENDGRID_API_KEY.',
   'registration-email-failed':
-    'The class confirmation could not be sent. The guest’s previous classroom link is still valid. Check that RESEND_API_KEY is set.',
+    'The class confirmation could not be sent. The guest’s previous classroom link is still valid. Check that SENDGRID_API_KEY is set.',
   'collection-invalid': 'A collection needs a name.',
   'collection-missing': 'That collection is no longer here.',
   'collection-locked':

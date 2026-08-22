@@ -9,7 +9,7 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Stripe Checkout, invoices, promotion codes, shipping and optional automatic tax
 - Telnyx Video Rooms for secure browser-based online classes
 - Railway Railpack deployment with a pre-deploy database schema step
-- Transactional customer email through Resend
+- Transactional customer email through SendGrid
 - No Base44 or proprietary site builder
 
 ## Public website
@@ -371,14 +371,14 @@ Detailed setup, security design, testing steps and recording guidance are in [`d
 
 ## Customer email
 
-Resend is required to email online-class access links. To send branded Hillside order, shipping, class, contact and newsletter messages:
+SendGrid is required to email online-class access links. To send branded Hillside order, shipping, class, contact and newsletter messages:
 
-1. Verify the sending domain with Resend.
-2. Add `RESEND_API_KEY`.
+1. Authenticate the sending domain in SendGrid (Settings → Sender Authentication).
+2. Add `SENDGRID_API_KEY`.
 3. Set `EMAIL_FROM` to an address on the verified domain.
 4. Set `BUSINESS_EMAIL` to Tammy’s inbox.
 
-Product ordering still works without Resend because Stripe can send payment documents. Online class registrations are saved without Resend, but Tammy must configure email and use the host studio’s **Resend link** action before customers can receive their private classroom URL.
+Product ordering still works without SendGrid because Stripe can send payment documents. Online class registrations are saved without SendGrid, but Tammy must configure email and use the host studio’s **Resend link** action before customers can receive their private classroom URL.
 
 ## Shipping configuration
 

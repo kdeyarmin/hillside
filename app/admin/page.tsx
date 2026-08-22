@@ -659,7 +659,7 @@ export default async function Admin({
               could not be emailed.
             </b>
             <p className="muted">
-              Check that RESEND_API_KEY is set —{' '}
+              Check that SENDGRID_API_KEY is set —{' '}
               <a className="text-link" href="/api/health">
                 open the health check
               </a>{' '}
