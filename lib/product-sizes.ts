@@ -406,10 +406,13 @@ function numberField(part: string | undefined) {
  * 8" pot | 32.00         the older two-field line: a price, and no separate count
  * ```
  *
- * A third field is only read as a quantity when the two fields after the label
- * both read as numbers. Anything else falls back to the two-field rule that was
- * here before — label, then a price after the last bar — so `Small | free`
- * still stores the label it always did rather than acquiring the word "free".
+ * The price is what decides a line has three fields, and a blank price field
+ * still counts as one — that is what `6" pot | | 4` leans on. A price that reads
+ * as neither blank nor a number means the bars belong to the label instead, and
+ * the line falls back to the two-field rule that was here before: label, then a
+ * price after the last bar. So `Small | free` still stores the label it always
+ * did rather than acquiring the word "free".
+ *
  * A dollar sign, commas and stray spacing are all tolerated: this is a text box
  * on a phone, not a data-entry form.
  */
@@ -427,11 +430,11 @@ export function parseSizeLines(value: string): StoredSize[] {
         const price = numberField(parts.at(-2));
         const quantity = numberField(parts.at(-1));
         /**
-         * The price field is what decides this is a three-field line. A price
-         * that does not read as one means the bars belong to the label —
-         * `Small | free | 3` is the old two-field line it has always been — but
-         * once the price reads, a quantity that does not is simply dropped, the
-         * way an unreadable price is dropped from a two-field line.
+         * `Small | free | 3` reads as the old two-field line it has always been,
+         * because `free` is not a price. Once the price field does read, though,
+         * a quantity that does not — `4" pot | | -3` — is simply dropped rather
+         * than dragging the line back to that rule, the same way an unreadable
+         * price is dropped from a two-field line.
          */
         if (price.present) {
           return {

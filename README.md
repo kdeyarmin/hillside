@@ -19,7 +19,7 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Site-wide search across products and care guides
 - Searchable and filterable live product catalog, with sale and new-arrival sorting
 - Individual SEO-ready product pages with live inventory, multiple photographs and customer reviews
-- A size dropdown on products sold in more than one size, each size with its own price and its own quantity on hand
+- A size dropdown on products sold in more than one size, with an optional price and quantity on hand for each size
 - Back-in-stock email alerts on sold-out products
 - Persistent shopping cart and secure Stripe Checkout
 - Optional gift message at checkout, printed on the packing slip
