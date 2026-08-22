@@ -38,7 +38,7 @@ function parseSender(value: string): { email: string; name?: string } {
  * Stripe retries a failed webhook, and three of those retried paths send admin
  * mail keyed by order or session id, so without some guard Tammy gets the same
  * "New order" notice twice. This suppresses a repeat inside the window that
- * actually matters — the minutes-to-hours in which Stripe retries.
+ * actually matters — the hours-to-a-day window in which Stripe retries.
  *
  * It is deliberately NOT presented as a guarantee: the map lives in process
  * memory, so a deploy or a restart clears it, and a second replica would keep
