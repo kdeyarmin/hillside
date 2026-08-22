@@ -525,6 +525,7 @@ export default async function Admin({
         <a href="#subscribers">Email subscribers</a>
         <a href="#reviews">Reviews</a>
         <a href="#restock">Restock requests</a>
+        <Link href="/admin/email">Email</Link>
         <Link href="/admin/content">Website content</Link>
         <Link href="/admin/care">Plant care library</Link>
         <Link href="/admin/accounts">Admin accounts</Link>
@@ -557,6 +558,9 @@ export default async function Admin({
             </a>
             <Link className="btn gold" href="/admin/content">
               Manage website content
+            </Link>
+            <Link className="btn outline" href="/admin/email">
+              Email
             </Link>
             <Link className="btn outline" href="/admin/care">
               Plant care library
@@ -1174,12 +1178,12 @@ export default async function Admin({
                         >
                           Archive
                         </button>
-                        <a
+                        <Link
                           className="btn gold small"
-                          href={`mailto:${message.email}?subject=${encodeURIComponent(`Re: ${message.subject}`)}`}
+                          href={`/admin/email?message=${message.id}`}
                         >
                           Reply by email
-                        </a>
+                        </Link>
                       </div>
                     </form>
                   </div>

@@ -172,12 +172,67 @@ export function pickForKey<T>(options: readonly T[], key: string): T {
 export const DEFAULT_BUSINESS_EMAIL = 'hello@thehillsidegardens.com';
 
 /**
+ * A single, valid-looking address, or null. Deliberately strict about what it
+ * accepts: it backs both the compose box and the owner-alert recipients, and a
+ * value SendGrid rejects fails the *whole* request it appears in.
+ *
+ * Commas and semicolons are rejected rather than split here, so a variable
+ * holding `a@b.com,c@d.com` reads as the one malformed address it is instead of
+ * quietly widening who gets the shop's mail.
+ */
+export function validEmailAddress(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 254) return null;
+  if (!/^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]{2,}$/.test(trimmed)) return null;
+  return trimmed;
+}
+
+/**
  * The address customers are told to write to. Every page used to hardcode it,
  * so changing inboxes meant hunting through the footer, the contact page, the
  * privacy policy and a mailto in the classes empty state.
  */
 export function businessEmail() {
   return normalizeHillsideDomain(process.env.BUSINESS_EMAIL?.trim() || DEFAULT_BUSINESS_EMAIL);
+}
+
+/**
+ * Where owner alerts go: the shop inbox, plus Tammy's own address when
+ * `OWNER_PERSONAL_EMAIL` is set. Everything the shop tells her about — a paid
+ * order, an oversell, a website message, a class registration, an overbooked
+ * class, a review waiting on her — should reach her wherever she is, while the
+ * business inbox keeps the copy the shop's records are read from. Customer mail
+ * does not come through here.
+ *
+ * The personal address is only ever a *recipient*. Mail still goes out as
+ * `EMAIL_FROM` on the authenticated hillside domain, because sending as a
+ * consumer mailbox SendGrid is not authorised for would fail SPF and DKIM
+ * alignment and land in spam.
+ *
+ * Deduplicated case-insensitively so setting both variables to the same inbox
+ * does not send her two of every notice.
+ */
+export function ownerNotificationEmails() {
+  const personal = process.env.OWNER_PERSONAL_EMAIL?.trim();
+  const addresses = [businessEmail(), ...(personal ? [normalizeHillsideDomain(personal)] : [])];
+  const seen = new Set<string>();
+  const valid: string[] = [];
+  for (const address of addresses) {
+    /**
+     * Validated properly, not just checked for an `@`. A variable holding
+     * `tammy@comcast.net,attacker@example.com` reaches SendGrid as one
+     * malformed recipient and fails the whole request — which would lose the
+     * business inbox's copy too, the exact outcome this guard exists to
+     * prevent.
+     */
+    const clean = validEmailAddress(address);
+    if (!clean) continue;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    valid.push(clean);
+  }
+  return valid;
 }
 
 export function productTypeLabel(type: string) {

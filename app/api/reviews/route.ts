@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { rateLimited } from '@/lib/rate-limit';
-import { businessEmail as hillsideBusinessEmail } from '@/lib/store';
+import { ownerNotificationEmails } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -63,9 +63,9 @@ export async function POST(request: Request) {
       }
     });
 
-    const businessEmail = hillsideBusinessEmail();
     await sendEmail({
-      to: businessEmail,
+      to: ownerNotificationEmails(),
+      kind: 'REVIEW',
       subject: `New review awaiting approval: ${product.name}`,
       replyTo: email,
       idempotencyKey: `review-admin/${review.id}`,

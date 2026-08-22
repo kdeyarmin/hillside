@@ -365,7 +365,8 @@ textarea.form-input { min-height: 145px; resize: vertical; }
 .status-badge { display: inline-flex; border-radius: 999px; padding: 5px 9px; font-size: 10px; font-weight: 900; letter-spacing: 0.07em; text-transform: uppercase; background: var(--sage-light); color: var(--forest); }
 .status-badge.PAID, .status-badge.NEW { background: #e5f2e8; color: #205f39; }
 .status-badge.FULFILLED { background: #e8eef7; color: #244f80; }
-.status-badge.CANCELLED, .status-badge.REFUNDED { background: #f7e7e3; color: var(--danger); }
+.status-badge.CANCELLED, .status-badge.REFUNDED, .status-badge.FAILED { background: #f7e7e3; color: var(--danger); }
+.status-badge.SENT { background: #e5f2e8; color: #205f39; }
 
 .prose { color: var(--muted); }
 .prose h2 { margin-top: 38px; color: var(--forest); font-size: 34px; }

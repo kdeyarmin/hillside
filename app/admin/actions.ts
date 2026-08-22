@@ -497,6 +497,7 @@ export async function updateOrder(formData: FormData) {
       : `<p>Hi ${escapeHtml(order.customerName)},</p><p>We have marked order <strong>${escapeHtml(order.invoiceNumber)}</strong> as shipped.</p>${tracking}<p>Look this order up any time with your HG number and checkout email: <a href="${escapeHtml(statusUrl)}">${escapeHtml(statusUrl)}</a></p>`;
     const delivery = await sendEmail({
       to: order.email,
+      kind: pickup ? 'PICKUP_READY' : 'SHIPPING_UPDATE',
       subject: pickup
         ? `Your Hillside order ${order.invoiceNumber} is ready for pickup`
         : `Your Hillside order ${order.invoiceNumber} has shipped`,
@@ -544,6 +545,7 @@ export async function resendPickupReady(formData: FormData) {
 
   const delivery = await sendEmail({
     to: order.email,
+    kind: 'PICKUP_READY',
     subject: `Your Hillside order ${order.invoiceNumber} is ready for pickup`,
     idempotencyKey: `pickup-ready/${order.id}/${Date.now()}`,
     html: emailShell(
