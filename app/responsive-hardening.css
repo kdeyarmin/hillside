@@ -49,8 +49,16 @@ fieldset {
   border: 0;
 }
 
+/* `left: 0` is load-bearing, not decoration. Absolutely positioned with no
+   inset, each of these sits at its static position — and because nothing
+   between it and the page is itself positioned, an ancestor's `overflow: auto`
+   does not clip it. A visually hidden <label> inside the right-hand column of a
+   wide table therefore landed at x=488 on a 390px phone and dragged the whole
+   document sideways with it. Pinning the inset keeps every one of them inside
+   the page no matter where in the flow it is written. */
 .sr-only {
   position: absolute !important;
+  left: 0 !important;
   width: 1px !important;
   height: 1px !important;
   padding: 0 !important;

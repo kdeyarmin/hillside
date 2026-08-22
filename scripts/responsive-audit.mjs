@@ -5,11 +5,26 @@ import path from 'node:path';
 const baseURL = (process.env.AUDIT_BASE_URL || 'http://127.0.0.1:3000').replace(/\/$/, '');
 const outputDir = path.resolve(process.env.AUDIT_OUTPUT_DIR || 'responsive-audit-output');
 
+/**
+ * `laptop-960` is not a spare wide profile. The desktop header, the two-column
+ * `.split` panels and the newsletter row all switch on at 901px, and the next
+ * profile after 768 used to be 1280 — so the band where those layouts are at
+ * their tightest was the one band never measured. Two breaks lived there: the
+ * homepage story panel took 747px of a 924px container and painted its heading
+ * off the side of the page, and the newsletter's "Join the list" button was an
+ * 88px block with its label wrapped onto three lines.
+ */
 const profiles = [
   { name: 'phone-320', width: 320, height: 568, mobile: true, fullRoutes: true },
   { name: 'phone-390', width: 390, height: 844, mobile: true, fullRoutes: true },
   { name: 'phone-430', width: 430, height: 932, mobile: true, fullRoutes: false },
   { name: 'tablet-768', width: 768, height: 1024, mobile: true, fullRoutes: true },
+  { name: 'laptop-960', width: 960, height: 900, mobile: false, fullRoutes: true },
+  /* Short, not narrow. Every other desktop profile is tall enough that a pinned
+     column fits it whatever it holds, so nothing measured what happens when one
+     does not: a 13-inch laptop with a tab strip and a bookmarks bar leaves about
+     640px, which is less than the product gallery's 648px. */
+  { name: 'laptop-1280-short', width: 1280, height: 640, mobile: false, fullRoutes: false },
   { name: 'laptop-1280', width: 1280, height: 800, mobile: false, fullRoutes: true },
   { name: 'desktop-1600', width: 1600, height: 1000, mobile: false, fullRoutes: true },
   { name: 'desktop-1920', width: 1920, height: 1080, mobile: false, fullRoutes: false }
@@ -19,6 +34,8 @@ const routes = [
   { name: 'home', path: '/' },
   { name: 'shop', path: '/shop' },
   { name: 'product', path: '/shop/monstera-deliciosa' },
+  { name: 'collections', path: '/collections' },
+  { name: 'collection', path: '/collections/plants' },
   // '/classes' is hidden from the storefront (lib/class-visibility.ts) and
   // answers 404; restore this line with the flag.
   { name: 'care', path: '/care' },
@@ -26,14 +43,34 @@ const routes = [
   { name: 'about', path: '/about' },
   { name: 'contact', path: '/contact' },
   { name: 'gallery', path: '/gallery' },
+  { name: 'picks', path: '/amazon' },
+  /* A search term is the one piece of arbitrary text the storefront prints into
+     a heading, so it is the page most likely to be widened by its own content. */
+  { name: 'search', path: '/search?q=monstera' },
+  /* And a term with no space in it is the case the heading wrapping rule exists
+     for. `q=monstera` renders a heading that wraps on its own and would pass
+     with the rule deleted; 43 unbroken letters gave a 390px phone 2043px of
+     horizontal scroll before it. */
+  { name: 'search-long-term', path: `/search?q=${'monsteradeliciosavariegataborsigiana'}` },
   { name: 'shipping', path: '/shipping-returns' },
   { name: 'faq', path: '/faq' },
   { name: 'cart', path: '/cart' },
   { name: 'order-status', path: '/order-status' },
+  { name: 'privacy', path: '/privacy' },
+  { name: 'terms', path: '/terms' },
   { name: 'admin-sign-in', path: '/admin' }
 ];
 
-const reducedRoutes = new Set(['home', 'shop', 'product', 'classes', 'care', 'contact', 'cart']);
+const reducedRoutes = new Set([
+  'home',
+  'shop',
+  'product',
+  'classes',
+  'care',
+  'contact',
+  'cart',
+  'search-long-term'
+]);
 const failures = [];
 const warnings = [];
 const results = [];
@@ -366,6 +403,76 @@ async function auditCartDrawer(page, profile, route) {
   await dialog.waitFor({ state: 'detached', timeout: 5000 });
 }
 
+/**
+ * The product photograph is pinned beside a much longer description, and a
+ * pinned column taller than the window can never be scrolled to its end — it
+ * re-pins on every frame, so whatever sits at its bottom is unreachable rather
+ * than merely below the fold. On a multi-photograph product that bottom is the
+ * thumbnail strip: the only control that reaches the other photographs.
+ *
+ * Measuring the height is not enough, because the failure is about reach. Each
+ * thumbnail is hit tested at every scroll position where the column is actually
+ * pinned, which is the only way to see a control that is painted but cannot be
+ * clicked.
+ */
+async function auditStickyGallery(page, profile, route) {
+  if (route.name !== 'product' || profile.width < 901) return;
+
+  const pageHeight = await page.evaluate(() => document.body.scrollHeight);
+  let pinnedSamples = 0;
+
+  for (let offset = 0; offset < pageHeight; offset += 200) {
+    await page.evaluate((y) => window.scrollTo(0, y), offset);
+    await page.waitForTimeout(40);
+
+    const sample = await page.evaluate(() => {
+      const column = document.querySelector('.product-detail-image-wrap');
+      if (!column) return null;
+
+      const box = column.getBoundingClientRect();
+      /* Only while it is genuinely stuck: in normal flow the rest of the page
+         still scrolls it into view, so nothing is out of reach. */
+      if (Math.abs(box.top - 24) > 1.5) return null;
+
+      const unreachable = [...column.querySelectorAll('.product-gallery-thumbs button')]
+        .map((thumb, index) => {
+          const rect = thumb.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            rect.left + rect.width / 2,
+            rect.top + rect.height / 2
+          );
+          return hit && (hit === thumb || thumb.contains(hit))
+            ? null
+            : { thumbnail: index + 1, bottom: Math.round(rect.bottom) };
+        })
+        .filter(Boolean);
+
+      return {
+        overhang: Math.round(box.bottom - window.innerHeight),
+        viewportHeight: window.innerHeight,
+        columnHeight: Math.round(box.height),
+        unreachable
+      };
+    });
+
+    if (!sample) continue;
+    pinnedSamples += 1;
+
+    if (sample.overhang > 0) {
+      recordFailure(profile, route, 'The pinned product photograph hangs below the window', sample);
+      return;
+    }
+    if (sample.unreachable.length) {
+      recordFailure(profile, route, 'A product thumbnail cannot be reached while the column is pinned', sample);
+      return;
+    }
+  }
+
+  if (!pinnedSamples) {
+    recordWarning(profile, route, 'The product photograph never pinned, so its reach was not measured');
+  }
+}
+
 const browser = await chromium.launch({
   headless: true,
   // Lets the audit run against a preinstalled browser instead of a downloaded one.
@@ -422,6 +529,7 @@ try {
         await settlePage(page);
         await auditHeaderInteractions(page, profile, route);
         await auditCartDrawer(page, profile, route);
+        await auditStickyGallery(page, profile, route);
         const metrics = await collectMetrics(page, profile.mobile);
 
         if (!metrics.title.trim()) recordFailure(profile, route, 'Document title is empty');

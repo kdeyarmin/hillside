@@ -115,11 +115,25 @@ function ReviewForm({ productSlug }: { productSlug: string }) {
       <div className="form-grid">
         <div className="form-group">
           <label htmlFor="review-name">Your name</label>
-          <input className="form-input" id="review-name" name="authorName" required maxLength={80} />
+          <input
+            className="form-input"
+            id="review-name"
+            name="authorName"
+            autoComplete="name"
+            required
+            maxLength={80}
+          />
         </div>
         <div className="form-group">
           <label htmlFor="review-email">Email (not published)</label>
-          <input className="form-input" id="review-email" name="email" type="email" required />
+          <input
+            className="form-input"
+            id="review-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+          />
         </div>
         <div className="form-group full">
           <label htmlFor="review-title">Headline</label>

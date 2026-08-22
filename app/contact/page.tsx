@@ -7,7 +7,7 @@ import { pageMetadata } from '@/lib/seo';
 
 export const metadata = pageMetadata({
   path: '/contact',
-  title: 'Contact us',
+  title: 'Contact Us',
   description:
     'Contact The Hillside Gardens about plants, products, orders, local pickup or custom arrangements.'
 });

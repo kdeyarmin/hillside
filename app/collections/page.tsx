@@ -7,7 +7,7 @@ import { pageMetadata } from '@/lib/seo';
 export const dynamic = 'force-dynamic';
 export const metadata = pageMetadata({
   path: '/collections',
-  title: 'Shop by collection',
+  title: 'Shop by Collection',
   description:
     'Browse The Hillside Gardens by collection — plants, teas and botanicals grouped the way we keep them.'
 });

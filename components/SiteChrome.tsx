@@ -568,15 +568,17 @@ export function SiteHeader({
       <header className="editorial-header">
         <div className="container editorial-head-main">
           <form className="header-search" action="/search" role="search">
+            {/* The label carries the full description; the placeholder is the
+                short form that fits the header's own column. */}
             <label className="sr-only" htmlFor="site-search">
-              Search plants, teas and botanicals
+              Search plants, care and products
             </label>
             <Search size={20} aria-hidden="true" />
             <input
               id="site-search"
               type="search"
               name="q"
-              placeholder="Search plants, care and products"
+              placeholder="Search plants and care"
               enterKeyHint="search"
             />
             <button type="submit">Search</button>
@@ -659,7 +661,7 @@ export function SiteHeader({
                   id="mobile-search"
                   type="search"
                   name="q"
-                  placeholder="Search plants, care and products"
+                  placeholder="Search plants and care"
                   enterKeyHint="search"
                 />
                 <button type="submit">Search</button>

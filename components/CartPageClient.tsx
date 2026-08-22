@@ -356,6 +356,7 @@ export default function CartPageClient({
               id="save-cart-email"
               className="form-input"
               type="email"
+              autoComplete="email"
               required
               value={saveEmail}
               onChange={(event) => setSaveEmail(event.target.value)}

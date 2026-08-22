@@ -435,7 +435,7 @@ audits run against a server you have started yourself:
 npm install --no-save --package-lock=false playwright@1.55.0 axe-core
 npm run audit:a11y                       # axe-core over the public routes
 npm run audit:weight / /shop /care       # transferred bytes on an iPhone viewport
-node scripts/responsive-audit.mjs        # 7 viewports x 14 routes
+node scripts/responsive-audit.mjs        # 9 viewports x 19 routes
 ```
 
 The browser tooling is installed on demand rather than kept in `package.json`,

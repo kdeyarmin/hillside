@@ -1,3 +1,4 @@
+import CartIntro from '@/components/CartIntro';
 import CartPageClient from '@/components/CartPageClient';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { freeShippingThresholdCents } from '@/lib/store';
@@ -28,11 +29,7 @@ export default async function CartPage({
         <div className="container">
           <div className="eyebrow">Your basket</div>
           <h1>Shopping cart.</h1>
-          <p>
-            {catalogEmpty
-              ? 'The bench is between batches, so there is nothing new to add right now.'
-              : 'Review quantities before continuing to secure Stripe Checkout.'}
-          </p>
+          <CartIntro catalogEmpty={catalogEmpty} />
         </div>
       </section>
       <section className="content">

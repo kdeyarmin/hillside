@@ -60,6 +60,21 @@ summary,
   overflow-wrap: anywhere;
 }
 
+/* Headings quote things people type — a search term, a plant name, an order
+   number — and a word longer than the line does not wrap on its own. Painted
+   past the container it widened the document: one 34-letter search term took
+   /search to 2043px of horizontal scroll on a 390px phone. `break-word` rather
+   than `anywhere`, so ordinary headings still break between words and only a
+   word that cannot fit at all is split. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  overflow-wrap: break-word;
+}
+
 p {
   text-wrap: pretty;
 }

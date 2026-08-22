@@ -11,6 +11,8 @@ import {
   newInvoiceNumber,
   pickForKey,
   priceValidUntil,
+  productTypeLabel,
+  productTypePlural,
   resolveImageUrl,
   siteBaseUrl
 } from '../lib/store.ts';
@@ -77,6 +79,33 @@ describe('categoryTypes', () => {
 
   it('passes a bare product type straight through', () => {
     assert.deepEqual(categoryTypes('PLANT'), ['PLANT']);
+  });
+});
+
+describe('product type labels', () => {
+  it('names one of each type in the singular', () => {
+    assert.equal(productTypeLabel('PLANT'), 'Plant');
+    assert.equal(productTypeLabel('TEA_SUPPLY'), 'Tea supply');
+    assert.equal(productTypeLabel('OTHER'), 'Botanical good');
+  });
+
+  it('names a shelf of them in the plural', () => {
+    assert.equal(productTypePlural('PLANT'), 'Plants');
+    assert.equal(productTypePlural('TEA'), 'Teas');
+    assert.equal(productTypePlural('LOTION'), 'Lotions');
+    assert.equal(productTypePlural('SOAP'), 'Soaps');
+    assert.equal(productTypePlural('OTHER'), 'Botanical goods');
+  });
+
+  /* "Tea supply" is why this is a written-out table rather than label + "s". */
+  it('pluralises the types a trailing s would get wrong', () => {
+    assert.equal(productTypePlural('TEA_SUPPLY'), 'Tea supplies');
+  });
+
+  /* A type added to the schema before this table catches up should still read
+     as a plural noun rather than as an enum. */
+  it('falls back to the singular label plus an s for an unknown type', () => {
+    assert.equal(productTypePlural('WREATH'), 'wreaths');
   });
 });
 
