@@ -5,21 +5,29 @@ process.env.NEXT_PUBLIC_SITE_URL ||= 'https://thehillsidegardens.com';
 process.env.DATABASE_URL ||= 'postgresql://postgres:postgres@127.0.0.1:5432/hillside_test';
 
 const {
+  availableForSize,
   cartLineKey,
   findSize,
   formatSizePriceRange,
   parseSizeLines,
+  productInventoryForSizes,
   productSizes,
   readStoredSizes,
   comparableAtCents,
   normalizeSizeLabel,
+  returnStoredSizeStock,
+  sizeAvailable,
   sizeChoiceRejected,
   sizedName,
   sizeFieldLabel,
   sizeLines,
   sizePriceRange,
+  sizeStockSummary,
   sizedPriceCents,
   sizesArePriced,
+  sizesTrackStock,
+  storedSizesTrackStock,
+  takeStoredSizeStock,
   withoutRedundantPrices
 } = await import('../lib/product-sizes.ts');
 
@@ -61,8 +69,8 @@ describe('productSizes', () => {
     assert.deepEqual(
       productSizes([{ label: '4" pot' }, { label: '6" pot', priceCents: 2400 }], 1800),
       [
-        { label: '4" pot', priceCents: 1800 },
-        { label: '6" pot', priceCents: 2400 }
+        { label: '4" pot', priceCents: 1800, inventory: null },
+        { label: '6" pot', priceCents: 2400, inventory: null }
       ]
     );
   });
@@ -230,5 +238,108 @@ describe('parseSizeLines', () => {
   it('round-trips through the owner textarea', () => {
     const typed = '4" pot\n6" pot | 24.00';
     assert.equal(sizeLines(parseSizeLines(typed)), typed);
+  });
+});
+
+describe('counting stock by size', () => {
+  const counted = [
+    { label: '4" pot', inventory: 6 },
+    { label: '6" pot', priceCents: 2400, inventory: 2 },
+    { label: '8" pot', priceCents: 3200, inventory: 0 }
+  ];
+  const shared = [{ label: '2 oz' }, { label: '8 oz', priceCents: 2600 }];
+
+  it('treats a list with any count on it as counted throughout', () => {
+    assert.equal(storedSizesTrackStock(counted), true);
+    assert.equal(storedSizesTrackStock(shared), false);
+    // One number anywhere makes the whole list counted, and the sizes left
+    // blank read as none left rather than as the product's whole shelf.
+    assert.deepEqual(productSizes([{ label: '4" pot', inventory: 5 }, { label: '6" pot' }], 1800), [
+      { label: '4" pot', priceCents: 1800, inventory: 5 },
+      { label: '6" pot', priceCents: 1800, inventory: 0 }
+    ]);
+  });
+
+  it('answers availability from the size, and from the product when uncounted', () => {
+    const sizes = productSizes(counted, 1800);
+    assert.equal(sizesTrackStock(sizes), true);
+    assert.equal(availableForSize(sizes, '6" POT', 8), 2);
+    assert.equal(availableForSize(sizes, '8" pot', 8), 0);
+    // A size that is no longer offered has none, whatever the product holds.
+    assert.equal(availableForSize(sizes, '10" pot', 8), 0);
+
+    const pooled = productSizes(shared, 1200);
+    assert.equal(sizesTrackStock(pooled), false);
+    assert.equal(availableForSize(pooled, '8 oz', 3), 3);
+    // A product sold one way still answers with its own count.
+    assert.equal(availableForSize([], null, 4), 4);
+    assert.equal(sizeAvailable(null, 4), 4);
+  });
+
+  it('keeps the product total equal to what the sizes add up to', () => {
+    assert.equal(productInventoryForSizes(counted, 99), 8);
+    // Uncounted sizes leave the quantity the owner typed alone.
+    assert.equal(productInventoryForSizes(shared, 7), 7);
+    assert.equal(productInventoryForSizes([], 7), 7);
+  });
+
+  it('spends a size, and zeroes only that size when it comes up short', () => {
+    const taken = takeStoredSizeStock(counted, '6" pot', 2);
+    assert.equal(taken.took, true);
+    assert.equal(productInventoryForSizes(taken.sizes, 0), 6);
+    assert.deepEqual(taken.sizes[1], { label: '6" pot', priceCents: 2400, inventory: 0 });
+
+    const short = takeStoredSizeStock(counted, '4" pot', 9);
+    assert.equal(short.took, false);
+    // The oversold size is emptied; the others stay sellable.
+    assert.equal(short.sizes[0].inventory, 0);
+    assert.equal(short.sizes[1].inventory, 2);
+
+    // A size we no longer sell cannot be spent at all.
+    assert.equal(takeStoredSizeStock(counted, '10" pot', 1).took, false);
+    // An uncounted list has nothing of its own to spend: the product row did it.
+    assert.deepEqual(takeStoredSizeStock(shared, '8 oz', 3), { sizes: shared, took: true });
+  });
+
+  it('returns stock to the size it came off, and drops it when that size is gone', () => {
+    const returned = returnStoredSizeStock(counted, '8" POT', 3);
+    assert.equal(returned[2].inventory, 3);
+    assert.equal(productInventoryForSizes(returned, 0), 11);
+
+    // Retired between the sale and the refund: there is no shelf to put it on,
+    // and a total larger than the sizes would advertise stock nothing can sell.
+    assert.deepEqual(returnStoredSizeStock(counted, '10" pot', 3), counted);
+    assert.deepEqual(returnStoredSizeStock(shared, '8 oz', 3), shared);
+  });
+
+  it('reads the counts the owner typed and writes them back unchanged', () => {
+    const typed = '4" pot | | 6\n6" pot | 24.00 | 2\n8" pot | 32.00 | 0';
+    const parsed = withoutRedundantPrices(parseSizeLines(typed), 1800);
+    assert.deepEqual(parsed, counted);
+    assert.equal(sizeLines(parsed), typed);
+    assert.equal(sizeStockSummary(parsed), '4" pot 6 · 6" pot 2 · 8" pot 0');
+  });
+
+  it('leaves the older two-field lines uncounted', () => {
+    const typed = '2 oz\n8 oz | 26.00';
+    const parsed = withoutRedundantPrices(parseSizeLines(typed), 1200);
+    assert.deepEqual(parsed, shared);
+    assert.equal(sizeLines(parsed), typed);
+    assert.equal(sizeStockSummary(parsed), null);
+  });
+
+  it('only reads a third field as a count when both trailing fields are numbers', () => {
+    // `Small | free` kept its label before counts existed and still does.
+    assert.deepEqual(parseSizeLines('Small | free | 3'), [
+      { label: 'Small | free', priceCents: 300 }
+    ]);
+    assert.deepEqual(parseSizeLines('4" pot | $18.00 | 6'), [
+      { label: '4" pot', priceCents: 1800, inventory: 6 }
+    ]);
+    // A trailing bar with nothing after it is not a count of nothing.
+    assert.deepEqual(parseSizeLines('4" pot | 18.00 |'), [{ label: '4" pot', priceCents: 1800 }]);
+    // Fractions and negatives are not quantities on a bench.
+    assert.deepEqual(parseSizeLines('4" pot | | 2.7'), [{ label: '4" pot', inventory: 2 }]);
+    assert.deepEqual(parseSizeLines('4" pot | | -3'), [{ label: '4" pot' }]);
   });
 });

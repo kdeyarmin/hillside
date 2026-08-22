@@ -13,13 +13,14 @@ import {
   adminDashboardPath,
   firstSearchParam,
   parseAdminStockFilter,
+  productIsLowStock,
   productMatchesAdminFilter,
   productNeedsPhoto
 } from '@/lib/admin-dashboard';
 import { db } from '@/lib/db';
 import { currentAdmin } from '@/lib/admin';
 import { REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
-import { sizedName, sizeLines } from '@/lib/product-sizes';
+import { sizedName, sizeLines, sizeStockSummary } from '@/lib/product-sizes';
 import { formatMoney, productTypeLabel } from '@/lib/store';
 import { orderStatusBadge } from '@/lib/tracking';
 import {
@@ -49,6 +50,16 @@ const input: React.CSSProperties = {
   marginTop: 5,
   font: 'inherit'
 };
+
+/**
+ * The per-size split beside a product's total. "9 in stock" on a plant whose 6"
+ * pots ran out an hour ago is the number Tammy would otherwise take to the
+ * bench; a product counted one way has nothing to add and renders nothing.
+ */
+function SizeStockNote({ sizes }: { sizes: unknown }) {
+  const summary = sizeStockSummary(sizes);
+  return summary ? <> ({summary})</> : null;
+}
 
 function ProductFields({
   product,
@@ -83,6 +94,7 @@ function ProductFields({
   };
 }) {
   const assigned = new Set((product?.collections || []).map((collection) => collection.id));
+  const sizeStock = sizeStockSummary(product?.sizes);
   return (
     <>
       {product && <input type="hidden" name="id" value={product.id} />}
@@ -152,6 +164,14 @@ function ProductFields({
             defaultValue={product?.inventory ?? 0}
             required
           />
+          {/* Counted sizes own this number — it is the sum of them — so saying
+              so here is the only way the box explains itself on a form that has
+              no scripting to grey it out. */}
+          <span className="admin-hint">
+            {sizeStock
+              ? `Added up from the sizes below: ${sizeStock}. Change a size's quantity to change this.`
+              : 'Leave this as the whole shelf. Count the sizes separately below if you want a quantity for each.'}
+          </span>
         </label>
         <label className="admin-label">
           Display order
@@ -241,13 +261,14 @@ function ProductFields({
             name="sizes"
             rows={3}
             defaultValue={sizeLines(product?.sizes)}
-            placeholder={'4" pot | 18.00\n6" pot | 24.00\n8" pot | 32.00'}
+            placeholder={'4" pot | 18.00 | 6\n6" pot | 24.00 | 4\n8" pot | 32.00 | 2'}
           />
-          {/* Every size draws on the one quantity above: they are a choice about
-              what to pack, not separate shelves to count. */}
           <span className="admin-hint">
-            Put the price after a | when a size costs something different. Leave the price off and
-            it uses the price above. All sizes share the quantity on hand.
+            One size per line: <b>name | price | quantity on hand</b>. Leave the price out —{' '}
+            <code>6&quot; pot | | 4</code> — and the size uses the price above. Leave the quantity
+            out on every line and all the sizes share the one quantity on hand; put a quantity on
+            any line and each size is counted on its own, so a size you leave blank is treated as
+            none left.
           </span>
         </label>
         <label className="admin-label full">
@@ -453,7 +474,7 @@ export default async function Admin({
     ).map((item) => `${item.productId}:${item.order.email.toLowerCase()}`)
   );
 
-  const lowStock = products.filter((product) => product.active && product.inventory <= 3).length;
+  const lowStock = products.filter(productIsLowStock).length;
   const openOrders = orders.filter((order) =>
     isAwaitingShipment(order.status, order.fulfilledAt)
   ).length;
@@ -989,6 +1010,7 @@ export default async function Admin({
                     <span>
                       {product.name} • {formatMoney(product.priceCents)} • {product.inventory} in
                       stock
+                      <SizeStockNote sizes={product.sizes} />
                       {productNeedsPhoto(product.imageUrl) && (
                         <>
                           {' '}

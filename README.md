@@ -19,7 +19,7 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Site-wide search across products and care guides
 - Searchable and filterable live product catalog, with sale and new-arrival sorting
 - Individual SEO-ready product pages with live inventory, multiple photographs and customer reviews
-- A size dropdown on products sold in more than one size, each size with its own price
+- A size dropdown on products sold in more than one size, each size with its own price and its own quantity on hand
 - Back-in-stock email alerts on sold-out products
 - Persistent shopping cart and secure Stripe Checkout
 - Optional gift message at checkout, printed on the packing slip
@@ -47,7 +47,7 @@ The dashboard at `/admin` includes:
 - Packing-slip and 4 × 6 shipping-label printing
 - Shipping-address, full-order and newsletter-subscriber CSV exports
 - Product creation and editing, price, sale price, SKU, inventory, badges and featured products
-- Per-product size choices, typed one per line, with a price on any size that costs something different
+- Per-product size choices, typed one per line, with a price and a quantity on hand on any size that needs its own
 - Low-stock visibility and product archiving
 - Paid and free class registrations and seat counts
 - Customer website inbox
@@ -157,22 +157,32 @@ public origin, such as a Railway preview domain.
 
 A product that comes in several sizes — a plant in a 4", 6" or 8" pot, a lotion
 in a 2 oz or an 8 oz jar — gets a **Sizes to choose from** box on its dashboard
-form. Type one size per line, and put a price after a `|` for any size that
-costs something different from the product's own price:
+form. Type one size per line as `name | price | quantity on hand`:
 
 ```
-4" pot
-6" pot | 24.00
-8" pot | 32.00
+4" pot | | 9
+6" pot | 24.00 | 4
+8" pot | 32.00 | 0
 ```
 
-A size with no price after it is sold at the product's price, so raising that
-price moves those sizes with it — and a price typed in that merely repeats the
-product's own is stored as "the base price" rather than pinned to today's
-figure, so it keeps following along. **What the size dropdown is called** renames
-the field on the storefront — "Pot size", "Jar size" — and defaults to "Size".
-Leave the box empty for anything sold one way, and the storefront behaves
-exactly as it did before.
+Both numbers are optional, and each one left out means something specific:
+
+- **No price** — the size is sold at the product's own price, so raising that
+  price moves those sizes with it. A price typed in that merely repeats the
+  product's own is stored as "the base price" rather than pinned to today's
+  figure, so it keeps following along.
+- **No quantity anywhere in the box** — the sizes share the one **Quantity on
+  hand** above, the way two jar sizes filled off one pile do. `6" pot | 24.00`
+  on its own is still a complete line, so a size list written before quantities
+  existed keeps working untouched.
+- **A quantity on any line** — the product is counted per size from then on, and
+  a size left blank has none left rather than borrowing another size's. The
+  Quantity on hand box becomes the sum of the sizes and stops being something to
+  type: change a size's number to change it.
+
+**What the size dropdown is called** renames the field on the storefront — "Pot
+size", "Jar size" — and defaults to "Size". Leave the box empty for anything sold
+one way, and the storefront behaves exactly as it did before.
 
 What the shop then does:
 
@@ -186,17 +196,34 @@ What the shop then does:
   the same plant. The size travels with the line into Stripe Checkout, the
   emailed receipt, the confirmation email, the packing slip, the order CSV and
   the order-status lookup — everywhere the shop has to know which one to pack.
-- **Every size draws on the one quantity on hand.** Sizes are a choice about
-  what to pack, not separate shelves to count: three jars is three jars however
-  they are split between sizes, and checkout says so if a basket asks for more.
-  Anything that needs its own stock count, SKU or photograph is a separate
-  product.
+- **A counted size is its own shelf.** The dropdown marks a sold-out size and
+  will not let it be chosen, the quantity stepper stops at what that size has,
+  and checkout, a restored saved cart, a released hold and a refund all spend and
+  return stock against the size that was ordered. A basket taking the last 4" pot
+  and the last 6" pot is two lines and both are honoured; asking for two of a
+  size with one left is corrected with a note naming that size.
+- **Uncounted sizes share one shelf**, the way they always did: three jars is
+  three jars however they are split between sizes, and checkout says so if a
+  basket asks for more. Anything that needs its own SKU or photograph is still a
+  separate product.
+- The dashboard's product list prints the split beside the total — `9 in stock
+(4" pot 9 · 6" pot 0)` — and the **Low stock** chip counts a product whose
+  _any_ counted size is down to three or fewer, so a plant that is full of 4"
+  pots and out of 6" ones is on the list Tammy works from.
+- **`Product.inventory` stays the product's total** either way — the sum of the
+  sizes when they are counted, and rewritten from them after every sale, hold,
+  release and refund. So the shop card, the low-stock filter, the gallery, the
+  care pages and the back-in-stock alerts all go on reading the one column, and a
+  product whose sizes are all empty reads as sold out everywhere.
 - A **compare-at price stands down** on a product whose sizes are priced
   differently. "Was $24, save 25%" is a claim about _the_ price, and such a
   product does not have one — the range says what each size costs instead.
 - A size the owner later removes cannot be ordered. A basket or a saved cart
   still holding it is corrected at checkout with a note asking for the size to be
-  chosen again, rather than being quietly filled with a different one.
+  chosen again, rather than being quietly filled with a different one. Stock
+  refunded onto a size that has since been removed is dropped rather than added
+  to the product's total, because a total larger than the sizes add up to would
+  advertise stock no option on the page can sell.
 
 ## Why the database-backed pages are `force-dynamic`
 

@@ -82,8 +82,12 @@ model Product {
   badge            String?
   /**
    * Optional size choices for a product sold in more than one size, stored as
-   * `[{ label, priceCents? }]`. An option carries a price only when it differs
-   * from `priceCents`, so raising the base price still moves every size with it.
+   * `[{ label, priceCents?, inventory? }]`. An option carries a price only when
+   * it differs from `priceCents`, so raising the base price still moves every
+   * size with it, and carries an `inventory` only when the owner counts the
+   * sizes separately. Once any option does, `inventory` above is kept equal to
+   * the sum of them, so every "is this sellable" query can go on reading the
+   * column alone.
    */
   sizes            Json?
   /**

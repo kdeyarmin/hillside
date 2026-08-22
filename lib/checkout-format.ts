@@ -2,8 +2,10 @@ import {
   cartLineKey,
   findSize,
   productSizes,
+  sizeAvailable,
   sizeChoiceRejected,
   sizedName,
+  sizesTrackStock,
   SIZE_LABEL_MAX
 } from './product-sizes.ts';
 import { absoluteUrl, formatMoney, resolveImageUrl } from './store.ts';
@@ -138,9 +140,15 @@ export function checkoutAdjustments(
 ): CheckoutAdjustment[] {
   const adjustments: CheckoutAdjustment[] = [];
   /**
-   * Sizes are a choice, not a second shelf: every size of a product draws on the
-   * one stock count. Two sized lines checked independently against that count
-   * would each pass on the last three jars, so stock is spent line by line here.
+   * Stock is spent line by line rather than each line being checked against the
+   * shelf independently, because two lines drawing on the same shelf would
+   * otherwise each pass on the last three jars.
+   *
+   * Which shelf a line draws on depends on the product. Sizes the owner did not
+   * count separately share the product's one count, so every line of that
+   * product meters against the same key; sizes she did count have their own, so
+   * a basket holding the last 4" pot and the last 6" pot is two lines against
+   * two shelves and both are honoured.
    */
   const remaining = new Map<string, number>();
 
@@ -183,10 +191,11 @@ export function checkoutAdjustments(
 
     const unitCents = chosen?.priceCents ?? product.priceCents;
     const sizeFields = requestedItem.size ? { size: requestedItem.size } : {};
-    const available = remaining.get(product.slug) ?? Math.max(0, product.inventory);
+    const shelf = sizesTrackStock(sizes) ? cartLineKey(product.slug, chosen?.label) : product.slug;
+    const available = remaining.get(shelf) ?? sizeAvailable(chosen, product.inventory);
 
     if (available < requestedItem.quantity) {
-      remaining.set(product.slug, 0);
+      remaining.set(shelf, 0);
       adjustments.push({
         slug: requestedItem.id,
         name: sizedName(product.name, requestedItem.size),
@@ -198,7 +207,7 @@ export function checkoutAdjustments(
       continue;
     }
 
-    remaining.set(product.slug, available - requestedItem.quantity);
+    remaining.set(shelf, available - requestedItem.quantity);
 
     if (requestedItem.priceCents != null && requestedItem.priceCents !== unitCents) {
       adjustments.push({
