@@ -18,6 +18,7 @@ import { jsonLd } from '@/lib/json-ld';
 import {
   comparableAtCents,
   formatSizePriceRange,
+  fulfillmentAcrossVariants,
   productSizes,
   sizeAvailable,
   sizeFieldLabel,
@@ -39,7 +40,7 @@ import {
   returnPolicyForType,
   resolveImageUrl
 } from '@/lib/store';
-import { fulfillmentBlurb, offersPickup, offersShipping } from '@/lib/fulfillment';
+import { fulfillmentBlurb } from '@/lib/fulfillment';
 
 export const dynamic = 'force-dynamic';
 
@@ -135,6 +136,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const specs = specSections(specKindFor(product), product.specs);
   const categoryName = product.category?.title || productTypeLabel(product.type);
   const mixedFulfillment = variantsDifferOnFulfillment(sizes);
+  /**
+   * How this product actually gets home. Read from the variants where there are
+   * any, because they may override the product's own two checkboxes: a plant
+   * ticked as shipping whose every variant is pickup-only ships in no sense a
+   * customer can act on, and checkout — which resolves the variant — would
+   * refuse the order this page had just offered.
+   */
+  const fulfillment = fulfillmentAcrossVariants(sizes, product);
+  /** Whether the section below has anything to say at all. */
+  const hasSpecifics = specs.length > 0 || Boolean(product.dimensions);
   const compareAt = comparableAtCents(sizes, product.priceCents, product.compareAtCents);
   const saving = discountPercent(product.priceCents, compareAt);
   /**
@@ -191,10 +202,19 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           }
         }
       : {}),
+    /**
+     * How the offer is shaped is decided by how many variants there are, not by
+     * whether they are priced differently.
+     *
+     * Keying it off the price span meant four pots that happen to cost the same
+     * collapsed into one plain Offer, throwing away each one's name, its SKU and
+     * its own availability — on a product the storefront still makes you choose
+     * a variant on. A sold-out 6" pot was published as in stock because the 4"
+     * one was.
+     */
     offers: {
-      ...(priceSpan.minCents === priceSpan.maxCents
-        ? { '@type': 'Offer', price: (priceSpan.minCents / 100).toFixed(2) }
-        : {
+      ...(sizes.length > 1
+        ? {
             '@type': 'AggregateOffer',
             lowPrice: (priceSpan.minCents / 100).toFixed(2),
             highPrice: (priceSpan.maxCents / 100).toFixed(2),
@@ -218,6 +238,15 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   ? 'https://schema.org/InStock'
                   : 'https://schema.org/OutOfStock'
             }))
+          }
+        : {
+            // Sold one way, or in exactly one variant — which still carries its
+            // own name and SKU, and is the honest price and availability here.
+            '@type': 'Offer',
+            price: (priceSpan.minCents / 100).toFixed(2),
+            ...(sizes[0]
+              ? { name: sizes[0].label, ...(sizes[0].sku ? { sku: sizes[0].sku } : {}) }
+              : {})
           }),
       url: absoluteUrl(`/shop/${product.slug}`),
       priceCurrency: 'USD',
@@ -225,7 +254,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       itemCondition: 'https://schema.org/NewCondition',
       availability: soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
       seller: { '@id': absoluteUrl('/#business') },
-      ...(offersShipping(product)
+      ...(fulfillment.ships
         ? {
             shippingDetails: {
               '@type': 'OfferShippingDetails',
@@ -379,7 +408,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   : `${product.inventory} available`}
             </p>
 
-            {threshold > 0 && offersShipping(product) && (
+            {threshold > 0 && fulfillment.ships && (
               <p className="shipping-nudge">
                 <Truck size={17} aria-hidden="true" />
                 {/* Quoted against the cheapest size, so the promise holds
@@ -389,7 +418,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   : `Free standard shipping on orders over ${formatMoney(threshold)}.`}
               </p>
             )}
-            {!offersShipping(product) && offersPickup(product) && (
+            {!fulfillment.ships && fulfillment.pickup && (
               <p className="shipping-nudge">
                 <Truck size={17} aria-hidden="true" />
                 Local pickup only — this piece does not ship.
@@ -415,7 +444,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   ? `This is not sold the same way in every ${sizeFieldLabel(
                       product.sizeLabel
                     ).toLowerCase()} — choose one above and the panel says whether it ships, is collected here, or both.`
-                  : fulfillmentBlurb(product)}
+                  : fulfillmentBlurb(fulfillment)}
               </div>
               <div className="note-box">
                 <b>Secure checkout</b>Payment is processed by Stripe. A receipt and invoice are
@@ -475,7 +504,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             plant's light and water, a tea's steep time and allergens, a bag of
             gravel's dimensions. Anything she left blank is not rendered, so a
             listing says what is known and stays quiet about the rest. */}
-        {specs.length > 0 && (
+        {hasSpecifics && (
           <div className="product-details-section">
             <div className="sectionhead">
               <div className="eyebrow">The specifics</div>
@@ -504,12 +533,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 <dl>
                   <div className="spec-row">
                     <dt>Shipping</dt>
-                    <dd>{offersShipping(product) ? 'Ships to US addresses' : 'Does not ship'}</dd>
+                    <dd>
+                      {fulfillment.ships
+                        ? mixedFulfillment
+                          ? 'Ships to US addresses, depending on the size chosen'
+                          : 'Ships to US addresses'
+                        : 'Does not ship'}
+                    </dd>
                   </div>
                   <div className="spec-row">
                     <dt>Local pickup</dt>
                     <dd>
-                      {offersPickup(product)
+                      {fulfillment.pickup
                         ? 'Available in Ebensburg, once a time is arranged'
                         : 'Not available'}
                     </dd>

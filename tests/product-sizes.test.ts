@@ -26,6 +26,7 @@ const {
   sizesTrackStock,
   storedSizesTrackStock,
   takeStoredSizeStock,
+  fulfillmentAcrossVariants,
   readVariantRows,
   variantEditorRows,
   variantFulfillmentChoice,
@@ -409,6 +410,50 @@ describe('variants against the product they belong to', () => {
       ),
       false
     );
+  });
+});
+
+describe('fulfillmentAcrossVariants', () => {
+  it('is the product\u2019s own answer when it has no variants', () => {
+    assert.deepEqual(fulfillmentAcrossVariants([], { ships: false, pickup: true }), {
+      ships: false,
+      pickup: true
+    });
+    // Absent means yes, the way it does everywhere else.
+    assert.deepEqual(fulfillmentAcrossVariants([], {}), { ships: true, pickup: true });
+  });
+
+  it('lets the variants overrule the product when they all agree', () => {
+    /**
+     * The live regression: a plant ticked as shipping and pickup, every variant
+     * of which is a specimen too large to post, told shoppers it ships. Checkout
+     * resolves the variant and would have refused the order the page offered.
+     */
+    const pickupOnly = productSizes(
+      [
+        { label: '10" specimen', ships: false, pickup: true },
+        { label: '12" specimen', ships: false, pickup: true }
+      ],
+      9500,
+      { ships: true, pickup: true }
+    );
+    assert.deepEqual(fulfillmentAcrossVariants(pickupOnly, { ships: true, pickup: true }), {
+      ships: false,
+      pickup: true
+    });
+  });
+
+  it('says yes to both when the variants disagree, which the page then explains', () => {
+    const mixed = productSizes(
+      [{ label: '4" pot' }, { label: '10" specimen', ships: false, pickup: true }],
+      1800,
+      { ships: true, pickup: true }
+    );
+    assert.deepEqual(fulfillmentAcrossVariants(mixed, { ships: true, pickup: true }), {
+      ships: true,
+      pickup: true
+    });
+    assert.equal(variantsDifferOnFulfillment(mixed), true);
   });
 });
 

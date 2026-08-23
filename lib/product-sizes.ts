@@ -497,6 +497,31 @@ export function variantsDifferOnFulfillment(sizes: SizeOption[]) {
 }
 
 /**
+ * How a product as a whole gets home, once its variants have had their say.
+ *
+ * The product's own two checkboxes are not the answer when it has variants that
+ * override them: a plant ticked as shipping and pickup, every variant of which
+ * is a specimen too large to post, ships in no sense a customer can act on —
+ * and checkout, which resolves the variant, would refuse the shipped order the
+ * page had just offered.
+ *
+ * `some` rather than `every`, because this answers "is there any way to have
+ * this shipped" rather than "are all of them". Where the variants disagree both
+ * come back true, and the page says so per variant instead of printing one
+ * blurb that is wrong for half the dropdown.
+ */
+export function fulfillmentAcrossVariants(
+  sizes: SizeOption[],
+  product: { ships?: boolean | null; pickup?: boolean | null }
+) {
+  if (!sizes.length) return { ships: product.ships !== false, pickup: product.pickup !== false };
+  return {
+    ships: sizes.some((size) => size.ships),
+    pickup: sizes.some((size) => size.pickup)
+  };
+}
+
+/**
  * One variant as the admin form posts it. Every field is a string because that
  * is what a form gives us; `readVariantRows` is what turns a row into a stored
  * variant, and drops the rows that are still blank.

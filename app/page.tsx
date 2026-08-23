@@ -21,35 +21,10 @@ import { pageMetadata } from '@/lib/seo';
 import { formatMoney, formatMoneyCompact, freeShippingThresholdCents } from '@/lib/store';
 
 /**
- * What the shop sells, said plainly, in the first thing a visitor reads.
- *
- * The homepage used to open on "Rooted in Nature. Grown with Care." and a
- * sentence about making spaces feel warmer, which is a mood rather than a
- * catalog: a first-time visitor could not tell from the top of the page whether
- * this shop sold plants, prints or candles. The branding is still here — it is
- * good, and it is hers — but it now sits above a headline that answers the
- * question, and a row of what is actually on the bench.
- *
- * Each chip is a real shop filter. A category with nothing in it drops its
- * filter and shows the whole shop rather than an empty shelf, so a chip is
- * never a dead end even between batches.
+ * How many categories the hero names. Enough to say what the shop is without
+ * turning the first thing a visitor reads into a directory.
  */
-const HERO_CATEGORIES: ReadonlyArray<readonly [label: string, slug: string]> = [
-  ['Houseplants', 'houseplants'],
-  ['Carnivorous plants', 'carnivorous-plants'],
-  ['Succulents', 'succulents'],
-  ['Air plants', 'air-plants'],
-  ['Living arrangements', 'live-plant-arrangements'],
-  ['Terrariums', 'terrariums'],
-  ['Terrarium supplies', 'terrarium-supplies'],
-  ['Moss', 'moss'],
-  ['Driftwood', 'driftwood-natural-materials'],
-  ['Handmade soap', 'handmade-soap'],
-  ['Botanical lotion', 'botanical-lotion'],
-  ['Apothecary', 'apothecary'],
-  ['Tea', 'tea'],
-  ['Tea accessories', 'tea-accessories']
-];
+const HERO_CATEGORY_LIMIT = 14;
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
@@ -84,14 +59,18 @@ export default async function Home() {
           })
         : [],
       /**
-       * Shop-by-category tiles. Same rule as the collections below: only a
-       * category that actually holds something is advertised, so a tile on the
-       * homepage always leads to real stock rather than to an empty shelf.
+       * Every category the owner is showing, in her order — read once and used
+       * twice below, for the hero's list of what the shop sells and for the
+       * shop-by tiles.
+       *
+       * Read rather than hard-coded, which is the whole point of the taxonomy
+       * being rows: a static list went on advertising a category's old name
+       * after Tammy renamed it, kept linking one she had hidden, and pointed at
+       * a slug that no longer matched anything.
        */
       db.category.findMany({
-        where: { active: true, featured: true, products: { some: { active: true } } },
+        where: { active: true },
         orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-        take: 8,
         include: { _count: { select: { products: { where: { active: true } } } } }
       }),
       // Only collections that actually hold something are advertised, so a tile on
@@ -113,6 +92,18 @@ export default async function Home() {
   }));
   const classSeats = await seatsRemainingFor(upcomingClasses);
 
+  /**
+   * The hero names what the shop sells, so it lists a category whether or not
+   * the shelf is full today — "we sell moss" stays true between batches, and a
+   * chip for an empty category drops its filter rather than leading nowhere.
+   * The tiles below are the opposite: they are an invitation to browse, so they
+   * only appear once there is something behind them.
+   */
+  const heroCategories = categories.slice(0, HERO_CATEGORY_LIMIT);
+  const categoryTiles = categories
+    .filter((category) => category.featured && category._count.products > 0)
+    .slice(0, 8);
+
   return (
     <>
       <section className="editorial-hero">
@@ -131,13 +122,15 @@ export default async function Home() {
             handmade soap, botanical lotion, apothecary goods, tea and the small tools for brewing
             it.
           </p>
-          <ul className="hero-catalog">
-            {HERO_CATEGORIES.map(([label, slug]) => (
-              <li key={slug}>
-                <Link href={`/shop?category=${slug}`}>{label}</Link>
-              </li>
-            ))}
-          </ul>
+          {heroCategories.length > 0 && (
+            <ul className="hero-catalog">
+              {heroCategories.map((category) => (
+                <li key={category.id}>
+                  <Link href={`/shop?category=${category.slug}`}>{category.title}</Link>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="actions">
             {catalogCount > 0 ? (
               <Link className="btn editorial-btn" href="/shop">
@@ -214,7 +207,7 @@ export default async function Home() {
 
       <div className="home-merch">
         {catalogCount === 0 &&
-          categories.length === 0 &&
+          categoryTiles.length === 0 &&
           collections.length === 0 &&
           featured.length === 0 && (
             <section className="section editorial-section home-restock-section">
@@ -242,7 +235,7 @@ export default async function Home() {
             </section>
           )}
 
-        {categories.length > 0 && (
+        {categoryTiles.length > 0 && (
           <section className="section editorial-section home-categories-section">
             <div className="container">
               <div className="sectionhead">
@@ -254,7 +247,7 @@ export default async function Home() {
                 </p>
               </div>
               <div className="category-tiles">
-                {categories.map((category) => (
+                {categoryTiles.map((category) => (
                   <Link
                     className="category-tile"
                     href={`/shop?category=${category.slug}`}

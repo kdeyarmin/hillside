@@ -89,6 +89,22 @@ describe('categoryTypes', () => {
     assert.equal(isLegacyCategoryFilter('BOTANICAL'), true);
     assert.equal(isLegacyCategoryFilter('PLANT'), true);
   });
+
+  it('reads a lowercase value as a slug even when it spells a legacy key', () => {
+    /**
+     * The live regression: `tea` and `other` are both seeded category slugs, and
+     * uppercasing before the lookup made `/shop?category=tea` — the link the
+     * homepage chip, the shop-by tile and the sitemap all emit — come back as
+     * the legacy TEA group, showing tea accessories alongside the tea and
+     * building two chips on the same key.
+     */
+    assert.deepEqual(categoryTypes('tea'), []);
+    assert.deepEqual(categoryTypes('other'), []);
+    assert.equal(isLegacyCategoryFilter('tea'), false);
+    // The uppercase form is what every link in the wild actually holds.
+    assert.deepEqual(categoryTypes('TEA'), ['TEA', 'TEA_SUPPLY']);
+    assert.deepEqual(categoryTypes('OTHER'), ['OTHER']);
+  });
 });
 
 describe('categoryLabel', () => {
@@ -101,6 +117,8 @@ describe('categoryLabel', () => {
 
   it('reads a slug back as words when its category row has gone', () => {
     assert.equal(categoryLabel('driftwood-natural-materials'), 'Driftwood natural materials');
+    // And does not borrow a legacy group's name for a slug that spells one.
+    assert.equal(categoryLabel('tea'), 'Tea');
   });
 });
 

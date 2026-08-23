@@ -87,13 +87,27 @@ const PRODUCT_TYPES = ['PLANT', 'TEA', 'TEA_SUPPLY', 'LOTION', 'SOAP', 'OTHER'];
  * either, and answers with the types it covers. A value that is neither — a
  * category slug, which is what the shop filters by now — answers with nothing,
  * and that empty answer is exactly how the shop tells the two apart.
+ *
+ * **Case is the discriminator, and it has to be.** This used to uppercase the
+ * value first, which was harmless while `?category=` only ever held one of these
+ * keys and is not harmless now: `tea` and `other` are both seeded category
+ * slugs, so `/shop?category=tea` — the link the homepage chip, the shop-by tile
+ * and the sitemap all emit — came back as the legacy TEA group and showed tea
+ * accessories alongside the tea. The shop's chip row built two chips on the key
+ * `tea` and marked both of them current.
+ *
+ * Every legacy link in the wild is uppercase, because the only thing that ever
+ * wrote one was the shop's own filter state, and every slug is lowercase,
+ * because `slugify` cannot produce anything else. So a value is legacy only if
+ * it already reads as one.
  */
 export function categoryTypes(value?: string | null): string[] {
-  const raw = (value || '').trim().toUpperCase();
-  if (!raw || raw === 'ALL') return [];
+  const raw = (value || '').trim();
+  if (!raw || raw.toUpperCase() === 'ALL') return [];
   return raw.split(',').flatMap((entry) => {
     const key = entry.trim();
-    if (!key) return [];
+    // A lowercase value is a slug, whatever it happens to spell.
+    if (!key || key !== key.toUpperCase()) return [];
     const group = CATEGORY_GROUPS[key];
     if (group) return group.types;
     return PRODUCT_TYPES.includes(key) ? [key] : [];
@@ -111,10 +125,13 @@ export function isLegacyCategoryFilter(value?: string | null) {
  * here when the row has gone.
  */
 export function categoryLabel(value?: string | null) {
-  const key = (value || '').trim().toUpperCase();
+  const slug = (value || '').trim();
+  // Uppercase-only, for the same reason `categoryTypes` is: `tea` is a category
+  // slug and naming it "Teas & Herbals" would label the chip for a shelf it is
+  // not filtering to.
+  const key = slug === slug.toUpperCase() ? slug : '';
   if (CATEGORY_GROUPS[key]) return CATEGORY_GROUPS[key].label;
   if (PRODUCT_TYPES.includes(key)) return productTypeLabel(key);
-  const slug = (value || '').trim();
   if (!slug || slug.toUpperCase() === 'ALL') return 'Everything';
   // A slug whose row is gone still has to read as words rather than as a slug.
   return slug

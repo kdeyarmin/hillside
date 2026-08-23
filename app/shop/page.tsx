@@ -108,11 +108,16 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
       select: { slug: true, title: true },
       take: 8
     }),
-    // Every category the owner has not hidden, in her order. The chips are
-    // narrowed to the ones that hold something in the browser, where the
-    // catalog being filtered already is.
+    /**
+     * The categories offered as chips, in the owner's order. `featured` is what
+     * the category form calls "offer as a shop-by tile and a filter chip", so
+     * the shop has to honour it too — reading `active` alone meant unticking it
+     * took the homepage tile away and left the chip behind, which is not what
+     * the checkbox says it does. The chips are narrowed further to the ones that
+     * hold something in the browser, where the catalog being filtered already is.
+     */
     db.category.findMany({
-      where: { active: true },
+      where: { active: true, featured: true },
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
       select: { slug: true, title: true }
     })

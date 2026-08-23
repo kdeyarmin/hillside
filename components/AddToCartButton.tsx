@@ -2,6 +2,7 @@
 
 import { useId, useState } from 'react';
 import { Minus, Plus, ShoppingBag } from 'lucide-react';
+import ResilientImage from '@/components/ResilientImage';
 import { useCart, type CartProduct } from '@/components/CartProvider';
 import {
   sizeAvailable,
@@ -126,6 +127,24 @@ export default function AddToCartButton({
                     countedSizes && available <= 3 ? ` · only ${available} left` : ''
                   }`}
           </p>
+          {/* A variant with a photograph of its own is a visibly different thing
+              — a decorative planter is not the nursery pot beside it — and that
+              photograph was only reaching the basket, after the sale. The
+              gallery above is not ours to drive from here, so the chosen one is
+              shown in the panel where the choice was made. */}
+          {chosen?.imageUrl && chosen.imageUrl !== product.imageUrl && (
+            <ResilientImage
+              className="size-picker-photo"
+              sizeRole="thumb"
+              src={chosen.imageUrl}
+              fallbackSrc="/images/botanical-placeholder.svg"
+              alt={`${product.name} — ${chosen.label}`}
+              width={220}
+              height={220}
+              loading="lazy"
+              decoding="async"
+            />
+          )}
           {/* What arrives changes with the choice, so the measurements and the
               way it gets home arrive with it too rather than describing a
               different pot further up the page. */}
