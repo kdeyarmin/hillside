@@ -454,12 +454,17 @@ export async function saveCareGuideProducts(formData: FormData) {
 }
 
 /**
- * The merchandising tags the automatic recommendation rules read — `terrarium`,
+ * The recommendation traits the automatic rules read — `terrarium`,
  * `carnivorous`, `planter`, `substrate`. Saved from this page rather than the
- * product form because they only exist for recommendations, and because a tag is
- * only useful once you can see the vocabulary the rest of the catalog uses.
+ * product form because they only exist for recommendations, and because a trait
+ * is only useful once you can see the vocabulary the rest of the catalog uses.
+ *
+ * Written to `traits`, never `tags`. `tags` is the closed filter vocabulary the
+ * product form owns through `normalizeTags`, which keeps only slugs it
+ * recognises — so a trait saved there would survive exactly until the next time
+ * Tammy opened that product and pressed save.
  */
-export async function saveProductTags(formData: FormData) {
+export async function saveProductTraits(formData: FormData) {
   await guard();
   const productId = text(formData, 'productId');
   if (!productId) {
@@ -471,9 +476,9 @@ export async function saveProductTags(formData: FormData) {
    * rules match on `terrarium-container`, so a tag saved as "terrarium
    * container" would have matched nothing at all.
    */
-  const tags = [
+  const traits = [
     ...new Set(
-      text(formData, 'tags')
+      text(formData, 'traits')
         .split(/[\n,]+/)
         .map((tag) => normalizeTag(tag))
         .filter(Boolean)
@@ -482,12 +487,12 @@ export async function saveProductTags(formData: FormData) {
 
   const product = await db.product.update({
     where: { id: productId },
-    data: { tags },
+    data: { traits },
     select: { slug: true }
   });
   revalidatePath('/admin/merchandising');
   revalidatePath(`/shop/${product.slug}`);
   redirect(
-    adminMerchandisingPath({ notice: 'tags-saved', section: 'cross-sell', item: productId })
+    adminMerchandisingPath({ notice: 'traits-saved', section: 'cross-sell', item: productId })
   );
 }

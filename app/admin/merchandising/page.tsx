@@ -9,6 +9,7 @@ import { ADMIN_ERRORS, ADMIN_NOTICES, firstSearchParam } from '@/lib/admin-dashb
 import { db } from '@/lib/db';
 import {
   BADGE_PRESETS,
+  MAX_HOMEPAGE_SECTION_ITEMS,
   BEST_SELLER_MIN_ORDERS,
   BEST_SELLER_MIN_UNITS,
   BEST_SELLER_WINDOW_DAYS,
@@ -43,7 +44,7 @@ import {
   saveCareGuideProducts,
   saveHomepageSection,
   saveProductRelations,
-  saveProductTags,
+  saveProductTraits,
   setBundleActive,
   updateCollectionFeature,
   updateProductMerchandising
@@ -147,7 +148,7 @@ function SectionFields({
             name="maxItems"
             type="number"
             min="2"
-            max="8"
+            max={MAX_HOMEPAGE_SECTION_ITEMS}
             defaultValue={section?.maxItems ?? 4}
           />
         </label>
@@ -463,7 +464,8 @@ export default async function Merchandising({
           inventory: true,
           priceCents: true,
           sizes: true,
-          tags: true
+          tags: true,
+          traits: true
         },
         take: 300
       }),
@@ -968,7 +970,7 @@ export default async function Merchandising({
                 <summary>
                   <span>
                     {product.name}
-                    {product.tags.length > 0 ? ` • ${product.tags.join(', ')}` : ''}
+                    {product.traits.length > 0 ? ` • ${product.traits.join(', ')}` : ''}
                   </span>
                   <span className="status-badge PAID">
                     {relations.filter((relation) => relation.productId === product.id).length}{' '}
@@ -976,25 +978,31 @@ export default async function Merchandising({
                   </span>
                 </summary>
                 <div>
-                  <form action={saveProductTags}>
+                  <form action={saveProductTraits}>
                     <input type="hidden" name="productId" value={product.id} />
                     <label className="admin-label">
-                      Tags — one per line, or separated by commas
+                      Traits — one per line, or separated by commas
                       <textarea
                         className="admin-input"
-                        name="tags"
+                        name="traits"
                         rows={2}
-                        defaultValue={product.tags.join(', ')}
+                        defaultValue={product.traits.join(', ')}
                         placeholder={RECOMMENDATION_TAGS.slice(0, 6).join(', ')}
                       />
                     </label>
                     <p className="muted" style={{ fontSize: 13 }}>
                       The words the automatic suggestions match on. Useful ones:{' '}
-                      {RECOMMENDATION_TAGS.join(', ')}. Tags are added to what the website already
+                      {RECOMMENDATION_TAGS.join(', ')}. Traits are added to what the website already
                       works out from the product&rsquo;s own description — to switch one of those
                       off instead, write it with a minus in front, like <code>-terrarium</code>.
                     </p>
-                    <button className="btn outline small">Save tags</button>
+                    <p className="muted" style={{ fontSize: 13 }}>
+                      Not the same as the <b>attributes</b> on the product form (pet safe, low
+                      light, handmade). Those are the fixed list shoppers filter the shop by; these
+                      are free words only ever matched against other products. The suggestions read
+                      both.
+                    </p>
+                    <button className="btn outline small">Save traits</button>
                   </form>
 
                   {RECOMMENDATION_SECTIONS.map((section) => {

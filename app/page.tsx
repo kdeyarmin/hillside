@@ -1,5 +1,15 @@
 import Link from 'next/link';
-import { ArrowRight, BookOpen, Leaf, MapPin, Package, Sparkles, Sprout, Truck } from 'lucide-react';
+import {
+  ArrowRight,
+  BookOpen,
+  Gift,
+  Leaf,
+  MapPin,
+  Package,
+  Sparkles,
+  Sprout,
+  Truck
+} from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import BundleGrid from '@/components/BundleGrid';
 import NewsletterForm from '@/components/NewsletterForm';
@@ -19,6 +29,7 @@ import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { withCardFacts } from '@/lib/product-cards';
 import { pageMetadata } from '@/lib/seo';
+import { MAX_HOMEPAGE_SECTION_ITEMS } from '@/lib/merchandising';
 import { productsForSection, type MerchandisedProduct } from '@/lib/merchandising-data';
 import { formatMoney, formatMoneyCompact, freeShippingThresholdCents } from '@/lib/store';
 
@@ -62,6 +73,8 @@ function sectionLink(section: { kind: string; collection: { slug: string } | nul
       return { href: '/shop?tags=staff-pick', label: 'Shop all of Tammy’s picks →' };
     case 'SEASONAL':
       return { href: '/shop?tags=seasonal', label: 'Shop everything in season →' };
+    case 'BUNDLES':
+      return { href: '/bundles', label: 'All sets & kits →' };
     case 'COLLECTION':
       return section.collection
         ? { href: `/collections/${section.collection.slug}`, label: 'Shop the collection →' }
@@ -99,7 +112,7 @@ export default async function Home() {
      * kit whose last component sold this morning drops off the homepage on its
      * own rather than sending the day's visitors to a sold-out page.
      */
-    sellableBundles({ featured: true, take: 3 }),
+    sellableBundles({ featured: true, take: MAX_HOMEPAGE_SECTION_ITEMS }),
     // Hidden classes are not fetched at all, so the homepage costs one query
     // less rather than rendering nothing from a result it paid for.
     CLASSES_PUBLICLY_VISIBLE
@@ -165,6 +178,7 @@ export default async function Home() {
   const rows = resolved.filter(
     (entry) =>
       (entry.section.kind === 'COLLECTION_TILES' && collections.length > 0) ||
+      (entry.section.kind === 'BUNDLES' && featuredSets.length > 0) ||
       entry.products.length > 0
   );
   const classSeats = await seatsRemainingFor(upcomingClasses);
@@ -351,7 +365,27 @@ export default async function Home() {
         )}
 
         {rows.map(({ section, products }) =>
-          section.kind === 'COLLECTION_TILES' ? (
+          section.kind === 'BUNDLES' ? (
+            <section className="section editorial-products home-products-section" key={section.id}>
+              <div className="container">
+                <div className="editorial-heading-row">
+                  <div>
+                    {section.eyebrow && (
+                      <div className="eyebrow">
+                        <Package size={14} aria-hidden="true" /> {section.eyebrow}
+                      </div>
+                    )}
+                    <h2>{section.title}</h2>
+                    {section.subtitle && <p>{section.subtitle}</p>}
+                  </div>
+                  <Link className="editorial-link" href={sectionLink(section).href}>
+                    {sectionLink(section).label}
+                  </Link>
+                </div>
+                <BundleGrid bundles={featuredSets.slice(0, section.maxItems).map(bundleCardData)} />
+              </div>
+            </section>
+          ) : section.kind === 'COLLECTION_TILES' ? (
             <section
               className="section editorial-section home-collections-section"
               key={section.id}
@@ -410,21 +444,21 @@ export default async function Home() {
           )
         )}
 
-        {featuredSets.length > 0 && (
-          <section className="section editorial-products home-products-section">
-            <div className="container">
-              <div className="editorial-heading-row">
-                <div>
-                  <div className="eyebrow">
-                    <Package size={14} aria-hidden="true" /> Everything in one box
-                  </div>
-                  <h2>Sets we have made up.</h2>
-                </div>
-                <Link className="editorial-link" href="/bundles">
-                  All sets &amp; kits &rarr;
-                </Link>
+        {catalogCount > 0 && (
+          <section className="section gift-promo home-gift-section">
+            <div className="container care-promo-inner">
+              <Gift size={42} aria-hidden="true" />
+              <div>
+                <div className="eyebrow">Shopping for someone else?</div>
+                <h2>Gifts, sorted by who they are for.</h2>
+                <p>
+                  Ready-made bundles, gifts under $25 and $50, and picks for plant lovers, tea
+                  drinkers, teachers and new homes. Add a gift message free at checkout.
+                </p>
               </div>
-              <BundleGrid bundles={featuredSets.map(bundleCardData)} />
+              <Link className="btn light" href="/gifts">
+                Open the gift guide
+              </Link>
             </div>
           </section>
         )}
@@ -543,7 +577,7 @@ export default async function Home() {
             <h3>Seasonal tips, plant care & fresh arrivals.</h3>
             <p>A thoughtful note from us, sent occasionally.</p>
           </div>
-          <NewsletterForm />
+          <NewsletterForm source="homepage" />
         </div>
       </section>
     </>

@@ -24,6 +24,8 @@ const routes = process.argv.slice(2).length
       '/shop/monstera-deliciosa',
       '/collections',
       '/collections/plants',
+      '/gifts',
+      '/gifts/under-50',
       // '/classes' is hidden from the storefront (lib/class-visibility.ts) and
       // answers 404; restore this line with the flag.
       '/care',

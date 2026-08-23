@@ -103,9 +103,15 @@ export function needsRestocking(product: InventoryProduct) {
  * size running down, not the total: a plant with nine on the bench and none of
  * them in 6" pots has a size to pot up, and the total alone would keep it off
  * the list Tammy works from until the 4" ones ran out too.
+ *
+ * A product that is *entirely* sold out is not "running low" — it has run out,
+ * which is a different chip, a different card on the Today board and a different
+ * job. Counting it as both put one listing on the dashboard twice and inflated
+ * the day's work.
  */
 export function productIsLowStock(product: InventoryProduct) {
   if (!product.active) return false;
+  if (onHand(product) <= 0) return false;
   const stored = readStoredSizes(product.sizes);
   if (storedSizesTrackStock(stored)) {
     return stored.some((size) => (size.inventory ?? 0) <= LOW_STOCK_AT);

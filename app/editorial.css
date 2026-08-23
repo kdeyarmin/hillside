@@ -376,7 +376,10 @@ body:has(.adminshell) .editorial-topbar {
   font: 500 31px/1.1 Georgia, 'Times New Roman', serif;
 }
 
-.care-promo {
+/* `.gift-promo` is the same band with a different message, one section below
+   it on the homepage, so it shares these rules rather than restating them. */
+.care-promo,
+.gift-promo {
   background: var(--forest);
   color: var(--white);
 }
@@ -388,17 +391,25 @@ body:has(.adminshell) .editorial-topbar {
   gap: 30px;
 }
 
-.care-promo h2 {
+.care-promo-inner > svg {
+  flex: 0 0 auto;
+  stroke-width: 1.4;
+}
+
+.care-promo h2,
+.gift-promo h2 {
   margin: 0;
   color: var(--white);
 }
 
-.care-promo p {
+.care-promo p,
+.gift-promo p {
   margin: 6px 0 0;
   color: #dfe9e1;
 }
 
-.care-promo .eyebrow {
+.care-promo .eyebrow,
+.gift-promo .eyebrow {
   color: var(--gold-light);
 }
 
@@ -421,7 +432,11 @@ body:has(.adminshell) .editorial-topbar {
 }
 
 @media (max-width: 1080px) {
+  /* Wrapping only ever engages when the row would otherwise run off the side —
+     a second line of navigation is a far better answer than a horizontally
+     scrolling header, and the bar has one more link in it than it used to. */
   .editorial-nav-inner {
+    flex-wrap: wrap;
     gap: 14px;
   }
 
