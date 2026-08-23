@@ -1662,6 +1662,656 @@ a.filter-chip {
 @media (max-width: 640px) {
   .shop-filter-rail.open { grid-template-columns: 1fr; }
 }
+
+/* ---- gifts, reviews and the Today board ---- */
+.drawer-error, .drawer-notice {
+  margin: 0 0 10px;
+  padding: 10px 13px;
+  border-radius: 11px;
+  font-size: 13px;
+}
+/* The gift fieldset stacks — hint, then tick boxes, then the contents box —
+   rather than flowing like the collection chips beside it. */
+.admin-gift-picker { display: block; }
+.admin-gift-picker .admin-hint { display: block; margin: 4px 0 12px; max-width: 68ch; }
+.admin-checkbox-row { display: flex; flex-wrap: wrap; gap: 10px 18px; }
+/* A tick box Tammy has to hit on a phone. The label is the target, so the
+   height goes on the label rather than on the input alone. */
+.admin-checkbox { min-height: 44px; }
+.admin-checkbox input[type='checkbox'] { width: 22px; height: 22px; font-size: 16px; }
+
+/* ---- gifts ----
+   Every rule here is written narrow-first: the grids start at one column and
+   widen at a breakpoint, rather than starting wide and being cut back. The gift
+   pages are the ones most likely to be opened on a phone, from a message. */
+
+.gift-hero .eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.gift-jump {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.gift-jump a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 16px;
+  background: var(--white);
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.gift-jump a:hover {
+  border-color: var(--forest);
+}
+
+.gift-jump-footer {
+  justify-content: flex-start;
+  align-items: center;
+  margin-top: 40px;
+  padding-top: 26px;
+  border-top: 1px solid var(--line);
+}
+
+.gift-jump-footer span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.gift-content > .container > section + section,
+.gift-content > .container > section + .gift-note-panel {
+  margin-top: 58px;
+}
+
+/* Bundles lead the page, so they get the panel and everything else does not. */
+.gift-bundles {
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  background: var(--sage-light);
+}
+
+.gift-bundles-head {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.gift-bundles-head h2 {
+  margin: 6px 0 6px;
+  color: var(--forest);
+  font: 500 clamp(28px, 4.4vw, 40px)/1.1 var(--font-hillside-display), Georgia, serif;
+}
+
+.gift-bundles-head p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 62ch;
+}
+
+.gift-bundles-head .btn {
+  justify-self: start;
+}
+
+.gift-band-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.gift-band {
+  min-height: 96px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 18px 22px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--white);
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.gift-band:hover {
+  border-color: var(--forest);
+  transform: translateY(-2px);
+}
+
+.gift-band-title {
+  color: var(--forest);
+  font: 500 30px/1.05 var(--font-hillside-display), Georgia, serif;
+}
+
+.gift-band-count {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.gift-band-go {
+  margin-top: 6px;
+  color: var(--gold-strong);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.gift-promises {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--line);
+}
+
+.gift-promises > div {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  padding: 22px;
+  background: var(--white);
+  color: var(--forest);
+}
+
+.gift-promises svg {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  stroke-width: 1.45;
+  color: var(--sage-ink);
+}
+
+.gift-promises b {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.065em;
+  text-transform: uppercase;
+}
+
+.gift-promises small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.gift-toolbar {
+  flex-wrap: wrap;
+}
+
+.gift-note-panel {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 18px;
+  margin-top: 46px;
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--cream);
+}
+
+.gift-note-panel svg {
+  color: var(--gold-strong);
+  stroke-width: 1.4;
+}
+
+.gift-note-panel h2 {
+  margin: 6px 0 8px;
+  color: var(--forest);
+  font: 500 clamp(24px, 3.6vw, 32px)/1.15 var(--font-hillside-display), Georgia, serif;
+}
+
+.gift-note-panel p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 68ch;
+}
+
+/* ---- bundles on a product ---- */
+.product-badge.bundle,
+.pill.bundle {
+  background: var(--forest);
+  color: var(--white);
+}
+
+.bundle-contents {
+  margin: 20px 0;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--sage-light);
+}
+
+.bundle-contents b {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--forest);
+}
+
+.bundle-contents ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.bundle-contents li {
+  margin-bottom: 4px;
+}
+
+.bundle-contents .muted {
+  display: block;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.product-gift-guides {
+  margin: 20px 0 6px;
+  padding: 16px 18px;
+  border: 1px dashed var(--line);
+  border-radius: 18px;
+}
+
+.product-gift-guides b {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--forest);
+}
+
+.product-gift-guides p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ---- the inline newsletter panel ----
+   Used on the product, cart, care-guide, gift and post-checkout pages. There is
+   no popup anywhere on this site and this is why there does not need to be. */
+.inline-newsletter {
+  display: grid;
+  gap: 18px;
+  margin-top: 52px;
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--cream);
+}
+
+.inline-newsletter h2 {
+  margin: 5px 0 6px;
+  color: var(--forest);
+  font: 500 clamp(23px, 3.4vw, 30px)/1.15 var(--font-hillside-display), Georgia, serif;
+}
+
+.inline-newsletter p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 60ch;
+}
+
+/* The form's own inputs are styled for the dark newsletter panel; on cream they
+   need a visible edge of their own. */
+.inline-newsletter .newsletter-form input {
+  border-color: #cfd8cf;
+}
+
+.inline-newsletter .form-status.success {
+  color: var(--success);
+}
+
+.inline-newsletter .form-status.error {
+  color: var(--danger);
+}
+
+/* The opt-in that rides along with a back-in-stock request. One checkbox, off
+   by default, and never a second form to fill in. */
+.stock-alert-optin {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 12px;
+  color: var(--forest);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* The label is the target, but the box is what a thumb aims at, so it grows
+   with the viewport rather than staying the 13px the browser draws by default.
+   `font-size` is set because the site-wide 16px rule that stops Safari zooming
+   a focused field deliberately skips checkboxes, and this one is on a customer
+   page. */
+.stock-alert-optin input {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  font-size: 16px;
+}
+
+@media (min-width: 641px) {
+  .gift-band-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .gift-promises {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .inline-newsletter {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 28px;
+  }
+}
+
+/* ---- review presentation ----
+   The average alone hides the shape of the thing: 4.2 from forty happy people
+   and two broken deliveries is a different product from 4.2 across the board.
+   The breakdown, the verified badge and the helpful vote are what let a shopper
+   read that shape without a wall of text. */
+.reviews-overview {
+  display: grid;
+  gap: 18px;
+  margin: 22px 0 26px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--cream);
+}
+
+.rating-breakdown {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rating-breakdown li {
+  display: grid;
+  grid-template-columns: 46px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 10px;
+}
+
+.rating-breakdown-label {
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.rating-breakdown-track {
+  height: 10px;
+  display: block;
+  border-radius: 999px;
+  background: #e2e8e0;
+  overflow: hidden;
+}
+
+.rating-breakdown-track > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--gold);
+}
+
+.rating-breakdown-count {
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
+}
+
+.reviews-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.reviews-sort label {
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.reviews-sort .sort-select {
+  min-height: 44px;
+  flex: 1 1 180px;
+  max-width: 260px;
+}
+
+.pill.verified {
+  background: var(--sage-light);
+  color: var(--forest);
+}
+
+.review-helpful {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.review-helpful .text-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.review-helpful .muted {
+  font-size: 13px;
+}
+
+.reviews-more {
+  margin-top: 18px;
+  text-align: center;
+}
+
+@media (min-width: 761px) {
+  .reviews-overview {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 30px;
+  }
+
+  .reviews-sort {
+    justify-content: flex-end;
+  }
+}
+
+/* ---- the dashboard's priority board ----
+   Tammy runs much of this from a phone, so the board starts as a single column
+   of full-width cards and only becomes a grid when there is room for one. Each
+   card is a link, and the whole card is the target — not a word inside it. */
+.priority-board {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.priority-card {
+  min-height: 96px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: baseline;
+  column-gap: 14px;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-left: 5px solid var(--sage);
+  border-radius: 16px;
+  background: var(--white);
+  color: var(--forest);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.priority-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-soft);
+}
+
+.priority-card strong {
+  grid-row: 1 / 3;
+  align-self: center;
+  min-width: 48px;
+  font: 500 40px/1 Georgia, serif;
+  text-align: center;
+}
+
+.priority-label {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.priority-detail {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.priority-card.urgent {
+  border-left-color: var(--danger);
+}
+
+.priority-card.urgent strong {
+  color: var(--danger);
+}
+
+.priority-card.attention {
+  border-left-color: var(--gold);
+}
+
+.priority-card.attention strong {
+  color: var(--gold-strong);
+}
+
+/* Worth a glance, not a job. Visually quieter than the board above it. */
+.admin-pulse {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.admin-pulse > div {
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fbfcfa;
+}
+
+.admin-pulse span {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-pulse strong {
+  display: block;
+  margin: 2px 0 4px;
+  color: var(--forest);
+  font: 500 26px/1.1 Georgia, serif;
+}
+
+.admin-pulse small {
+  display: block;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* ---- where signups come from ---- */
+.source-breakdown {
+  margin: 6px 0 20px;
+}
+
+.source-breakdown h3 {
+  margin: 0 0 12px;
+  color: var(--forest);
+  font-size: 17px;
+}
+
+.source-breakdown ul {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.source-breakdown li {
+  display: grid;
+  grid-template-columns: minmax(96px, 34%) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.source-label {
+  color: var(--forest);
+  font-weight: 800;
+}
+
+.source-track {
+  height: 10px;
+  display: block;
+  border-radius: 999px;
+  background: #e6ebe5;
+  overflow: hidden;
+}
+
+.source-track > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--sage);
+}
+
+.source-count {
+  color: var(--forest);
+  font-weight: 800;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (min-width: 700px) {
+  .priority-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-pulse {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1200px) {
+  .priority-board {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-pulse {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
 /* ---- promo codes and gift cards ---- */
 .discount-fields {
   display: grid;

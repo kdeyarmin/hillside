@@ -18,6 +18,7 @@ type ProductInput = {
   slug?: string;
   name: string;
   type: string;
+  traits?: string[];
   tags?: string[];
   shortDescription?: string;
   description?: string;
@@ -85,14 +86,14 @@ const moss = product({
   id: 'moss',
   name: 'Sheet moss',
   type: 'OTHER',
-  tags: ['terrarium'],
+  traits: ['terrarium'],
   description: 'Live sheet moss, sold by the handful.'
 });
 const terrariumPlant = product({
   id: 'fittonia',
   name: 'Fittonia',
   type: 'PLANT',
-  tags: ['terrarium'],
+  traits: ['terrarium'],
   description: 'A humidity-lover that thrives in a closed terrarium.'
 });
 
@@ -116,9 +117,9 @@ const idsFor = (anchor: ProductInput, section: 'pairs' | 'complete') =>
     .map((match) => match.product.id);
 
 describe('productTraits', () => {
-  it('reads the owner’s tags first', () => {
+  it('reads the owner’s traits first', () => {
     assert.equal(
-      productTraits(product({ ...moss, tags: ['moss', 'terrarium'] })).has('moss'),
+      productTraits(product({ ...moss, traits: ['moss', 'terrarium'] })).has('moss'),
       true
     );
   });
@@ -160,9 +161,9 @@ describe('productTraits', () => {
     }
   });
 
-  it('adds tags to inference rather than replacing it', () => {
+  it('adds traits to inference rather than replacing it', () => {
     // Tagging one thing must not cost a product everything else it is.
-    const traits = productTraits(product({ ...flytrap, tags: ['gift'] }));
+    const traits = productTraits(product({ ...flytrap, traits: ['gift'] }));
     assert.equal(traits.has('gift'), true);
     assert.equal(traits.has('carnivorous'), true);
     assert.equal(traits.has('plant'), true);
@@ -182,14 +183,14 @@ describe('productTraits', () => {
     });
     assert.equal(productTraits(moss).has('terrarium'), true);
     assert.equal(
-      productTraits(product({ ...moss, tags: ['moss', '-terrarium'] })).has('terrarium'),
+      productTraits(product({ ...moss, traits: ['moss', '-terrarium'] })).has('terrarium'),
       false
     );
     assert.equal(normalizeTag('-Terrarium'), '-terrarium');
   });
 
   it('resolves a contradiction the predictable way — suppression wins', () => {
-    const traits = productTraits(product({ ...flytrap, tags: ['carnivorous', '-carnivorous'] }));
+    const traits = productTraits(product({ ...flytrap, traits: ['carnivorous', '-carnivorous'] }));
     assert.equal(traits.has('carnivorous'), false);
   });
 });
@@ -284,5 +285,50 @@ describe('frequentlyBoughtTogether', () => {
 
   it('is empty when the shop has no history yet', () => {
     assert.deepEqual(frequentlyBoughtTogether(new Map()), []);
+  });
+});
+
+/**
+ * `traits` and `tags` are separate columns on purpose. `tags` is the closed
+ * vocabulary `normalizeTags` polices and the shop filters on; `traits` is the
+ * open one only these rules read. The rules read both — someone buying one
+ * pet-safe plant often wants another — but nothing in the recommendation path
+ * may ever write to `tags`, because the product form rewrites that field from
+ * its own fixed list and would drop whatever was put there.
+ */
+describe('traits and filter tags', () => {
+  it('reads the shop’s filter tags as traits too', () => {
+    const traits = productTraits(
+      product({ id: 'p', name: 'Parlor Palm', type: 'PLANT', tags: ['pet-safe', 'low-light'] })
+    );
+    assert.ok(traits.has('pet-safe'));
+    assert.ok(traits.has('low-light'));
+  });
+
+  it('merges both fields rather than letting one win', () => {
+    const traits = productTraits(
+      product({
+        id: 'p',
+        name: 'Sphagnum Moss',
+        type: 'OTHER',
+        traits: ['terrarium'],
+        tags: ['handmade']
+      })
+    );
+    assert.ok(traits.has('terrarium'));
+    assert.ok(traits.has('handmade'));
+  });
+
+  it('lets a trait suppress a filter tag that contradicts it', () => {
+    const traits = productTraits(
+      product({
+        id: 'p',
+        name: 'Nepenthes',
+        type: 'PLANT',
+        traits: ['-pet-safe'],
+        tags: ['pet-safe']
+      })
+    );
+    assert.equal(traits.has('pet-safe'), false);
   });
 });

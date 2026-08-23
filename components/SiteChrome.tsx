@@ -49,15 +49,24 @@ const lineName = (line: { name: string; size?: string | null }) => sizedName(lin
  * deleted row. Navigating by group instead means nothing in the header depends
  * on a row the owner might rename, so every collection is now hers to retire.
  */
-const navigation: ReadonlyArray<readonly [label: string, href: string]> = [
-  ['Plants', '/shop?category=PLANT'],
-  ['Teas & Herbals', '/shop?category=TEA'],
-  ['Botanicals', '/shop?category=BOTANICAL'],
-  ...(CLASSES_PUBLICLY_VISIBLE ? ([['Classes', '/classes']] as const) : []),
-  ['Plant Care', '/care'],
-  ['Gallery', '/gallery'],
-  ['Our Picks', '/amazon']
-];
+function primaryNavigation(
+  giftsEmpty: boolean
+): ReadonlyArray<readonly [label: string, href: string]> {
+  return [
+    ['Plants', '/shop?category=PLANT'],
+    ['Teas & Herbals', '/shop?category=TEA'],
+    ['Botanicals', '/shop?category=BOTANICAL'],
+    /* Gifts leaves with the *stock*, not merely with the catalog. The gift
+       pages are built from in-stock rows, so a shop whose every listing has
+       sold out has a gift guide with nothing in it — and a header link to it
+       is exactly the apology this condition exists to avoid. */
+    ...(giftsEmpty ? [] : ([['Gifts', '/gifts']] as const)),
+    ...(CLASSES_PUBLICLY_VISIBLE ? ([['Classes', '/classes']] as const) : []),
+    ['Plant Care', '/care'],
+    ['Gallery', '/gallery'],
+    ['Our Picks', '/amazon']
+  ];
+}
 
 const SOCIAL_LINKS = [
   { label: 'Instagram', href: process.env.NEXT_PUBLIC_INSTAGRAM_URL, Icon: Instagram },
@@ -475,6 +484,7 @@ function CartDrawer({
 export function SiteHeader({
   catalogEmpty = false,
   bundlesAvailable = false,
+  giftsEmpty = false,
   freeShippingThreshold
 }: {
   catalogEmpty?: boolean;
@@ -484,6 +494,8 @@ export function SiteHeader({
    * components — there is no "do we have bundles" flag to go stale.
    */
   bundlesAvailable?: boolean;
+  /** Nothing is in stock, so the gift guide has nothing to show. */
+  giftsEmpty?: boolean;
   freeShippingThreshold: number;
 }) {
   const pathname = usePathname();
@@ -491,6 +503,7 @@ export function SiteHeader({
   const { count, drawerOpen, openCart, lastAdded } = useCart();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const navigation = primaryNavigation(giftsEmpty);
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
@@ -788,12 +801,15 @@ export function SiteHeader({
 export function SiteFooter({
   contactEmail = DEFAULT_BUSINESS_EMAIL,
   catalogEmpty = false,
-  bundlesAvailable = false
+  bundlesAvailable = false,
+  giftsEmpty = false
 }: {
   contactEmail?: string;
   catalogEmpty?: boolean;
   /** Hidden while no set can be built, for the same reason the header link is. */
   bundlesAvailable?: boolean;
+  /** Nothing is in stock, so the gift guide has nothing to show. */
+  giftsEmpty?: boolean;
 }) {
   const pathname = usePathname();
   const showNewsletter = pathname !== '/';
@@ -806,7 +822,9 @@ export function SiteFooter({
             <div className="eyebrow">The Hillside Notes</div>
             <h3>Seasonal tips, plant care and new arrivals.</h3>
           </div>
-          <NewsletterForm compact />
+          {/* The footer is on every page, so the placement alone would not tell
+              Tammy anything. `NewsletterForm` sends the current path with it. */}
+          <NewsletterForm compact source="footer" />
         </div>
       )}
       <div className="container footergrid">
@@ -850,6 +868,11 @@ export function SiteFooter({
           {bundlesAvailable && (
             <p>
               <Link href="/bundles">Sets &amp; kits</Link>
+            </p>
+          )}
+          {!giftsEmpty && (
+            <p>
+              <Link href="/gifts">Gift guide</Link>
             </p>
           )}
           {CLASSES_PUBLICLY_VISIBLE && (

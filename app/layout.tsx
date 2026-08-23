@@ -22,7 +22,7 @@ import Analytics from '@/components/Analytics';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
 import { hasSellableBundles } from '@/lib/bundle-queries';
-import { catalogHasActiveProducts } from '@/lib/catalog';
+import { catalogHasActiveProducts, catalogHasSellableProducts } from '@/lib/catalog';
 import { businessEmail, freeShippingThresholdCents, siteBaseUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
 import { businessJsonLd, websiteJsonLd } from '@/lib/seo';
@@ -95,11 +95,13 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [catalogHasProducts, bundlesAvailable] = await Promise.all([
+  const [catalogHasProducts, hasStock, bundlesAvailable] = await Promise.all([
     catalogHasActiveProducts(),
+    catalogHasSellableProducts(),
     hasSellableBundles()
   ]);
   const catalogEmpty = !catalogHasProducts;
+  const giftsEmpty = !hasStock;
   return (
     <html lang="en" className={`${hillsideSans.variable} ${hillsideDisplay.variable}`}>
       <body>
@@ -118,6 +120,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <SiteHeader
             catalogEmpty={catalogEmpty}
             bundlesAvailable={bundlesAvailable}
+            giftsEmpty={giftsEmpty}
             freeShippingThreshold={freeShippingThresholdCents()}
           />
           {/* tabIndex={-1} so the skip link actually moves focus. Without it Safari
@@ -129,6 +132,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             contactEmail={businessEmail()}
             catalogEmpty={catalogEmpty}
             bundlesAvailable={bundlesAvailable}
+            giftsEmpty={giftsEmpty}
           />
         </CartProvider>
         <Analytics />

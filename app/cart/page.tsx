@@ -1,5 +1,6 @@
 import CartIntro from '@/components/CartIntro';
 import CartPageClient from '@/components/CartPageClient';
+import InlineNewsletter from '@/components/InlineNewsletter';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { freeShippingThresholdCents } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
@@ -39,6 +40,11 @@ export default async function CartPage({
             freeShippingThreshold={freeShippingThreshold}
             restoreToken={restore || null}
             canceledSessionId={canceled || null}
+          />
+          <InlineNewsletter
+            source="cart"
+            heading="Not ready to check out?"
+            blurb="Your basket is saved on this device. Join the list and we will tell you when new pieces come off the bench."
           />
         </div>
       </section>

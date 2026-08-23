@@ -5,6 +5,9 @@ import {
   adminDashboardPath,
   firstSearchParam,
   inventoryAttention,
+  isCustomPlanterRequest,
+  orderMatchesAdminFilter,
+  parseAdminOrderFilter,
   parseAdminStockFilter,
   productIsLowStock,
   productMatchesAdminFilter,
@@ -168,6 +171,35 @@ describe('productIsLowStock', () => {
   });
 });
 
+describe('sold out and running low', () => {
+  /**
+   * The two chips, and the two cards on the Today board behind them, have to
+   * partition the work rather than overlap: a listing that has run out is not
+   * "running low", and counting it as both put one product on the board twice.
+   */
+  it('never counts one listing as both', () => {
+    const soldOut = { ...base, inventory: 0 };
+    assert.equal(productIsLowStock(soldOut), false);
+    assert.equal(productMatchesAdminFilter(soldOut, '', 'out'), true);
+    assert.equal(productMatchesAdminFilter(soldOut, '', 'low'), false);
+  });
+
+  it('still calls a counted size running low while the shelf holds others', () => {
+    // Nine on the bench, none in 6" pots: a size to pot up, not a sold-out
+    // listing, so it belongs under Low stock and not under Out of stock.
+    const perSize = {
+      ...base,
+      inventory: 9,
+      sizes: [
+        { label: '4" pot', inventory: 9 },
+        { label: '6" pot', inventory: 0 }
+      ]
+    };
+    assert.equal(productIsLowStock(perSize), true);
+    assert.equal(productMatchesAdminFilter(perSize, '', 'out'), false);
+  });
+});
+
 describe('parseAdminStockFilter', () => {
   it('falls back to all for an unknown chip', () => {
     assert.equal(parseAdminStockFilter('reorder'), 'reorder');
@@ -226,5 +258,115 @@ describe('adminContentPath', () => {
       }),
       '/admin/content?notice=collection-saved&section=collections&item=col_1'
     );
+  });
+});
+
+const base = {
+  name: 'Monstera',
+  slug: 'monstera',
+  sku: 'PL-01',
+  active: true,
+  inventory: 4,
+  imageUrl: '/media/monstera.jpg',
+  shortDescription: 'A bold tropical.',
+  description: 'A bold, easygoing tropical with iconic split leaves and a lot of presence.',
+  details: 'Nursery grown, potted here.'
+};
+
+describe('sold out and running low', () => {
+  /**
+   * The two chips, and the two cards on the Today board behind them, have to
+   * partition the work rather than overlap: a listing that has run out is not
+   * "running low", and counting it as both put one product on the board twice.
+   */
+  it('never counts one listing as both', () => {
+    const soldOut = { ...base, inventory: 0 };
+    assert.equal(productIsLowStock(soldOut), false);
+    assert.equal(productMatchesAdminFilter(soldOut, '', 'out'), true);
+    assert.equal(productMatchesAdminFilter(soldOut, '', 'low'), false);
+  });
+
+  it('still calls a counted size running low while the shelf holds others', () => {
+    // Nine on the bench, none in 6" pots: a size to pot up, not a sold-out
+    // listing, so it belongs under Low stock and not under Out of stock.
+    const perSize = {
+      ...base,
+      inventory: 9,
+      sizes: [
+        { label: '4" pot', inventory: 9 },
+        { label: '6" pot', inventory: 0 }
+      ]
+    };
+    assert.equal(productIsLowStock(perSize), true);
+    assert.equal(productMatchesAdminFilter(perSize, '', 'out'), false);
+  });
+});
+
+describe('parseAdminStockFilter', () => {
+  it('accepts the filters the dashboard links at and nothing else', () => {
+    for (const value of ['active', 'inactive', 'photo', 'low', 'out', 'incomplete']) {
+      assert.equal(parseAdminStockFilter(value), value);
+    }
+    // The old spelling still resolves, because every "Archive from shop"
+    // redirect the dashboard has ever issued links to it.
+    assert.equal(parseAdminStockFilter('archived'), 'inactive');
+    assert.equal(parseAdminStockFilter('everything'), 'all');
+    assert.equal(parseAdminStockFilter(null), 'all');
+  });
+});
+
+describe('order filters', () => {
+  it('reads only the two narrowed views', () => {
+    assert.equal(parseAdminOrderFilter('awaiting'), 'awaiting');
+    assert.equal(parseAdminOrderFilter('pickup'), 'pickup');
+    assert.equal(parseAdminOrderFilter('paid'), 'all');
+    assert.equal(parseAdminOrderFilter(undefined), 'all');
+  });
+
+  it('shows only pickups that still owe the customer something', () => {
+    const collected = { awaiting: false, pickup: true };
+    const waiting = { awaiting: true, pickup: true };
+    const shipping = { awaiting: true, pickup: false };
+    assert.equal(orderMatchesAdminFilter(collected, 'pickup'), false);
+    assert.equal(orderMatchesAdminFilter(waiting, 'pickup'), true);
+    assert.equal(orderMatchesAdminFilter(shipping, 'pickup'), false);
+    assert.equal(orderMatchesAdminFilter(shipping, 'awaiting'), true);
+    assert.equal(orderMatchesAdminFilter(collected, 'all'), true);
+  });
+
+  it('partitions the outstanding work so one order is never two jobs', () => {
+    const waitingPickup = { awaiting: true, pickup: true };
+    // Packing a parcel and preparing a pickup are different jobs, and the
+    // Today board counts them as one each — never the same order as both.
+    assert.equal(orderMatchesAdminFilter(waitingPickup, 'awaiting'), false);
+    assert.equal(orderMatchesAdminFilter(waitingPickup, 'pickup'), true);
+  });
+});
+
+describe('isCustomPlanterRequest', () => {
+  it('recognises the contact form’s own subject', () => {
+    assert.equal(
+      isCustomPlanterRequest({ subject: 'Custom planter arrangement', message: '' }),
+      true
+    );
+  });
+
+  it('recognises someone asking in their own words', () => {
+    assert.equal(
+      isCustomPlanterRequest({
+        subject: 'Question',
+        message: 'Could you make a dish garden for my mother?'
+      }),
+      true
+    );
+    assert.equal(
+      isCustomPlanterRequest({ subject: 'Hello', message: 'Do you ship to Ohio?' }),
+      false
+    );
+  });
+
+  it('copes with a message that has no body', () => {
+    assert.equal(isCustomPlanterRequest({ subject: 'centerpiece for a wedding' }), true);
+    assert.equal(isCustomPlanterRequest({ subject: 'Hello' }), false);
   });
 });
