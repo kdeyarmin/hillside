@@ -102,8 +102,17 @@ export default async function Care() {
 
   const plantProfiles = guides.filter((guide) => guide.guideType === 'PLANT').length;
   const problemGuides = guides.filter((guide) => guide.guideType === 'PROBLEM').length;
+  const beginnerGuides = guides.filter((guide) => guide.guideType === 'BEGINNER').length;
+  /**
+   * Beginner guides are counted here as well as in their own figure. The three
+   * numbers are a description of the library, not a partition of it, and a kind
+   * missing from all of them would make the shelf look smaller than it is.
+   */
   const learningGuides = guides.filter(
-    (guide) => guide.guideType === 'GENERAL' || guide.guideType === 'SEASONAL'
+    (guide) =>
+      guide.guideType === 'GENERAL' ||
+      guide.guideType === 'SEASONAL' ||
+      guide.guideType === 'BEGINNER'
   ).length;
 
   return (
@@ -115,7 +124,8 @@ export default async function Care() {
             <h1>Plant care that makes sense in a real home.</h1>
             <p>
               Start with a plant profile, learn the basics, or troubleshoot a symptom with practical
-              steps that help you decide what to check next.
+              steps that help you decide what to check next. New to all of this? There is a shelf
+              for that too.
             </p>
             <div className="care-library-stats" aria-label="Plant care library contents">
               <span>
@@ -130,6 +140,12 @@ export default async function Care() {
                 <SearchCheck size={18} />
                 <b>{learningGuides}</b> care lessons
               </span>
+              {beginnerGuides > 0 && (
+                <span>
+                  <Sprout size={18} />
+                  <b>{beginnerGuides}</b> beginner guides
+                </span>
+              )}
             </div>
           </div>
           <BrandMockupScene variant="care" />

@@ -732,6 +732,244 @@ export const starterCareGuides = [
     featured: true,
     sortOrder: 304,
     published: true
+  },
+  /**
+   * Guides for the plants a starter kit is built around, and the shortlists a
+   * first-time buyer arrives searching for. These are the entries that give the
+   * carnivorous, terrarium and succulent sets something to point at, and the
+   * beginner shelf something to hold.
+   */
+  {
+    plantName: 'Venus Flytrap',
+    slug: 'venus-flytrap-care',
+    guideType: CareGuideType.PLANT,
+    category: 'Carnivorous plants',
+    difficulty: 'Particular, but not difficult',
+    botanical: 'Dionaea muscipula',
+    summary:
+      'A bog plant from one small corner of the Carolinas. Give it sun, rainwater and a nutrient-free mix and it is straightforward; treat it like a houseplant and it will not last the season.',
+    light: 'As much direct sun as you can give it — four hours minimum, all day if possible. A windowsill flytrap is usually a starving one.',
+    water: 'Stand the pot in an inch of rain, distilled or reverse-osmosis water. Tap water and softened water build up minerals that kill it over a few months.',
+    humidity: 'Not fussy. A sunny windowsill is fine; a sealed terrarium is not, because it cuts the light and holds the winter warmth it needs to lose.',
+    soil: 'Nutrient-free only: long-fibered sphagnum with perlite or horticultural sand. Never potting soil, never compost.',
+    feeding: 'Nothing at the roots, ever. Fertilizer burns them. Outdoors it catches its own; indoors, one small insect on one trap every few weeks is plenty.',
+    temperature: '70–95°F in summer. It needs a cold winter rest at 35–50°F for about three months — a garage or an unheated porch does it.',
+    petSafety: 'Not toxic. The traps cannot hurt a curious pet, though a pet can certainly hurt the traps.',
+    tips: 'Do not set the traps off for fun. Each one closes a handful of times in its life and every wasted closure costs the plant energy it has to make back in the sun.',
+    symptoms: 'Traps blackening one after another, traps that no longer close, pale floppy leaves, or a plant that never colours up red inside.',
+    causes: 'Blackening from mineral build-up is the usual culprit, and comes from tap water. Weak floppy growth and no red colour mean not enough sun. Individual traps blackening after catching something is normal ageing.',
+    treatment: 'Switch to rain or distilled water immediately and flush the pot through several times. Move it into full sun over a week or two rather than all at once. Trim dead traps at the leaf, not at the crown.',
+    prevention: 'Rainwater, full sun, nutrient-free mix, and a genuine cold winter rest. Get those four right and there is very little else to do.',
+    checklist: 'Full sun, not a bright windowsill\nRain or distilled water only\nNutrient-free sphagnum mix\nNo fertilizer at the roots\nCold rest in winter\nLeave the traps alone',
+    imageUrl: gardenImage,
+    featured: true,
+    sortOrder: 15,
+    published: true
+  },
+  {
+    plantName: 'Air Plants',
+    slug: 'air-plant-care',
+    guideType: CareGuideType.PLANT,
+    category: 'Air plants',
+    difficulty: 'Easy once the watering clicks',
+    botanical: 'Tillandsia spp.',
+    summary:
+      'No soil at all. Everything an air plant needs comes in through its leaves, which is why the whole of its care is about how it gets wet and how fast it dries.',
+    light: 'Bright indirect light, or gentle morning sun. The silvery-leaved kinds take more sun than the soft green ones.',
+    water: 'Soak in room-temperature water for 20–30 minutes every week or two, then shake it out and lay it upside down somewhere airy until it is dry to the touch. Misting alone is not enough for most of them.',
+    humidity: 'Whatever your house is. Airflow matters more — a plant that sits wet in a closed vessel rots at the base.',
+    soil: 'None. Never pot one, and never let the base sit in water or on wet moss.',
+    feeding: 'A very dilute bromeliad or air-plant fertilizer in the soak water, once a month at most.',
+    temperature: '50–90°F. Keep away from heat vents, which dry them out between soaks.',
+    petSafety: 'Not toxic, though small ones are exactly the size a cat will bat off a shelf.',
+    tips: 'Dry it upside down. Water caught in the centre of the rosette is the single most common way an air plant is lost, and turning it over for an hour solves it.',
+    symptoms: 'Leaves curling inward and going crisp, a base that pulls apart or smells sour, or brown papery tips.',
+    causes: 'Curling and crisping is thirst. A soft collapsing base is rot from water sitting in the centre. Brown tips usually follow dry air with too long between soaks.',
+    treatment: 'For a thirsty plant, soak for a few hours rather than 20 minutes. For a rotting base there is no rescue — save any healthy offsets and start again.',
+    prevention: 'Soak, shake, dry upside down. Keep it out of a closed container unless that container is genuinely open to the air.',
+    checklist: 'Bright indirect light\nSoak weekly, not mist\nShake the water out\nDry upside down\nNever pot in soil',
+    imageUrl: foliageImage,
+    sortOrder: 16,
+    published: true
+  },
+  {
+    plantName: 'Beginner-Friendly Houseplants',
+    slug: 'beginner-friendly-houseplants',
+    guideType: CareGuideType.BEGINNER,
+    category: 'Where to start',
+    difficulty: 'Start here',
+    summary:
+      'If you have killed a plant or two, the plant was probably not the problem. These are the ones that forgive an irregular watering can and a room that is darker than you thought.',
+    light: '',
+    water: '',
+    humidity: '',
+    soil: '',
+    feeding: '',
+    temperature: '',
+    tips: 'Buy one plant, not four. Four plants means four different sets of needs learned at once, and the usual result is that all four get watered on the same day whether they wanted it or not. Start with a pothos, a snake plant or a ZZ plant, put it somewhere you walk past every day, and get one plant’s habits into your hands before adding the next.',
+    treatment:
+      'Golden pothos — trails, roots in a glass of water, and tells you it is thirsty by drooping before it comes to any harm.\nSnake plant — genuinely happy in a dim corner and genuinely happier if you forget it for a month.\nZZ plant — the closest thing to a plastic plant that is alive.\nSpider plant — fast, forgiving, and makes babies you can give away.\nHeartleaf philodendron — a pothos that puts up with even less light.',
+    prevention:
+      'The two mistakes that account for most first plants: watering on a schedule instead of on the soil, and putting a plant somewhere it looks good rather than somewhere it can see the sky. Check the soil with a finger, and move the plant towards the window before you change anything else.',
+    checklist: 'Buy one, not four\nPut it where you walk past it\nCheck the soil, not the calendar\nMove it towards the light\nWait a month before repotting',
+    imageUrl: houseplantImage,
+    featured: true,
+    sortOrder: 109,
+    published: true
+  },
+  {
+    plantName: 'Best Houseplants for Low Light',
+    slug: 'best-houseplants-for-low-light',
+    guideType: CareGuideType.GENERAL,
+    category: 'Choosing a plant',
+    difficulty: 'Good to know',
+    summary:
+      'No houseplant grows in the dark. What these tolerate is a north window, a room a few feet back from the glass, or an office nobody opens the blinds in.',
+    light: '',
+    water: '',
+    humidity: '',
+    soil: '',
+    feeding: '',
+    temperature: '',
+    tips: 'Hold your hand a foot above the spot at midday. A soft-edged shadow is low light and workable; no shadow at all is a corner that wants a lamp rather than a plant. The honest shortlist is snake plant, ZZ plant, pothos, heartleaf philodendron, Chinese evergreen and peace lily — in that order, from most forgiving down.',
+    treatment:
+      'Water less in low light, not more. A plant in a dim corner uses a fraction of the water it would in a window, and the soil that took four days to dry by the glass may take three weeks in the corner. Almost every "low light killed my plant" is actually rot.',
+    prevention:
+      'Wipe the leaves. Dust on a plant in bright light is cosmetic; dust on a plant in low light is taking a share of the little it gets. And turn the pot a quarter turn whenever you water, or it will lean.',
+    checklist: 'Test the shadow at midday\nChoose from the shortlist\nWater far less than you would in a window\nWipe the leaves\nTurn the pot as you water',
+    imageUrl: foliageImage,
+    sortOrder: 110,
+    published: true
+  },
+  {
+    plantName: 'Pet-Safe Houseplants',
+    slug: 'pet-safe-houseplants',
+    guideType: CareGuideType.GENERAL,
+    category: 'Homes with pets',
+    difficulty: 'Good to know',
+    summary:
+      'A shortlist for a house with a cat that chews. Every plant profile in this library carries its own pet-safety note; this is the version for deciding what to buy in the first place.',
+    light: '',
+    water: '',
+    humidity: '',
+    soil: '',
+    feeding: '',
+    temperature: '',
+    tips: 'Generally considered non-toxic: spider plant, parlour palm, calathea and prayer plants, Boston fern, African violet, most true palms and air plants. Best kept out of reach in a chewing household: pothos, philodendron, monstera, peace lily, ZZ plant, snake plant, aloe and dieffenbachia — most of these carry calcium oxalates, which are painful rather than usually dangerous, but painful is reason enough.',
+    treatment:
+      'If a pet has chewed something, the useful information is what the plant actually is, not what the tag said. Take a photo of the plant and call your veterinarian or the ASPCA poison line — do not wait to see whether symptoms develop.',
+    prevention:
+      '"Non-toxic" is not the same as "will survive a cat". A spider plant is safe and also irresistible; height and a closed door do more for both of you than the shortlist does. Any plant is worth keeping off the floor in a house with a puppy.',
+    checklist: 'Check the plant’s own profile before you buy\nPut chewable favourites out of reach\nKnow the plant’s real name for the vet\nHeight beats hope',
+    imageUrl: houseplantImage,
+    sortOrder: 111,
+    published: true
+  },
+  {
+    plantName: 'Carnivorous Plant Care',
+    slug: 'carnivorous-plant-care',
+    guideType: CareGuideType.GENERAL,
+    category: 'Carnivorous plants',
+    difficulty: 'Particular, but not difficult',
+    summary:
+      'Flytraps, pitcher plants and sundews all come from nutrient-poor bogs, and every rule that follows comes from that one fact. They are not difficult plants. They are plants with a completely different set of rules.',
+    light: '',
+    water: '',
+    humidity: '',
+    soil: '',
+    feeding: '',
+    temperature: '',
+    tips: 'Four rules cover almost all of it. Full sun, not a bright room. Rain or distilled water, never tap. Nutrient-free mix — sphagnum and perlite, never potting soil. No fertilizer at the roots, ever. A plant that is losing traps is nearly always failing one of those four, and it is usually the water.',
+    treatment:
+      'Sit the pot in a saucer with an inch of water in it and top the saucer up rather than watering from above. Bog plants like wet feet, which is the opposite of everything else in this library. In winter, temperate kinds — flytraps, Sarracenia, many sundews — need a genuine cold rest of about three months, and skipping it is what exhausts a plant over two or three years rather than killing it outright.',
+    prevention:
+      'Do not feed a carnivorous plant hamburger, and do not fertilize the pot. Indoors, an insect on a trap every few weeks is more than enough; outdoors, it will do its own hunting and do it better than you can.',
+    checklist: 'Full sun\nRain or distilled water only\nSphagnum and perlite, no soil\nNo root fertilizer\nStand the pot in water\nCold rest in winter',
+    imageUrl: gardenImage,
+    featured: true,
+    sortOrder: 112,
+    published: true
+  },
+  {
+    plantName: 'Terrarium Care',
+    slug: 'terrarium-care',
+    guideType: CareGuideType.GENERAL,
+    category: 'Terrariums',
+    difficulty: 'Easy once it settles',
+    summary:
+      'A closed terrarium is a small weather system. Built properly it waters itself for months at a time — and the most common way to ruin one is to keep helping it.',
+    light: '',
+    water: '',
+    humidity: '',
+    soil: '',
+    feeding: '',
+    temperature: '',
+    tips: 'Build it in layers from the bottom: pea gravel or leca for drainage, a spoonful of horticultural charcoal to keep it sweet, then a few inches of substrate, then moss, then the plants. Bright indirect light only — a closed glass container in direct sun cooks in an afternoon.',
+    treatment:
+      'Read the glass. Light misting on the inside in the morning that clears by midday is exactly right. Water running down the inside means too much moisture: leave the lid off for a day or two. Completely clear glass for several days means it is too dry, and a light misting — not a pour — is the fix.',
+    prevention:
+      'Use small, slow, humidity-loving plants: fittonia, moss, small ferns, peperomia, baby tears. Succulents and cacti do not belong in a closed terrarium, whatever the photograph on the internet showed. Prune anything touching the glass, and take out a leaf the moment it goes brown, before it turns to mould.',
+    checklist: 'Drainage layer, charcoal, substrate, moss, plants\nBright indirect light only\nRead the condensation, not the calendar\nNo succulents in a closed jar\nPrune anything touching the glass',
+    imageUrl: pottingImage,
+    featured: true,
+    sortOrder: 113,
+    published: true
+  },
+  {
+    plantName: 'Water Requirements for Carnivorous Plants',
+    slug: 'water-requirements-carnivorous-plants',
+    guideType: CareGuideType.PROBLEM,
+    category: 'Carnivorous plants',
+    difficulty: 'Common issue',
+    summary:
+      'The single most common way a healthy flytrap or pitcher plant is lost, and it takes two or three months to show. It is the water.',
+    light: '',
+    water: '',
+    humidity: '',
+    soil: '',
+    feeding: '',
+    temperature: '',
+    symptoms:
+      'Traps or pitchers blackening one after another over several weeks. New growth smaller than the last. A white crust on the surface of the mix or around the rim of the pot. A plant that was thriving on the shelf at the nursery and has slowly gone downhill at home.',
+    causes:
+      'Tap water carries dissolved minerals — often 100–300 parts per million. Carnivorous plants evolved in bogs where that figure is close to zero, and they have no way to shed what builds up in the mix. Softened water is worse, not better: it swaps calcium for sodium, which they tolerate even less.',
+    treatment:
+      'Switch to rainwater, distilled water or reverse-osmosis water today. Flush the pot through several times with it to wash out what has accumulated, then go back to standing the pot in a saucer. If the crust is heavy, repot into fresh nutrient-free mix and flush again. Recovery is measured in months, not days — new growth is the thing to watch, not the old traps.',
+    prevention:
+      'A rain barrel under a downspout costs nothing and solves it permanently. Failing that, distilled water from the supermarket is a few dollars a gallon and a gallon lasts a small collection weeks. Bottled spring water is not a substitute — it is mineral water by definition.',
+    tips: 'If you are unsure, a cheap TDS meter tells you in a second. Under 50 ppm is fine; over 100 is what has been killing the plant.',
+    checklist: 'Stop using tap and softened water\nFlush the pot through\nRepot if there is a mineral crust\nWatch new growth for recovery\nCollect rainwater if you can',
+    imageUrl: gardenImage,
+    sortOrder: 211,
+    published: true
+  },
+  {
+    plantName: 'Succulent Watering',
+    slug: 'succulent-watering',
+    guideType: CareGuideType.PROBLEM,
+    category: 'Succulents',
+    difficulty: 'Common issue',
+    summary:
+      'Almost every succulent that dies indoors dies of kindness. The plant is built to survive drought; it has no defence at all against a pot that stays damp.',
+    light: '',
+    water: '',
+    humidity: '',
+    soil: '',
+    feeding: '',
+    temperature: '',
+    symptoms:
+      'Lower leaves going soft, translucent and yellow. A stem that has gone brown and mushy at soil level. Leaves dropping at a touch. Or the opposite: leaves thin, wrinkled and curling inward.',
+    causes:
+      'Soft and translucent is too much water, and it is far more common than the alternative. Thin and wrinkled is genuine thirst, and a succulent will sit in that state for weeks without harm. The trap is that both can look like "something is wrong, I should water it".',
+    treatment:
+      'Soak the pot thoroughly until water runs from the bottom, then do not touch it again until the mix is dry all the way through — often two to four weeks indoors, longer in winter. For a rotted stem, cut back into clean firm tissue, let the cut callus over for several days, and replant dry.',
+    prevention:
+      'A gritty cactus mix, a pot with a hole in it, and a pot only slightly larger than the plant. A big pot holds a big volume of wet soil around a small root system, which is the same problem in a different shape. Terracotta helps for the same reason.',
+    tips: 'Judge by weight. Lift the pot after a thorough soak and again a fortnight later; the difference is unmistakable, and it is a far better instrument than a finger or a calendar.',
+    checklist: 'Soak thoroughly, then wait for bone dry\nGritty mix, drainage hole, snug pot\nSoft leaves mean too much water\nWrinkled leaves are safe to leave a while\nWater far less in winter',
+    imageUrl: gardenImage,
+    sortOrder: 212,
+    published: true
   }
 ] satisfies Prisma.CareSheetUncheckedCreateInput[];
 
