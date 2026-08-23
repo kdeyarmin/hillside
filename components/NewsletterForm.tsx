@@ -47,9 +47,18 @@ export default function NewsletterForm({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: data.get('name'),
+          /**
+           * `?? ''` because the compact form — the one in the footer of every
+           * page — has no name field at all, so `FormData.get` answers `null`.
+           * `JSON.stringify` keeps that null, and a `null` is not `undefined`:
+           * the route's optional `name` refused it and every footer signup came
+           * back "Please enter a valid email address".
+           */
+          name: data.get('name') ?? '',
           email: data.get('email'),
-          website: data.get('website'),
+          /* Same reason as `name` above: the honeypot is absent from some
+             placements, and a null is not an undefined to the route's schema. */
+          website: data.get('website') ?? '',
           source,
           sourceDetail: sourceDetail ?? pathname
         }),

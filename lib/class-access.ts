@@ -133,6 +133,16 @@ export function seatsRemainingLabel(seatsLeft: number) {
   return `${seatsLeft} ${seatsLeft === 1 ? 'seat' : 'seats'} remaining`;
 }
 
+/**
+ * What a guest is told when they ask for more seats than are left. The two
+ * booking endpoints each wrote this inline and each read "Only 1 seats remain."
+ * to the person taking the very last place in a class.
+ */
+export function seatsShortLabel(seatsLeft: number) {
+  if (seatsLeft <= 0) return 'This class is sold out.';
+  return `Only ${seatsLeft} ${seatsLeft === 1 ? 'seat remains' : 'seats remain'}.`;
+}
+
 export function classJoinWindow(event: WindowEvent) {
   const opensAt = new Date(
     event.startsAt.getTime() - Math.max(0, event.joinOpensMinutesBefore) * 60_000

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import { readJsonBody } from '@/lib/request-body';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { unsubscribeUrl } from '@/lib/newsletter';
 import { readNewsletterSource, readNewsletterSourceDetail } from '@/lib/newsletter-source';
@@ -10,7 +11,13 @@ export const runtime = 'nodejs';
 
 const requestSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(254),
-  name: z.string().trim().max(120).optional().default(''),
+  /**
+   * `nullish`, not `optional`: a client that has no name to send may leave the
+   * key out or send it as null, and both mean the same thing here. Refusing the
+   * null answered a signup with "please enter a valid email address", naming the
+   * one field that was fine.
+   */
+  name: z.string().trim().max(120).nullish(),
   /**
    * Honeypot. Bounded rather than required-empty: `max(0)` made a filled
    * honeypot fail schema validation and return 400, which meant the quiet-success
@@ -39,7 +46,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const parsed = requestSchema.safeParse(await request.json());
+    const parsed = requestSchema.safeParse(await readJsonBody(request));
     if (!parsed.success) {
       return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 });
     }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
 import { rateLimited } from '@/lib/rate-limit';
+import { readJsonBody } from '@/lib/request-body';
 
 export const runtime = 'nodejs';
 
@@ -23,7 +24,9 @@ export async function POST(request: Request) {
   }
 
   try {
-    const parsed = schema.safeParse(await request.json());
+    // Through `readJsonBody`, so a body that is not JSON is the 400 it is
+    // rather than a 500 blamed on the shop.
+    const parsed = schema.safeParse(await readJsonBody(request));
     if (!parsed.success) {
       return NextResponse.json({ error: 'That review was not found.' }, { status: 400 });
     }
