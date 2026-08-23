@@ -4,6 +4,7 @@ import { CalendarDays, Leaf, Search, ShoppingBag } from 'lucide-react';
 import ProductGrid from '@/components/ProductGrid';
 import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
+import { withCategory } from '@/lib/product-categories';
 import { ratingsByProduct } from '@/lib/reviews';
 import { classFormatLabel } from '@/lib/class-access';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
@@ -17,6 +18,27 @@ import {
 } from '@/lib/search';
 import { formatMoney } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
+
+/**
+ * The candidate filter for products: `searchTokenFilters` over the product's own
+ * columns, with its category title offered as one more place each token may
+ * live. A shopper searching "carnivorous" should find the flytraps whether or
+ * not the word appears in their own descriptions, and the category is where it
+ * does.
+ *
+ * The relation is spelled out here rather than passed to `searchTokenFilters`,
+ * which takes columns on the row it filters. Asking that helper for one token at
+ * a time is what keeps the two halves of each filter about the same word without
+ * this function having to know how a token filter is shaped.
+ */
+function productTokenFilters(term: string): Prisma.ProductWhereInput[] {
+  return tokenizeSearch(term).map((token) => {
+    const [filter] = searchTokenFilters(token, ['name', 'shortDescription', 'description']);
+    return {
+      OR: [...filter.OR, { category: { title: { contains: token, mode: 'insensitive' as const } } }]
+    } as Prisma.ProductWhereInput;
+  });
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -67,16 +89,10 @@ export default async function SearchPage({
   const [productCandidates, guideCandidates, classCandidates, catalogCount] = await Promise.all([
     searchable
       ? db.product.findMany({
-          where: {
-            active: true,
-            AND: searchTokenFilters(term, [
-              'name',
-              'shortDescription',
-              'description'
-            ]) as Prisma.ProductWhereInput[]
-          },
+          where: { active: true, AND: productTokenFilters(term) },
           orderBy: [{ featured: 'desc' }, { name: 'asc' }],
-          take: SEARCH_CANDIDATE_LIMIT
+          take: SEARCH_CANDIDATE_LIMIT,
+          include: { category: { select: { slug: true, title: true } } }
         })
       : [],
     searchable
@@ -100,10 +116,7 @@ export default async function SearchPage({
           where: {
             active: true,
             startsAt: { gte: new Date() },
-            AND: searchTokenFilters(term, [
-              'title',
-              'description'
-            ]) as Prisma.ClassEventWhereInput[]
+            AND: searchTokenFilters(term, ['title', 'description']) as Prisma.ClassEventWhereInput[]
           },
           orderBy: { startsAt: 'asc' },
           take: SEARCH_CANDIDATE_LIMIT
@@ -120,7 +133,12 @@ export default async function SearchPage({
    */
   const products = filterSearchHits(
     productCandidates,
-    (product) => [product.name, product.shortDescription, product.description],
+    (product) => [
+      product.name,
+      product.shortDescription,
+      product.description,
+      product.category?.title
+    ],
     term
   );
   const guides = filterSearchHits(
@@ -137,7 +155,7 @@ export default async function SearchPage({
 
   const ratings = await ratingsByProduct(products.map((product) => product.id));
   const shopProducts = products.map((product) => ({
-    ...product,
+    ...withCategory(product),
     averageRating: ratings.get(product.id)?.average ?? null,
     reviewCount: ratings.get(product.id)?.count ?? 0
   }));

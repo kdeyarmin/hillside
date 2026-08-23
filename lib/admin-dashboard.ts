@@ -132,6 +132,11 @@ export const ADMIN_NOTICES: Record<string, string> = {
   'subscriber-saved': 'Subscriber updated.',
   'registration-saved': 'Registration updated.',
   'registration-emailed': 'Class confirmation emailed.',
+  'category-saved': 'Category saved.',
+  'category-created': 'Category created.',
+  'category-deleted': 'Category deleted.',
+  'category-hidden': 'Category hidden. It no longer appears in the shop filters.',
+  'category-shown': 'Category is showing in the shop again.',
   'collection-saved': 'Collection saved.',
   'collection-created': 'Collection created.',
   'collection-deleted': 'Collection deleted.',
@@ -178,10 +183,15 @@ export const ADMIN_ERRORS: Record<string, string> = {
     'The pickup-ready email could not be sent. The window is saved on the order — use Resend pickup email after checking SENDGRID_API_KEY.',
   'registration-email-failed':
     'The class confirmation could not be sent. The guest’s previous classroom link is still valid. Check that SENDGRID_API_KEY is set.',
+  'category-invalid': 'A category needs a name.',
+  'category-required':
+    'Choose a category for this product. It decides which details the product is asked for and which shop filter it appears under.',
+  'category-slug': 'That category address is already in use. Choose a different name or slug.',
+  'category-missing': 'That category is no longer here.',
+  'category-in-use':
+    'That category still holds products, and deleting it would drop them out of every filter that leads to them. Move them to another category first, or hide this one instead.',
   'collection-invalid': 'A collection needs a name.',
   'collection-missing': 'That collection is no longer here.',
-  'collection-locked':
-    'That collection is part of the site header and cannot be renamed away, hidden or deleted.',
   'class-room-failed':
     'The class was saved, but the Telnyx room could not be prepared. Check TELNYX_API_KEY and try Prepare room again.',
   'content-invalid': 'That form was missing a required field.',

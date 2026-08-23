@@ -6,6 +6,7 @@ import ProductGrid from '@/components/ProductGrid';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
+import { withCategory } from '@/lib/product-categories';
 import { ratingsByProduct } from '@/lib/reviews';
 import { absoluteUrl, resolveImageUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
@@ -35,7 +36,8 @@ async function loadCollection(slug: string) {
           sizes: true,
           sizeLabel: true,
           ships: true,
-          pickup: true
+          pickup: true,
+          category: { select: { slug: true, title: true } }
         },
         orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
         take: 200
@@ -74,7 +76,7 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
 
   const ratings = await ratingsByProduct(collection.products.map((product) => product.id));
   const products = collection.products.map((product) => ({
-    ...product,
+    ...withCategory(product),
     averageRating: ratings.get(product.id)?.average ?? null,
     reviewCount: ratings.get(product.id)?.count ?? 0
   }));

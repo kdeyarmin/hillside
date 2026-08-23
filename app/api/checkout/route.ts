@@ -93,7 +93,12 @@ export async function POST(request: Request) {
     const items = requested.flatMap((requestedItem) => {
       const product = products.find((candidate) => candidate.slug === requestedItem.id);
       if (!product || !product.active || product.inventory <= 0) return [];
-      const sizes = productSizes(product.sizes, product.priceCents);
+      const sizes = productSizes(product.sizes, product.priceCents, {
+        sku: product.sku,
+        imageUrl: product.imageUrl,
+        ships: product.ships,
+        pickup: product.pickup
+      });
       if (sizeChoiceRejected(sizes, requestedItem.size)) return [];
       const chosen = findSize(sizes, requestedItem.size);
       // Against the chosen size's own count where the owner keeps one, so a
@@ -105,7 +110,15 @@ export async function POST(request: Request) {
           product,
           quantity: Math.min(requestedItem.quantity, available),
           size: chosen?.label || null,
-          unitCents: chosen?.priceCents ?? product.priceCents
+          unitCents: chosen?.priceCents ?? product.priceCents,
+          /**
+           * Resolved here rather than at the product, because a variant may get
+           * home differently from the product it belongs to and it is the
+           * variant the customer is buying.
+           */
+          ships: chosen ? chosen.ships : product.ships,
+          pickup: chosen ? chosen.pickup : product.pickup,
+          imageUrl: chosen?.imageUrl ?? product.imageUrl
         }
       ];
     });
@@ -119,7 +132,9 @@ export async function POST(request: Request) {
 
     const fulfillment = resolveFulfillment(
       readFulfillmentChoice(body),
-      cartFulfillment(items.map(({ product }) => product)),
+      // The lines, not the products: a cart holding a pickup-only specimen and a
+      // pot that ships is a conflict even though both come off the same product.
+      cartFulfillment(items),
       readPickupArranged(body)
     );
     if (!fulfillment.ok) {
@@ -199,7 +214,7 @@ export async function POST(request: Request) {
         mode: 'payment',
         client_reference_id: invoiceNumber,
         customer_creation: 'always',
-        line_items: items.map(({ product, quantity, size, unitCents }) => ({
+        line_items: items.map(({ product, quantity, size, unitCents, imageUrl }) => ({
           quantity,
           price_data: {
             currency: 'usd',
@@ -211,7 +226,7 @@ export async function POST(request: Request) {
               description: stripeProductDescription(
                 product.shortDescription || product.description
               ),
-              images: stripeProductImages(product.imageUrl),
+              images: stripeProductImages(imageUrl ?? product.imageUrl),
               metadata: {
                 hillsideProductId: product.id,
                 hillsideSlug: product.slug,

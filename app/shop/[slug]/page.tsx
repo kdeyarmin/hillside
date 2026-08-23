@@ -11,13 +11,19 @@ import StockAlertForm from '@/components/StockAlertForm';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
+import { specKindFor, withCategory } from '@/lib/product-categories';
+import { specSections } from '@/lib/product-specs';
 import { ratingsByProduct } from '@/lib/reviews';
 import { jsonLd } from '@/lib/json-ld';
 import {
   comparableAtCents,
   formatSizePriceRange,
+  fulfillmentAcrossVariants,
   productSizes,
-  sizePriceRange
+  sizeAvailable,
+  sizeFieldLabel,
+  sizePriceRange,
+  variantsDifferOnFulfillment
 } from '@/lib/product-sizes';
 import { pageMetadata } from '@/lib/seo';
 import {
@@ -34,7 +40,7 @@ import {
   returnPolicyForType,
   resolveImageUrl
 } from '@/lib/store';
-import { fulfillmentBlurb, offersPickup, offersShipping } from '@/lib/fulfillment';
+import { fulfillmentBlurb } from '@/lib/fulfillment';
 
 export const dynamic = 'force-dynamic';
 
@@ -70,6 +76,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const product = await db.product.findFirst({
     where: { slug },
     include: {
+      category: true,
       collections: { where: { active: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
       careSheets: { where: { published: true }, take: 2 }
     }
@@ -81,10 +88,21 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   }
 
   const [related, reviews, rating] = await Promise.all([
+    /**
+     * "You may also like" reads the category where there is one, so a flytrap
+     * suggests other carnivorous plants rather than every plant in the shop.
+     * A product that predates the taxonomy falls back to its broad type, which
+     * is the only thing it has.
+     */
     db.product.findMany({
-      where: { active: true, id: { not: product.id }, type: product.type },
+      where: {
+        active: true,
+        id: { not: product.id },
+        ...(product.categoryId ? { categoryId: product.categoryId } : { type: product.type })
+      },
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
-      take: 3
+      take: 3,
+      include: { category: { select: { slug: true, title: true } } }
     }),
     db.review.findMany({
       where: { productId: product.id, status: 'APPROVED' },
@@ -96,14 +114,38 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   const relatedRatings = await ratingsByProduct(related.map((item) => item.id));
   const relatedProducts = related.map((item) => ({
-    ...item,
+    ...withCategory(item),
     averageRating: relatedRatings.get(item.id)?.average ?? null,
     reviewCount: relatedRatings.get(item.id)?.count ?? 0
   }));
 
   const threshold = freeShippingThresholdCents();
   const soldOut = product.inventory <= 0;
-  const sizes = productSizes(product.sizes, product.priceCents);
+  /**
+   * Resolved against the product, so a variant that says nothing about its
+   * photograph, its SKU or how it gets home answers with the product's.
+   */
+  const sizes = productSizes(product.sizes, product.priceCents, {
+    sku: product.sku,
+    imageUrl: product.imageUrl,
+    weightOunces: product.weightOunces,
+    dimensions: product.dimensions,
+    ships: product.ships,
+    pickup: product.pickup
+  });
+  const specs = specSections(specKindFor(product), product.specs);
+  const categoryName = product.category?.title || productTypeLabel(product.type);
+  const mixedFulfillment = variantsDifferOnFulfillment(sizes);
+  /**
+   * How this product actually gets home. Read from the variants where there are
+   * any, because they may override the product's own two checkboxes: a plant
+   * ticked as shipping whose every variant is pickup-only ships in no sense a
+   * customer can act on, and checkout — which resolves the variant — would
+   * refuse the order this page had just offered.
+   */
+  const fulfillment = fulfillmentAcrossVariants(sizes, product);
+  /** Whether the section below has anything to say at all. */
+  const hasSpecifics = specs.length > 0 || Boolean(product.dimensions);
   const compareAt = comparableAtCents(sizes, product.priceCents, product.compareAtCents);
   const saving = discountPercent(product.priceCents, compareAt);
   /**
@@ -150,14 +192,61 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
      * The shipping figures come from the same configuration the cart charges by,
      * so the rich result cannot advertise a rate the checkout does not honour.
      */
+    ...(product.category ? { category: product.category.title } : {}),
+    ...(product.weightOunces
+      ? {
+          weight: {
+            '@type': 'QuantitativeValue',
+            value: product.weightOunces,
+            unitCode: 'ONZ'
+          }
+        }
+      : {}),
+    /**
+     * How the offer is shaped is decided by how many variants there are, not by
+     * whether they are priced differently.
+     *
+     * Keying it off the price span meant four pots that happen to cost the same
+     * collapsed into one plain Offer, throwing away each one's name, its SKU and
+     * its own availability — on a product the storefront still makes you choose
+     * a variant on. A sold-out 6" pot was published as in stock because the 4"
+     * one was.
+     */
     offers: {
-      ...(priceSpan.minCents === priceSpan.maxCents
-        ? { '@type': 'Offer', price: (priceSpan.minCents / 100).toFixed(2) }
-        : {
+      ...(sizes.length > 1
+        ? {
             '@type': 'AggregateOffer',
             lowPrice: (priceSpan.minCents / 100).toFixed(2),
             highPrice: (priceSpan.maxCents / 100).toFixed(2),
-            offerCount: sizes.length
+            offerCount: sizes.length,
+            /**
+             * Each variant as its own offer inside the aggregate, so a search
+             * result can name the 6" pot and its price rather than a span with
+             * nothing behind it. A variant that carries a SKU carries it here
+             * too, which is what lets a shopping feed match one variant to one
+             * listing.
+             */
+            offers: sizes.map((size) => ({
+              '@type': 'Offer',
+              name: size.label,
+              price: (size.priceCents / 100).toFixed(2),
+              priceCurrency: 'USD',
+              ...(size.sku ? { sku: size.sku } : {}),
+              url: absoluteUrl(`/shop/${product.slug}`),
+              availability:
+                sizeAvailable(size, product.inventory) > 0
+                  ? 'https://schema.org/InStock'
+                  : 'https://schema.org/OutOfStock'
+            }))
+          }
+        : {
+            // Sold one way, or in exactly one variant — which still carries its
+            // own name and SKU, and is the honest price and availability here.
+            '@type': 'Offer',
+            price: (priceSpan.minCents / 100).toFixed(2),
+            ...(sizes[0]
+              ? { name: sizes[0].label, ...(sizes[0].sku ? { sku: sizes[0].sku } : {}) }
+              : {})
           }),
       url: absoluteUrl(`/shop/${product.slug}`),
       priceCurrency: 'USD',
@@ -165,7 +254,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       itemCondition: 'https://schema.org/NewCondition',
       availability: soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
       seller: { '@id': absoluteUrl('/#business') },
-      ...(offersShipping(product)
+      ...(fulfillment.ships
         ? {
             shippingDetails: {
               '@type': 'OfferShippingDetails',
@@ -208,9 +297,19 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     itemListElement: [
       { '@type': 'ListItem', position: 1, name: 'Home', item: absoluteUrl('/') },
       { '@type': 'ListItem', position: 2, name: 'Shop', item: absoluteUrl('/shop') },
+      ...(product.category
+        ? [
+            {
+              '@type': 'ListItem',
+              position: 3,
+              name: product.category.title,
+              item: absoluteUrl(`/shop?category=${product.category.slug}`)
+            }
+          ]
+        : []),
       {
         '@type': 'ListItem',
-        position: 3,
+        position: product.category ? 4 : 3,
         name: product.name,
         item: absoluteUrl(`/shop/${product.slug}`)
       }
@@ -238,6 +337,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <Link href="/">Home</Link>
           <span>/</span>
           <Link href="/shop">Shop</Link>
+          {product.category && (
+            <>
+              <span>/</span>
+              <Link href={`/shop?category=${product.category.slug}`}>{product.category.title}</Link>
+            </>
+          )}
           <span>/</span>
           <span>{product.name}</span>
         </div>
@@ -252,7 +357,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             />
           </div>
           <div className="product-detail-copy">
-            <div className="eyebrow">{productTypeLabel(product.type)}</div>
+            <div className="eyebrow">
+              {product.category ? (
+                <Link
+                  className="product-category-link"
+                  href={`/shop?category=${product.category.slug}`}
+                >
+                  {product.category.title}
+                </Link>
+              ) : (
+                categoryName
+              )}
+            </div>
             <div className="product-detail-badges">
               {saving > 0 && <span className="pill sale">Save {saving}%</span>}
               {product.badge && <span className="pill">{product.badge}</span>}
@@ -292,7 +408,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   : `${product.inventory} available`}
             </p>
 
-            {threshold > 0 && offersShipping(product) && (
+            {threshold > 0 && fulfillment.ships && (
               <p className="shipping-nudge">
                 <Truck size={17} aria-hidden="true" />
                 {/* Quoted against the cheapest size, so the promise holds
@@ -302,7 +418,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   : `Free standard shipping on orders over ${formatMoney(threshold)}.`}
               </p>
             )}
-            {!offersShipping(product) && offersPickup(product) && (
+            {!fulfillment.ships && fulfillment.pickup && (
               <p className="shipping-nudge">
                 <Truck size={17} aria-hidden="true" />
                 Local pickup only — this piece does not ship.
@@ -324,7 +440,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               )}
               <div className="note-box">
                 <b>How it gets home</b>
-                {fulfillmentBlurb(product)}
+                {mixedFulfillment
+                  ? `This is not sold the same way in every ${sizeFieldLabel(
+                      product.sizeLabel
+                    ).toLowerCase()} — choose one above and the panel says whether it ships, is collected here, or both.`
+                  : fulfillmentBlurb(fulfillment)}
               </div>
               <div className="note-box">
                 <b>Secure checkout</b>Payment is processed by Stripe. A receipt and invoice are
@@ -380,6 +500,73 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </div>
         )}
 
+        {/* The structured detail Tammy filled in for this kind of product — a
+            plant's light and water, a tea's steep time and allergens, a bag of
+            gravel's dimensions. Anything she left blank is not rendered, so a
+            listing says what is known and stays quiet about the rest. */}
+        {hasSpecifics && (
+          <div className="product-details-section">
+            <div className="sectionhead">
+              <div className="eyebrow">The specifics</div>
+              <h2>{categoryName} details.</h2>
+            </div>
+            <div className="spec-groups">
+              {specs.map((section) => (
+                <section className="spec-group" key={section.title}>
+                  <h3>{section.title}</h3>
+                  <dl>
+                    {section.rows.map((row) => (
+                      <div className={row.long ? 'spec-row long' : 'spec-row'} key={row.key}>
+                        <dt>{row.label}</dt>
+                        <dd style={row.long ? { whiteSpace: 'pre-line' } : undefined}>
+                          {row.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ))}
+              {/* Whether a piece can be collected is the product's own answer,
+                  not a field somebody has to remember to fill in twice. */}
+              <section className="spec-group">
+                <h3>Getting it home</h3>
+                <dl>
+                  <div className="spec-row">
+                    <dt>Shipping</dt>
+                    <dd>
+                      {fulfillment.ships
+                        ? mixedFulfillment
+                          ? 'Ships to US addresses, depending on the size chosen'
+                          : 'Ships to US addresses'
+                        : 'Does not ship'}
+                    </dd>
+                  </div>
+                  <div className="spec-row">
+                    <dt>Local pickup</dt>
+                    <dd>
+                      {fulfillment.pickup
+                        ? 'Available in Ebensburg, once a time is arranged'
+                        : 'Not available'}
+                    </dd>
+                  </div>
+                  {product.dimensions && (
+                    <div className="spec-row">
+                      <dt>Dimensions</dt>
+                      <dd>{product.dimensions}</dd>
+                    </div>
+                  )}
+                  {product.sku && (
+                    <div className="spec-row">
+                      <dt>Item number</dt>
+                      <dd>{product.sku}</dd>
+                    </div>
+                  )}
+                </dl>
+              </section>
+            </div>
+          </div>
+        )}
+
         {product.careSheets.length > 0 && (
           <div className="product-details-section">
             <div className="sectionhead">
@@ -427,11 +614,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         {relatedProducts.length > 0 && (
           <div className="product-details-section">
             <div className="sectionhead">
-              {/* The query behind this list matches on product type, not on the
-                  collections above, so the heading says type — as a plural,
-                  because it introduces a shelf of them, not one. */}
+              {/* The query behind this list matches on category, not on the
+                  collections above, so the heading names the category. A product
+                  with none falls back to its broad type, as a plural, because it
+                  introduces a shelf of them rather than one. */}
               <div className="eyebrow">You may also like</div>
-              <h2>More in {productTypePlural(product.type).toLowerCase()}.</h2>
+              <h2>
+                More in{' '}
+                {product.category
+                  ? product.category.title.toLowerCase()
+                  : productTypePlural(product.type).toLowerCase()}
+                .
+              </h2>
             </div>
             <ProductGrid products={relatedProducts} />
           </div>

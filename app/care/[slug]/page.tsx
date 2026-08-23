@@ -23,6 +23,7 @@ import PrintButton from '@/components/PrintButton';
 import ResilientImage from '@/components/ResilientImage';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
+import { withCategory } from '@/lib/product-categories';
 import { ratingsByProduct } from '@/lib/reviews';
 import { absoluteUrl, resolveImageUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
@@ -101,7 +102,12 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { plantName: 'asc' }],
       take: 3
     }),
-    sheet.productId ? db.product.findFirst({ where: { id: sheet.productId, active: true } }) : null,
+    sheet.productId
+      ? db.product.findFirst({
+          where: { id: sheet.productId, active: true },
+          include: { category: { select: { slug: true, title: true } } }
+        })
+      : null,
     CLASSES_PUBLICLY_VISIBLE
       ? db.classEvent.findFirst({
           where: { active: true, startsAt: { gte: new Date() } },
@@ -121,7 +127,8 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     : await db.product.findMany({
         where: { active: true, inventory: { gt: 0 }, type: 'PLANT' },
         orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
-        take: 3
+        take: 3,
+        include: { category: { select: { slug: true, title: true } } }
       });
   const suggestedRatings = await ratingsByProduct(
     [linkedProduct?.id, ...suggestedProducts.map((product) => product.id)].filter(
@@ -129,7 +136,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     )
   );
   const shopProducts = (linkedProduct ? [linkedProduct] : suggestedProducts).map((product) => ({
-    ...product,
+    ...withCategory(product),
     averageRating: suggestedRatings.get(product.id)?.average ?? null,
     reviewCount: suggestedRatings.get(product.id)?.count ?? 0
   }));

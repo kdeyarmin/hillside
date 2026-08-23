@@ -252,8 +252,11 @@ function enhanceGalleryInput(textarea: HTMLTextAreaElement) {
 export default function AdminUploadEnhancer() {
   useEffect(() => {
     const enhanceAll = () => {
+      /* `variantImageUrl` too: a variant may carry its own photograph — the 6"
+         decorative planter does not look like the 4" nursery pot — and Tammy
+         takes those on her phone like every other one. */
       document
-        .querySelectorAll<HTMLInputElement>('input[name="imageUrl"]')
+        .querySelectorAll<HTMLInputElement>('input[name="imageUrl"], input[name="variantImageUrl"]')
         .forEach(enhanceImageInput);
       document
         .querySelectorAll<HTMLTextAreaElement>('textarea[name="galleryImages"]')

@@ -1,11 +1,5 @@
 import Link from 'next/link';
-import {
-  MessageStatus,
-  OrderStatus,
-  ProductType,
-  RegistrationStatus,
-  ReviewStatus
-} from '@prisma/client';
+import { MessageStatus, OrderStatus, RegistrationStatus, ReviewStatus } from '@prisma/client';
 import AdminDeepLink from '@/components/AdminDeepLink';
 import {
   ADMIN_ERRORS,
@@ -20,8 +14,8 @@ import {
 import { db } from '@/lib/db';
 import { currentAdmin } from '@/lib/admin';
 import { REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
-import { sizedName, sizeLines, sizeStockSummary } from '@/lib/product-sizes';
-import { formatMoney, productTypeLabel } from '@/lib/store';
+import { sizedName, sizeStockSummary } from '@/lib/product-sizes';
+import { formatMoney } from '@/lib/store';
 import { orderStatusBadge } from '@/lib/tracking';
 import {
   loginAdmin,
@@ -29,7 +23,6 @@ import {
   resendClassConfirmation,
   resendOrderConfirmation,
   resendPickupReady,
-  saveProduct,
   setProductActive,
   updateMessageStatus,
   updateOrder,
@@ -59,264 +52,6 @@ const input: React.CSSProperties = {
 function SizeStockNote({ sizes }: { sizes: unknown }) {
   const summary = sizeStockSummary(sizes);
   return summary ? <> ({summary})</> : null;
-}
-
-function ProductFields({
-  product,
-  collections
-}: {
-  collections: Array<{ id: string; title: string }>;
-  product?: {
-    id: string;
-    name: string;
-    slug: string;
-    sku: string | null;
-    shortDescription: string | null;
-    description: string;
-    details: string | null;
-    careNotes: string | null;
-    shippingNote: string | null;
-    ships?: boolean;
-    pickup?: boolean;
-    type: ProductType;
-    priceCents: number;
-    compareAtCents: number | null;
-    inventory: number;
-    imageUrl: string | null;
-    badge: string | null;
-    active: boolean;
-    featured: boolean;
-    sortOrder: number;
-    galleryImages: string[];
-    sizes: unknown;
-    sizeLabel: string | null;
-    collections?: Array<{ id: string }>;
-  };
-}) {
-  const assigned = new Set((product?.collections || []).map((collection) => collection.id));
-  const sizeStock = sizeStockSummary(product?.sizes);
-  return (
-    <>
-      {product && <input type="hidden" name="id" value={product.id} />}
-      {product && <input type="hidden" name="expectedInventory" value={product.inventory} />}
-      <div className="admin-form-grid">
-        <label className="admin-label">
-          Product name
-          <input className="admin-input" name="name" defaultValue={product?.name} required />
-        </label>
-        <label className="admin-label">
-          URL slug
-          <input
-            className="admin-input"
-            name="slug"
-            defaultValue={product?.slug}
-            placeholder="created-from-name"
-          />
-        </label>
-        <label className="admin-label">
-          SKU / item number
-          <input className="admin-input" name="sku" defaultValue={product?.sku || ''} />
-        </label>
-        <label className="admin-label">
-          Category
-          <select
-            className="admin-input"
-            name="type"
-            defaultValue={product?.type || ProductType.PLANT}
-          >
-            {Object.values(ProductType).map((type) => (
-              <option value={type} key={type}>
-                {productTypeLabel(type)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="admin-label">
-          Price
-          <input
-            className="admin-input"
-            name="price"
-            type="number"
-            min="0"
-            step="0.01"
-            defaultValue={product ? (product.priceCents / 100).toFixed(2) : ''}
-            required
-          />
-        </label>
-        <label className="admin-label">
-          Compare-at price
-          <input
-            className="admin-input"
-            name="compareAt"
-            type="number"
-            min="0"
-            step="0.01"
-            defaultValue={product?.compareAtCents ? (product.compareAtCents / 100).toFixed(2) : ''}
-          />
-        </label>
-        <label className="admin-label">
-          Quantity on hand
-          <input
-            className="admin-input"
-            name="inventory"
-            type="number"
-            min="0"
-            defaultValue={product?.inventory ?? 0}
-            required
-          />
-          {/* Counted sizes own this number — it is the sum of them — so saying
-              so here is the only way the box explains itself on a form that has
-              no scripting to grey it out. */}
-          <span className="admin-hint">
-            {sizeStock
-              ? `Added up from the sizes below: ${sizeStock}. Change a size's quantity to change this.`
-              : 'Leave this as the whole shelf. Count the sizes separately below if you want a quantity for each.'}
-          </span>
-        </label>
-        <label className="admin-label">
-          Display order
-          <input
-            className="admin-input"
-            name="sortOrder"
-            type="number"
-            defaultValue={product?.sortOrder ?? 0}
-          />
-        </label>
-        <label className="admin-label">
-          Badge
-          <input
-            className="admin-input"
-            name="badge"
-            defaultValue={product?.badge || ''}
-            placeholder="Our pick"
-          />
-        </label>
-        <label className="admin-label">
-          Photo URL
-          <input
-            className="admin-input"
-            name="imageUrl"
-            type="text"
-            defaultValue={product?.imageUrl || ''}
-          />
-        </label>
-        <label className="admin-label full">
-          Short card description
-          <input
-            className="admin-input"
-            name="shortDescription"
-            defaultValue={product?.shortDescription || ''}
-          />
-        </label>
-        <label className="admin-label full">
-          Main description
-          <textarea
-            className="admin-input"
-            name="description"
-            rows={4}
-            defaultValue={product?.description}
-            required
-          />
-        </label>
-        <label className="admin-label full">
-          Product details, ingredients or contents
-          <textarea
-            className="admin-input"
-            name="details"
-            rows={4}
-            defaultValue={product?.details || ''}
-          />
-        </label>
-        <label className="admin-label full">
-          Plant care note
-          <textarea
-            className="admin-input"
-            name="careNotes"
-            rows={2}
-            defaultValue={product?.careNotes || ''}
-          />
-        </label>
-        <label className="admin-label full">
-          Shipping / pickup note
-          <textarea
-            className="admin-input"
-            name="shippingNote"
-            rows={2}
-            defaultValue={product?.shippingNote || ''}
-          />
-        </label>
-        <label className="admin-label">
-          What the size dropdown is called
-          <input
-            className="admin-input"
-            name="sizeLabel"
-            defaultValue={product?.sizeLabel || ''}
-            placeholder="Size"
-          />
-        </label>
-        <label className="admin-label full">
-          Sizes to choose from (one per line, leave empty if this is sold one way)
-          <textarea
-            className="admin-input"
-            name="sizes"
-            rows={3}
-            defaultValue={sizeLines(product?.sizes)}
-            placeholder={'4" pot | 18.00 | 6\n6" pot | 24.00 | 4\n8" pot | 32.00 | 2'}
-          />
-          <span className="admin-hint">
-            One size per line: <b>name | price | quantity on hand</b>. Leave the price out —{' '}
-            <code>6&quot; pot | | 4</code> — and the size uses the price above. Leave the quantity
-            out on every line and all the sizes share the one quantity on hand; put a quantity on
-            any line and each size is counted on its own, so a size you leave blank is treated as
-            none left.
-          </span>
-        </label>
-        <label className="admin-label full">
-          Extra photo URLs (one per line)
-          <textarea
-            className="admin-input"
-            name="galleryImages"
-            rows={3}
-            defaultValue={(product?.galleryImages || []).join('\n')}
-            placeholder={'/media/second-angle.jpg\n/media/detail.jpg'}
-          />
-        </label>
-      </div>
-      {collections.length > 0 && (
-        <fieldset className="admin-collection-picker">
-          <legend>Collections this product belongs to</legend>
-          {collections.map((collection) => (
-            <label className="admin-checkbox" key={collection.id}>
-              <input
-                type="checkbox"
-                name="collectionIds"
-                value={collection.id}
-                defaultChecked={assigned.has(collection.id)}
-              />{' '}
-              {collection.title}
-            </label>
-          ))}
-        </fieldset>
-      )}
-      <div className="admin-actions">
-        <label className="admin-checkbox">
-          <input name="active" type="checkbox" defaultChecked={product?.active ?? true} /> Active in
-          shop
-        </label>
-        <label className="admin-checkbox">
-          <input name="featured" type="checkbox" defaultChecked={product?.featured ?? false} />{' '}
-          Featured
-        </label>
-        <label className="admin-checkbox">
-          <input name="ships" type="checkbox" defaultChecked={product?.ships ?? true} /> Ships
-        </label>
-        <label className="admin-checkbox">
-          <input name="pickup" type="checkbox" defaultChecked={product?.pickup ?? true} /> Local
-          pickup
-        </label>
-      </div>
-    </>
-  );
 }
 
 export default async function Admin({
@@ -399,55 +134,42 @@ export default async function Admin({
     );
   }
 
-  const [
-    products,
-    orders,
-    revenue,
-    registrations,
-    messages,
-    subscribers,
-    reviews,
-    stockAlerts,
-    collections
-  ] = await Promise.all([
-    db.product.findMany({
-      orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
-      include: { collections: { select: { id: true } } }
-    }),
-    db.order.findMany({ orderBy: { createdAt: 'desc' }, take: 75, include: { items: true } }),
-    /**
-     * Net revenue: partially refunded orders still earned everything that was not
-     * given back, so they belong in the figure with their refund subtracted rather
-     * than dropped from it. Previously any refund at all — including a few dollars
-     * of shipping — marked the order REFUNDED and removed its whole value here.
-     */
-    db.order.aggregate({
-      _sum: { totalCents: true, refundedCents: true },
-      where: { status: { in: [...REVENUE_STATUSES] } }
-    }),
-    db.classRegistration.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 75,
-      include: { classEvent: true }
-    }),
-    db.contactMessage.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
-    db.newsletterSubscriber.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }),
-    db.review.findMany({
-      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-      take: 60,
-      include: { product: { select: { name: true, slug: true } } }
-    }),
-    db.stockAlert.findMany({
-      where: { notifiedAt: null },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      include: { product: { select: { name: true, slug: true, inventory: true } } }
-    }),
-    db.collection.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-      select: { id: true, title: true }
-    })
-  ]);
+  const [products, orders, revenue, registrations, messages, subscribers, reviews, stockAlerts] =
+    await Promise.all([
+      db.product.findMany({
+        orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+        include: { category: { select: { title: true } } }
+      }),
+      db.order.findMany({ orderBy: { createdAt: 'desc' }, take: 75, include: { items: true } }),
+      /**
+       * Net revenue: partially refunded orders still earned everything that was not
+       * given back, so they belong in the figure with their refund subtracted rather
+       * than dropped from it. Previously any refund at all — including a few dollars
+       * of shipping — marked the order REFUNDED and removed its whole value here.
+       */
+      db.order.aggregate({
+        _sum: { totalCents: true, refundedCents: true },
+        where: { status: { in: [...REVENUE_STATUSES] } }
+      }),
+      db.classRegistration.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 75,
+        include: { classEvent: true }
+      }),
+      db.contactMessage.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
+      db.newsletterSubscriber.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }),
+      db.review.findMany({
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        take: 60,
+        include: { product: { select: { name: true, slug: true } } }
+      }),
+      db.stockAlert.findMany({
+        where: { notifiedAt: null },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        include: { product: { select: { name: true, slug: true, inventory: true } } }
+      })
+    ]);
 
   /**
    * Which reviewer emails actually appear on a paid order for that product.
@@ -519,7 +241,7 @@ export default async function Admin({
         <a href="#overview">Overview</a>
         <a href="#orders">Orders & shipping</a>
         <a href="#inventory">Inventory & products</a>
-        <a href="#add-product">Add a product</a>
+        <Link href="/admin/products/new">Add a product</Link>
         <a href="#registrations">Class registrations</a>
         <a href="#messages">Customer messages</a>
         <a href="#subscribers">Email subscribers</a>
@@ -912,12 +634,13 @@ export default async function Admin({
             <div>
               <h2>Inventory and products</h2>
               <p className="muted">
-                Open any product to change price, stock, descriptions, photos or shop visibility.
+                Open any product to change its category, price, stock, sizes, structured details,
+                photos or shop visibility.
               </p>
             </div>
-            <a className="btn small" href="#add-product">
+            <Link className="btn small" href="/admin/products/new">
               Add a product
-            </a>
+            </Link>
           </div>
 
           <form className="admin-inventory-tools" action="/admin" method="get">
@@ -988,32 +711,21 @@ export default async function Admin({
             </div>
           )}
 
-          <div className="admin-card" id="add-product" style={{ marginTop: 24 }}>
-            <h2 style={{ marginTop: 0 }}>Add a product</h2>
-            <p className="muted">
-              Uncheck “Active in shop” to save a draft. Leave it checked to list the piece as soon
-              as you create it.
-            </p>
-            <form action={saveProduct}>
-              <ProductFields collections={collections} />
-              <button className="btn" style={{ marginTop: 16 }}>
-                Create product
-              </button>
-            </form>
-          </div>
-
-          <div className="admin-list" style={{ marginTop: 24 }}>
+          <div className="admin-product-rows">
             {visibleProducts.length ? (
               visibleProducts.map((product) => (
-                <details
-                  open={product.slug === focusProduct}
+                <div
+                  className={`admin-product-row${product.slug === focusProduct ? ' focused' : ''}`}
                   id={`product-${product.slug}`}
                   key={product.id}
                 >
-                  <summary>
-                    <span>
-                      {product.name} • {formatMoney(product.priceCents)} • {product.inventory} in
-                      stock
+                  <div className="admin-product-row-main">
+                    <Link className="admin-product-name" href={`/admin/products/${product.id}`}>
+                      {product.name}
+                    </Link>
+                    <span className="muted">
+                      {product.category?.title || 'Not categorised'} •{' '}
+                      {formatMoney(product.priceCents)} • {product.inventory} in stock
                       <SizeStockNote sizes={product.sizes} />
                       {productNeedsPhoto(product.imageUrl) && (
                         <>
@@ -1022,21 +734,15 @@ export default async function Admin({
                         </>
                       )}
                     </span>
+                  </div>
+                  <div className="admin-product-row-actions">
                     <span className={`status-badge ${product.active ? 'PAID' : 'CANCELLED'}`}>
                       {product.active ? 'Active' : 'Archived'}
                     </span>
-                  </summary>
-                  <div>
-                    <form action={saveProduct}>
-                      <ProductFields product={product} collections={collections} />
-                      <div className="admin-actions">
-                        <button className="btn small">Save product</button>
-                        <Link className="btn outline small" href={`/shop/${product.slug}`}>
-                          View product
-                        </Link>
-                      </div>
-                    </form>
-                    <form action={setProductActive} style={{ marginTop: 10 }}>
+                    <Link className="btn small" href={`/admin/products/${product.id}`}>
+                      Edit
+                    </Link>
+                    <form action={setProductActive}>
                       <input type="hidden" name="id" value={product.id} />
                       <input
                         type="hidden"
@@ -1044,18 +750,18 @@ export default async function Admin({
                         value={product.active ? 'false' : 'true'}
                       />
                       <button className={`text-button${product.active ? ' danger' : ''}`}>
-                        {product.active ? 'Archive from shop' : 'Put back in shop'}
+                        {product.active ? 'Archive' : 'Put back'}
                       </button>
                     </form>
                   </div>
-                </details>
+                </div>
               ))
             ) : (
               <div className="admin-card">
                 <p>
                   {products.length
                     ? 'No products matched that search. Clear the filter to see everything.'
-                    : 'No products yet. Use the form above to add the first one.'}
+                    : 'No products yet. Use “Add a product” above to add the first one.'}
                 </p>
               </div>
             )}
