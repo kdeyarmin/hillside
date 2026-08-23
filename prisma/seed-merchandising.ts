@@ -248,6 +248,20 @@ async function main() {
     select: { id: true, name: true, slug: true, traits: true }
   });
 
+  /**
+   * The drafts, kept apart so a skipped set can say which of the two things
+   * went wrong. A recipe naming a product nobody has entered is a different
+   * problem from one naming a product that is entered but held back — the tea,
+   * the soap and the lotion all seed as drafts until their net contents and
+   * ingredients are filled in, and every set in this file contains one of them.
+   * Told only "not in the catalog", whoever ran the seed would go looking for a
+   * missing product that is sitting right there.
+   */
+  const draftProducts = await db.product.findMany({
+    where: { active: false },
+    select: { id: true, name: true, slug: true }
+  });
+
   let tagged = 0;
   for (const product of products) {
     if (product.traits.length) continue;
@@ -266,6 +280,8 @@ async function main() {
 
   let createdBundles = 0;
   let skippedBundles = 0;
+  /** Sets held back only because a component is still a draft, and which one. */
+  const waitingOnDrafts: string[] = [];
   for (const seed of bundles) {
     const existing = await db.bundle.findUnique({ where: { slug: seed.slug } });
     if (existing) continue;
@@ -275,6 +291,13 @@ async function main() {
     // Hillside Gift Box is not a smaller gift box; it is a wrong one.
     if (resolved.some((entry) => !entry.product)) {
       skippedBundles += 1;
+      const drafted = resolved
+        .filter((entry) => !entry.product)
+        .map((entry) => find(draftProducts, entry.item))
+        .filter((product): product is ProductRow => Boolean(product));
+      if (drafted.length) {
+        waitingOnDrafts.push(`${seed.title} — waiting on ${drafted.map((p) => p.name).join(', ')}`);
+      }
       continue;
     }
 
@@ -330,9 +353,15 @@ async function main() {
 
   console.log(
     `Merchandising ready: ${createdBundles} sets created` +
-      `${skippedBundles ? ` (${skippedBundles} skipped — their products are not in the catalog)` : ''}` +
+      `${skippedBundles ? ` (${skippedBundles} skipped — a product in each recipe is missing or still a draft)` : ''}` +
       `, ${tagged} products tagged, ${createdRelations} recommendations added.`
   );
+  for (const line of waitingOnDrafts) console.log(`  · ${line}`);
+  if (waitingOnDrafts.length) {
+    console.log(
+      '  Fill in what those drafts are missing, publish them, then run `npm run db:seed:merchandising` to build the sets.'
+    );
+  }
   if (rescued) {
     console.log(`Recommendation words moved from tags to traits on ${rescued} products.`);
   }

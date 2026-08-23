@@ -1,4 +1,5 @@
 import { PrismaClient, ProductType } from '@prisma/client';
+import { publishBlockReason } from '../lib/product-completeness.ts';
 
 const db = new PrismaClient();
 
@@ -10,6 +11,18 @@ const db = new PrismaClient();
  * claims about what is in a jar Tammy made, and a fresh install must not
  * publish an invented one — so those fields are left empty and the product's
  * own note goes on saying they have to be entered before it is sold.
+ *
+ * Leaving them empty is only half of that promise. `Product.active` defaults to
+ * true, so the tea, the soap and the lotion used to be seeded *live* — a fresh
+ * install offered three regulated goods for sale with no net contents and no
+ * ingredient list, which is the exact thing `publishBlockReason` refuses. The
+ * first time Tammy opened one and pressed Save it archived itself and dropped
+ * out of the shop, which read as the form breaking rather than as the rule
+ * working.
+ *
+ * So the rule decides here too, rather than being restated: anything it would
+ * refuse to publish is seeded as a draft, with the reason printed for whoever
+ * ran the seed. Fill the fields in and the same rule lets it go live.
  */
 
 async function main() {
@@ -257,13 +270,19 @@ async function main() {
     }
   ];
 
+  const drafted: string[] = [];
   for (const product of products) {
+    const blocked = publishBlockReason(product);
+    if (blocked) drafted.push(`${product.name}: ${blocked}`);
+    const row = { ...product, active: !blocked };
     await db.product.upsert({
       where: { slug: product.slug },
-      update: product,
-      create: product
+      update: row,
+      create: row
     });
   }
+  console.log(`Products ready: ${products.length} seeded, ${drafted.length} held back as drafts.`);
+  for (const line of drafted) console.log(`  · ${line}`);
 
   const sheets = [
     {

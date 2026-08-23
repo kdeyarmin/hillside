@@ -269,17 +269,17 @@ try {
   // ------------------------------- the product form must not erase its owner's
   // work. Saving an untouched form is the exact action that used to wipe these
   // columns, so it is the action worth repeating.
-  for (const [slug, tags, traits] of [
-    ['hillside-calm-tea', ['handmade', 'giftable'], ['tea', 'infuser', '-terrarium']],
+  for (const [slug, tags, traits, giftTags] of [
+    ['hillside-calm-tea', ['handmade', 'giftable'], ['tea', 'infuser', '-terrarium'], ['tea-lover']],
     // Tags are validated against the product's type on save, so the plant-only
     // vocabulary has to be proved on an actual plant.
-    ['golden-pothos', ['pet-safe', 'low-light'], ['carnivorous', '-terrarium']]
+    ['golden-pothos', ['pet-safe', 'low-light'], ['carnivorous', '-terrarium'], ['teacher', 'housewarming']]
   ]) {
     const product = await db.product.findFirst({ where: { slug } });
     if (!product) { check(`product form: ${slug} exists`, false); continue; }
-    const original = { tags: product.tags, traits: product.traits };
+    const original = { tags: product.tags, traits: product.traits, giftTags: product.giftTags };
     undo.push(() => db.product.update({ where: { id: product.id }, data: original }));
-    await db.product.update({ where: { id: product.id }, data: { tags, traits } });
+    await db.product.update({ where: { id: product.id }, data: { tags, traits, giftTags } });
 
     await open(`/admin/products/${product.id}`);
     const form = page.locator('form:has(input[name="inventory"])').first();
@@ -309,6 +309,22 @@ try {
     check(`product form: ${slug} keeps traits on an untouched save`, same('traits'), `${JSON.stringify(before.traits)} -> ${JSON.stringify(after.traits)}`);
     check(`product form: ${slug} keeps inventory`, after.inventory === before.inventory, `${before.inventory} -> ${after.inventory}`);
     check(`product form: ${slug} keeps sku`, after.sku === before.sku, `${before.sku} -> ${after.sku}`);
+    /**
+     * The gift guides were the case this list was missing. `saveProduct` read
+     * `giftTags` from the form all along, but nothing rendered the boxes, so
+     * every save posted an empty list and cleared the column — the owner's only
+     * lever over the occasion guides could be wiped but never set, and no check
+     * here noticed because none of them looked at it.
+     *
+     * Compared as a set rather than as a list, unlike the columns above. The
+     * boxes post in the order the guides are defined in, so a save rewrites the
+     * column in that order whatever order it was stored in, and every reader
+     * asks whether a guide is *in* the list rather than where. Comparing
+     * positions would fail this on a difference nothing can observe.
+     */
+    const sameSet = (key) =>
+      JSON.stringify([...(after[key] ?? [])].sort()) === JSON.stringify([...(before[key] ?? [])].sort());
+    check(`product form: ${slug} keeps gift guides on an untouched save`, sameSet('giftTags'), `${JSON.stringify(before.giftTags)} -> ${JSON.stringify(after.giftTags)}`);
   }
 
   // ---------------------------------------------------------- building a set

@@ -113,11 +113,32 @@ try {
     await db.order.deleteMany({ where: { id: { in: ids } } });
   });
 
-  const product = await db.product.findFirst({
+  /**
+   * Two things the basket product has to be, both of which used to be true by
+   * luck of which product happened to be cheapest.
+   *
+   * It must be sold one way. Every line built below carries no size, and the
+   * checkout refuses a sized product addressed without one — correctly, but it
+   * refuses at validation, so every check after it measures the refusal rather
+   * than the thing it was written for.
+   *
+   * And it should hold fewer than 20, because a line's quantity is capped at 20
+   * on the way in: a deeper shelf cannot be oversold through one line, and the
+   * oversell check below can only report itself skipped. That one is a
+   * preference rather than a requirement — a catalog with nothing shallow still
+   * runs everything else.
+   */
+  const candidates = await db.product.findMany({
     where: { active: true, inventory: { gte: 5 } },
     orderBy: { priceCents: 'asc' }
   });
-  if (!product) throw new Error('no sellable product to test with');
+  const oneSize = candidates.filter(
+    (row) => !Array.isArray(row.sizes) || row.sizes.length === 0
+  );
+  const product = oneSize.find((row) => row.inventory < 20) || oneSize[0];
+  if (!product) {
+    throw new Error('no sellable one-size product to test with');
+  }
   const line = (quantity = 1, priceCents = product.priceCents) => ([
     { id: product.slug, kind: 'product', quantity, priceCents }
   ]);
