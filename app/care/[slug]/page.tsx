@@ -19,6 +19,7 @@ import {
   Wrench
 } from 'lucide-react';
 import BundleGrid from '@/components/BundleGrid';
+import InlineNewsletter from '@/components/InlineNewsletter';
 import ProductGrid from '@/components/ProductGrid';
 import PrintButton from '@/components/PrintButton';
 import ResilientImage from '@/components/ResilientImage';
@@ -529,6 +530,14 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
               <Link href="/visit">Local pickup in Ebensburg</Link>
             </li>
           </ul>
+        </div>
+
+        <div className="no-print">
+          <InlineNewsletter
+            source="care-guide"
+            heading="Plant care, once in a while."
+            blurb="Seasonal notes on watering, light and the problems that actually come up. No daily flood."
+          />
         </div>
       </div>
     </section>

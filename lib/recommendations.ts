@@ -97,6 +97,14 @@ export type RecommendableProduct = {
   slug: string;
   name: string;
   type: string;
+  /** Owner-written recommendation traits: `carnivorous`, `infuser`, `-terrarium`. */
+  traits?: string[] | null;
+  /**
+   * The shopper-facing filter attributes — `pet-safe`, `low-light`. Read here
+   * too, because someone buying one pet-safe plant often wants another, but
+   * never written by this module: that vocabulary is closed and
+   * `normalizeTags` owns it.
+   */
   tags?: string[] | null;
   shortDescription?: string | null;
   description?: string | null;
@@ -210,27 +218,34 @@ export function normalizeTag(value: unknown) {
 }
 
 /**
- * Everything the rules know about one product.
+ * Everything the rules know about one product, from two written vocabularies
+ * and the product's own words.
  *
- * Tags **add to** inference rather than replacing it, which is the behaviour the
- * admin copy promises ("the words the automatic suggestions match on") and the
- * one that does not punish an owner for tagging a single thing: tagging a plant
- * `gift` should not cost it `plant` and `carnivorous`.
+ * The written ones are `traits` — the open words Tammy sets for
+ * recommendations — and `tags`, the closed list shoppers filter the shop by.
+ * Both are read, because `pet-safe` is worth matching on as much as
+ * `carnivorous` is; only `traits` is ever written back, since the product form
+ * rewrites `tags` from its own fixed list.
+ *
+ * Both **add to** inference rather than replacing it, which is the behaviour
+ * the admin copy promises ("the words the automatic suggestions match on") and
+ * the one that does not punish an owner for writing a single word: marking a
+ * plant `gift` should not cost it `plant` and `carnivorous`.
  *
  * That leaves the owner needing a way to take a trait *off*, because inference
  * reads the product's own words and those words are not always about the
  * product — a moss whose description says it is "not intended for terrariums"
  * would otherwise acquire `terrarium` and pick up recommendations she cannot
- * remove. A tag written `-terrarium` suppresses exactly that, and beats every
- * other source including an explicit tag of the same name, so a contradiction
- * resolves the predictable way.
+ * remove. A trait written `-terrarium` suppresses exactly that, and beats every
+ * other source — inference, a filter tag, or an identical positive trait — so a
+ * contradiction resolves the predictable way.
  */
 export function productTraits(product: RecommendableProduct): Set<string> {
   const traits = new Set<string>();
   const suppressed = new Set<string>();
 
-  for (const tag of product.tags || []) {
-    const clean = normalizeTag(tag);
+  for (const word of [...(product.traits || []), ...(product.tags || [])]) {
+    const clean = normalizeTag(word);
     if (!clean) continue;
     if (clean.startsWith('-')) suppressed.add(clean.slice(1));
     else traits.add(clean);

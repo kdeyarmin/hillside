@@ -10,6 +10,7 @@ import FormStatus from '@/components/FormStatus';
  */
 export default function StockAlertForm({ slug, name }: { slug: string; name: string }) {
   const [email, setEmail] = useState('');
+  const [joinNewsletter, setJoinNewsletter] = useState(false);
   const [status, setStatus] = useState<{ type: 'idle' | 'ok' | 'error'; message?: string }>({
     type: 'idle'
   });
@@ -24,12 +25,13 @@ export default function StockAlertForm({ slug, name }: { slug: string; name: str
       const response = await fetch('/api/stock-alerts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug, email })
+        body: JSON.stringify({ slug, email, joinNewsletter })
       });
       const result = (await response.json()) as { message?: string; error?: string };
       if (!response.ok) throw new Error(result.error || 'We could not add you to the list.');
       setStatus({ type: 'ok', message: result.message || 'We will email you when it is back.' });
       setEmail('');
+      setJoinNewsletter(false);
     } catch (error) {
       setStatus({
         type: 'error',
@@ -66,6 +68,21 @@ export default function StockAlertForm({ slug, name }: { slug: string; name: str
           {pending ? 'Adding…' : 'Notify me'}
         </button>
       </div>
+      {/* Unticked, and it only ever adds an address that is not already on the
+          list — the restock note is what they asked for, the newsletter is a
+          separate thing they have to choose. */}
+      <label className="stock-alert-optin" htmlFor={`stock-alert-notes-${slug}`}>
+        <input
+          id={`stock-alert-notes-${slug}`}
+          type="checkbox"
+          checked={joinNewsletter}
+          onChange={(event) => setJoinNewsletter(event.target.checked)}
+        />
+        <span>
+          Also send me The Hillside Notes — occasional seasonal tips and new arrivals. Unsubscribe
+          any time.
+        </span>
+      </label>
       <FormStatus message={status.message} tone={status.type === 'ok' ? 'success' : 'error'} />
     </form>
   );
