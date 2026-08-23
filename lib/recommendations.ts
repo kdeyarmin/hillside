@@ -111,68 +111,74 @@ export type RecommendableProduct = {
  * descriptions on the site, and without it every plant would be tagged as a
  * planter and recommended as the thing to pot itself in.
  */
+/*
+ * Every pattern ends `)e?s?\b`, so a trait is found in the plural too. Without
+ * it "perfect for terrariums" and "a trio of succulents" — the natural way to
+ * write either — inferred nothing at all, and the rules that lean on those
+ * traits stayed silent on exactly the products they were written for.
+ */
 const INFERRED_TRAITS: Array<{ trait: string; pattern: RegExp; types?: string[] }> = [
-  { trait: 'tea', pattern: /\b(tea|tisane|herbal blend|loose[- ]leaf)\b/i, types: ['TEA'] },
+  { trait: 'tea', pattern: /\b(tea|tisane|herbal blend|loose[- ]leaf)e?s?\b/i, types: ['TEA'] },
   {
     trait: 'infuser',
-    pattern: /\b(infuser|strainer|steeper|tea ?ball|teapot|brew basket)\b/i,
+    pattern: /\b(infuser|strainer|steeper|tea ?ball|teapot|brew basket)e?s?\b/i,
     types: ['TEA_SUPPLY', 'OTHER']
   },
   {
     trait: 'teaware',
-    pattern: /\b(mug|cup|teapot|kettle|tin|caddy)\b/i,
+    pattern: /\b(mug|cup|teapot|kettle|tin|caddy)e?s?\b/i,
     types: ['TEA_SUPPLY', 'OTHER']
   },
   {
     trait: 'carnivorous',
     pattern:
-      /\b(carnivorous|venus ?fly ?trap|flytrap|dionaea|sarracenia|pitcher plant|nepenthes|sundew|drosera|butterwort|pinguicula)\b/i
+      /\b(carnivorous|venus ?fly ?trap|flytrap|dionaea|sarracenia|pitcher plant|nepenthes|sundew|drosera|butterwort|pinguicula)e?s?\b/i
   },
   {
     trait: 'carnivorous-medium',
     pattern:
-      /\b(carnivorous (mix|soil|medium)|long[- ]fibered sphagnum|sphagnum (and|\+) perlite|bog mix|nutrient[- ]free (mix|soil))\b/i,
+      /\b(carnivorous (mix|soil|medium)|long[- ]fibered sphagnum|sphagnum (and|\+) perlite|bog mix|nutrient[- ]free (mix|soil))e?s?\b/i,
     types: ['OTHER']
   },
   {
     trait: 'distilled-water',
-    pattern: /\b(distilled water|rain ?water|reverse osmosis)\b/i,
+    pattern: /\b(distilled water|rain ?water|reverse osmosis)e?s?\b/i,
     types: ['OTHER']
   },
-  { trait: 'terrarium', pattern: /\b(terrarium|vivarium|wardian|closed case)\b/i },
+  { trait: 'terrarium', pattern: /\b(terrarium|vivarium|wardian|closed case)e?s?\b/i },
   {
     trait: 'terrarium-container',
-    pattern: /\b(glass (jar|globe|vessel|container|cloche)|cloche|apothecary jar|bell jar)\b/i,
+    pattern: /\b(glass (jar|globe|vessel|container|cloche)|cloche|apothecary jar|bell jar)e?s?\b/i,
     types: ['OTHER']
   },
-  { trait: 'moss', pattern: /\b(moss|sphagnum|sheet moss|cushion moss)\b/i, types: ['OTHER'] },
+  { trait: 'moss', pattern: /\b(moss|sphagnum|sheet moss|cushion moss)e?s?\b/i, types: ['OTHER'] },
   {
     trait: 'substrate',
     pattern:
-      /\b(substrate|potting (mix|soil)|growing medium|soil mix|coco coir|orchid bark|horticultural charcoal|leca|perlite|drainage layer|pea gravel)\b/i,
+      /\b(substrate|potting (mix|soil)|growing medium|soil mix|coco coir|orchid bark|horticultural charcoal|leca|perlite|drainage layer|pea gravel)e?s?\b/i,
     types: ['OTHER']
   },
   {
     trait: 'planter',
-    pattern: /\b(planter|cachepot|pot cover|ceramic pot|clay pot|terracotta|vessel|saucer)\b/i,
+    pattern: /\b(planter|cachepot|pot cover|ceramic pot|clay pot|terracotta|vessel|saucer)e?s?\b/i,
     types: ['OTHER']
   },
   {
     trait: 'fertilizer',
-    pattern: /\b(fertili[sz]er|plant food|feed|nutrient)\b/i,
+    pattern: /\b(fertili[sz]er|plant food|feed|nutrient)e?s?\b/i,
     types: ['OTHER']
   },
   {
     trait: 'plant-care',
     pattern:
-      /\b(mister|spray bottle|watering can|pruner|snips|moisture meter|humidity tray|pebble tray)\b/i,
+      /\b(mister|spray bottle|watering can|pruner|snips|moisture meter|humidity tray|pebble tray)e?s?\b/i,
     types: ['OTHER']
   },
-  { trait: 'succulent', pattern: /\b(succulent|echeveria|haworthia|sedum|cact(us|i))\b/i },
-  { trait: 'air-plant', pattern: /\b(air plant|tillandsia)\b/i },
-  { trait: 'soap', pattern: /\b(soap|bar soap|cleansing bar)\b/i, types: ['SOAP'] },
-  { trait: 'lotion', pattern: /\b(lotion|balm|salve|butter|hand cream)\b/i, types: ['LOTION'] },
-  { trait: 'gift', pattern: /\b(gift|gifting|present)\b/i }
+  { trait: 'succulent', pattern: /\b(succulent|echeveria|haworthia|sedum|cact(us|i))e?s?\b/i },
+  { trait: 'air-plant', pattern: /\b(air plant|tillandsia)e?s?\b/i },
+  { trait: 'soap', pattern: /\b(soap|bar soap|cleansing bar)e?s?\b/i, types: ['SOAP'] },
+  { trait: 'lotion', pattern: /\b(lotion|balm|salve|butter|hand cream)e?s?\b/i, types: ['LOTION'] },
+  { trait: 'gift', pattern: /\b(gift|gifting|present)e?s?\b/i }
 ];
 
 /** The coarse traits `ProductType` genuinely carries, and nothing finer. */
@@ -184,24 +190,50 @@ const TYPE_TRAITS: Record<string, string[]> = {
   LOTION: ['lotion']
 };
 
+/**
+ * One spelling of a tag, so what the owner types matches what the rules look
+ * for. `Terrarium Container` and `terrarium container` both become
+ * `terrarium-container`.
+ *
+ * A leading `-` survives, because it means something: see `productTraits`.
+ */
 export function normalizeTag(value: unknown) {
-  return String(value ?? '')
+  const raw = String(value ?? '').trim();
+  const negated = raw.startsWith('-');
+  const body = (negated ? raw.slice(1) : raw)
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '-')
     .slice(0, 40);
+  if (!body) return '';
+  return negated ? `-${body}` : body;
 }
 
 /**
- * Everything the rules know about one product. Owner tags are authoritative;
- * inference only fills in what she has not said herself.
+ * Everything the rules know about one product.
+ *
+ * Tags **add to** inference rather than replacing it, which is the behaviour the
+ * admin copy promises ("the words the automatic suggestions match on") and the
+ * one that does not punish an owner for tagging a single thing: tagging a plant
+ * `gift` should not cost it `plant` and `carnivorous`.
+ *
+ * That leaves the owner needing a way to take a trait *off*, because inference
+ * reads the product's own words and those words are not always about the
+ * product — a moss whose description says it is "not intended for terrariums"
+ * would otherwise acquire `terrarium` and pick up recommendations she cannot
+ * remove. A tag written `-terrarium` suppresses exactly that, and beats every
+ * other source including an explicit tag of the same name, so a contradiction
+ * resolves the predictable way.
  */
 export function productTraits(product: RecommendableProduct): Set<string> {
   const traits = new Set<string>();
+  const suppressed = new Set<string>();
 
   for (const tag of product.tags || []) {
     const clean = normalizeTag(tag);
-    if (clean) traits.add(clean);
+    if (!clean) continue;
+    if (clean.startsWith('-')) suppressed.add(clean.slice(1));
+    else traits.add(clean);
   }
   for (const trait of TYPE_TRAITS[product.type] || []) traits.add(trait);
 
@@ -217,9 +249,11 @@ export function productTraits(product: RecommendableProduct): Set<string> {
 
   for (const rule of INFERRED_TRAITS) {
     if (rule.types && !rule.types.includes(product.type)) continue;
+    if (suppressed.has(rule.trait)) continue;
     if (rule.pattern.test(words)) traits.add(rule.trait);
   }
 
+  for (const trait of suppressed) traits.delete(trait);
   return traits;
 }
 

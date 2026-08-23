@@ -153,6 +153,92 @@ describe('bundle availability', () => {
   });
 });
 
+describe('two recipe lines drawing on one shelf', () => {
+  /**
+   * A lotion sold in two sizes off one pile. Both recipe lines meter against the
+   * product's single count, so a set needing one of each needs two jars.
+   */
+  const lotion = product({
+    id: 'p-lotion',
+    slug: 'lotion',
+    name: 'Lotion',
+    priceCents: 1200,
+    inventory: 1,
+    sizes: [{ label: '2 oz' }, { label: '8 oz' }]
+  });
+  const both = (inventory: number) =>
+    bundle([
+      { quantity: 1, size: '2 oz', product: { ...lotion, inventory } },
+      { quantity: 1, size: '8 oz', product: { ...lotion, inventory } }
+    ]);
+
+  it('needs one jar per line, not one jar for both', () => {
+    // Checked line by line this said "1 set", and the reservation then failed.
+    assert.equal(bundleAvailability(both(1)).sets, 0);
+    assert.equal(bundleAvailability(both(2)).sets, 1);
+    assert.equal(bundleAvailability(both(5)).sets, 2);
+  });
+
+  it('still counts separately when the owner counts the sizes separately', () => {
+    const counted = product({
+      id: 'p-lotion',
+      slug: 'lotion',
+      name: 'Lotion',
+      inventory: 2,
+      sizes: [
+        { label: '2 oz', inventory: 1 },
+        { label: '8 oz', inventory: 1 }
+      ]
+    });
+    assert.equal(
+      bundleAvailability(
+        bundle([
+          { quantity: 1, size: '2 oz', product: counted },
+          { quantity: 1, size: '8 oz', product: counted }
+        ])
+      ).sets,
+      1
+    );
+  });
+});
+
+describe('what a set says is in the box', () => {
+  const shippable = product({ id: 'p-tea', inventory: 5 });
+  const pickupOnlySprig = product({
+    id: 'p-sprig',
+    name: 'Dried sprig',
+    ships: false,
+    inventory: 0
+  });
+
+  it('does not let a sold-out extra decide how the box travels', () => {
+    // The garnish is not in the box, so it does not get a vote on shipping.
+    const set = bundle([
+      { quantity: 1, product: shippable },
+      { quantity: 1, optional: true, product: pickupOnlySprig }
+    ]);
+    assert.deepEqual(bundleFulfillment(set), { ships: true, pickup: true });
+  });
+
+  it('lets an extra that IS in the box decide', () => {
+    const set = bundle([
+      { quantity: 1, product: shippable },
+      { quantity: 1, optional: true, product: { ...pickupOnlySprig, inventory: 5 } }
+    ]);
+    assert.deepEqual(bundleFulfillment(set), { ships: false, pickup: true });
+  });
+
+  it('never promises an extra the shelf cannot cover', () => {
+    // Stripe puts this straight into the receipt's "Includes …" line.
+    const set = bundle([
+      { quantity: 1, product: shippable },
+      { quantity: 1, optional: true, product: { ...pickupOnlySprig, inventory: 1 } }
+    ]);
+    assert.match(bundleContentsLine(set, 1), /Dried sprig/);
+    assert.doesNotMatch(bundleContentsLine(set, 2), /Dried sprig/);
+  });
+});
+
 describe('bundle pricing', () => {
   it('measures the saving against what the parts cost loose', () => {
     const set = bundle([

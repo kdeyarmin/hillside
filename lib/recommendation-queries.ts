@@ -200,29 +200,46 @@ export async function recommendationsForProduct(anchor: {
   const matches = automaticMatches(anchorProduct, candidates.map(toRecommendable));
   const used = new Set<string>();
 
-  /** Owner rows first, then rule matches, capped and de-duplicated. */
-  const fill = (kind: ProductRelationKind, section: 'pairs' | 'complete') => {
+  /**
+   * Every section's owner-configured rows are placed before any section is
+   * filled automatically.
+   *
+   * Interleaved — owner then automatic, section by section — an automatic match
+   * in "Pairs well with" would claim a product the owner had explicitly put
+   * under "You may also like", and the later section would silently skip it as
+   * already used. Configured merchandising is promised to always win; filling it
+   * first is what makes that true rather than true-most-of-the-time.
+   */
+  const configured = (kind: ProductRelationKind) => {
     const cards: RecommendationCard[] = [];
     for (const relation of relations) {
       if (relation.kind !== kind) continue;
       if (used.has(relation.relatedProductId)) continue;
       used.add(relation.relatedProductId);
       cards.push(toCard(relation.related, relation.note));
-      if (cards.length >= RECOMMENDATIONS_PER_SECTION) return cards;
-    }
-    for (const match of matches) {
-      if (match.section !== section) continue;
-      const row = byId.get(match.product.id);
-      if (!row || used.has(row.id)) continue;
-      used.add(row.id);
-      cards.push(toCard(row, match.reason));
       if (cards.length >= RECOMMENDATIONS_PER_SECTION) break;
     }
     return cards;
   };
 
-  const pairs = fill(ProductRelationKind.PAIRS_WITH, 'pairs');
-  const complete = fill(ProductRelationKind.COMPLETES_SETUP, 'complete');
+  const pairs = configured(ProductRelationKind.PAIRS_WITH);
+  const complete = configured(ProductRelationKind.COMPLETES_SETUP);
+  const similar = configured(ProductRelationKind.SIMILAR);
+
+  /** Rule matches, filling whatever the owner left room for. */
+  const topUp = (cards: RecommendationCard[], section: 'pairs' | 'complete') => {
+    for (const match of matches) {
+      if (cards.length >= RECOMMENDATIONS_PER_SECTION) break;
+      if (match.section !== section) continue;
+      const row = byId.get(match.product.id);
+      if (!row || used.has(row.id)) continue;
+      used.add(row.id);
+      cards.push(toCard(row, match.reason));
+    }
+  };
+
+  topUp(pairs, 'pairs');
+  topUp(complete, 'complete');
 
   const together: RecommendationCard[] = [];
   for (const { productId, count } of frequentlyBoughtTogether(counts)) {
@@ -233,14 +250,6 @@ export async function recommendationsForProduct(anchor: {
     if (together.length >= RECOMMENDATIONS_PER_SECTION) break;
   }
 
-  const similar: RecommendationCard[] = [];
-  for (const relation of relations) {
-    if (relation.kind !== ProductRelationKind.SIMILAR) continue;
-    if (used.has(relation.relatedProductId)) continue;
-    used.add(relation.relatedProductId);
-    similar.push(toCard(relation.related, relation.note));
-    if (similar.length >= RECOMMENDATIONS_PER_SECTION) break;
-  }
   if (similar.length < RECOMMENDATIONS_PER_SECTION) {
     for (const entry of similarProducts(
       anchorProduct,
@@ -342,7 +351,40 @@ export async function recommendationsForBasket(
   });
   const byId = new Map(candidates.map((row) => [row.id, row]));
 
+  /**
+   * What Tammy configured for anything in the basket, which the drawer used to
+   * ignore entirely — so a product whose only recommendation was hers appeared
+   * on its own page and nowhere else, despite this strip being described as
+   * running the same rules.
+   *
+   * Scored above every rule match rather than merged into them: a configured row
+   * is a decision, and the drawer should not be the one place it loses to a
+   * guess.
+   */
+  const configured = inBasket.length
+    ? await db.productRelation.findMany({
+        where: {
+          productId: { in: inBasket.map((row) => row.id) },
+          relatedProductId: { notIn: componentIds },
+          related: { active: true, inventory: { gt: 0 }, slug: { notIn: slugs } }
+        },
+        orderBy: [{ kind: 'asc' }, { sortOrder: 'asc' }],
+        include: { related: { select: cardSelect } }
+      })
+    : [];
+
+  const CONFIGURED_SCORE = 1000;
   const best = new Map<string, { row: CandidateRow; reason: string; score: number }>();
+
+  for (const [index, relation] of configured.entries()) {
+    best.set(relation.relatedProductId, {
+      row: relation.related,
+      reason: relation.note || 'Tammy pairs these.',
+      // Ranked among themselves by the order she put them in.
+      score: CONFIGURED_SCORE - index
+    });
+  }
+
   for (const basketRow of inBasket) {
     for (const match of automaticMatches(
       toRecommendable(basketRow),

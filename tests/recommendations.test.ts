@@ -139,6 +139,59 @@ describe('productTraits', () => {
   it('normalizes a tag to what the rules match on', () => {
     assert.equal(normalizeTag('  Terrarium Container '), 'terrarium-container');
   });
+
+  it('finds a trait written in the plural', () => {
+    /**
+     * "A trio of succulents", "perfect for terrariums", "air plants need no
+     * soil" — the natural way to write any of these is plural, and a rule that
+     * only matched the singular stayed silent on exactly the products it was
+     * written for.
+     */
+    const cases: Array<[string, string, string]> = [
+      ['PLANT', 'A trio of succulents in 2 inch pots.', 'succulent'],
+      ['PLANT', 'Air plants need no soil at all.', 'air-plant'],
+      ['OTHER', 'Glazed ceramic planters with saucers.', 'planter'],
+      ['OTHER', 'Fine-mesh tea infusers.', 'infuser'],
+      ['OTHER', 'Sheet moss, good in terrariums.', 'terrarium']
+    ];
+    for (const [type, description, trait] of cases) {
+      const traits = productTraits(product({ id: 'x', name: 'x', type, description }));
+      assert.equal(traits.has(trait), true, `expected "${description}" to infer ${trait}`);
+    }
+  });
+
+  it('adds tags to inference rather than replacing it', () => {
+    // Tagging one thing must not cost a product everything else it is.
+    const traits = productTraits(product({ ...flytrap, tags: ['gift'] }));
+    assert.equal(traits.has('gift'), true);
+    assert.equal(traits.has('carnivorous'), true);
+    assert.equal(traits.has('plant'), true);
+  });
+
+  it('lets a minus tag switch off something the description implied', () => {
+    /**
+     * Inference reads the product's own words, and those words are not always
+     * about the product: "not intended for terrariums" would otherwise tag this
+     * moss `terrarium` and give it recommendations the owner cannot remove.
+     */
+    const moss = product({
+      id: 'moss-only',
+      name: 'Sheet moss',
+      type: 'OTHER',
+      description: 'Live sheet moss. Not intended for terrariums.'
+    });
+    assert.equal(productTraits(moss).has('terrarium'), true);
+    assert.equal(
+      productTraits(product({ ...moss, tags: ['moss', '-terrarium'] })).has('terrarium'),
+      false
+    );
+    assert.equal(normalizeTag('-Terrarium'), '-terrarium');
+  });
+
+  it('resolves a contradiction the predictable way — suppression wins', () => {
+    const traits = productTraits(product({ ...flytrap, tags: ['carnivorous', '-carnivorous'] }));
+    assert.equal(traits.has('carnivorous'), false);
+  });
 });
 
 describe('automaticMatches', () => {

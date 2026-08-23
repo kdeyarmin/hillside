@@ -13,6 +13,7 @@ import {
   productInventoryForSizes,
   readStoredSizes,
   returnStoredSizeStock,
+  storedSizeOnHand,
   storedSizesTrackStock,
   takeStoredSizeStock,
   type StoredSize
@@ -82,6 +83,28 @@ async function moveSizeStock(
     data: { sizes: sizes as Prisma.InputJsonValue, inventory }
   });
   return { took, inventory };
+}
+
+/**
+ * How many of one counted size a product has right now, or null when it is not
+ * counted per size.
+ *
+ * Only sound to call *after* a write to the product row in the same
+ * transaction: the lock that write took is what stops a second checkout from
+ * moving these sizes between this read and whatever is decided from it. That is
+ * the same argument `moveSizeStock` rests on, and the reason this is not
+ * exported for general use.
+ */
+async function countedSizeOnHand(
+  transaction: Prisma.TransactionClient,
+  productId: string,
+  size: string | null | undefined
+) {
+  const row = await transaction.product.findUnique({
+    where: { id: productId },
+    select: { sizes: true }
+  });
+  return storedSizeOnHand(readStoredSizes(row?.sizes), size);
 }
 
 /**
@@ -175,25 +198,38 @@ export async function reserveProductOrder({
           throw new InsufficientStockError(slug, line.size, line.name);
         }
         /**
-         * The product having enough altogether is not the same question as this
-         * size having enough: a plant with nine on the bench can still be out of
-         * 6" pots. Throwing rolls back the decrement above along with the rest of
-         * the hold, so a size that comes up short reserves nothing — and for a
-         * set, one *required* component coming up short reserves none of the
-         * others either.
+         * An extra is checked *before* the take, never after it.
          *
-         * An extra that fails here has already had its total decremented, so it
-         * is put straight back rather than left held for an order that will not
-         * contain it.
+         * `takeSizeStock` rewrites the product's total from its size list
+         * whether or not it succeeds, so a failed take has already thrown the
+         * decrement above away — and putting the units "back" on top of that
+         * recomputed total leaves the column reading higher than its sizes add
+         * up to. That difference is stock with no size behind it, which every
+         * "is this sellable" query in the shop would go on offering. Reverting
+         * here, before the take, is the only clean point.
+         *
+         * The read is sound at this line and nowhere earlier: the decrement
+         * above holds a lock on the row until the transaction commits.
          */
-        if (!(await takeSizeStock(transaction, line.productId, line.size, line.quantity))) {
-          if (line.optional) {
+        if (line.optional) {
+          const onHand = await countedSizeOnHand(transaction, line.productId, line.size);
+          if (onHand !== null && onHand < line.quantity) {
             await transaction.product.update({
               where: { id: line.productId },
               data: { inventory: { increment: line.quantity } }
             });
             continue;
           }
+        }
+        /**
+         * The product having enough altogether is not the same question as this
+         * size having enough: a plant with nine on the bench can still be out of
+         * 6" pots. Throwing rolls back the decrement above along with the rest of
+         * the hold, so a size that comes up short reserves nothing — and for a
+         * set, one required component coming up short reserves none of the
+         * others either.
+         */
+        if (!(await takeSizeStock(transaction, line.productId, line.size, line.quantity))) {
           throw new InsufficientStockError(slug, line.size, line.name);
         }
         taken.push(line);

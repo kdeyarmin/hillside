@@ -21,7 +21,8 @@ import {
   productSizes,
   sizeChoiceRejected,
   sizedName,
-  sizedPriceCents
+  sizedPriceCents,
+  sizesTrackStock
 } from './product-sizes.ts';
 import { formatMoney } from './store.ts';
 
@@ -92,8 +93,70 @@ export function componentSetsAvailable(component: BundleComponent) {
   return Math.floor(componentUnitsAvailable(component) / perSet);
 }
 
+/**
+ * Which count a recipe line draws on.
+ *
+ * Two lines of one product share a shelf whenever its sizes are not counted
+ * separately — a gift box holding both the 2 oz and the 8 oz of one lotion is
+ * two lines against one pile. Sizes the owner *did* count have their own key,
+ * so those two lines are genuinely two shelves. Matches `shelfKey` in
+ * `lib/checkout-format.ts`, which meters the same demand at checkout.
+ */
+export function productShelfKey(
+  product: { slug: string; priceCents: number; sizes?: unknown },
+  label: string | null | undefined
+) {
+  const sizes = productSizes(product.sizes, product.priceCents);
+  return sizesTrackStock(sizes) ? cartLineKey(product.slug, label) : product.slug;
+}
+
+export function componentShelfKey(component: BundleComponent) {
+  return productShelfKey(component.product, component.size);
+}
+
+/**
+ * How many complete sets a group of recipe lines can supply between them.
+ *
+ * Grouped by shelf before dividing, which is the whole point: checked line by
+ * line, a lotion with one jar on the pile answers "one set" to a recipe that
+ * needs a 2 oz *and* an 8 oz of it, because each line sees the same single jar.
+ * The set needs two, so the reservation then fails and the shopper is bounced
+ * with a correction that says the same wrong number again.
+ */
+function setsFromShelves(items: BundleComponent[]) {
+  if (!items.length) return Number.POSITIVE_INFINITY;
+  const demand = new Map<string, { perSet: number; units: number }>();
+  for (const item of items) {
+    const key = componentShelfKey(item);
+    const perSet = Math.max(1, Math.floor(item.quantity || 1));
+    const existing = demand.get(key);
+    demand.set(key, {
+      perSet: (existing?.perSet ?? 0) + perSet,
+      units: existing?.units ?? componentUnitsAvailable(item)
+    });
+  }
+  return [...demand.values()].reduce(
+    (fewest, shelf) => Math.min(fewest, Math.floor(shelf.units / shelf.perSet)),
+    Number.POSITIVE_INFINITY
+  );
+}
+
 export function requiredItems(bundle: BundleForSale) {
   return bundle.items.filter((item) => !item.optional);
+}
+
+/**
+ * The lines that will actually be in the box for this many sets: everything
+ * required, plus the extras the shelf can cover.
+ *
+ * One helper because three separate answers have to agree about it — what comes
+ * off the shelf, what the receipt says is inside, and whether the box can ship.
+ * When they disagreed, a sold-out pickup-only garnish made a fully shippable set
+ * pickup-only, and Stripe's receipt promised an extra that was never packed.
+ */
+export function includedItems(bundle: BundleForSale, sets = 1) {
+  const count = Math.max(1, Math.floor(sets || 1));
+  return bundle.items.filter((item) => !item.optional || setsFromShelves([item]) >= count);
 }
 
 export function optionalItems(bundle: BundleForSale) {
@@ -126,13 +189,7 @@ export function bundleAvailability(bundle: BundleForSale): BundleAvailability {
   const missingOptional = optionalItems(bundle).filter((item) => componentSetsAvailable(item) <= 0);
   const unpinned = bundle.items.filter((item) => componentNeedsVariant(item));
 
-  const sets =
-    required.length === 0
-      ? 0
-      : required.reduce(
-          (fewest, item) => Math.min(fewest, componentSetsAvailable(item)),
-          Number.POSITIVE_INFINITY
-        );
+  const sets = required.length === 0 ? 0 : setsFromShelves(required);
 
   return {
     sets: Number.isFinite(sets) ? Math.max(0, sets) : 0,
@@ -186,17 +243,28 @@ export function bundleSavingsPercent(bundle: BundleForSale) {
  * Whether a set can ship or be picked up: only if every single thing in the box
  * can. One pickup-only planter makes the whole set pickup-only, which is the
  * truth about a box that contains it.
+ *
+ * An extra the shelf cannot cover is not in the box, so it does not get a vote —
+ * a sold-out pickup-only garnish used to make an otherwise shippable set
+ * pickup-only, and refuse shipping at checkout for a box it was never in.
  */
-export function bundleFulfillment(bundle: BundleForSale) {
+export function bundleFulfillment(bundle: BundleForSale, sets = 1) {
+  const included = includedItems(bundle, sets);
   return {
-    ships: bundle.items.every((item) => offersShipping(item.product)),
-    pickup: bundle.items.every((item) => offersPickup(item.product))
+    ships: included.every((item) => offersShipping(item.product)),
+    pickup: included.every((item) => offersPickup(item.product))
   };
 }
 
-/** "Hillside Calm Tea × 1 · Stainless infuser × 1" — for a card or a receipt. */
-export function bundleContentsLine(bundle: BundleForSale) {
-  return bundle.items
+/**
+ * "Hillside Calm Tea × 1 · Stainless infuser × 1" — for a card or a receipt.
+ *
+ * Lists what will be in the box, not what the recipe hopes for. Stripe puts this
+ * straight into the line item's "Includes …" description, so an extra that was
+ * never reserved must not appear in it: a receipt is a promise.
+ */
+export function bundleContentsLine(bundle: BundleForSale, sets = 1) {
+  return includedItems(bundle, sets)
     .map(
       (item) =>
         `${sizedName(item.product.name, item.size)} × ${Math.max(1, Math.floor(item.quantity || 1))}`
@@ -233,9 +301,10 @@ export function bundleStockLines(
   const lines: BundleStockLine[] = [];
   const skipped: BundleComponent[] = [];
 
+  const included = new Set(includedItems(bundle, count));
   for (const item of bundle.items) {
     const perSet = Math.max(1, Math.floor(item.quantity || 1));
-    if (item.optional && componentSetsAvailable(item) < count) {
+    if (!included.has(item)) {
       skipped.push(item);
       continue;
     }

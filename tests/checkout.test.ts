@@ -359,6 +359,60 @@ describe('checkoutAdjustments for bundles', () => {
     }
   });
 
+  it('needs one jar per recipe line when both draw on one pile', () => {
+    /**
+     * A lotion sold in two sizes off one shelf. Metered line by line, a single
+     * jar answered "one set available" to a recipe needing one of each — and the
+     * reservation then failed against a correction repeating the same number.
+     */
+    const lotion = {
+      id: 'p-lotion',
+      slug: 'lotion',
+      name: 'Lotion',
+      active: true,
+      priceCents: 1200,
+      inventory: 1,
+      sizes: [{ label: '2 oz' }, { label: '8 oz' }]
+    };
+    const gift = {
+      slug: 'gift-box',
+      title: 'Gift Box',
+      priceCents: 2000,
+      active: true,
+      items: [
+        { quantity: 1, size: '2 oz', product: lotion },
+        { quantity: 1, size: '8 oz', product: lotion }
+      ]
+    };
+    const oneJar = [
+      { slug: 'lotion', name: 'Lotion', inventory: 1, priceCents: 1200, sizes: lotion.sizes }
+    ];
+    const changes = checkoutAdjustments(
+      [{ id: 'gift-box', kind: 'bundle', quantity: 1, priceCents: 2000 }],
+      oneJar,
+      [gift]
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'stock');
+    assert.equal(changes[0].available, 0);
+
+    // Two jars build exactly one set.
+    const twoJars = [{ ...oneJar[0], inventory: 2 }];
+    assert.deepEqual(
+      checkoutAdjustments(
+        [{ id: 'gift-box', kind: 'bundle', quantity: 1, priceCents: 2000 }],
+        twoJars,
+        [
+          {
+            ...gift,
+            items: gift.items.map((i) => ({ ...i, product: { ...lotion, inventory: 2 } }))
+          }
+        ]
+      ),
+      []
+    );
+  });
+
   it('keeps a set and a product that share a slug apart', () => {
     const twins = readCheckoutItems({
       items: [

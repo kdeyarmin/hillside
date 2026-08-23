@@ -7,8 +7,11 @@ import { isAdmin } from '@/lib/admin';
 import { adminMerchandisingPath } from '@/lib/admin-dashboard';
 import { parseBundleInput } from '@/lib/bundle-form';
 import { db } from '@/lib/db';
-import { normalizeSizeLabel } from '@/lib/product-sizes';
-import { MAX_RELATIONS_PER_KIND, RECOMMENDATION_SECTIONS } from '@/lib/recommendations';
+import {
+  MAX_RELATIONS_PER_KIND,
+  normalizeTag,
+  RECOMMENDATION_SECTIONS
+} from '@/lib/recommendations';
 
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
 
@@ -253,11 +256,16 @@ export async function saveProductTags(formData: FormData) {
     redirect(adminMerchandisingPath({ error: 'relation-invalid', section: 'cross-sell' }));
   }
 
+  /**
+   * Normalized the way `productTraits` reads them, not merely lowercased: the
+   * rules match on `terrarium-container`, so a tag saved as "terrarium
+   * container" would have matched nothing at all.
+   */
   const tags = [
     ...new Set(
       text(formData, 'tags')
         .split(/[\n,]+/)
-        .map((tag) => normalizeSizeLabel(tag).toLowerCase())
+        .map((tag) => normalizeTag(tag))
         .filter(Boolean)
     )
   ].slice(0, 12);

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { Package, Sprout, Truck } from 'lucide-react';
 import AddBundleButton from '@/components/AddBundleButton';
 import BundleGrid from '@/components/BundleGrid';
+import ProductGallery from '@/components/ProductGallery';
 import ResilientImage from '@/components/ResilientImage';
 import { bundleAvailability, bundleStockNote } from '@/lib/bundles';
 import { bundleCardData, bundleSaleInclude, sellableBundles } from '@/lib/bundle-queries';
@@ -141,17 +142,15 @@ export default async function BundlePage({ params }: { params: Promise<{ slug: s
 
         <div className="product-detail">
           <div className="product-detail-image-wrap">
-            <ResilientImage
-              className="product-detail-image"
-              sizeRole="detail"
-              src={resolveImageUrl(bundle.imageUrl)}
-              fallbackSrc="/images/botanical-placeholder.svg"
-              alt={bundle.title}
-              width={1200}
-              height={1100}
-              loading="eager"
-              fetchPriority="high"
-              decoding="async"
+            {/* The same gallery a product gets, so the extra photo URLs the set
+                editor collects are actually shown. With one photo it renders
+                exactly what a single image did. */}
+            <ProductGallery
+              slug={bundle.slug}
+              name={bundle.title}
+              type="OTHER"
+              imageUrl={bundle.imageUrl}
+              images={bundle.galleryImages}
             />
           </div>
           <div className="product-detail-copy">

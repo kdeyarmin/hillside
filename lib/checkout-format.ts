@@ -3,6 +3,9 @@ import {
   bundleFulfillment,
   bundleStockLines,
   componentSetsAvailable,
+  componentShelfKey,
+  includedItems,
+  productShelfKey,
   requiredItems,
   type BundleComponent,
   type BundleForSale,
@@ -10,13 +13,11 @@ import {
 } from './bundles.ts';
 import { basketLineKey, readLineKind, type LineKind } from './cart-lines.ts';
 import {
-  cartLineKey,
   findSize,
   productSizes,
   sizeAvailable,
   sizeChoiceRejected,
   sizedName,
-  sizesTrackStock,
   SIZE_LABEL_MAX
 } from './product-sizes.ts';
 import { absoluteUrl, formatMoney, resolveImageUrl } from './store.ts';
@@ -217,13 +218,7 @@ export function readCheckoutItems(body: unknown): CheckoutRequestedItem[] {
  * Bundles meter here too, through the same keys — the components are the stock,
  * so a set and a loose jar of the same lotion are two lines against one shelf.
  */
-function shelfKey(
-  product: { slug: string; priceCents: number; sizes?: unknown },
-  label: string | null | undefined
-) {
-  const sizes = productSizes(product.sizes, product.priceCents);
-  return sizesTrackStock(sizes) ? cartLineKey(product.slug, label) : product.slug;
-}
+const shelfKey = productShelfKey;
 
 export function checkoutAdjustments(
   requested: CheckoutRequestedItem[],
@@ -351,8 +346,9 @@ function bundleAdjustment(
     };
   }
 
+  const perSet = (item: BundleComponent) => Math.max(1, Math.floor(item.quantity || 1));
   const onShelf = (item: BundleComponent) => {
-    const key = shelfKey(item.product, item.size);
+    const key = componentShelfKey(item);
     const units =
       remaining.get(key) ??
       // The recipe's own view of the shelf, which is zero for a variant that
@@ -361,27 +357,49 @@ function bundleAdjustment(
     return { key, units };
   };
 
-  const perSet = (item: BundleComponent) => Math.max(1, Math.floor(item.quantity || 1));
-  const sets = requiredItems(bundle).reduce(
-    (fewest, item) => Math.min(fewest, Math.floor(onShelf(item).units / perSet(item))),
+  /**
+   * Per-set demand summed by shelf before dividing.
+   *
+   * Two recipe lines can draw on one count — a box holding both the 2 oz and the
+   * 8 oz of a lotion whose sizes are not counted separately. Divided line by
+   * line, a pile of one jar answers "one set available" to a recipe that needs
+   * two of them, and the reservation then fails against a correction that
+   * repeats the same wrong number.
+   */
+  const demandByShelf = (items: BundleComponent[]) => {
+    const shelves = new Map<string, { perSet: number; units: number }>();
+    for (const item of items) {
+      const { key, units } = onShelf(item);
+      const existing = shelves.get(key);
+      shelves.set(key, { perSet: (existing?.perSet ?? 0) + perSet(item), units });
+    }
+    return shelves;
+  };
+
+  const sets = [...demandByShelf(requiredItems(bundle)).values()].reduce(
+    (fewest, shelf) => Math.min(fewest, Math.floor(shelf.units / shelf.perSet)),
     Number.POSITIVE_INFINITY
   );
   const available = Math.max(0, Number.isFinite(sets) ? sets : 0);
   const taking = Math.min(requestedItem.quantity, available);
 
-  // Spend what this line will actually take, so the next line sees the shelf as
-  // it will be. A line short of stock takes everything its binding component
-  // had, which is exactly `available` sets' worth.
+  /**
+   * Spend what this line will actually take, so the next line sees the shelf as
+   * it will be. Summed by shelf for the same reason as above: two lines against
+   * one pile spend it once between them, not once each.
+   *
+   * An extra the shelf cannot cover for every set is left out of the box rather
+   * than shrinking the order, so it spends nothing — matching `includedItems`,
+   * which decides the same question for the reservation and the receipt.
+   */
+  const included = new Set(includedItems(bundle, Math.max(1, taking)));
+  for (const [key, shelf] of demandByShelf(bundle.items.filter((item) => included.has(item)))) {
+    remaining.set(key, Math.max(0, shelf.units - shelf.perSet * taking));
+  }
   for (const item of bundle.items) {
+    if (included.has(item)) continue;
     const { key, units } = onShelf(item);
-    const wanted = perSet(item) * taking;
-    // An extra the shelf cannot cover for every set is left out of the box
-    // rather than shrinking the order, so it spends nothing.
-    if (item.optional && units < wanted) {
-      remaining.set(key, units);
-      continue;
-    }
-    remaining.set(key, Math.max(0, units - wanted));
+    if (!remaining.has(key)) remaining.set(key, units);
   }
 
   if (available < requestedItem.quantity) {
@@ -534,7 +552,7 @@ export function bundleCheckoutLine(
   quantity: number
 ): CheckoutBundleLine {
   const { lines, skipped } = bundleStockLines(bundle, quantity);
-  const fulfillment = bundleFulfillment(bundle);
+  const fulfillment = bundleFulfillment(bundle, quantity);
   return {
     kind: 'bundle',
     bundle: {
@@ -550,7 +568,7 @@ export function bundleCheckoutLine(
     unitCents: bundle.priceCents,
     components: lines,
     skipped,
-    contents: bundleContentsLine(bundle),
+    contents: bundleContentsLine(bundle, quantity),
     ships: fulfillment.ships,
     pickup: fulfillment.pickup
   };

@@ -542,7 +542,9 @@ export default async function MerchandisingManager({
                     </label>
                     <p className="muted" style={{ fontSize: 13 }}>
                       The words the automatic suggestions match on. Useful ones:{' '}
-                      {RECOMMENDATION_TAGS.join(', ')}.
+                      {RECOMMENDATION_TAGS.join(', ')}. Tags are added to what the website already
+                      works out from the product&rsquo;s own description — to switch one of those
+                      off instead, write it with a minus in front, like <code>-terrarium</code>.
                     </p>
                     <button className="btn outline small">Save tags</button>
                   </form>
