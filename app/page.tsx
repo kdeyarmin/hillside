@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ArrowRight, BookOpen, Leaf, Package, Sparkles, Sprout, Truck } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
-import BundleCard from '@/components/BundleCard';
+import BundleGrid from '@/components/BundleGrid';
 import NewsletterForm from '@/components/NewsletterForm';
 import ProductGrid from '@/components/ProductGrid';
 import { bundleCardData, sellableBundles } from '@/lib/bundle-queries';
@@ -270,11 +270,7 @@ export default async function Home() {
                   All sets &amp; kits &rarr;
                 </Link>
               </div>
-              <div className="product-grid">
-                {featuredSets.map((set) => (
-                  <BundleCard bundle={bundleCardData(set)} key={set.slug} />
-                ))}
-              </div>
+              <BundleGrid bundles={featuredSets.map(bundleCardData)} />
             </div>
           </section>
         )}

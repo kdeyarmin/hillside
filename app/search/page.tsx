@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CalendarDays, Leaf, Package, Search, ShoppingBag } from 'lucide-react';
-import BundleCard from '@/components/BundleCard';
+import BundleGrid from '@/components/BundleGrid';
 import ProductGrid from '@/components/ProductGrid';
 import { Prisma } from '@prisma/client';
 import { bundleCardData, sellableBundles } from '@/lib/bundle-queries';
@@ -274,11 +274,7 @@ export default async function SearchPage({
                   All sets &rarr;
                 </Link>
               </div>
-              <div className="product-grid">
-                {bundles.map((bundle) => (
-                  <BundleCard bundle={bundleCardData(bundle)} key={bundle.slug} />
-                ))}
-              </div>
+              <BundleGrid bundles={bundles.map(bundleCardData)} />
             </div>
           )}
 

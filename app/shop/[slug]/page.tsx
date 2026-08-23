@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BookOpen, Package, Truck } from 'lucide-react';
 import AddToCartButton from '@/components/AddToCartButton';
-import BundleCard from '@/components/BundleCard';
+import BundleGrid from '@/components/BundleGrid';
 import ProductGallery from '@/components/ProductGallery';
 import ProductGrid from '@/components/ProductGrid';
 import ProductViewTracker from '@/components/ProductViewTracker';
@@ -518,11 +518,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               </h2>
               <p>Priced below what the pieces cost on their own.</p>
             </div>
-            <div className="product-grid">
-              {inSets.map((set) => (
-                <BundleCard bundle={bundleCardData(set)} key={set.slug} />
-              ))}
-            </div>
+            <BundleGrid bundles={inSets.map(bundleCardData)} />
           </div>
         )}
       </div>

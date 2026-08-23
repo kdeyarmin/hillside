@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import BundleCard from '@/components/BundleCard';
+import BundleGrid from '@/components/BundleGrid';
 import { bundleCardData, sellableBundles } from '@/lib/bundle-queries';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { contactHref } from '@/lib/contact';
@@ -83,11 +83,7 @@ export default async function BundlesPage() {
                   out.
                 </p>
               </div>
-              <div className="product-grid">
-                {cards.map((bundle, index) => (
-                  <BundleCard bundle={bundle} key={bundle.slug} priority={index < 2} />
-                ))}
-              </div>
+              <BundleGrid bundles={cards} eagerCount={2} />
             </>
           )}
 

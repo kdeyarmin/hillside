@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Package, Sprout, Truck } from 'lucide-react';
 import AddBundleButton from '@/components/AddBundleButton';
-import BundleCard from '@/components/BundleCard';
+import BundleGrid from '@/components/BundleGrid';
 import ResilientImage from '@/components/ResilientImage';
 import { bundleAvailability, bundleStockNote } from '@/lib/bundles';
 import { bundleCardData, bundleSaleInclude, sellableBundles } from '@/lib/bundle-queries';
@@ -305,11 +305,7 @@ export default async function BundlePage({ params }: { params: Promise<{ slug: s
               <div className="eyebrow">More sets</div>
               <h2>Other kits ready to go.</h2>
             </div>
-            <div className="product-grid">
-              {alsoSets.map((other) => (
-                <BundleCard bundle={bundleCardData(other)} key={other.slug} />
-              ))}
-            </div>
+            <BundleGrid bundles={alsoSets.map(bundleCardData)} />
           </div>
         )}
       </div>

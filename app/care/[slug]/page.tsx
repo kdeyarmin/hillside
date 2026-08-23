@@ -18,7 +18,7 @@ import {
   Wind,
   Wrench
 } from 'lucide-react';
-import BundleCard from '@/components/BundleCard';
+import BundleGrid from '@/components/BundleGrid';
 import ProductGrid from '@/components/ProductGrid';
 import PrintButton from '@/components/PrintButton';
 import ResilientImage from '@/components/ResilientImage';
@@ -450,11 +450,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
               <h2>{kits.length === 1 ? 'There is a set for this.' : 'There are sets for this.'}</h2>
               <p>Made up here from the same pieces, priced below buying them one at a time.</p>
             </div>
-            <div className="product-grid">
-              {kits.map((kit) => (
-                <BundleCard bundle={bundleCardData(kit)} key={kit.slug} />
-              ))}
-            </div>
+            <BundleGrid bundles={kits.map(bundleCardData)} />
           </section>
         )}
 
