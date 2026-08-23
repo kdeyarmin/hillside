@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
+  CaffeineStatus,
   ClassFormat,
+  InventoryStatus,
   MessageStatus,
   OrderStatus,
   ProductType,
@@ -26,10 +28,14 @@ import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/l
 import {
   parseSizeLines,
   productInventoryForSizes,
+  readStoredSizes,
+  returnStoredSizeStock,
   sizeFieldLabel,
   storedSizesTrackStock,
   withoutRedundantPrices
 } from '@/lib/product-sizes';
+import { nextRestockedAt } from '@/lib/inventory';
+import { publishBlockReason } from '@/lib/product-completeness';
 import { amazonPickDraft, DEFAULT_PICK_TITLE, extractAsin, isAmazonLink } from '@/lib/amazon-pick';
 import { associateTag, lookupAmazonProduct } from '@/lib/amazon-lookup';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
@@ -56,6 +62,32 @@ const integer = (value: FormDataEntryValue | null, fallback = 0) => {
   const number = Number(value);
   return Number.isFinite(number) ? Math.floor(number) : fallback;
 };
+/**
+ * A whole number, or nothing at all. Reorder points and quantities are optional,
+ * and "0" is a legitimate reorder point — reorder when the last one goes — so a
+ * blank box cannot be allowed to fall through to zero and quietly enrol the
+ * product in a reorder list nobody asked for.
+ */
+const optionalInteger = (value: FormDataEntryValue | null, max = 1_000_000) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const number = Number(raw);
+  if (!Number.isFinite(number) || number < 0) return null;
+  return Math.min(max, Math.floor(number));
+};
+/** A `yes`/`no`/unanswered select. Unanswered stays null — see `Product.petSafe`. */
+const triState = (form: FormData, name: string) => {
+  const raw = text(form, name);
+  if (raw === 'yes') return true;
+  if (raw === 'no') return false;
+  return null;
+};
+/** A posted select value, checked against the enum it claims to be. */
+const enumValue = <T extends string, F extends T | null>(
+  raw: string,
+  values: Record<string, T>,
+  fallback: F
+) => ((Object.values(values) as string[]).includes(raw) ? (raw as T) : fallback) as T | F;
 const optionalDate = (value: string) => {
   if (!value) return null;
   const date = new Date(value);
@@ -141,6 +173,10 @@ export async function saveProduct(formData: FormData) {
     priceCents,
     compareAtCents: compareAtText ? money(formData.get('compareAt')) : null,
     imageUrl: text(formData, 'imageUrl') || null,
+    lifestyleImageUrl: text(formData, 'lifestyleImageUrl') || null,
+    detailImageUrl: text(formData, 'detailImageUrl') || null,
+    scaleImageUrl: text(formData, 'scaleImageUrl') || null,
+    packagingImageUrl: text(formData, 'packagingImageUrl') || null,
     badge: text(formData, 'badge') || null,
     sizes: sizes.length ? (sizes as Prisma.InputJsonValue) : Prisma.DbNull,
     // Only meaningful alongside a size list, and only when the owner renamed it.
@@ -148,6 +184,25 @@ export async function saveProduct(formData: FormData) {
     active: checked(formData, 'active'),
     featured: checked(formData, 'featured'),
     sortOrder: integer(formData.get('sortOrder')),
+    supplier: text(formData, 'supplier') || null,
+    supplierItemNumber: text(formData, 'supplierItemNumber') || null,
+    reorderPoint: optionalInteger(formData.get('reorderPoint')),
+    reorderQuantity: optionalInteger(formData.get('reorderQuantity')),
+    inventoryNotes: text(formData, 'inventoryNotes') || null,
+    inventoryStatus: enumValue(
+      text(formData, 'inventoryStatus'),
+      InventoryStatus,
+      InventoryStatus.STOCKED
+    ),
+    netWeight: text(formData, 'netWeight') || null,
+    ingredients: text(formData, 'ingredients') || null,
+    brewingInstructions: text(formData, 'brewingInstructions') || null,
+    caffeineStatus: enumValue(text(formData, 'caffeineStatus'), CaffeineStatus, null),
+    potSize: text(formData, 'potSize') || null,
+    lightNeeds: text(formData, 'lightNeeds') || null,
+    waterNeeds: text(formData, 'waterNeeds') || null,
+    petSafe: triState(formData, 'petSafe'),
+    beginnerFriendly: checked(formData, 'beginnerFriendly'),
     galleryImages: text(formData, 'galleryImages')
       .split(/[\n,]+/)
       .map((entry) => entry.trim())
@@ -159,6 +214,18 @@ export async function saveProduct(formData: FormData) {
     data.ships = true;
     data.pickup = true;
   }
+
+  /**
+   * The one completeness rule that refuses rather than advises.
+   *
+   * Everything else the dashboard checks is a nudge — an incomplete draft is how
+   * the work gets done, and being stopped at the save button is how it stops.
+   * But a tea or a lotion with no net contents and no ingredient list is not
+   * ours to put on sale, so it saves in full and stays a draft, with the reason
+   * on screen. Nothing she typed is lost either way.
+   */
+  const publishBlocked = data.active && Boolean(publishBlockReason(data));
+  if (publishBlocked) data.active = false;
 
   if (!name || !slug || !data.description || priceCents < 0) {
     redirect(
@@ -189,15 +256,33 @@ export async function saveProduct(formData: FormData) {
     .filter(Boolean);
 
   const previous = id
-    ? await db.product.findUnique({ where: { id }, select: { inventory: true, slug: true } })
+    ? await db.product.findUnique({
+        where: { id },
+        select: { inventory: true, slug: true, lastRestockedAt: true }
+      })
     : null;
+
+  /**
+   * A restock dates itself. The owner's own date wins when she sets one, and
+   * otherwise a quantity that went *up* stamps today — which is the difference
+   * between a field that stays current and one field too many to remember.
+   */
+  const record = {
+    ...data,
+    lastRestockedAt: nextRestockedAt({
+      typed: optionalDate(text(formData, 'lastRestockedAt')),
+      stored: previous?.lastRestockedAt ?? null,
+      previousInventory: previous?.inventory ?? 0,
+      nextInventory: postedInventory
+    })
+  };
 
   let product;
   try {
     if (!id) {
       product = await db.product.create({
         data: {
-          ...data,
+          ...record,
           inventory: postedInventory,
           collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) }
         }
@@ -218,7 +303,7 @@ export async function saveProduct(formData: FormData) {
       product = await db.product.update({
         where: { id },
         data: {
-          ...data,
+          ...record,
           collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
         }
       });
@@ -244,7 +329,7 @@ export async function saveProduct(formData: FormData) {
         return transaction.product.update({
           where: { id },
           data: {
-            ...data,
+            ...record,
             collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
           }
         });
@@ -282,10 +367,85 @@ export async function saveProduct(formData: FormData) {
   refresh('/shop', '/', '/collections', `/shop/${slug}`);
   redirect(
     adminDashboardPath({
-      notice: id ? 'product-saved' : 'product-created',
+      // Everything was saved either way; the error explains why it is not live.
+      notice: publishBlocked ? undefined : id ? 'product-saved' : 'product-created',
+      error: publishBlocked ? 'publish-blocked' : undefined,
       product: product.slug,
       section: 'inventory'
     })
+  );
+}
+
+/**
+ * Adding a delivery to the shelf, without opening the whole product form.
+ *
+ * This is the single most repeated thing Tammy does — a box arrives, six more
+ * are on the bench — and doing it through the product editor meant reading the
+ * current number, adding to it in her head, and typing the sum. Here she types
+ * what arrived.
+ */
+export async function receiveStock(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  if (!id) redirect(adminDashboardPath({ section: 'inventory' }));
+
+  const quantity = optionalInteger(formData.get('quantity'), 100_000);
+  if (!quantity || quantity < 1) {
+    redirect(adminDashboardPath({ error: 'restock-invalid', section: 'inventory' }));
+  }
+  const size = text(formData, 'size');
+
+  const before = await db.product.findUnique({
+    where: { id },
+    select: { id: true, name: true, slug: true, inventory: true, sizes: true }
+  });
+  if (!before) redirect(adminDashboardPath({ error: 'product-missing', section: 'inventory' }));
+
+  const stored = readStoredSizes(before.sizes);
+  const perSize = storedSizesTrackStock(stored);
+
+  /**
+   * On a product counted per size the delivery has to land on one of them, and
+   * the product total is then rebuilt from the sizes — writing the total alone
+   * would leave it disagreeing with the counts underneath it, which is the one
+   * thing `lib/product-sizes.ts` exists to prevent.
+   */
+  const nextSizes = perSize ? returnStoredSizeStock(stored, size, quantity) : stored;
+  if (perSize && nextSizes === stored) {
+    redirect(
+      adminDashboardPath({ error: 'restock-invalid', product: before.slug, section: 'inventory' })
+    );
+  }
+  const nextInventory = perSize
+    ? productInventoryForSizes(nextSizes, before.inventory)
+    : before.inventory + quantity;
+
+  /**
+   * Claimed on the quantity we read, so a checkout hold that lands in between
+   * cannot be overwritten — the same guard the product form uses, and the same
+   * "refresh and try again" answer when it fires.
+   */
+  const claimed = await db.product.updateMany({
+    where: { id, inventory: before.inventory },
+    data: {
+      inventory: nextInventory,
+      lastRestockedAt: new Date(),
+      ...(perSize ? { sizes: nextSizes as Prisma.InputJsonValue } : {})
+    }
+  });
+  if (claimed.count === 0) {
+    redirect(
+      adminDashboardPath({ error: 'inventory', product: before.slug, section: 'inventory' })
+    );
+  }
+
+  if (before.inventory <= 0 && nextInventory > 0) {
+    await notifyStockAlerts(before.id, before.name, before.slug);
+  }
+
+  refresh('/shop', '/', '/collections', `/shop/${before.slug}`);
+  redirect(
+    adminDashboardPath({ notice: 'stock-received', product: before.slug, section: 'inventory' })
   );
 }
 
@@ -403,6 +563,28 @@ export async function setProductActive(formData: FormData) {
   const id = text(formData, 'id');
   const active = text(formData, 'active') === 'true';
   if (!id) return;
+
+  /**
+   * The same refusal the save path applies, checked again here because this is
+   * the other door into the shop: "Put back in shop" would otherwise list a tea
+   * with no ingredients on it in one click.
+   */
+  if (active) {
+    const candidate = await db.product.findUnique({
+      where: { id },
+      select: { slug: true, type: true, netWeight: true, ingredients: true }
+    });
+    if (candidate && publishBlockReason(candidate)) {
+      redirect(
+        adminDashboardPath({
+          error: 'publish-blocked',
+          product: candidate.slug,
+          section: 'inventory'
+        })
+      );
+    }
+  }
+
   const product = await db.product.update({
     where: { id },
     data: active ? { active: true } : { active: false, featured: false },

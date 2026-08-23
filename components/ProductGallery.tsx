@@ -3,29 +3,36 @@
 import { useState } from 'react';
 import BrandedProductVisual from '@/components/BrandedProductVisual';
 import ResilientImage from '@/components/ResilientImage';
+import type { ProductPhoto } from '@/lib/product-photos';
 
 /**
- * Products carry a primary photo plus any number of extra angles. With a single
- * image this renders exactly what it always did, so nothing regresses for
- * products that have not been re-photographed yet.
+ * Products carry a primary photo plus any number of named views — in a home, a
+ * detail, something for scale, the packaging — and then whatever extra angles
+ * were uploaded. With a single image this renders exactly what it always did, so
+ * nothing regresses for products that have not been re-photographed yet.
+ *
+ * The views are named rather than numbered because "Size" and "Packaging" are
+ * the two thumbnails a shopper is actually hunting for, and "photograph 4 of 6"
+ * makes them hunt. Beyond that this stays a picture and a row of thumbnails: no
+ * lightbox, no zoom, no carousel timer.
  */
 export default function ProductGallery({
   slug,
   name,
   type,
   imageUrl,
-  images
+  photos
 }: {
   slug: string;
   name: string;
   type: string;
   imageUrl: string | null;
-  images: string[];
+  photos: ProductPhoto[];
 }) {
-  const all = [imageUrl, ...images].filter((source): source is string => Boolean(source?.trim()));
   const [active, setActive] = useState(0);
+  const current = photos[Math.min(active, photos.length - 1)];
 
-  if (all.length <= 1) {
+  if (photos.length <= 1) {
     return (
       <BrandedProductVisual
         slug={slug}
@@ -41,32 +48,37 @@ export default function ProductGallery({
 
   return (
     <div className="product-gallery">
-      <ResilientImage
-        className="product-detail-image"
-        src={all[active]}
-        fallbackSrc="/images/botanical-placeholder.svg"
-        alt={`${name} — view ${active + 1} of ${all.length}`}
-        width={1400}
-        height={1288}
-        loading="eager"
-        decoding="async"
-      />
+      <div className="product-gallery-stage">
+        <ResilientImage
+          className="product-detail-image"
+          src={current.src}
+          fallbackSrc="/images/botanical-placeholder.svg"
+          alt={`${name} — ${current.caption.toLowerCase()}`}
+          width={1400}
+          height={1288}
+          loading="eager"
+          decoding="async"
+        />
+        <span className="product-gallery-caption" aria-hidden="true">
+          {current.caption}
+        </span>
+      </div>
       {/* A plain pressed-state group rather than ARIA tabs: tab semantics promise
           arrow-key navigation and an associated tabpanel that this control does
           not provide. */}
       <div className="product-gallery-thumbs" role="group" aria-label={`${name} photographs`}>
-        {all.map((source, index) => (
+        {photos.map((photo, index) => (
           <button
             type="button"
             aria-pressed={index === active}
-            aria-label={`Show photograph ${index + 1} of ${all.length}`}
+            aria-label={`Show ${photo.caption.toLowerCase()} — photograph ${index + 1} of ${photos.length}`}
             className={index === active ? 'active' : ''}
             onClick={() => setActive(index)}
-            key={`${source}-${index}`}
+            key={`${photo.src}-${index}`}
           >
             <ResilientImage
               sizeRole="thumb"
-              src={source}
+              src={photo.src}
               fallbackSrc="/images/botanical-placeholder.svg"
               alt=""
               aria-hidden="true"
@@ -75,6 +87,7 @@ export default function ProductGallery({
               loading="lazy"
               decoding="async"
             />
+            <span aria-hidden="true">{photo.caption}</span>
           </button>
         ))}
       </div>

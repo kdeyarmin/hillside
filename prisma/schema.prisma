@@ -89,6 +89,33 @@ enum CareGuideType {
   SEASONAL
 }
 
+/**
+ * How a product is being kept in stock, as the owner declares it. Deliberately
+ * separate from the counts: "none on the bench" is arithmetic, but *why* there
+ * are none — reordered, made when ordered, done for the season, retired — is
+ * something only Tammy knows, and it decides whether an empty shelf belongs on
+ * the reorder list at all.
+ */
+enum InventoryStatus {
+  STOCKED
+  ON_ORDER
+  MADE_TO_ORDER
+  SEASONAL
+  DISCONTINUED
+}
+
+/**
+ * What a tea does to you at ten at night. A required disclosure on the product
+ * page rather than a nicety, which is why it is an enum: "low caffeine" typed
+ * three different ways cannot be filtered, and a blank is not the same answer as
+ * "caffeine free".
+ */
+enum CaffeineStatus {
+  CAFFEINATED
+  DECAFFEINATED
+  CAFFEINE_FREE
+}
+
 model Product {
   id               String       @id @default(cuid())
   name             String
@@ -125,6 +152,59 @@ model Product {
   featured         Boolean      @default(false)
   sortOrder        Int          @default(0)
   galleryImages    String[]     @default([])
+
+  /**
+   * The named photographs a product page wants beside the main one. Kept as
+   * their own columns rather than as more entries in `galleryImages`, because
+   * each answers a different question a shopper actually asks — what does it
+   * look like in a room, what does the leaf detail look like, how big is it,
+   * what turns up in the box — and the customer gallery labels them by name.
+   * `galleryImages` stays what it was: extra angles with nothing particular to
+   * say.
+   */
+  lifestyleImageUrl String?
+  detailImageUrl    String?
+  scaleImageUrl     String?
+  packagingImageUrl String?
+
+  /**
+   * Restocking, as a shopkeeper thinks about it. Deliberately no cost, margin
+   * or valuation column anywhere here: this is the list Tammy works from at the
+   * potting bench, not a set of books.
+   *
+   * `reorderPoint` is measured against the product total rather than against a
+   * single size, because a reorder is placed for the product — one order of
+   * plugs, one case of jars — while `reorderQuantity` is how many of them to
+   * ask for. Both are optional: a plant she divides herself has neither.
+   */
+  supplier           String?
+  supplierItemNumber String?
+  reorderPoint       Int?
+  reorderQuantity    Int?
+  inventoryNotes     String?
+  lastRestockedAt    DateTime?
+  inventoryStatus    InventoryStatus @default(STOCKED)
+
+  /**
+   * The facts a shopper needs before buying, by kind of product. Net contents
+   * and ingredients are the two a consumable or a cosmetic may not be sold
+   * without, so they are also what the publish check looks at; the rest simply
+   * count toward how complete the listing is.
+   *
+   * `petSafe` is three-state on purpose. `null` means nobody has answered yet,
+   * which is a different thing from "no, this one is toxic" — and the pet-safe
+   * badge is a claim, so it is only made when the answer is an explicit yes.
+   */
+  netWeight           String?
+  ingredients         String?
+  brewingInstructions String?
+  caffeineStatus      CaffeineStatus?
+  potSize             String?
+  lightNeeds          String?
+  waterNeeds          String?
+  petSafe             Boolean?
+  beginnerFriendly    Boolean         @default(false)
+
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   items            OrderItem[]

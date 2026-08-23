@@ -248,6 +248,35 @@ export function productTypeLabel(type: string) {
 }
 
 /**
+ * What a tea does to you at ten at night, spelled out for the product page.
+ * "Naturally caffeine free" rather than "caffeine free" because that is the
+ * honest claim for a herbal blend that never had any, as opposed to one it has
+ * had taken out.
+ */
+export const CAFFEINE_LABELS: Record<string, string> = {
+  CAFFEINATED: 'Caffeinated',
+  DECAFFEINATED: 'Decaffeinated',
+  CAFFEINE_FREE: 'Naturally caffeine free'
+};
+
+export function caffeineLabel(value?: string | null) {
+  return CAFFEINE_LABELS[String(value || '').toUpperCase()] || null;
+}
+
+/**
+ * Pet safety as a sentence rather than a tick.
+ *
+ * `null` returns null on purpose: an unanswered question is not a "no", and a
+ * page that quietly rendered "keep away from pets" for everything nobody had got
+ * to yet would be making a claim about plants that are perfectly fine.
+ */
+export function petSafetyLabel(petSafe?: boolean | null) {
+  if (petSafe === true) return 'Safe around cats and dogs';
+  if (petSafe === false) return 'Keep out of reach of pets';
+  return null;
+}
+
+/**
  * The same labels as a plural noun, for the places that talk about a group of
  * products rather than one. Written out rather than derived: "Tea supply" does
  * not pluralise by adding an "s", and the product page's related-items heading

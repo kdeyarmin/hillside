@@ -11,7 +11,9 @@ import StockAlertForm from '@/components/StockAlertForm';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
-import { ratingsByProduct } from '@/lib/reviews';
+import { withCardFacts } from '@/lib/product-cards';
+import { productPhotos } from '@/lib/product-photos';
+import { ratingForProduct } from '@/lib/reviews';
 import { jsonLd } from '@/lib/json-ld';
 import {
   comparableAtCents,
@@ -22,12 +24,14 @@ import {
 import { pageMetadata } from '@/lib/seo';
 import {
   absoluteUrl,
+  caffeineLabel,
   discountPercent,
   flatShippingCents,
   formatMoney,
   freeShippingThresholdCents,
   HANDLING_MAX_DAYS,
   HANDLING_MIN_DAYS,
+  petSafetyLabel,
   priceValidUntil,
   productTypeLabel,
   productTypePlural,
@@ -65,6 +69,50 @@ export async function generateMetadata({
   });
 }
 
+/**
+ * The facts a shopper checks before buying, as a short list rather than buried
+ * in a paragraph: how big the pot is, how much light it wants, whether the cat
+ * can be trusted with it, how much tea is in the tin.
+ *
+ * Every row is omitted when it has no answer. A specification table with five
+ * dashes in it looks like a broken page, and worse, an empty "Pet safety" row
+ * reads as an answer.
+ */
+function ProductSpecs({
+  product
+}: {
+  product: {
+    potSize: string | null;
+    lightNeeds: string | null;
+    waterNeeds: string | null;
+    petSafe: boolean | null;
+    netWeight: string | null;
+    caffeineStatus: string | null;
+  };
+}) {
+  const rows: Array<[string, string | null]> = [
+    ['Pot size', product.potSize],
+    ['Light', product.lightNeeds],
+    ['Water', product.waterNeeds],
+    ['Pet safety', petSafetyLabel(product.petSafe)],
+    ['Net weight', product.netWeight],
+    ['Caffeine', caffeineLabel(product.caffeineStatus)]
+  ];
+  const present = rows.filter((row): row is [string, string] => Boolean(row[1]?.trim()));
+  if (!present.length) return null;
+
+  return (
+    <dl className="product-specs">
+      {present.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const product = await db.product.findFirst({
@@ -91,15 +139,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       orderBy: { createdAt: 'desc' },
       take: 20
     }),
-    ratingsByProduct([product.id]).then((map) => map.get(product.id) || { average: 0, count: 0 })
+    ratingForProduct(product.id)
   ]);
 
-  const relatedRatings = await ratingsByProduct(related.map((item) => item.id));
-  const relatedProducts = related.map((item) => ({
-    ...item,
-    averageRating: relatedRatings.get(item.id)?.average ?? null,
-    reviewCount: relatedRatings.get(item.id)?.count ?? 0
-  }));
+  const relatedProducts = await withCardFacts(related);
 
   const threshold = freeShippingThresholdCents();
   const soldOut = product.inventory <= 0;
@@ -117,9 +160,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     '@type': 'Product',
     name: product.name,
     description: product.shortDescription || product.description,
-    image: [product.imageUrl, ...product.galleryImages]
-      .filter(Boolean)
-      .map((source) => absoluteUrl(resolveImageUrl(source)))
+    image: productPhotos(product)
+      .map((photo) => absoluteUrl(resolveImageUrl(photo.src)))
       .slice(0, 6),
     sku: product.sku || undefined,
     brand: { '@type': 'Brand', name: 'The Hillside Gardens' },
@@ -248,7 +290,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               name={product.name}
               type={product.type}
               imageUrl={product.imageUrl}
-              images={product.galleryImages}
+              photos={productPhotos(product)}
             />
           </div>
           <div className="product-detail-copy">
@@ -308,6 +350,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 Local pickup only — this piece does not ship.
               </p>
             )}
+
+            <ProductSpecs product={product} />
 
             <div className="product-detail-notes">
               {product.careNotes && (
@@ -372,11 +416,26 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </div>
         </div>
 
-        {product.details && (
+        {(product.details || product.ingredients || product.brewingInstructions) && (
           <div className="product-details-section narrow prose">
             <div className="eyebrow">Product details</div>
             <h2>About this item</h2>
-            <p style={{ whiteSpace: 'pre-line' }}>{product.details}</p>
+            {product.details && <p style={{ whiteSpace: 'pre-line' }}>{product.details}</p>}
+            {/* Ingredients get their own heading rather than being folded into the
+                paragraph above. On a tea or a soap this is the one thing somebody
+                with an allergy came to the page to find. */}
+            {product.ingredients && (
+              <>
+                <h3>Ingredients</h3>
+                <p style={{ whiteSpace: 'pre-line' }}>{product.ingredients}</p>
+              </>
+            )}
+            {product.brewingInstructions && (
+              <>
+                <h3>How to brew it</h3>
+                <p style={{ whiteSpace: 'pre-line' }}>{product.brewingInstructions}</p>
+              </>
+            )}
           </div>
         )}
 
@@ -453,6 +512,10 @@ function RetiredProduct({
     shortDescription: string | null;
     description: string;
     imageUrl: string | null;
+    lifestyleImageUrl: string | null;
+    detailImageUrl: string | null;
+    scaleImageUrl: string | null;
+    packagingImageUrl: string | null;
     galleryImages: string[];
     careSheets: Array<{ id: string; slug: string; plantName: string; summary: string }>;
   };
@@ -472,7 +535,7 @@ function RetiredProduct({
               name={product.name}
               type={product.type}
               imageUrl={product.imageUrl}
-              images={product.galleryImages}
+              photos={productPhotos(product)}
             />
           </div>
           <div className="product-detail-copy">

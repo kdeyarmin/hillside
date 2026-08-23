@@ -1,13 +1,26 @@
 import crypto from 'crypto';
 import path from 'path';
 import { mkdir, writeFile } from 'fs/promises';
+import {
+  clampWidth,
+  isValidMediaFilename,
+  masterFilename,
+  variantFilename,
+  type MediaExtension
+} from './media-variants.ts';
 
+/**
+ * AVIF is here because phones have started producing it, not because we ask for
+ * it: a photo taken on a recent Android and picked out of the gallery arrives as
+ * AVIF, and rejecting it read to Tammy as "the upload is broken".
+ */
 const allowedTypes = {
-  'image/jpeg': '.jpg',
-  'image/png': '.png',
-  'image/webp': '.webp',
-  'image/gif': '.gif'
-} as const;
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/avif': 'avif'
+} as const satisfies Record<string, MediaExtension>;
 
 export type AllowedImageType = keyof typeof allowedTypes;
 
@@ -47,7 +60,7 @@ export function uploadDirectory() {
 }
 
 export function validMediaFilename(filename: string) {
-  return /^[0-9a-f-]{36}\.(?:jpg|png|webp|gif)$/.test(filename);
+  return isValidMediaFilename(filename);
 }
 
 export function mediaPath(filename: string) {
@@ -60,6 +73,7 @@ export function mediaContentType(filename: string) {
   if (filename.endsWith('.png')) return 'image/png';
   if (filename.endsWith('.webp')) return 'image/webp';
   if (filename.endsWith('.gif')) return 'image/gif';
+  if (filename.endsWith('.avif')) return 'image/avif';
   return 'application/octet-stream';
 }
 
@@ -91,6 +105,17 @@ function hasValidSignature(bytes: Buffer, type: AllowedImageType) {
     const signature = bytes.subarray(0, 6).toString('ascii');
     return signature === 'GIF87a' || signature === 'GIF89a';
   }
+  if (type === 'image/avif') {
+    /**
+     * ISO base media format: a length, then `ftyp`, then the brand. Both the
+     * still (`avif`) and the sequence (`avis`) brand are accepted — a browser
+     * that decodes one decodes the other, and refusing a file for its brand
+     * would look like the upload failing at random.
+     */
+    if (bytes.length < 12 || bytes.subarray(4, 8).toString('ascii') !== 'ftyp') return false;
+    const brand = bytes.subarray(8, 12).toString('ascii');
+    return brand === 'avif' || brand === 'avis';
+  }
   return false;
 }
 
@@ -104,8 +129,13 @@ export function detectImageType(bytes: Buffer): AllowedImageType | null {
   return types.find((type) => hasValidSignature(bytes, type)) || null;
 }
 
-export async function saveUploadedImage(file: File) {
-  const maxBytes = Math.max(1, Number(process.env.UPLOAD_MAX_BYTES || 8 * 1024 * 1024));
+function uploadMaxBytes() {
+  return Math.max(1, Number(process.env.UPLOAD_MAX_BYTES || 8 * 1024 * 1024));
+}
+
+/** Reads one uploaded part, refusing anything that is not really an image. */
+async function readImage(file: File) {
+  const maxBytes = uploadMaxBytes();
   if (file.size <= 0) throw new UploadValidationError('The selected file is empty.');
   if (file.size > maxBytes) {
     throw new UploadValidationError(
@@ -116,12 +146,62 @@ export async function saveUploadedImage(file: File) {
   const bytes = Buffer.from(await file.arrayBuffer());
   const type = detectImageType(bytes);
   if (!type) {
-    throw new UploadValidationError('Use a JPEG, PNG, WebP or GIF image.');
+    throw new UploadValidationError('Use a JPEG, PNG, WebP, AVIF or GIF image.');
   }
+  return { bytes, type };
+}
 
-  const filename = `${crypto.randomUUID()}${allowedTypes[type]}`;
+/** A smaller copy of the same photograph, prepared by the browser. */
+export type UploadVariant = { width: number; file: File };
+
+/**
+ * Stores an uploaded photograph, along with any smaller copies the browser sent
+ * with it, and returns the URL to save on the product.
+ *
+ * The variants are written *before* the master, and a failure among them drops
+ * the whole ladder rather than failing the upload: the master's name is what
+ * advertises which variants exist, so a marked name beside a missing file would
+ * be a broken `srcset` on a live product page. One photograph at one size is a
+ * far better outcome than that.
+ */
+export async function saveUploadedImage(
+  file: File,
+  { width, variants = [] }: { width?: number | null; variants?: UploadVariant[] } = {}
+) {
+  const { bytes, type } = await readImage(file);
+  const extension = allowedTypes[type];
+  const stem = crypto.randomUUID();
   const directory = uploadDirectory();
   await mkdir(directory, { recursive: true });
+
+  const masterWidth = clampWidth(width);
+  let widths: number[] = [];
+
+  if (masterWidth && variants.length) {
+    try {
+      const written: number[] = [];
+      for (const variant of variants) {
+        const variantWidth = clampWidth(variant.width);
+        // A "variant" at or above the master is not a variant, and letting one
+        // through would put a wider candidate in the srcset than the file behind
+        // it actually is.
+        if (!variantWidth || variantWidth >= masterWidth) continue;
+        const { bytes: variantBytes } = await readImage(variant.file);
+        await writeFile(
+          path.join(directory, variantFilename(stem, extension, variantWidth)),
+          variantBytes,
+          { flag: 'wx', mode: 0o644 }
+        );
+        written.push(variantWidth);
+      }
+      if (written.length) widths = [...written, masterWidth].sort((a, b) => a - b);
+    } catch (error) {
+      console.error('Upload variants could not be written; storing one size only', error);
+      widths = [];
+    }
+  }
+
+  const filename = masterFilename(stem, extension, widths);
   await writeFile(path.join(directory, filename), bytes, { flag: 'wx', mode: 0o644 });
   return `/media/${filename}`;
 }

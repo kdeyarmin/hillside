@@ -3,7 +3,7 @@ import { ExternalLink, ShieldCheck } from 'lucide-react';
 import ProductGrid from '@/components/ProductGrid';
 import ResilientImage from '@/components/ResilientImage';
 import { db } from '@/lib/db';
-import { ratingsByProduct } from '@/lib/reviews';
+import { withCardFacts } from '@/lib/product-cards';
 import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
@@ -27,12 +27,7 @@ export default async function AmazonPage() {
     })
   ]);
 
-  const ratings = await ratingsByProduct(ourProducts.map((product) => product.id));
-  const shopProducts = ourProducts.map((product) => ({
-    ...product,
-    averageRating: ratings.get(product.id)?.average ?? null,
-    reviewCount: ratings.get(product.id)?.count ?? 0
-  }));
+  const shopProducts = await withCardFacts(ourProducts);
 
   return (
     <>

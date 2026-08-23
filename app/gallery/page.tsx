@@ -4,7 +4,7 @@ import ProductGrid from '@/components/ProductGrid';
 import { pointsAtHiddenClasses } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
-import { ratingsByProduct } from '@/lib/reviews';
+import { withCardFacts } from '@/lib/product-cards';
 import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
@@ -25,12 +25,7 @@ export default async function Gallery() {
     })
   ]);
 
-  const ratings = await ratingsByProduct(featured.map((product) => product.id));
-  const shopProducts = featured.map((product) => ({
-    ...product,
-    averageRating: ratings.get(product.id)?.average ?? null,
-    reviewCount: ratings.get(product.id)?.count ?? 0
-  }));
+  const shopProducts = await withCardFacts(featured);
 
   return (
     <>

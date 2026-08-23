@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import {
+  InventoryStatus,
   MessageStatus,
   OrderStatus,
   ProductType,
@@ -7,25 +8,53 @@ import {
   ReviewStatus
 } from '@prisma/client';
 import AdminDeepLink from '@/components/AdminDeepLink';
+import ProductFacts from '@/components/ProductFacts';
+import ProductPhotoManager from '@/components/ProductPhotoManager';
 import {
   ADMIN_ERRORS,
   ADMIN_NOTICES,
+  ADMIN_STOCK_FILTERS,
   adminDashboardPath,
+  adminStockFilterCounts,
   firstSearchParam,
+  inventoryAttention,
   parseAdminStockFilter,
-  productIsLowStock,
   productMatchesAdminFilter,
   productNeedsPhoto
 } from '@/lib/admin-dashboard';
 import { db } from '@/lib/db';
 import { currentAdmin } from '@/lib/admin';
+import {
+  INVENTORY_STATUS_HINTS,
+  INVENTORY_STATUS_LABELS,
+  inventorySignals,
+  inventoryStatusLabel,
+  inventoryStatusValue,
+  reorderSuggestion,
+  restockDateValue,
+  restockedLabel
+} from '@/lib/inventory';
 import { REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
-import { sizedName, sizeLines, sizeStockSummary } from '@/lib/product-sizes';
-import { formatMoney, productTypeLabel } from '@/lib/store';
+import {
+  productCompleteness,
+  publishedIncomplete,
+  PUBLISH_STATE_LABELS,
+  type Completeness
+} from '@/lib/product-completeness';
+import { realPhotoCount } from '@/lib/product-photos';
+import {
+  readStoredSizes,
+  sizedName,
+  sizeLines,
+  sizeStockSummary,
+  storedSizesTrackStock
+} from '@/lib/product-sizes';
+import { formatMoney } from '@/lib/store';
 import { orderStatusBadge } from '@/lib/tracking';
 import {
   loginAdmin,
   logoutAdmin,
+  receiveStock,
   resendClassConfirmation,
   resendOrderConfirmation,
   resendPickupReady,
@@ -61,37 +90,59 @@ function SizeStockNote({ sizes }: { sizes: unknown }) {
   return summary ? <> ({summary})</> : null;
 }
 
+type EditableProduct = {
+  id: string;
+  name: string;
+  slug: string;
+  sku: string | null;
+  shortDescription: string | null;
+  description: string;
+  details: string | null;
+  careNotes: string | null;
+  shippingNote: string | null;
+  ships?: boolean;
+  pickup?: boolean;
+  type: ProductType;
+  priceCents: number;
+  compareAtCents: number | null;
+  inventory: number;
+  imageUrl: string | null;
+  lifestyleImageUrl: string | null;
+  detailImageUrl: string | null;
+  scaleImageUrl: string | null;
+  packagingImageUrl: string | null;
+  badge: string | null;
+  active: boolean;
+  featured: boolean;
+  beginnerFriendly: boolean;
+  sortOrder: number;
+  galleryImages: string[];
+  sizes: unknown;
+  sizeLabel: string | null;
+  supplier: string | null;
+  supplierItemNumber: string | null;
+  reorderPoint: number | null;
+  reorderQuantity: number | null;
+  inventoryNotes: string | null;
+  inventoryStatus: InventoryStatus;
+  lastRestockedAt: Date | null;
+  netWeight: string | null;
+  ingredients: string | null;
+  brewingInstructions: string | null;
+  caffeineStatus: string | null;
+  potSize: string | null;
+  lightNeeds: string | null;
+  waterNeeds: string | null;
+  petSafe: boolean | null;
+  collections?: Array<{ id: string }>;
+};
+
 function ProductFields({
   product,
   collections
 }: {
   collections: Array<{ id: string; title: string }>;
-  product?: {
-    id: string;
-    name: string;
-    slug: string;
-    sku: string | null;
-    shortDescription: string | null;
-    description: string;
-    details: string | null;
-    careNotes: string | null;
-    shippingNote: string | null;
-    ships?: boolean;
-    pickup?: boolean;
-    type: ProductType;
-    priceCents: number;
-    compareAtCents: number | null;
-    inventory: number;
-    imageUrl: string | null;
-    badge: string | null;
-    active: boolean;
-    featured: boolean;
-    sortOrder: number;
-    galleryImages: string[];
-    sizes: unknown;
-    sizeLabel: string | null;
-    collections?: Array<{ id: string }>;
-  };
+  product?: EditableProduct;
 }) {
   const assigned = new Set((product?.collections || []).map((collection) => collection.id));
   const sizeStock = sizeStockSummary(product?.sizes);
@@ -117,20 +168,22 @@ function ProductFields({
           SKU / item number
           <input className="admin-input" name="sku" defaultValue={product?.sku || ''} />
         </label>
-        <label className="admin-label">
-          Category
-          <select
-            className="admin-input"
-            name="type"
-            defaultValue={product?.type || ProductType.PLANT}
-          >
-            {Object.values(ProductType).map((type) => (
-              <option value={type} key={type}>
-                {productTypeLabel(type)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <ProductFacts
+          productTypes={Object.values(ProductType)}
+          values={
+            product && {
+              type: product.type,
+              potSize: product.potSize,
+              lightNeeds: product.lightNeeds,
+              waterNeeds: product.waterNeeds,
+              petSafe: product.petSafe,
+              netWeight: product.netWeight,
+              ingredients: product.ingredients,
+              brewingInstructions: product.brewingInstructions,
+              caffeineStatus: product.caffeineStatus
+            }
+          }
+        />
         <label className="admin-label">
           Price
           <input
@@ -189,15 +242,6 @@ function ProductFields({
             name="badge"
             defaultValue={product?.badge || ''}
             placeholder="Our pick"
-          />
-        </label>
-        <label className="admin-label">
-          Photo URL
-          <input
-            className="admin-input"
-            name="imageUrl"
-            type="text"
-            defaultValue={product?.imageUrl || ''}
           />
         </label>
         <label className="admin-label full">
@@ -271,17 +315,117 @@ function ProductFields({
             none left.
           </span>
         </label>
-        <label className="admin-label full">
-          Extra photo URLs (one per line)
-          <textarea
-            className="admin-input"
-            name="galleryImages"
-            rows={3}
-            defaultValue={(product?.galleryImages || []).join('\n')}
-            placeholder={'/media/second-angle.jpg\n/media/detail.jpg'}
-          />
-        </label>
       </div>
+
+      <fieldset className="admin-subform">
+        <legend>Restocking</legend>
+        <p className="admin-hint">
+          Who it comes from and when to order more. Nothing here is shown to customers, and nothing
+          here is about money — this is the list you work from at the bench.
+        </p>
+        <div className="admin-form-grid">
+          <label className="admin-label">
+            Supplier or vendor
+            <input
+              className="admin-input"
+              name="supplier"
+              defaultValue={product?.supplier || ''}
+              placeholder="Ebensburg Growers"
+            />
+          </label>
+          <label className="admin-label">
+            Their item number
+            <input
+              className="admin-input"
+              name="supplierItemNumber"
+              defaultValue={product?.supplierItemNumber || ''}
+              placeholder="As it reads on their packing slip"
+            />
+          </label>
+          <label className="admin-label">
+            Reorder point
+            <input
+              className="admin-input"
+              name="reorderPoint"
+              type="number"
+              min="0"
+              defaultValue={product?.reorderPoint ?? ''}
+              placeholder="Leave empty if you never reorder this"
+            />
+            <span className="admin-hint">
+              When the quantity on hand drops to this, it appears under Needs reorder.
+            </span>
+          </label>
+          <label className="admin-label">
+            Reorder quantity
+            <input
+              className="admin-input"
+              name="reorderQuantity"
+              type="number"
+              min="0"
+              defaultValue={product?.reorderQuantity ?? ''}
+              placeholder="How many to order at a time"
+            />
+          </label>
+          <label className="admin-label">
+            Inventory status
+            <select
+              className="admin-input"
+              name="inventoryStatus"
+              defaultValue={product?.inventoryStatus || InventoryStatus.STOCKED}
+            >
+              {Object.values(InventoryStatus).map((status) => (
+                <option value={status} key={status}>
+                  {INVENTORY_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </select>
+            <span className="admin-hint">
+              {INVENTORY_STATUS_HINTS[inventoryStatusValue(product?.inventoryStatus)]}
+            </span>
+          </label>
+          <label className="admin-label">
+            Last restocked
+            <input
+              className="admin-input"
+              name="lastRestockedAt"
+              type="date"
+              defaultValue={restockDateValue(product?.lastRestockedAt)}
+            />
+            <span className="admin-hint">
+              Fills itself in whenever you raise the quantity on hand. Change it here if the box
+              actually arrived on another day.
+            </span>
+          </label>
+          <label className="admin-label full">
+            Private inventory notes
+            <textarea
+              className="admin-input"
+              name="inventoryNotes"
+              rows={2}
+              defaultValue={product?.inventoryNotes || ''}
+              placeholder="Two trays under the bench. Order by the flat of 18."
+            />
+          </label>
+        </div>
+      </fieldset>
+
+      {/* Named fields rather than the whole row: everything handed to a client
+          component is serialized into the payload twice over, and the photo
+          editor has no use for the size list or the supplier. */}
+      <ProductPhotoManager
+        product={
+          product && {
+            imageUrl: product.imageUrl,
+            lifestyleImageUrl: product.lifestyleImageUrl,
+            detailImageUrl: product.detailImageUrl,
+            scaleImageUrl: product.scaleImageUrl,
+            packagingImageUrl: product.packagingImageUrl,
+            galleryImages: product.galleryImages
+          }
+        }
+      />
+
       {collections.length > 0 && (
         <fieldset className="admin-collection-picker">
           <legend>Collections this product belongs to</legend>
@@ -314,8 +458,84 @@ function ProductFields({
           <input name="pickup" type="checkbox" defaultChecked={product?.pickup ?? true} /> Local
           pickup
         </label>
+        <label className="admin-checkbox">
+          <input
+            name="beginnerFriendly"
+            type="checkbox"
+            defaultChecked={product?.beginnerFriendly ?? false}
+          />{' '}
+          Beginner friendly
+        </label>
       </div>
     </>
+  );
+}
+
+/**
+ * How finished a listing is, and exactly what is missing from it.
+ *
+ * A percentage on its own is a scold. The list underneath is the part that gets
+ * used, so it names the fields rather than the checks, and the two facts a
+ * regulated good may not be sold without are called out as such — everything
+ * else here is advice she is free to ignore.
+ */
+function CompletenessPanel({
+  completeness,
+  active
+}: {
+  completeness: Completeness;
+  active: boolean;
+}) {
+  const { score, missing, blockers, state } = completeness;
+  const tone = score === 100 ? 'good' : score >= 70 ? 'fair' : 'poor';
+
+  return (
+    <div className="completeness">
+      <div className="completeness-head">
+        <b>Product completeness: {score}%</b>
+        <span
+          className={`status-badge ${state === 'published' ? 'PAID' : state === 'ready' ? 'NEW' : 'CANCELLED'}`}
+        >
+          {PUBLISH_STATE_LABELS[state]}
+        </span>
+      </div>
+      <div
+        className={`completeness-bar ${tone}`}
+        role="img"
+        aria-label={`${score}% of the information this product needs has been filled in`}
+      >
+        <span style={{ width: `${score}%` }} />
+      </div>
+      {missing.length === 0 ? (
+        <p className="admin-hint">Everything this kind of product needs is filled in.</p>
+      ) : (
+        <>
+          <p className="admin-hint">
+            {active
+              ? 'This is live in the shop and still missing:'
+              : 'Still to fill in before this is ready to publish:'}
+          </p>
+          <ul className="completeness-missing">
+            {missing.map((entry) => (
+              <li
+                key={entry.key}
+                className={entry.blocking ? 'blocking' : entry.required ? '' : 'optional'}
+              >
+                {entry.hint}
+                {entry.blocking && <b> — required before it can be sold</b>}
+                {!entry.required && <span className="muted"> — optional</span>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {blockers.length > 0 && (
+        <p className="admin-hint">
+          A tea, soap or lotion cannot be listed for sale until its net weight and ingredients are
+          filled in. Everything else saves normally and stays a draft.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -474,23 +694,35 @@ export default async function Admin({
     ).map((item) => `${item.productId}:${item.order.email.toLowerCase()}`)
   );
 
-  const lowStock = products.filter(productIsLowStock).length;
+  /**
+   * One clock for the whole render. `recentlyRestocked` and the chip counts are
+   * asked hundreds of times below, and a `new Date()` inside each of them would
+   * let a row and the chip that put it there disagree across a midnight tick.
+   */
+  const now = new Date();
+  /**
+   * Counted over the whole catalog rather than the filtered view, because these
+   * are counts of work outstanding. A number that shrank as she typed into the
+   * search box would be answering a different question.
+   */
+  const filterCounts = adminStockFilterCounts(products, now);
+  const attention = inventoryAttention(products, now);
+  const lowStock = filterCounts.get('low') || 0;
   const openOrders = orders.filter((order) =>
     isAwaitingShipment(order.status, order.fulfilledAt)
   ).length;
   const unreadMessages = messages.filter((message) => message.status === MessageStatus.NEW).length;
   const activeSubscribers = subscribers.filter((subscriber) => subscriber.active).length;
   const pendingReviews = reviews.filter((review) => review.status === ReviewStatus.PENDING).length;
-  const missingPhotos = products.filter(
-    (product) => product.active && productNeedsPhoto(product.imageUrl)
-  ).length;
+  const missingPhotos = filterCounts.get('photo') || 0;
+  const needsReorder = filterCounts.get('reorder') || 0;
   const undeliveredEmails = orders.filter((order) => Boolean(order.confirmationEmailError)).length;
   const activeCount = products.filter((product) => product.active).length;
   const archivedCount = products.length - activeCount;
   const stockFilter = parseAdminStockFilter(firstSearchParam(params.stock));
   const productQuery = firstSearchParam(params.q);
   const visibleProducts = products.filter((product) =>
-    productMatchesAdminFilter(product, productQuery, stockFilter)
+    productMatchesAdminFilter(product, productQuery, stockFilter, now)
   );
   const archivedProducts = products.filter((product) => !product.active);
   const notice = ADMIN_NOTICES[firstSearchParam(params.notice)];
@@ -517,6 +749,7 @@ export default async function Admin({
         <img src="/logo.webp" alt="The Hillside Gardens" />
         <b>Owner Business Center</b>
         <a href="#overview">Overview</a>
+        <a href="#attention">Needs attention</a>
         <a href="#orders">Orders & shipping</a>
         <a href="#inventory">Inventory & products</a>
         <a href="#add-product">Add a product</a>
@@ -594,6 +827,10 @@ export default async function Admin({
             <strong>{lowStock}</strong>
           </div>
           <div className="stat">
+            <span>Needs reorder</span>
+            <strong>{needsReorder}</strong>
+          </div>
+          <div className="stat">
             <span>New messages</span>
             <strong>{unreadMessages}</strong>
           </div>
@@ -614,6 +851,31 @@ export default async function Admin({
             <strong>{stockAlerts.length}</strong>
           </div>
         </div>
+
+        {/* The morning list. Everything here is a job with a chip behind it, so
+            a number is one click from the products it counts. Nothing at zero is
+            shown — a panel of reassuring noughts is a panel nobody reads. */}
+        <section className="admin-card attention" id="attention">
+          <h2>Needs attention</h2>
+          {attention.length ? (
+            <ul className="attention-list">
+              {attention.map((item) => (
+                <li key={item.key}>
+                  <Link href={item.href}>
+                    <b>{item.count}</b>
+                    <span>{item.detail}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">
+              {products.length
+                ? 'Nothing needs attention. Every listed product has stock, a photograph and the information its category needs.'
+                : 'No products yet. Add the first one below and this list will keep track of what each one still needs.'}
+            </p>
+          )}
+        </section>
 
         {notice && (
           <div className="admin-card admin-notice" role="status">
@@ -937,15 +1199,7 @@ export default async function Admin({
           </form>
 
           <div className="filter-row" aria-label="Inventory filters">
-            {(
-              [
-                ['all', 'Everything', products.length],
-                ['active', 'In the shop', activeCount],
-                ['archived', 'Archived', archivedCount],
-                ['low', 'Low stock', lowStock],
-                ['photo', 'Needs a photo', missingPhotos]
-              ] as const
-            ).map(([key, label, count]) => (
+            {ADMIN_STOCK_FILTERS.map(({ key, label }) => (
               <Link
                 key={key}
                 className={`filter-chip${stockFilter === key ? ' active' : ''}`}
@@ -954,8 +1208,9 @@ export default async function Admin({
                   stock: key === 'all' ? undefined : key,
                   section: 'inventory'
                 })}
+                aria-current={stockFilter === key ? 'true' : undefined}
               >
-                {label} ({count})
+                {label} ({filterCounts.get(key) || 0})
               </Link>
             ))}
           </div>
@@ -992,7 +1247,8 @@ export default async function Admin({
             <h2 style={{ marginTop: 0 }}>Add a product</h2>
             <p className="muted">
               Uncheck “Active in shop” to save a draft. Leave it checked to list the piece as soon
-              as you create it.
+              as you create it. A half-finished draft always saves — the only thing that will not go
+              on sale is a tea, soap or lotion with no net weight and no ingredient list.
             </p>
             <form action={saveProduct}>
               <ProductFields collections={collections} />
@@ -1002,54 +1258,126 @@ export default async function Admin({
             </form>
           </div>
 
-          <div className="admin-list" style={{ marginTop: 24 }}>
+          <div className="admin-list inventory-list" style={{ marginTop: 24 }}>
             {visibleProducts.length ? (
-              visibleProducts.map((product) => (
-                <details
-                  open={product.slug === focusProduct}
-                  id={`product-${product.slug}`}
-                  key={product.id}
-                >
-                  <summary>
-                    <span>
-                      {product.name} • {formatMoney(product.priceCents)} • {product.inventory} in
-                      stock
-                      <SizeStockNote sizes={product.sizes} />
-                      {productNeedsPhoto(product.imageUrl) && (
-                        <>
-                          {' '}
-                          • <b className="needs-photo">needs a photo</b>
-                        </>
-                      )}
-                    </span>
-                    <span className={`status-badge ${product.active ? 'PAID' : 'CANCELLED'}`}>
-                      {product.active ? 'Active' : 'Archived'}
-                    </span>
-                  </summary>
-                  <div>
-                    <form action={saveProduct}>
-                      <ProductFields product={product} collections={collections} />
-                      <div className="admin-actions">
-                        <button className="btn small">Save product</button>
-                        <Link className="btn outline small" href={`/shop/${product.slug}`}>
-                          View product
-                        </Link>
-                      </div>
-                    </form>
-                    <form action={setProductActive} style={{ marginTop: 10 }}>
-                      <input type="hidden" name="id" value={product.id} />
-                      <input
-                        type="hidden"
-                        name="active"
-                        value={product.active ? 'false' : 'true'}
-                      />
-                      <button className={`text-button${product.active ? ' danger' : ''}`}>
-                        {product.active ? 'Archive from shop' : 'Put back in shop'}
-                      </button>
-                    </form>
-                  </div>
-                </details>
-              ))
+              visibleProducts.map((product) => {
+                const signals = inventorySignals(product, now);
+                const completeness = productCompleteness(product);
+                const sizeStocked = storedSizesTrackStock(readStoredSizes(product.sizes));
+                return (
+                  <details
+                    open={product.slug === focusProduct}
+                    id={`product-${product.slug}`}
+                    key={product.id}
+                  >
+                    <summary>
+                      <span className="inventory-summary">
+                        <b>{product.name}</b>
+                        <span className="inventory-line">
+                          {formatMoney(product.priceCents)} · {product.inventory} in stock
+                          <SizeStockNote sizes={product.sizes} /> ·{' '}
+                          {realPhotoCount(product) === 1
+                            ? '1 photo'
+                            : `${realPhotoCount(product)} photos`}{' '}
+                          · {completeness.score}% complete
+                        </span>
+                        <span className="inventory-flags">
+                          {signals.outOfStock && <span className="flag out">Out of stock</span>}
+                          {!signals.outOfStock && signals.lowStock && (
+                            <span className="flag low">Low stock</span>
+                          )}
+                          {signals.needsReorder && <span className="flag reorder">Reorder</span>}
+                          {productNeedsPhoto(product.imageUrl) && (
+                            <span className="flag photo">Needs a photo</span>
+                          )}
+                          {signals.missingSku && <span className="flag">No SKU</span>}
+                          {signals.missingSupplier && <span className="flag">No supplier</span>}
+                          {publishedIncomplete(completeness) && (
+                            <span className="flag incomplete">Incomplete</span>
+                          )}
+                          {signals.recentlyRestocked && (
+                            <span className="flag fresh">{restockedLabel(product, now)}</span>
+                          )}
+                          {inventoryStatusValue(product.inventoryStatus) !== 'STOCKED' && (
+                            <span className="flag">
+                              {inventoryStatusLabel(product.inventoryStatus)}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                      <span className={`status-badge ${product.active ? 'PAID' : 'CANCELLED'}`}>
+                        {product.active ? 'Active' : 'Archived'}
+                      </span>
+                    </summary>
+                    <div>
+                      <CompletenessPanel completeness={completeness} active={product.active} />
+
+                      {/* The single most repeated thing on this page: a box
+                          arrived, add it to the shelf. Typing what turned up
+                          beats reading the current number and typing the sum. */}
+                      <form className="restock-form" action={receiveStock}>
+                        <input type="hidden" name="id" value={product.id} />
+                        <label className="admin-label">
+                          Received a delivery
+                          <input
+                            className="admin-input"
+                            name="quantity"
+                            type="number"
+                            min="1"
+                            placeholder="How many arrived"
+                          />
+                        </label>
+                        {sizeStocked && (
+                          <label className="admin-label">
+                            Which size
+                            <select className="admin-input" name="size">
+                              {readStoredSizes(product.sizes).map((size) => (
+                                <option value={size.label} key={size.label}>
+                                  {size.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                        <button className="btn small">Add to stock</button>
+                        {signals.needsReorder && (
+                          <span className="admin-hint">
+                            At or below the reorder point of {product.reorderPoint}.{' '}
+                            {reorderSuggestion(product)
+                              ? `Suggested order: ${reorderSuggestion(product)}.`
+                              : ''}
+                            {product.supplier ? ` From ${product.supplier}.` : ''}
+                            {product.supplierItemNumber
+                              ? ` Their #${product.supplierItemNumber}.`
+                              : ''}
+                          </span>
+                        )}
+                      </form>
+
+                      <form action={saveProduct}>
+                        <ProductFields product={product} collections={collections} />
+                        <div className="admin-actions">
+                          <button className="btn small">Save product</button>
+                          <Link className="btn outline small" href={`/shop/${product.slug}`}>
+                            View product
+                          </Link>
+                        </div>
+                      </form>
+                      <form action={setProductActive} style={{ marginTop: 10 }}>
+                        <input type="hidden" name="id" value={product.id} />
+                        <input
+                          type="hidden"
+                          name="active"
+                          value={product.active ? 'false' : 'true'}
+                        />
+                        <button className={`text-button${product.active ? ' danger' : ''}`}>
+                          {product.active ? 'Archive from shop' : 'Put back in shop'}
+                        </button>
+                      </form>
+                    </div>
+                  </details>
+                );
+              })
             ) : (
               <div className="admin-card">
                 <p>

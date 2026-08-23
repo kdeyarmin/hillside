@@ -18,8 +18,10 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Owner-managed collections with their own pages, assigned from the dashboard
 - Site-wide search across products and care guides
 - Searchable and filterable live product catalog, with sale and new-arrival sorting
-- Individual SEO-ready product pages with live inventory, multiple photographs and customer reviews
+- Individual SEO-ready product pages with live inventory, a named photograph gallery and customer reviews
+- Product cards that carry a price or price range, sale, new, best-seller and low-stock signals, pet-safe and beginner-friendly claims, and which sizes are still available
 - A size dropdown on products sold in more than one size, with an optional price and quantity on hand for each size
+- At-a-glance product facts by category — pot size, light, water and pet safety on a plant; net weight, ingredients, brewing and caffeine on a tea
 - Back-in-stock email alerts on sold-out products
 - Persistent shopping cart and secure Stripe Checkout
 - Optional gift message at checkout, printed on the packing slip
@@ -48,6 +50,11 @@ The dashboard at `/admin` includes:
 - Shipping-address, full-order and newsletter-subscriber CSV exports
 - Product creation and editing, price, sale price, SKU, inventory, badges and featured products
 - Per-product size choices, typed one per line, with a price and a quantity on hand on any size that needs its own
+- A **Needs attention** panel that counts what is actually outstanding and links each number to the products behind it
+- Inventory filters for out of stock, low stock, needs reorder, no reorder point, missing SKU, missing supplier, missing photograph, inactive, incomplete and recently restocked
+- Supplier, their item number, reorder point, reorder quantity, inventory status, private inventory notes and a last-restocked date that fills itself in
+- A one-field **Received a delivery** form on every product, per size where sizes are counted separately
+- Per-product completeness scoring against what that category of product needs, and a draft / ready to publish / published state
 - Low-stock visibility and product archiving
 - Paid and free class registrations and seat counts
 - Customer website inbox
@@ -55,7 +62,8 @@ The dashboard at `/admin` includes:
 - Customer review moderation with optional public replies
 - Restock request list, emailed automatically when stock returns
 - Collection management and per-product collection assignment
-- Visibility of products still missing their own photograph
+- A photography editor with drag-and-drop, mobile upload, named photo slots, reordering, primary selection and previews
+- Visibility of products still missing their own photograph, and of products still showing shared category artwork
 - Order confirmation email delivery status
 - Admin account management at `/admin/accounts` — add an admin, change a password, revoke access
 - A separate content manager at `/admin/content` for classes, gallery items and Amazon picks — a pick is added by pasting the item’s Amazon link and nothing else
@@ -225,6 +233,60 @@ What the shop then does:
   to the product's total, because a total larger than the sizes add up to would
   advertise stock no option on the page can sell.
 
+## Inventory, completeness and photography
+
+Three related things the dashboard does with a product, none of which involve
+money: cost, margin and inventory valuation are deliberately absent, because this
+is the list Tammy works from at the potting bench rather than a set of books.
+
+### Restocking
+
+Each product carries an optional supplier, that supplier's own item number, a
+reorder point, a reorder quantity, an inventory status, private inventory notes
+and a last-restocked date. The date fills itself in whenever the quantity on hand
+goes up, and can be corrected by hand when the box actually arrived on another
+day. **Received a delivery** on each product row adds what turned up — per size,
+where the sizes are counted separately — rather than asking for the new total.
+
+The inventory status says _why_ a shelf is empty, which decides whether it is a
+job at all: `On order` takes a product off the reorder list until it lands,
+`Made to order` never has a count to run down, and `Seasonal` and `Discontinued`
+are not being reordered now. A reorder point is measured against the product
+total, because a reorder is placed for the product; low stock is still measured
+per size, because that is where potting-up happens.
+
+The chips above the inventory list — out of stock, low stock, needs reorder, no
+reorder point, missing SKU, missing supplier, missing photograph, inactive,
+incomplete, recently restocked — are counted over the whole catalog rather than
+the filtered view, so a number does not move while she types in the search box.
+**Needs attention** at the top of the dashboard is a shorter list of the same
+counts, in sentences, each linking to the chip that shows those products.
+
+### Completeness
+
+`lib/product-completeness.ts` checks each product against what _its category_
+needs: a plant is asked for pot size, light, water and pet safety; a tea for net
+weight, ingredients, brewing instructions and caffeine status. The result is a
+percentage, a named list of what is missing, and one of three states — **Draft**
+while something required is missing, **Ready to publish** once it is not, and
+**Published** once it is live.
+
+None of this blocks a save. An unfinished draft is how the work gets done, and
+being refused at the save button is how the work stops. The single exception is a
+regulated consumer good: a tea, soap or lotion with no net contents and no
+ingredient list saves in full but stays a draft, with the reason on screen, and
+the same refusal applies to the one-click **Put back in shop**.
+
+### Photography
+
+Every product has a named slot for its main, lifestyle, detail, scale and
+packaging photographs, plus a reorderable strip of additional ones — each named
+view is labelled for customers in the product gallery, because "Size" and
+"Packaging" are the thumbnails a shopper is hunting for and "photograph 4 of 6"
+makes them hunt. `lib/product-photos.ts` is the one place that decides what
+counts as shared category artwork rather than a real photograph, and both the
+storefront visual and the dashboard's chip ask it.
+
 ## Why the database-backed pages are `force-dynamic`
 
 Every page that reads the database declares `export const dynamic = 'force-dynamic'`.
@@ -254,8 +316,16 @@ each master in `public/images/`, re-encodes the brand marks, and rewrites the
 adding or replacing photography, and commit the output.
 
 `ResilientImage` resolves `srcSet` and `sizes` from its own `src`, so call sites
-only choose a `sizeRole` (`hero`, `card`, `tile`, `detail`, `thumb`). Owner-uploaded
-photographs served from `/media/` have no variants and fall back to a plain `src`.
+only choose a `sizeRole` (`hero`, `card`, `tile`, `detail`, `thumb`).
+
+Owner-uploaded photographs cannot be processed at build time, because they arrive
+from Tammy's phone at request time. They are resized in the browser instead — up
+to 1600px on the long edge, re-encoded as WebP, with 400/800/1200 copies uploaded
+alongside — and the stored filename carries the widths that exist beside it
+(`<uuid>-v400-800-1200-1600.webp`), so the same `srcSet` builder covers both
+sources with nothing to look up. Uploads from before this existed have unmarked
+names and keep the plain single `src` they always had. See
+`docs/admin-image-uploads.md`.
 
 ## Amazon influencer picks
 
