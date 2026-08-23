@@ -60,6 +60,9 @@ const RELATED_SELECT = {
   ships: true,
   pickup: true,
   staffPick: true,
+  // A related card states the same claims as the same product's card in the
+  // shop; without this it would quietly state none of them.
+  tags: true,
   createdAt: true,
   newArrivalMode: true,
   bestSellerMode: true,
