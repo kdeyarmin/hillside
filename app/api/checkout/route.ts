@@ -364,10 +364,18 @@ export async function POST(request: Request) {
          * been reserved against this basket. So the box is offered only when
          * the customer brought nothing of their own — Stripe's own coupons stay
          * usable for anything Tammy sets up in its dashboard directly.
+         *
+         * Keyed on whether a shop code was applied at all, not on whether it
+         * came to money: a free-shipping code takes nothing off the merchandise
+         * and so mints no coupon, and keying on the coupon let that basket keep
+         * the box and stack a Stripe discount on top of a promotion the shop
+         * had already reserved against it.
          */
         ...(coupon
           ? { discounts: [{ coupon: coupon.id }] }
-          : { allow_promotion_codes: true as const }),
+          : applied.promotionId || applied.giftCardId
+            ? {}
+            : { allow_promotion_codes: true as const }),
         consent_collection: { promotions: 'auto' },
         payment_intent_data: {
           description: `The Hillside Gardens ${invoiceNumber}`,

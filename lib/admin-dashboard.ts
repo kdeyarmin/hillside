@@ -371,6 +371,8 @@ export const ADMIN_ERRORS: Record<string, string> = {
     'Choose a category for this product. It decides which details the product is asked for and which shop filter it appears under.',
   'category-slug': 'That category address is already in use. Choose a different name or slug.',
   'category-missing': 'That category is no longer here.',
+  'category-in-promotion':
+    'A promo code is narrowed to that category, and deleting it would quietly turn that code into a storewide one. Point the code at another category, or delete the code, then try again.',
   'category-in-use':
     'That category still holds products, and deleting it would drop them out of every filter that leads to them. Move them to another category first, or hide this one instead.',
   'collection-invalid': 'A collection needs a name.',

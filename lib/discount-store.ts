@@ -10,6 +10,7 @@ import {
   normalizePromoCode
 } from '@/lib/discount-codes';
 import {
+  giftCardEntryMovementCents,
   giftCardRefusalMessage,
   promotionRefusalMessage,
   promotionSummary,
@@ -323,6 +324,55 @@ async function claimPromotionSlot(
     data: { redemptionsUsed: { increment: 1 } }
   });
   return claimed.count > 0;
+}
+
+async function addToBalance(
+  transaction: Prisma.TransactionClient,
+  giftCardId: string,
+  amountCents: number
+) {
+  await transaction.giftCard.update({
+    where: { id: giftCardId },
+    data: { balanceCents: { increment: amountCents } }
+  });
+  return amountCents;
+}
+
+/**
+ * Takes up to `amountCents` off a card's spendable balance and answers with
+ * what it actually took, which is never more than was there.
+ *
+ * The same conditional-update shape as every other reduction in this file: the
+ * row decides, under its own lock, so a balance cannot be driven negative by a
+ * figure that was accurate when it was read and stale by the time it was
+ * written.
+ */
+async function takeFromBalance(
+  transaction: Prisma.TransactionClient,
+  giftCardId: string,
+  amountCents: number
+) {
+  const wanted = Math.max(0, Math.floor(amountCents));
+  if (wanted <= 0) return 0;
+
+  const took = await transaction.giftCard.updateMany({
+    where: { id: giftCardId, balanceCents: { gte: wanted } },
+    data: { balanceCents: { decrement: wanted } }
+  });
+  if (took.count > 0) return -wanted;
+
+  const current = await transaction.giftCard.findUnique({
+    where: { id: giftCardId },
+    select: { balanceCents: true }
+  });
+  const available = Math.max(0, Math.min(wanted, current?.balanceCents ?? 0));
+  if (available <= 0) return 0;
+
+  const partial = await transaction.giftCard.updateMany({
+    where: { id: giftCardId, balanceCents: { gte: available } },
+    data: { balanceCents: { decrement: available } }
+  });
+  return partial.count > 0 ? -available : 0;
 }
 
 /**
@@ -656,18 +706,39 @@ export async function returnGiftCardForRefund(
   });
   if (already) return 0;
 
+  /**
+   * What the card actually gave, read off the ledger rather than off the order.
+   *
+   * The two differ in one case, and it is the case that matters: an order that
+   * settled after its hold had been released takes what it can find, and
+   * records a shortfall when the money had been spent elsewhere in between.
+   * Crediting the order's nominal figure would put that shortfall *onto* the
+   * card — money this order never took, minted by refunding it.
+   */
+  const redeemed = await transaction.giftCardEntry.findUnique({
+    where: { reference: `redeem:${orderId}` },
+    select: { amountCents: true, reservedDeltaCents: true }
+  });
+  const refundable = redeemed
+    ? Math.max(0, Math.min(order.giftCardCents, -giftCardEntryMovementCents(redeemed)))
+    : 0;
+  if (refundable <= 0) return 0;
+
   await transaction.giftCard.update({
     where: { id: order.giftCardId },
-    data: { balanceCents: { increment: order.giftCardCents } }
+    data: { balanceCents: { increment: refundable } }
   });
   await recordGiftCardEntry(transaction, order.giftCardId, {
     kind: 'REFUND',
-    amountCents: order.giftCardCents,
+    amountCents: refundable,
     reference: `refund:${orderId}`,
     orderId,
-    note
+    note:
+      refundable < order.giftCardCents
+        ? `${note} Only ${formatMoney(refundable)} of the ${formatMoney(order.giftCardCents)} on the order came off this card.`
+        : note
   });
-  return order.giftCardCents;
+  return refundable;
 }
 
 /**
@@ -767,15 +838,26 @@ export async function adjustGiftCardBalance({
       select: { balanceCents: true }
     });
     if (!card) return null;
+    if (deltaCents === 0) return { appliedCents: 0 };
 
-    // A correction cannot take a card below zero, whatever was typed.
-    const applied = Math.max(deltaCents, -card.balanceCents);
+    /**
+     * Adding is always safe. Taking away is not, and the difference is the same
+     * one every balance change here turns on: between reading a figure and
+     * writing against it, a checkout can move money out from under the read.
+     *
+     * So a reduction is a conditional update against the balance itself, and
+     * how much it takes is decided by the row rather than by what was read a
+     * moment earlier. Incrementing by a figure clamped to a stale balance is
+     * how an admin taking $100 off a $100 card, while a checkout holds $80 of
+     * it, leaves the card at minus eighty — and spends money that checkout was
+     * entitled to keep.
+     */
+    const applied =
+      deltaCents > 0
+        ? await addToBalance(transaction, giftCardId, deltaCents)
+        : await takeFromBalance(transaction, giftCardId, -deltaCents);
     if (applied === 0) return { appliedCents: 0 };
 
-    await transaction.giftCard.update({
-      where: { id: giftCardId },
-      data: { balanceCents: { increment: applied } }
-    });
     await recordGiftCardEntry(transaction, giftCardId, {
       kind: 'ADJUST',
       amountCents: applied,

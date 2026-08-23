@@ -13,7 +13,12 @@ import {
   createPromotions,
   generatePromotionCodes
 } from '@/lib/discount-store';
-import { DISCOUNT_BATCH_MAX, GIFT_CARD_MAX_CENTS, GIFT_CARD_MIN_CENTS } from '@/lib/discounts';
+import {
+  DISCOUNT_BATCH_MAX,
+  expiryFromDateInput,
+  GIFT_CARD_MAX_CENTS,
+  GIFT_CARD_MIN_CENTS
+} from '@/lib/discounts';
 import { formInteger } from '@/lib/form-values';
 import { sendGiftCardEmail } from '@/lib/gift-card-email';
 
@@ -25,7 +30,10 @@ const money = (value: FormDataEntryValue | null) => {
   const number = Number(String(value ?? '').trim());
   return Number.isFinite(number) ? Math.round(number * 100) : 0;
 };
-const optionalDate = (value: string) => {
+/**
+ * A `datetime-local` value, which `new Date` already reads on the shop's clock.
+ */
+const optionalDateTime = (value: string) => {
   if (!value) return null;
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -77,8 +85,8 @@ function readPromotionRules(formData: FormData) {
     return { ok: false as const, error: 'promotion-value' };
   }
 
-  const startsAt = optionalDate(text(formData, 'startsAt'));
-  const endsAt = optionalDate(text(formData, 'endsAt'));
+  const startsAt = optionalDateTime(text(formData, 'startsAt'));
+  const endsAt = optionalDateTime(text(formData, 'endsAt'));
   if (startsAt && endsAt && endsAt.getTime() <= startsAt.getTime()) {
     return { ok: false as const, error: 'promotion-dates' };
   }
@@ -202,7 +210,7 @@ export async function issueGiftCards(formData: FormData) {
     purchaserName: text(formData, 'purchaserName') || null,
     purchaserEmail: text(formData, 'purchaserEmail') || null,
     message: text(formData, 'message') || null,
-    expiresAt: optionalDate(text(formData, 'expiresAt')),
+    expiresAt: expiryFromDateInput(text(formData, 'expiresAt')),
     batch: text(formData, 'batch') || null,
     note: text(formData, 'note') || null,
     issuedBy: admin?.email || admin?.name || null

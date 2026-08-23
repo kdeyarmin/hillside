@@ -5,6 +5,7 @@ import {
   eligibleSubtotalCents,
   evaluateGiftCard,
   evaluatePromotion,
+  expiryFromDateInput,
   giftCardEntryMovementCents,
   giftCardRefusalMessage,
   promotionDiscountCents,
@@ -443,5 +444,44 @@ describe('readDiscountCodes', () => {
   it('caps the length, so the box cannot be used to post a payload', () => {
     const long = readDiscountCodes({ promoCode: 'A'.repeat(500) });
     assert.equal(long.promoCode.length, CODE_INPUT_MAX);
+  });
+});
+
+describe('expiryFromDateInput', () => {
+  it('covers the whole of the day that was picked, on the shop clock', () => {
+    const expiry = expiryFromDateInput('2026-08-23');
+    assert.ok(expiry);
+    assert.equal(expiry.getFullYear(), 2026);
+    // Local parts, not UTC: `new Date('2026-08-23')` is the evening of the 22nd
+    // in the shop's timezone, which would show and expire a day early.
+    assert.equal(expiry.getMonth(), 7);
+    assert.equal(expiry.getDate(), 23);
+    assert.equal(expiry.getHours(), 23);
+  });
+
+  it('leaves a card spendable all through its last day', () => {
+    const card = {
+      code: '0123-4567-89AB-CDEF',
+      balanceCents: 2500,
+      reservedCents: 0,
+      active: true,
+      expiresAt: expiryFromDateInput('2026-08-23')
+    };
+    const lastMorning = new Date(2026, 7, 23, 9, 0, 0);
+    const lastEvening = new Date(2026, 7, 23, 22, 30, 0);
+    const nextMorning = new Date(2026, 7, 24, 9, 0, 0);
+    assert.equal(evaluateGiftCard(card, { now: lastMorning }).ok, true);
+    assert.equal(evaluateGiftCard(card, { now: lastEvening }).ok, true);
+    assert.deepEqual(evaluateGiftCard(card, { now: nextMorning }), {
+      ok: false,
+      reason: 'expired'
+    });
+  });
+
+  it('answers with nothing for an empty or unparseable box', () => {
+    assert.equal(expiryFromDateInput(''), null);
+    assert.equal(expiryFromDateInput('   '), null);
+    assert.equal(expiryFromDateInput('not a date'), null);
+    assert.equal(expiryFromDateInput(null), null);
   });
 });

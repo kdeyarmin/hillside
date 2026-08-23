@@ -12,6 +12,7 @@ import {
   maskGiftCardCode,
   normalizeGiftCardCode,
   normalizePromoCode,
+  PROMO_CODE_MAX,
   randomCodeChars
 } from '../lib/discount-codes.ts';
 
@@ -133,6 +134,22 @@ describe('generatePromoCode', () => {
 
   it('makes a bare code when there is no prefix', () => {
     assert.equal(generatePromoCode('', sequentialIndex()), '012345');
+  });
+
+  it('keeps the random tail whatever the prefix costs', () => {
+    // A prefix at or past the code limit used to swallow the tail, which made
+    // every "generated" code identical — a batch of fifty minting one code.
+    const long = 'A'.repeat(PROMO_CODE_MAX + 10);
+    const code = generatePromoCode(long, sequentialIndex());
+    assert.equal(code.length <= PROMO_CODE_MAX, true);
+    assert.equal(code.endsWith('-012345'), true);
+    assert.equal(new Set(Array.from({ length: 25 }, () => generatePromoCode(long))).size, 25);
+  });
+
+  it('does not leave a hyphen dangling when the prefix is cut', () => {
+    const code = generatePromoCode(`${'B'.repeat(32)}-TAIL`, sequentialIndex());
+    assert.equal(code.includes('--'), false);
+    assert.equal(code.endsWith('-012345'), true);
   });
 });
 

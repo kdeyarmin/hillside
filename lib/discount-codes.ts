@@ -131,10 +131,19 @@ export function isValidPromoCode(code: string) {
  * look up.
  */
 export function generatePromoCode(prefix = '', random: RandomIndex = secureIndex) {
-  const head = normalizePromoCode(prefix).replace(/-+$/, '');
+  /**
+   * The prefix is trimmed to leave room for the separator and every one of the
+   * random characters. Slicing the *finished* code instead would cut the tail
+   * off a long prefix — and a tail-less code is the same code every time, so a
+   * batch of fifty would mint one code and the run would report success.
+   */
+  const room = PROMO_CODE_MAX - PROMO_CODE_RANDOM_LENGTH - 1;
+  const head = normalizePromoCode(prefix)
+    .slice(0, Math.max(0, room))
+    // Again after the slice: cutting mid-word can leave the hyphen exposed.
+    .replace(/-+$/, '');
   const tail = randomCodeChars(PROMO_CODE_RANDOM_LENGTH, random);
-  const code = head ? `${head}-${tail}` : tail;
-  return code.slice(0, PROMO_CODE_MAX);
+  return head ? `${head}-${tail}` : tail;
 }
 
 /**

@@ -100,6 +100,35 @@ export const DISCOUNT_BATCH_MAX = 100;
  */
 export const STRIPE_MINIMUM_CHARGE_CENTS = 50;
 
+const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * What a date typed into a `type="date"` box means as a gift card's expiry: the
+ * *end* of that day, on the shop's clock.
+ *
+ * Two things go wrong with a bare `new Date(value)`. It reads `2026-08-23` as
+ * UTC midnight, and the deploy pins `TZ` to America/New_York — so the instant
+ * stored is the evening of the 22nd, and the dashboard and the recipient's
+ * email would both show the day before the one that was picked.
+ * `lib/inventory.ts` hit the same trap with restock dates.
+ *
+ * And an expiry is a deadline rather than a moment: `evaluateGiftCard` refuses
+ * a card once `expiresAt` has passed, so midnight *at the start* of the 23rd
+ * would stop the card working before the 23rd had begun. A card that says it
+ * expires on the 23rd should spend all of the 23rd.
+ */
+export function expiryFromDateInput(value: string | null | undefined) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const date = DATE_ONLY.test(raw)
+    ? (() => {
+        const [year, month, day] = raw.split('-').map(Number);
+        return new Date(year, month - 1, day, 23, 59, 59, 999);
+      })()
+    : new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export function eligibleSubtotalCents(lines: DiscountLine[], categoryId: string | null) {
   return lines.reduce((total, line) => {
     if (categoryId && line.categoryId !== categoryId) return total;

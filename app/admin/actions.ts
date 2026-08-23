@@ -1418,13 +1418,22 @@ export async function deleteCategory(formData: FormData) {
 
   const category = await db.category.findUnique({
     where: { id },
-    select: { id: true, _count: { select: { products: true } } }
+    select: { id: true, _count: { select: { products: true, promotions: true } } }
   });
   if (!category) {
     redirect(adminContentPath({ error: 'category-missing', section: 'categories' }));
   }
   if (category._count.products > 0) {
     redirect(adminContentPath({ error: 'category-in-use', section: 'categories', item: id }));
+  }
+  /**
+   * A promo code narrowed to this category would not be deleted with it — the
+   * relation nulls the column instead, and a null category means *everything*.
+   * A code Tammy wrote for teas alone would quietly become a storewide one, on
+   * a page that never mentioned promo codes.
+   */
+  if (category._count.promotions > 0) {
+    redirect(adminContentPath({ error: 'category-in-promotion', section: 'categories', item: id }));
   }
 
   await db.category.delete({ where: { id } });
