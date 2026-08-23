@@ -274,11 +274,24 @@ async function main() {
   for (const product of products) {
     const blocked = publishBlockReason(product);
     if (blocked) drafted.push(`${product.name}: ${blocked}`);
-    const row = { ...product, active: !blocked };
     await db.product.upsert({
       where: { slug: product.slug },
-      update: row,
-      create: row
+      /**
+       * The two halves say different things about `active`, and deliberately.
+       *
+       * A re-seed — which only happens under HILLSIDE_FORCE_SEED on a catalog
+       * that already has rows — rewrites the demo copy, but whether a product
+       * is *for sale* is not copy. It is a decision the owner made, and one she
+       * may have made by archiving something on purpose. Setting it here either
+       * way would put that product back on sale behind her, which is the same
+       * class of thing this whole change is here to stop.
+       *
+       * So an update only ever forces the archive, never the publish: the rule
+       * still pulls a regulated product whose disclosures are missing, and
+       * everything else keeps the state it had.
+       */
+      update: blocked ? { ...product, active: false } : product,
+      create: { ...product, active: !blocked }
     });
   }
   console.log(`Products ready: ${products.length} seeded, ${drafted.length} held back as drafts.`);
