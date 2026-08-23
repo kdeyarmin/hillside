@@ -91,6 +91,14 @@ try {
   await open('/admin/discounts');
   {
     const before = await db.giftCard.count();
+    /**
+     * Noted so the card this run issues can be picked out by id afterwards.
+     * Taking the newest card in the table instead would delete somebody else's
+     * if anything issued one while this was running.
+     */
+    const preexisting = new Set(
+      (await db.giftCard.findMany({ select: { id: true } })).map((c) => c.id)
+    );
     const form = page.locator('form:has(input[name="recipientName"])');
     await form.locator('input[name="amount"]').fill('25');
     await form.locator('input[name="recipientName"]').fill('Smoke Test');
@@ -100,7 +108,10 @@ try {
     await form.locator('button:has-text("Issue")').first().click();
     await page.waitForTimeout(2500);
 
-    const card = await db.giftCard.findFirst({ orderBy: { createdAt: 'desc' } });
+    const card = await db.giftCard.findFirst({
+      where: { id: { notIn: [...preexisting] } },
+      orderBy: { createdAt: 'desc' }
+    });
     if (card) undo.push(async () => {
       await db.giftCardEntry.deleteMany({ where: { giftCardId: card.id } });
       await db.giftCard.delete({ where: { id: card.id } });
@@ -241,10 +252,21 @@ try {
 
   // ---------------------------------------------------------- building a set
   await open('/admin/merchandising');
-  {
+  buildSet: {
     const slug = 'smoke-set-' + String(Date.now()).slice(-6);
     const tea = await db.product.findFirst({ where: { slug: 'hillside-calm-tea' } });
     const infuser = await db.product.findFirst({ where: { slug: 'stainless-tea-infuser' } });
+    /**
+     * A catalog without these two is a reason to report a failing check, not
+     * to throw: crashing here would skip every check after it and print no
+     * summary, so a missing fixture would look like a broken script rather
+     * than a missing fixture.
+     */
+    if (!tea || !infuser) {
+      check('set: the two component products exist to build from', false,
+        `hillside-calm-tea=${Boolean(tea)} stainless-tea-infuser=${Boolean(infuser)}`);
+      break buildSet;
+    }
     const form = page.locator('form:has(button:has-text("Create set"))').first();
     await form.locator('input[name="title"]').fill('Smoke Test Set');
     await form.locator('input[name="slug"]').fill(slug);
