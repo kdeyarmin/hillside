@@ -35,6 +35,8 @@ export type ProductCardProduct = {
   /** Raw `Product.sizes`; a card needs the labels and whether each has stock. */
   sizes?: unknown;
   sizeLabel?: string | null;
+  /** A set sold as one product. Badged wherever it appears, not only on /gifts. */
+  bundle?: boolean | null;
   averageRating?: number | null;
   reviewCount?: number;
   staffPick?: boolean | null;

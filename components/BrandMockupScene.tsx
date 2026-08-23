@@ -145,6 +145,15 @@ const variantAlternates: Partial<Record<BrandMockupVariant, BrandArtwork[]>> = {
     catalogArtwork['live-plant-planters'],
     catalogArtwork['terrarium-supplies'],
     catalogArtwork['house-plants']
+  ],
+  /* The gift hub tiles every guide at once, and one apothecary shelf repeated
+     five times reads as a page that could not be bothered. */
+  gifts: [
+    catalogArtwork.apothecary,
+    catalogArtwork['live-plant-planters'],
+    catalogArtwork['homemade-soaps'],
+    catalogArtwork['house-plants'],
+    catalogArtwork.succulents
   ]
 };
 
