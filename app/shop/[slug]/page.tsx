@@ -1,18 +1,21 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Truck } from 'lucide-react';
+import { BookOpen, Package, Truck } from 'lucide-react';
 import AddToCartButton from '@/components/AddToCartButton';
+import BundleGrid from '@/components/BundleGrid';
 import ProductGallery from '@/components/ProductGallery';
 import ProductGrid from '@/components/ProductGrid';
 import ProductViewTracker from '@/components/ProductViewTracker';
 import ProductReviews from '@/components/ProductReviews';
 import StockAlertForm from '@/components/StockAlertForm';
+import { bundleCardData, sellableBundlesContaining } from '@/lib/bundle-queries';
+import { careGuideTypeLabel } from '@/lib/care-guides';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
+import { recommendationsForProduct } from '@/lib/recommendation-queries';
 import { specKindFor } from '@/lib/product-categories';
-import { withCardFacts } from '@/lib/product-cards';
 import { productPhotos } from '@/lib/product-photos';
 import { specSections } from '@/lib/product-specs';
 import { ratingForProduct } from '@/lib/reviews';
@@ -35,7 +38,6 @@ import {
   formatMoney,
   freeShippingThresholdCents,
   productTypeLabel,
-  productTypePlural,
   resolveImageUrl
 } from '@/lib/store';
 import { fulfillmentBlurb } from '@/lib/fulfillment';
@@ -43,45 +45,6 @@ import { fulfillmentBlurb } from '@/lib/fulfillment';
 export const dynamic = 'force-dynamic';
 
 /** Card fields for the hand-picked products shown beside this one. */
-const RELATED_SELECT = {
-  id: true,
-  slug: true,
-  name: true,
-  shortDescription: true,
-  description: true,
-  type: true,
-  priceCents: true,
-  compareAtCents: true,
-  inventory: true,
-  imageUrl: true,
-  badge: true,
-  sizes: true,
-  sizeLabel: true,
-  ships: true,
-  pickup: true,
-  staffPick: true,
-  createdAt: true,
-  newArrivalMode: true,
-  bestSellerMode: true,
-  seasonStartsAt: true,
-  seasonEndsAt: true,
-  category: { select: { slug: true, title: true } }
-} as const;
-
-/**
- * One list from the two directions of a self-relation, without the product doing
- * the pointing. Order is preserved so the first thing Tammy picked stays first.
- */
-function dedupeProducts<T extends { id: string }>(items: T[], excludeId: string): T[] {
-  const seen = new Set([excludeId]);
-  const unique: T[] = [];
-  for (const item of items) {
-    if (seen.has(item.id)) continue;
-    seen.add(item.id);
-    unique.push(item);
-  }
-  return unique;
-}
 
 export async function generateMetadata({
   params
@@ -117,19 +80,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     include: {
       category: true,
       collections: { where: { active: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
-      careSheets: { where: { published: true }, take: 2 },
       /**
-       * Both directions of the hand-picked links. Tammy makes the connection
-       * once, on whichever product she happens to be editing, and the shopper
-       * sees it from either side — otherwise "goes with" would depend on which
-       * product she opened first, which is not something she should have to
-       * think about.
+       * Both the guide this product is the subject of and any guide that
+       * features it, so a venus flytrap reaches its own profile *and* the
+       * watering guide that keeps it alive.
        */
-      relatedProducts: { where: { active: true }, select: RELATED_SELECT, take: 6 },
-      relatedTo: { where: { active: true }, select: RELATED_SELECT, take: 6 },
-      crossSells: { where: { active: true }, select: RELATED_SELECT, take: 6 },
-      crossSellFor: { where: { active: true }, select: RELATED_SELECT, take: 6 },
-      bundleItems: { where: { active: true }, select: RELATED_SELECT, take: 8 }
+      careSheets: { where: { published: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
+      careGuides: {
+        where: { careSheet: { published: true } },
+        orderBy: { sortOrder: 'asc' },
+        include: { careSheet: true },
+        take: 4
+      }
     }
   });
   if (!product) notFound();
@@ -138,56 +100,28 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     return <RetiredProduct product={product} catalogEmpty={catalogEmpty} />;
   }
 
-  /**
-   * What Tammy chose, in both directions, deduplicated and with this product
-   * removed — a product linked to itself would otherwise show up under its own
-   * "you may also like".
-   */
-  const chosenRelated = dedupeProducts(
-    [...product.relatedProducts, ...product.relatedTo],
-    product.id
-  );
-  const crossSells = dedupeProducts([...product.crossSells, ...product.crossSellFor], product.id);
-  const bundleItems = dedupeProducts(product.bundleItems, product.id);
-
-  const [fallbackRelated, reviews, rating] = await Promise.all([
-    // Only asked for when the hand-picked list is short: the point of choosing
-    // related products by hand is that the automatic answer stops being used.
-    chosenRelated.length >= 3
-      ? []
-      : db.product.findMany({
-          where: {
-            active: true,
-            id: { notIn: [product.id, ...chosenRelated.map((item) => item.id)] },
-            // A flytrap suggests other carnivorous plants rather than every
-            // plant in the shop. A product predating the taxonomy has only its
-            // broad type to fall back on.
-            ...(product.categoryId ? { categoryId: product.categoryId } : { type: product.type })
-          },
-          orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
-          select: RELATED_SELECT,
-          take: 3
-        }),
+  const [reviews, rating, rails, inSets] = await Promise.all([
     db.review.findMany({
       where: { productId: product.id, status: 'APPROVED' },
       orderBy: { createdAt: 'desc' },
       take: 20
     }),
-    ratingForProduct(product.id)
+    ratingForProduct(product.id),
+    recommendationsForProduct(product),
+    sellableBundlesContaining(product.id)
   ]);
 
-  const related = [...chosenRelated, ...fallbackRelated].slice(0, 3);
-  const sideProducts = [...related, ...crossSells, ...bundleItems];
-  const [decoratedSide, ownFlags] = await Promise.all([
-    withCardFacts(sideProducts),
-    merchandisingFlagsFor([product])
-  ]);
-  const bySlug = new Map(decoratedSide.map((item) => [item.id, item]));
-  const relatedProducts = related.map((item) => bySlug.get(item.id)!);
-  const crossSellProducts = crossSells.map((item) => bySlug.get(item.id)!);
-  const bundleProducts = bundleItems.map((item) => bySlug.get(item.id)!);
-
-  const flags = ownFlags.get(product.id);
+  /**
+   * Every guide that touches this product, the subject one first, with
+   * duplicates folded out — a guide can be both the product's own profile and a
+   * featured link, and listing it twice looks like a mistake.
+   */
+  const guides = [
+    ...product.careSheets,
+    ...product.careGuides.map((link) => link.careSheet)
+  ].filter((sheet, index, all) => all.findIndex((other) => other.id === sheet.id) === index);
+  const primaryGuide = guides[0] || null;
+  const flags = (await merchandisingFlagsFor([product])).get(product.id);
   const primaryCollection = product.collections[0] || null;
   /**
    * Only the attributes Tammy assigned. The derived ones — in stock, ships, on
@@ -417,6 +351,26 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               </div>
             </div>
 
+            {/* Above the Add button, not buried at the foot of the page: the
+                care guide is what tells a nervous first-time buyer this plant is
+                survivable, and that decision is made here. */}
+            {primaryGuide && (
+              <div className="care-guide-link">
+                <BookOpen size={22} aria-hidden="true" />
+                <div>
+                  <b>
+                    {primaryGuide.guideType === 'PLANT'
+                      ? `How to keep ${product.name} alive`
+                      : primaryGuide.plantName}
+                  </b>
+                  <span>{primaryGuide.summary}</span>
+                </div>
+                <Link className="btn outline small" href={`/care/${primaryGuide.slug}`}>
+                  Read the care guide
+                </Link>
+              </div>
+            )}
+
             {soldOut ? (
               <StockAlertForm slug={product.slug} name={product.name} />
             ) : (
@@ -451,6 +405,29 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 </ul>
               </div>
             )}
+            {/* Sets that contain this exact product, and only while every other
+                piece in them is on the bench too — so the nudge can never point
+                at a box the shop cannot pack. */}
+            {inSets.map((set) => {
+              const card = bundleCardData(set);
+              return (
+                <div className="bundle-nudge" key={set.slug}>
+                  <div>
+                    <b>
+                      <Package size={15} aria-hidden="true" /> Also in the {set.title}
+                    </b>
+                    <span>
+                      {card.contents}
+                      {card.savingsCents > 0 ? ` — ${card.savingsNote?.toLowerCase()}` : ''}
+                    </span>
+                  </div>
+                  <Link className="btn outline small" href={`/bundles/${set.slug}`}>
+                    See the set
+                  </Link>
+                </div>
+              );
+            })}
+
             {product.collections.length > 0 && (
               <p className="product-collections">
                 Part of{' '}
@@ -551,21 +528,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </div>
         )}
 
-        {bundleProducts.length > 0 && (
-          <div className="product-details-section">
-            <div className="sectionhead">
-              <div className="eyebrow">What is in it</div>
-              <h2>Everything included in this set.</h2>
-              <p>
-                Each piece is also sold on its own — the links go to the full description and care
-                notes for each one.
-              </p>
-            </div>
-            <ProductGrid products={bundleProducts} eagerCount={0} />
-          </div>
-        )}
-
-        {product.careSheets.length > 0 && (
+        {guides.length > 0 && (
           <div className="product-details-section">
             <div className="sectionhead">
               <div className="eyebrow">Keep it thriving</div>
@@ -574,11 +537,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   ? 'Care guides for this plant.'
                   : 'Care guides for this item.'}
               </h2>
+              <p>Written here, free to read before you buy, and printable once it is home.</p>
             </div>
             <div className="care-related-grid">
-              {product.careSheets.map((sheet) => (
+              {guides.map((sheet) => (
                 <article className="care-related-card" key={sheet.id}>
-                  <span>Plant care</span>
+                  <span>{careGuideTypeLabel(sheet.guideType)}</span>
                   <h3>
                     <Link href={`/care/${sheet.slug}`}>{sheet.plantName}</Link>
                   </h3>
@@ -589,16 +553,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 </article>
               ))}
             </div>
-          </div>
-        )}
-
-        {crossSellProducts.length > 0 && (
-          <div className="product-details-section">
-            <div className="sectionhead">
-              <div className="eyebrow">Goes well with this</div>
-              <h2>What people usually add.</h2>
-            </div>
-            <ProductGrid products={crossSellProducts} eagerCount={0} />
           </div>
         )}
 
@@ -619,20 +573,42 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           }))}
         />
 
-        {relatedProducts.length > 0 && (
+        {/*
+          Four separate questions, each with its own heading, rather than one
+          "More in plants" shelf. A rail only renders when something genuinely
+          answers it — an empty "Complete the setup" is a better answer than a
+          full one that is wrong, because a shopper shown a bar of soap under a
+          fly trap stops reading the section entirely.
+        */}
+        {rails.length > 0 && (
+          <div className="product-details-section">
+            {rails.map((rail) => (
+              <section className="recommendation-rail" key={rail.key}>
+                <div className="recommendation-rail-head">
+                  <div>
+                    <div className="eyebrow">
+                      {rail.key === 'complete' ? 'Goes with it' : 'Our suggestion'}
+                    </div>
+                    <h2>{rail.title}</h2>
+                  </div>
+                  <p>{rail.blurb}</p>
+                </div>
+                <ProductGrid products={rail.products} eagerCount={0} />
+              </section>
+            ))}
+          </div>
+        )}
+
+        {inSets.length > 0 && (
           <div className="product-details-section">
             <div className="sectionhead">
-              {/* Hand-picked when Tammy chose some; otherwise the fallback list
-                  matches on product type, so the heading says type — as a
-                  plural, because it introduces a shelf of them, not one. */}
-              <div className="eyebrow">You may also like</div>
+              <div className="eyebrow">Buy it as a set</div>
               <h2>
-                {chosenRelated.length
-                  ? 'Picked to go with this.'
-                  : `More in ${productTypePlural(product.type).toLowerCase()}.`}
+                {product.name} is part of {inSets.length === 1 ? 'a kit' : 'these kits'}.
               </h2>
+              <p>Priced below what the pieces cost on their own.</p>
             </div>
-            <ProductGrid products={relatedProducts} eagerCount={0} />
+            <BundleGrid bundles={inSets.map(bundleCardData)} />
           </div>
         )}
       </div>

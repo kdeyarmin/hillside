@@ -1,0 +1,293 @@
+/* Bundles, contextual cross-selling and the commerce blocks on care guides.
+   Its own file rather than more of commerce.css because these three features
+   are one merchandising layer: sets built from real stock, recommendations that
+   know *why* one thing goes with another, and care pages that sell without
+   reading as adverts. */
+
+/* ---- bundle cards ----
+   Built on .product-card so a set sits in the same grid as a product without a
+   second set of card rules to keep in step. Only the differences live here. */
+.bundle-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--white);
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+}
+.bundle-card .product-image-wrap img {
+  width: 100%;
+  aspect-ratio: 1 / 0.88;
+  object-fit: cover;
+  transition: transform 0.35s ease;
+}
+.bundle-card:hover .product-image-wrap img {
+  transform: scale(1.035);
+}
+.bundle-card .product-copy {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+}
+.bundle-card .product-copy .product-actions {
+  margin-top: auto;
+}
+.bundle-card .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* The contents list is the reason a set's price makes sense, so it reads as a
+   manifest rather than as body copy. */
+.bundle-contents {
+  margin: 12px 0;
+  padding: 12px 14px;
+  list-style: none;
+  border-radius: 13px;
+  background: var(--cream);
+  display: grid;
+  gap: 5px;
+}
+.bundle-contents li {
+  color: var(--forest);
+  font-size: 14px;
+  line-height: 1.35;
+}
+.bundle-contents a {
+  font-weight: 700;
+}
+.bundle-contents a:hover {
+  color: var(--gold-strong);
+}
+.bundle-variant {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---- bundle detail manifest ---- */
+.bundle-manifest {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bundle-manifest-item {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--white);
+}
+.bundle-manifest-item img {
+  width: 92px;
+  height: 92px;
+  object-fit: cover;
+  border-radius: 13px;
+  background: var(--cream);
+}
+.bundle-manifest-item b {
+  display: block;
+  color: var(--forest);
+  font-size: 16px;
+}
+.bundle-manifest-item .bundle-variant {
+  display: block;
+  margin-top: 2px;
+}
+.bundle-manifest-item p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.bundle-value-note {
+  margin-top: 20px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ---- contextual recommendation rails ----
+   Each rail carries its own heading and a one-line reason, because the point of
+   the feature is that the shopper can tell why these items are here. */
+.recommendation-rail + .recommendation-rail {
+  margin-top: 42px;
+}
+.recommendation-rail-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 18px;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.recommendation-rail-head h2,
+.recommendation-rail-head h3 {
+  margin: 4px 0 0;
+  color: var(--forest);
+  font:
+    500 27px/1.15 Georgia,
+    serif;
+}
+.recommendation-rail-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  max-width: 46ch;
+}
+/* Tammy's own words for why two things go together, printed on the card. */
+.recommendation-reason {
+  display: block;
+  margin-top: 8px;
+  padding-left: 11px;
+  border-left: 2px solid var(--sage);
+  color: var(--muted);
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* ---- "buy it as a set" strip on a product page ---- */
+.bundle-nudge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 20px;
+  margin: 24px 0;
+  padding: 16px 18px;
+  border: 1px solid var(--sage);
+  border-radius: 16px;
+  background: var(--sage-light);
+}
+.bundle-nudge b {
+  display: block;
+  color: var(--forest);
+}
+.bundle-nudge span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* ---- care guide commerce ----
+   The guide is the article; the products are a sidebar to it. The card is quiet
+   on purpose — same border and cream as a note box, no badge, no price shouting
+   — so an educational page does not read as a catalogue page. */
+.care-product-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.care-product-card {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--white);
+}
+.care-product-card img {
+  width: 78px;
+  height: 78px;
+  object-fit: cover;
+  border-radius: 12px;
+  background: var(--cream);
+}
+.care-product-card b {
+  display: block;
+  color: var(--forest);
+}
+.care-product-card p {
+  margin: 5px 0 8px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.care-product-price {
+  color: var(--forest);
+  font-weight: 800;
+  font-size: 14px;
+}
+.care-product-card .text-link {
+  margin-left: 10px;
+  font-size: 14px;
+}
+
+/* The care-guide link on a product page. Prominent enough to be found from the
+   buy box, styled as guidance rather than as another call to buy. */
+.care-guide-link {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin: 20px 0;
+  padding: 14px 16px;
+  border: 1px solid var(--sage);
+  border-radius: 15px;
+  background: var(--sage-light);
+}
+.care-guide-link svg {
+  flex: 0 0 auto;
+  color: var(--forest);
+}
+.care-guide-link div {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.care-guide-link b {
+  display: block;
+  color: var(--forest);
+}
+.care-guide-link span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---- packing slip ---- */
+.packing-components {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  color: #444;
+  font-size: 12px;
+}
+
+/* ---- admin: bundle recipe rows ---- */
+.bundle-item-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) 90px minmax(0, 1.4fr) auto;
+  gap: 10px;
+  align-items: end;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--white);
+}
+.bundle-item-row + .bundle-item-row {
+  margin-top: 10px;
+}
+
+@media (max-width: 780px) {
+  .bundle-item-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bundle-manifest-item {
+    grid-template-columns: 70px minmax(0, 1fr);
+  }
+  .bundle-manifest-item img {
+    width: 70px;
+    height: 70px;
+  }
+}

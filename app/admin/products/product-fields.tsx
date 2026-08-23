@@ -1,5 +1,4 @@
 import { InventoryStatus, type ProductSpecKind, type ProductType } from '@prisma/client';
-import AdminProductPicker from '@/components/AdminProductPicker';
 import ProductPhotoManager from '@/components/ProductPhotoManager';
 import { groupTags, PRODUCT_TAGS } from '@/lib/product-tags';
 import {
@@ -72,9 +71,6 @@ export type AdminProductDraft = {
   tags: string[];
   seasonStartsAt: Date | null;
   seasonEndsAt: Date | null;
-  relatedProducts?: Array<{ id: string }>;
-  crossSells?: Array<{ id: string }>;
-  bundleItems?: Array<{ id: string }>;
   active: boolean;
   featured: boolean;
   sortOrder: number;
@@ -317,18 +313,14 @@ function VariantRow({
 export default function ProductFields({
   product,
   collections,
-  categories,
-  catalog = []
+  categories
 }: {
   collections: Array<{ id: string; title: string }>;
   categories: AdminCategoryOption[];
   product?: AdminProductDraft;
-  /** Every other product, for the "goes with this" pickers. */
-  catalog?: Array<{ id: string; name: string; sku: string | null }>;
 }) {
   const assigned = new Set((product?.collections || []).map((collection) => collection.id));
   const chosenTags = new Set(product?.tags || []);
-  const otherProducts = catalog.filter((entry) => entry.id !== product?.id);
   const dateValue = (value: Date | null | undefined) =>
     value ? value.toISOString().slice(0, 10) : '';
   const stored = readStoredSizes(product?.sizes);
@@ -651,32 +643,6 @@ export default function ProductFields({
           </div>
         ))}
       </fieldset>
-
-      {otherProducts.length > 0 && (
-        <div className="admin-picker-grid">
-          <AdminProductPicker
-            name="relatedIds"
-            legend="Related products"
-            hint="Shown under “You may also like”. Leave empty to let the shop suggest similar items itself."
-            products={otherProducts}
-            selectedIds={(product?.relatedProducts || []).map((entry) => entry.id)}
-          />
-          <AdminProductPicker
-            name="crossSellIds"
-            legend="Goes well with this"
-            hint="Shown as “what people usually add” — the pot, the mix, the soap that goes with it."
-            products={otherProducts}
-            selectedIds={(product?.crossSells || []).map((entry) => entry.id)}
-          />
-          <AdminProductPicker
-            name="bundleIds"
-            legend="What is inside this set"
-            hint="Only for a bundle or gift set. The pieces are listed on its page and still sold on their own."
-            products={otherProducts}
-            selectedIds={(product?.bundleItems || []).map((entry) => entry.id)}
-          />
-        </div>
-      )}
 
       <fieldset className="admin-subsection">
         <legend>

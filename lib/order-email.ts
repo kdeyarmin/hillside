@@ -19,7 +19,18 @@ export type OrderForEmail = {
   giftMessage?: string | null;
   fulfillmentMethod?: string | null;
   shippingMethod?: string | null;
-  items: Array<{ name: string; quantity: number; unitCents: number; size?: string | null }>;
+  items: Array<{
+    name: string;
+    quantity: number;
+    unitCents: number;
+    size?: string | null;
+    /**
+     * What a set contained. A bundle line is one name and one price, so without
+     * this the customer's own copy of the order is the only place that does not
+     * say what they bought.
+     */
+    components?: Array<{ name: string; size?: string | null; quantity: number }> | null;
+  }>;
 };
 
 /**
@@ -30,10 +41,19 @@ export type OrderForEmail = {
 export function orderConfirmationHtml(order: OrderForEmail) {
   const pickup = isPickupOrder(order);
   const itemRows = order.items
-    .map(
-      (item) =>
-        `<tr><td style="padding:8px 0;border-bottom:1px solid #dfe4dc">${escapeHtml(sizedName(item.name, item.size))} × ${item.quantity}</td><td style="padding:8px 0;border-bottom:1px solid #dfe4dc;text-align:right">${formatMoney(item.unitCents * item.quantity)}</td></tr>`
-    )
+    .map((item) => {
+      const contents = item.components?.length
+        ? `<br><span style="color:#5d6b5f;font-size:13px">${escapeHtml(
+            item.components
+              .map(
+                (component) =>
+                  `${sizedName(component.name, component.size)} × ${component.quantity}`
+              )
+              .join(' · ')
+          )}</span>`
+        : '';
+      return `<tr><td style="padding:8px 0;border-bottom:1px solid #dfe4dc">${escapeHtml(sizedName(item.name, item.size))} × ${item.quantity}${contents}</td><td style="padding:8px 0;border-bottom:1px solid #dfe4dc;text-align:right">${formatMoney(item.unitCents * item.quantity)}</td></tr>`;
+    })
     .join('');
   const discountCents = order.discountCents || 0;
   const shippingCents = order.shippingCents || 0;

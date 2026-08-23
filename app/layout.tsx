@@ -15,11 +15,13 @@ import './brand-mockups.css';
 import './responsive-hardening.css';
 import './commerce.css';
 import './catalog.css';
+import './merchandising.css';
 import type { Metadata, Viewport } from 'next';
 import { Cormorant_Garamond, Manrope } from 'next/font/google';
 import Analytics from '@/components/Analytics';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
+import { hasSellableBundles } from '@/lib/bundle-queries';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { businessEmail, freeShippingThresholdCents, siteBaseUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
@@ -93,7 +95,11 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const catalogEmpty = !(await catalogHasActiveProducts());
+  const [catalogHasProducts, bundlesAvailable] = await Promise.all([
+    catalogHasActiveProducts(),
+    hasSellableBundles()
+  ]);
+  const catalogEmpty = !catalogHasProducts;
   return (
     <html lang="en" className={`${hillsideSans.variable} ${hillsideDisplay.variable}`}>
       <body>
@@ -111,6 +117,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <CartProvider>
           <SiteHeader
             catalogEmpty={catalogEmpty}
+            bundlesAvailable={bundlesAvailable}
             freeShippingThreshold={freeShippingThresholdCents()}
           />
           {/* tabIndex={-1} so the skip link actually moves focus. Without it Safari
@@ -118,7 +125,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <main id="main-content" tabIndex={-1}>
             {children}
           </main>
-          <SiteFooter contactEmail={businessEmail()} catalogEmpty={catalogEmpty} />
+          <SiteFooter
+            contactEmail={businessEmail()}
+            catalogEmpty={catalogEmpty}
+            bundlesAvailable={bundlesAvailable}
+          />
         </CartProvider>
         <Analytics />
       </body>
