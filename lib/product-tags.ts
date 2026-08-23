@@ -363,3 +363,34 @@ export function tagSearchText(slugs: readonly string[]): string {
     })
     .join(' ');
 }
+
+/**
+ * The assignable attributes a product card may state outright.
+ *
+ * A card has room for a couple of quiet claims under its copy, not the whole
+ * vocabulary — a grid where every card lists eight attributes is a grid nobody
+ * reads. These two earn the space because they are what a shopper chooses
+ * *between* products on, and because both are answers only Tammy can give:
+ * whether a plant will hurt somebody's cat is not a thing to infer from a
+ * description, or from prose typed into a specification field.
+ *
+ * Derived tags are deliberately absent. "In stock", "new" and "best seller" are
+ * worked out rather than declared, and each already has its own place on the
+ * card; repeating them here would put the same fact in two spots.
+ */
+export const CARD_TRAIT_TAGS = ['pet-safe', 'beginner-friendly'] as const;
+
+/**
+ * The claims one card makes about the product itself, in the order above.
+ *
+ * `normalizeTags` does the deciding, so an attribute that no longer applies to
+ * what the product now is — a `pet-safe` tag left behind when a plant listing
+ * was re-shelved as a soap — is dropped here rather than rendered.
+ */
+export function cardTraitTags(
+  tags: readonly string[] | null | undefined,
+  type?: string | null
+): string[] {
+  const claimed = new Set(normalizeTags(tags, type));
+  return CARD_TRAIT_TAGS.filter((slug) => claimed.has(slug));
+}
