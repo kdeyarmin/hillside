@@ -206,6 +206,62 @@ export function inventoryAttention(
   });
 }
 
+export type AdminOrderFilter = 'all' | 'awaiting' | 'pickup';
+
+export function parseAdminOrderFilter(value?: string | null): AdminOrderFilter {
+  if (value === 'awaiting' || value === 'pickup') return value;
+  return 'all';
+}
+
+/**
+ * Which orders the list shows, and — just as importantly — the two views
+ * partition the outstanding work rather than overlapping.
+ *
+ * Packing a parcel and preparing a pickup are different jobs: one is a box, a
+ * label and a carrier, the other is setting something aside and emailing a
+ * window. A pickup counted in both put one order on the Today board twice and
+ * added it to the day's total twice over. "To pack" is therefore what still
+ * has to be *shipped*, and pickups have their own filter and their own card.
+ *
+ * "Pickup" means one that still owes the customer something. A collected
+ * order is finished, and leaving it in the list would make the dashboard's
+ * own count disagree with what it renders.
+ */
+export function orderMatchesAdminFilter(
+  order: { awaiting: boolean; pickup: boolean },
+  filter: AdminOrderFilter
+) {
+  if (filter === 'awaiting') return order.awaiting && !order.pickup;
+  if (filter === 'pickup') return order.pickup && order.awaiting;
+  return true;
+}
+
+/**
+ * A message that reads like someone asking for a planter to be made for them.
+ *
+ * These arrive through the ordinary contact form, and the contact page's own
+ * subject list is where most of them are labelled — but people also type it in
+ * their own words, so the body is searched too. Being generous here is the
+ * right failure: a false positive costs Tammy one glance at a message she was
+ * going to read anyway, while a miss loses a custom order.
+ */
+const PLANTER_PHRASES = [
+  'custom planter',
+  'custom arrangement',
+  'planter arrangement',
+  'custom pot',
+  'made to order',
+  'centerpiece',
+  'centrepiece',
+  'dish garden',
+  'arrangement for'
+];
+
+export function isCustomPlanterRequest(message: { subject: string; message?: string | null }) {
+  const haystack = `${message.subject} ${message.message || ''}`.toLowerCase();
+  return PLANTER_PHRASES.some((phrase) => haystack.includes(phrase));
+}
+
 /**
  * Prisma reports a unique-constraint target as an array of column names, or
  * occasionally as the constraint name (`Product_sku_key`). Either way the
@@ -295,6 +351,9 @@ export const ADMIN_NOTICES: Record<string, string> = {
   'amazon-filled': 'Filled in from Amazon. Anything you had written yourself was kept.',
   'amazon-fill-empty':
     'Amazon sent nothing new, so the pick is unchanged. It is still live — add a photo below if it needs one.',
+  'review-requests-sent':
+    'Review requests sent. Each of those orders is only ever asked once — if more were waiting than one batch holds, press it again for the rest.',
+  'review-requests-none': 'Nobody was due a review request, so nothing was sent.',
   'care-saved': 'Care sheet saved.',
   'care-created': 'Care sheet published.',
   'bundle-saved': 'Set saved.',
@@ -386,5 +445,7 @@ export const ADMIN_ERRORS: Record<string, string> = {
     'The email could not be sent, so nothing left the shop. Check that SENDGRID_API_KEY is set, then try again.',
   'email-throttled':
     'That is a lot of email in a short time. Wait a few minutes and send the rest.',
-  'message-missing': 'That customer message is no longer here.'
+  'message-missing': 'That customer message is no longer here.',
+  'review-requests-failed':
+    'The review requests could not be sent. Check that SENDGRID_API_KEY is set — those orders are marked as asked either way, so they will not queue up again.'
 };

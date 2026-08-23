@@ -18,3 +18,21 @@ export const catalogHasActiveProducts = cache(async () => {
     return false;
   }
 });
+
+/**
+ * Whether anything is actually buyable today — active *and* on the bench.
+ *
+ * `catalogHasActiveProducts` answers a different question: whether the shop has
+ * a catalog at all. The gift pages are built from in-stock rows only, so a shop
+ * whose every listing has sold out has an empty gift guide while still having a
+ * catalog. Advertising "Gifts" in the header to a page that then says nothing
+ * is available is the one thing that condition exists to prevent.
+ */
+export const catalogHasSellableProducts = cache(async () => {
+  try {
+    const count = await db.product.count({ where: { active: true, inventory: { gt: 0 } } });
+    return count > 0;
+  } catch {
+    return false;
+  }
+});

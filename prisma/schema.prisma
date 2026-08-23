@@ -228,6 +228,18 @@ model Product {
    */
   sizeLabel        String?
   /**
+   * Which gift guides the owner has deliberately put this product in, as guide
+   * slugs from `lib/gifts.ts` ("tea-lover", "teacher"). Guides also match on
+   * type, price and keywords, so an untagged product still lands somewhere
+   * sensible; a tag only ever adds a guide.
+   *
+   * `GIFT_EXCLUDE_TAG` ("none") is reserved and means the opposite: keep this
+   * product out of every guide, however well it matches. That is the one way
+   * to say "this is not a gift" about something the derived rules would
+   * otherwise pick up.
+   */
+  giftTags         String[]     @default([])
+  /**
    * Structured, category-specific detail, stored as `{ fieldKey: value }` and
    * read through `lib/product-specs.ts`. A plant's light and water needs, a
    * tea's steep time and allergens, a soap's full ingredient list. Kept as JSON
@@ -526,6 +538,12 @@ model Order {
   internalNotes           String?
   confirmationEmailSentAt DateTime?
   confirmationEmailError  String?
+  /**
+   * When the "how did it settle in?" review invitation went out. Set once, and
+   * checked before every send, so an order can only ever be asked once however
+   * many times the follow-up runs.
+   */
+  reviewRequestSentAt     DateTime?
   fulfilledAt             DateTime?
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt
@@ -697,7 +715,18 @@ model NewsletterSubscriber {
   id             String    @id @default(cuid())
   email          String    @unique
   name           String?
+  /**
+   * Which signup form this address came from, as one of the keys in
+   * `lib/newsletter-source.ts`. Anything the browser posts that is not on that
+   * list is stored as "website", so the column stays a small set Tammy can
+   * count rather than free text.
+   */
   source         String?   @default("website")
+  /**
+   * The page the form was on, when knowing it helps — the product or care guide
+   * slug behind a "product" or "care-guide" signup. A site path or nothing.
+   */
+  sourceDetail   String?
   active         Boolean   @default(true)
   unsubscribedAt DateTime?
   createdAt      DateTime  @default(now())
@@ -858,6 +887,12 @@ model Review {
   status           ReviewStatus @default(PENDING)
   verifiedPurchase Boolean      @default(false)
   ownerReply       String?
+  /**
+   * How many shoppers said this review helped them. The only ordering signal a
+   * shop this size can honestly offer — there is no purchase history behind a
+   * "most helpful" sort otherwise — and it is why that sort exists at all.
+   */
+  helpfulCount     Int          @default(0)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   product          Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
