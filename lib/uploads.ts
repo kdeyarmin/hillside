@@ -186,7 +186,20 @@ export async function saveUploadedImage(
         // through would put a wider candidate in the srcset than the file behind
         // it actually is.
         if (!variantWidth || variantWidth >= masterWidth) continue;
-        const { bytes: variantBytes } = await readImage(variant.file);
+        const { bytes: variantBytes, type: variantType } = await readImage(variant.file);
+        /**
+         * A variant is written under the *master's* extension, so its bytes have
+         * to actually be that format. Trusting the master's extension for
+         * whatever arrived under `variant-<width>` would store, say, WebP bytes
+         * as `.avif` — served with the wrong content type, undecodable, and sat
+         * in a `srcset` the master's own name advertises. Dropping the ladder
+         * (below) is the right answer rather than skipping the one file: a
+         * request whose parts disagree about their format is malformed, and the
+         * photograph is still stored at full size.
+         */
+        if (variantType !== type) {
+          throw new Error(`Variant ${variantWidth}w is ${variantType}, not ${type}`);
+        }
         await writeFile(
           path.join(directory, variantFilename(stem, extension, variantWidth)),
           variantBytes,

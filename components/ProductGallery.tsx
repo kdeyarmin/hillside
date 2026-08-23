@@ -30,7 +30,6 @@ export default function ProductGallery({
   photos: ProductPhoto[];
 }) {
   const [active, setActive] = useState(0);
-  const current = photos[Math.min(active, photos.length - 1)];
 
   if (photos.length <= 1) {
     return (
@@ -45,6 +44,13 @@ export default function ProductGallery({
       />
     );
   }
+
+  /**
+   * Resolved below the early return, where the list is known to hold something.
+   * `Math.min` keeps the index inside the list when a product loses a photograph
+   * between renders and `active` is left pointing past the end.
+   */
+  const current = photos[Math.min(active, photos.length - 1)];
 
   return (
     <div className="product-gallery">

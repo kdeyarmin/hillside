@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
-import { detectImageType, validMediaFilename } from '../lib/uploads.ts';
+import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { after, before, describe, it } from 'node:test';
+import { detectImageType, saveUploadedImage, validMediaFilename } from '../lib/uploads.ts';
 
 /** `<size><ftyp><brand>`, the opening of any ISO base media file. */
 const ftyp = (brand: string) =>
@@ -48,5 +51,63 @@ describe('validMediaFilename', () => {
     assert.equal(validMediaFilename(`${stem}-800w.webp`), true);
     assert.equal(validMediaFilename('../../etc/passwd'), false);
     assert.equal(validMediaFilename(`${stem}.svg`), false);
+  });
+});
+
+describe('saveUploadedImage', () => {
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]);
+  const gif = Buffer.from('GIF89a....');
+  const asFile = (bytes: Buffer, name: string) => new File([new Uint8Array(bytes)], name);
+
+  let directory = '';
+  let previous: string | undefined;
+
+  before(async () => {
+    previous = process.env.UPLOAD_DIR;
+    directory = await mkdtemp(path.join(tmpdir(), 'hillside-uploads-'));
+    process.env.UPLOAD_DIR = directory;
+  });
+
+  after(async () => {
+    if (previous === undefined) delete process.env.UPLOAD_DIR;
+    else process.env.UPLOAD_DIR = previous;
+    await rm(directory, { recursive: true, force: true });
+  });
+
+  it('writes the ladder and names the widths it wrote', async () => {
+    const url = await saveUploadedImage(asFile(png, 'bench.png'), {
+      width: 1600,
+      variants: [
+        { width: 400, file: asFile(png, 'bench-400w.png') },
+        { width: 800, file: asFile(png, 'bench-800w.png') }
+      ]
+    });
+    assert.match(url, /^\/media\/[0-9a-f-]{36}-v400-800-1600\.png$/);
+    const written = (await readdir(directory)).filter((name) => name.endsWith('.png'));
+    assert.equal(written.length, 3);
+    assert.equal(written.filter((name) => /-400w\.png$/.test(name)).length, 1);
+    assert.equal(written.filter((name) => /-800w\.png$/.test(name)).length, 1);
+  });
+
+  it("drops the whole ladder when a variant is not the master's format", async () => {
+    /**
+     * Variants are written under the master's extension, so GIF bytes would have
+     * been stored as `.png` and served as `image/png` — an undecodable candidate
+     * in a srcset the master's own name advertises. The photograph still stores,
+     * at one size, with an unmarked name that promises no variants.
+     */
+    const url = await saveUploadedImage(asFile(png, 'bench.png'), {
+      width: 1600,
+      variants: [{ width: 400, file: asFile(gif, 'bench-400w.gif') }]
+    });
+    assert.match(url, /^\/media\/[0-9a-f-]{36}\.png$/);
+  });
+
+  it('ignores a "variant" that is not smaller than the master', async () => {
+    const url = await saveUploadedImage(asFile(png, 'bench.png'), {
+      width: 800,
+      variants: [{ width: 1600, file: asFile(png, 'bench-1600w.png') }]
+    });
+    assert.match(url, /^\/media\/[0-9a-f-]{36}\.png$/);
   });
 });
