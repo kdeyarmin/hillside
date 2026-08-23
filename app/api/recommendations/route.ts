@@ -1,38 +1,34 @@
 import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { recommendationsForBasket } from '@/lib/recommendation-queries';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Powers the "goes well with" strip in the cart drawer. */
+/**
+ * The cart drawer's "goes well with" strip.
+ *
+ * It used to answer with the shop's featured products, excluding whatever was
+ * already in the basket — which meant a shopper buying soap was offered a
+ * monstera because the monstera happened to be featured. Now the basket's own
+ * contents pick the suggestion, through the same rules the product page uses,
+ * and an empty answer is a perfectly good one: nothing beats a suggestion that
+ * has nothing to do with what you are buying.
+ */
 export async function GET(request: Request) {
   try {
-    const exclude = new URL(request.url).searchParams.get('exclude') || '';
-    const excluded = exclude
-      .split(',')
-      .map((slug) => slug.trim())
-      .filter(Boolean)
-      .slice(0, 50);
+    const params = new URL(request.url).searchParams;
+    const slugList = (value: string | null) =>
+      (value || '')
+        .split(',')
+        .map((slug) => slug.trim())
+        .filter(Boolean)
+        .slice(0, 50);
 
-    const products = await db.product.findMany({
-      where: { active: true, inventory: { gt: 0 }, slug: { notIn: excluded } },
-      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
-      take: 4,
-      select: {
-        slug: true,
-        name: true,
-        priceCents: true,
-        imageUrl: true,
-        inventory: true,
-        type: true,
-        ships: true,
-        pickup: true,
-        sizes: true,
-        sizeLabel: true
-      }
-    });
+    const inBasket = slugList(params.get('exclude'));
+    const sets = slugList(params.get('sets'));
+    if (!inBasket.length && !sets.length) return NextResponse.json({ products: [] });
 
-    return NextResponse.json({ products });
+    return NextResponse.json({ products: await recommendationsForBasket(inBasket, sets) });
   } catch (error) {
     console.error('Unable to build cart recommendations', error);
     return NextResponse.json({ products: [] });

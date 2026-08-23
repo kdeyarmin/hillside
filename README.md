@@ -17,11 +17,17 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Professional botanical storefront based on the Hillside green, sage and gold logo system
 - A homepage that says what the shop sells — plants, botanical goods and creative planting — above a row of the categories it sells them in
 - An owner-managed category taxonomy: houseplants, carnivorous plants, succulents, air plants, living arrangements, terrariums and supplies, moss, driftwood, planters, tea and tea accessories, soap, lotion, apothecary, gifts and seasonal
-- Owner-managed collections with their own pages, curated across categories — beginner friendly, low light, pet friendly, gifts under $30
-- Site-wide search across products, categories and care guides
-- Searchable and filterable live product catalog, with sale and new-arrival sorting
-- Individual SEO-ready product pages with live inventory, multiple photographs and customer reviews
+- Owner-managed collections that are real landing pages, curated across categories — an introduction, the products, the care guides that go with them, the questions customers actually ask, and links onward
+- Site-wide search across product names, botanical names, descriptions, attributes, categories, collections, care guides and classes, with typo tolerance
+- Filterable product catalog: category, collection, price, availability, pickup and shipping, plant attributes, handmade, new, best seller and sale — showing only the filters something on screen answers to
+- Owner-assigned product attributes (pet safe, low light, beginner friendly, handmade, giftable and more) used by the filters, the search and the product pages
+- Best-seller badges and rows worked out from paid orders rather than a checkbox
+- A local-shopping page at `/visit` for Ebensburg and Cambria County pickup
+- Sets and starter kits at `/bundles`, built from real stock and priced below their parts
+- Contextual recommendations on every product page — "Pairs well with", "Complete the setup", "Frequently bought together" and "You may also like"
+- Individual SEO-ready product pages with live inventory, a named photograph gallery and customer reviews
 - Structured product detail that changes with the category — a plant's light, water, pot size and pet safety; a tea's steep time, caffeine and allergens; a soap's full ingredient list
+- Product cards that carry a price or price range, sale, new, best-seller and low-stock signals, and which sizes are still available
 - A variant dropdown on products sold in more than one form, each variant carrying its own price, stock, SKU, photograph, weight, dimensions and shipping answer
 - Back-in-stock email alerts on sold-out products
 - Persistent shopping cart and secure Stripe Checkout
@@ -30,11 +36,12 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Configurable flat or free standard shipping
 - Customer order-confirmation page and Stripe invoice link
 - Self-service order-status lookup
-- Printable houseplant care sheets and detailed care pages
+- Printable houseplant care sheets and detailed care pages, in five kinds: plant profiles, beginner guides, general education, troubleshooting and seasonal
 - Gallery of Tammy’s past planter arrangements
 - Tammy’s Amazon influencer picks with affiliate disclosure, published by pasting the item’s link
 - Newsletter signup, cart saving and customer contact form
-- Care guides that link through to the plant they describe
+- Care guides that link through to the plant they describe, and can feature the products used for the job with Tammy's own reason for each
+- A prominent care-guide link in the buy box of every plant that has one
 - Google Analytics 4 ecommerce events (opt-in through an environment variable)
 - LocalBusiness structured data, plus a purpose-built social share image
 - About, FAQ, shipping/returns, privacy and terms pages
@@ -53,6 +60,14 @@ The dashboard at `/admin` includes:
 - Category assignment, which also decides which structured detail fields the product is asked for
 - Structured detail fields that change with the category, with the common answers offered as you type
 - A variant editor for anything sold in more than one form, each variant carrying its own price, stock, SKU, photograph, weight, dimensions and shipping answer
+- A merchandising page at `/admin/merchandising`: homepage rows, product badges, best-seller and new-arrival overrides, drag-to-reorder product and collection order, and featured collections
+- Per-product attributes, botanical name, extra search terms, season dates, related products, cross-sells and bundle contents
+- Collection page editing — introduction, longer copy, questions and answers, search words and linked care guides
+- A **Needs attention** panel that counts what is actually outstanding and links each number to the products behind it
+- Inventory filters for out of stock, low stock, needs reorder, no reorder point, missing SKU, missing supplier, missing photograph, inactive, incomplete and recently restocked
+- Supplier, their item number, reorder point, reorder quantity, inventory status, private inventory notes and a last-restocked date that fills itself in
+- A one-field **Received a delivery** form on every product, per size where sizes are counted separately
+- Per-product completeness scoring against what that category of product needs, and a draft / ready to publish / published state
 - Low-stock visibility and product archiving
 - Paid and free class registrations and seat counts
 - Customer website inbox
@@ -61,7 +76,9 @@ The dashboard at `/admin` includes:
 - Restock request list, emailed automatically when stock returns
 - Gift cards and promo codes at `/admin/discounts` — issue one card or a batch, mint a promo code or fifty, watch every card's balance and ledger
 - Category and collection management, and per-product assignment to both
-- Visibility of products still missing their own photograph
+- A photography editor with drag-and-drop, mobile upload, named photo slots, reordering, primary selection and previews
+- A merchandising manager at `/admin/merchandising` for homepage rows, badges, sets, per-product recommendations and the products featured on each care guide
+- Visibility of products still missing their own photograph, and of products still showing shared category artwork
 - Order confirmation email delivery status
 - Admin account management at `/admin/accounts` — add an admin, change a password, revoke access
 - A separate content manager at `/admin/content` for classes, gallery items and Amazon picks — a pick is added by pasting the item’s Amazon link and nothing else
@@ -252,6 +269,12 @@ The details are stored as JSON in `Product.specs` and read through
 form renders from it, the save reads from it, and the public specification table
 renders from it again.
 
+## Merchandising, categories and search
+
+`docs/merchandising-and-seo.md` covers how the shop decides what to put in front
+of people: where best sellers come from, what the automatic badges mean, how the
+category pages are written, and which filters appear when.
+
 ## Products sold in more than one size
 
 A product that comes in several forms — a pothos in a 4" nursery pot, a 6"
@@ -345,6 +368,153 @@ name because live rows, saved carts and in-flight Stripe sessions hold data unde
 it; only the shape has grown, and every older row — including one written as a
 bare list of names — still validates against it untouched.
 
+## Inventory, completeness and photography
+
+Three related things the dashboard does with a product, none of which involve
+money: cost, margin and inventory valuation are deliberately absent, because this
+is the list Tammy works from at the potting bench rather than a set of books.
+
+### Restocking
+
+Each product carries an optional supplier, that supplier's own item number, a
+reorder point, a reorder quantity, an inventory status, private inventory notes
+and a last-restocked date. The date fills itself in whenever the quantity on hand
+goes up, and can be corrected by hand when the box actually arrived on another
+day. **Received a delivery** on each product row adds what turned up — per size,
+where the sizes are counted separately — rather than asking for the new total.
+
+The inventory status says _why_ a shelf is empty, which decides whether it is a
+job at all: `On order` takes a product off the reorder list until it lands,
+`Made to order` never has a count to run down, and `Seasonal` and `Discontinued`
+are not being reordered now. A reorder point is measured against the product
+total, because a reorder is placed for the product; low stock is still measured
+per size, because that is where potting-up happens.
+
+The chips above the inventory list — out of stock, low stock, needs reorder, no
+reorder point, missing SKU, missing supplier, missing photograph, inactive,
+incomplete, recently restocked — are counted over the whole catalog rather than
+the filtered view, so a number does not move while she types in the search box.
+**Needs attention** at the top of the dashboard is a shorter list of the same
+counts, in sentences, each linking to the chip that shows those products.
+
+### Completeness
+
+`lib/product-completeness.ts` checks each product against what _its category_
+needs: a plant is asked for pot size, light, water and pet safety; a tea for net
+weight, ingredients, brewing instructions and caffeine status. The result is a
+percentage, a named list of what is missing, and one of three states — **Draft**
+while something required is missing, **Ready to publish** once it is not, and
+**Published** once it is live.
+
+None of this blocks a save. An unfinished draft is how the work gets done, and
+being refused at the save button is how the work stops. The single exception is a
+regulated consumer good: a tea, soap or lotion with no net contents and no
+ingredient list saves in full but stays a draft, with the reason on screen, and
+the same refusal applies to the one-click **Put back in shop**.
+
+### Photography
+
+Every product has a named slot for its main, lifestyle, detail, scale and
+packaging photographs, plus a reorderable strip of additional ones — each named
+view is labelled for customers in the product gallery, because "Size" and
+"Packaging" are the thumbnails a shopper is hunting for and "photograph 4 of 6"
+makes them hunt. `lib/product-photos.ts` is the one place that decides what
+counts as shared category artwork rather than a real photograph, and both the
+storefront visual and the dashboard's chip ask it.
+
+## Sets and kits
+
+A set — the Tea Starter Set, the Terrarium Starter Kit, the Hillside Gift Box —
+is built at `/admin/merchandising` out of products already in inventory. It has
+a title, a photograph, a description, a badge, its own selling price, and
+active/featured switches, exactly like a product.
+
+What it does **not** have is stock.
+
+There is no bundle inventory column anywhere in the schema, and that absence is
+the design. A second count would be a copy of the real one, and it would drift
+the first time a loose infuser was sold on its own — after which the shop would
+go on offering a set it could not build. So how many sets exist is worked out
+every time the question is asked:
+
+> the fewest complete sets any **required** component can supply, counting
+> against the exact variant the recipe names.
+
+Everything follows from that one figure. A set whose component runs out
+disappears from the sets page, the homepage, the header, the sitemap and search
+on its own, with nothing for anyone to remember to switch off, and comes back
+when the component is restocked. Sold-out sets are also `noindex`, so a crawler
+is not sent to a page that cannot sell.
+
+Each line of the recipe carries:
+
+- **the product** — the same row the shop sells on its own page;
+- **a required variant**, for a product sold in sizes. The Tea Starter Set wants
+  the 2 oz tin, not whichever tin a shopper would otherwise have picked. A sized
+  product with no variant named is a recipe nobody can fill, so the set stays off
+  the website and the editor says why;
+- **how many** of it one set contains;
+- **Extra**, for a garnish that should not take the whole set off sale. An extra
+  is packed when the shelf can cover it and quietly left out when it cannot,
+  which is also why it is left out of the "you save $12" figure — a saving
+  measured against something the customer might not receive is a claim the shop
+  cannot stand behind.
+
+When a set sells, the components come off the shelf, per variant, exactly as if
+they had been bought loose. The order records one line at the price the customer
+paid, with the components it took snapshotted underneath it — the snapshot, not
+the recipe, is what a refund six weeks later puts back, because the recipe may
+have changed since. Packing slips print the set and then the pieces to pick.
+
+## Recommendations
+
+Every product page can show four sections, and each only appears when something
+genuinely answers it:
+
+| Section                    | Where it comes from                                                                 |
+| -------------------------- | ----------------------------------------------------------------------------------- |
+| Pairs well with            | Owner's choice, then companion rules (tea → infuser, soap → lotion)                 |
+| Complete the setup         | Owner's choice, then requirement rules (carnivorous plant → its growing medium)     |
+| Frequently bought together | Real orders, counted per order, needing at least two before it will claim a pattern |
+| You may also like          | Owner's choice, then shared traits and collections                                  |
+
+The rule the whole feature enforces is negative: **nothing is recommended merely
+for sharing a broad category**. "Plants" is not a reason to show a monstera under
+a venus flytrap. Matching happens on _traits_ — `carnivorous`, `terrarium`,
+`planter`, `substrate`, `infuser` — which come from the tags set per product at
+`/admin/merchandising`, and are otherwise inferred from what the product says
+about itself. Type inference is guarded: "grown on in a 6\" pot" appears in half
+the plant descriptions on the site, and without the guard every plant would be
+tagged as a planter and recommended as the thing to pot itself in.
+
+Anything Tammy configures always wins and always shows, with her own reason
+printed under the card. If nothing matches, the heading does not appear at all —
+an empty "Complete the setup" is a better answer than a wrong one, because a
+shopper shown a bar of soap under a fly trap stops reading the section.
+
+The cart drawer's "goes well with" strip runs the same rules against the whole
+basket. It used to show whatever happened to be featured.
+
+## Care guides and commerce
+
+The care library is why strangers find this site, so it is wired to the shop in
+both directions:
+
+- Every product with a guide carries a **care-guide link in the buy box**, above
+  the Add button — that is where a nervous first-time buyer decides whether the
+  plant is survivable — plus the full list of guides further down the page.
+- Every guide can **feature products** with Tammy's own sentence for each ("this
+  is what we pot ours in"). It renders as an editorial list rather than a grid of
+  buy buttons, and a sold-out piece is left off rather than shown struck through.
+- A guide whose subject appears in a set links to the set.
+- The old "here are three plants we have in stock" fallback is gone. It fired on
+  every guide with nothing attached, including troubleshooting guides, where
+  somebody arrives worried about a plant they already own and was shown three
+  more to buy.
+
+Guides come in five kinds, chosen in the care manager: plant profile, beginner
+guide, general education, troubleshooting and seasonal.
+
 ## Gift cards and promo codes
 
 Both live at `/admin/discounts`, and both are entered by the customer on the
@@ -369,6 +539,12 @@ applies a coupon — to the line items — so it is the shape of the thing doing
 charging rather than a policy choice. Free shipping is therefore its own kind of
 promotion rather than a coupon: it chooses the free shipping rate as the Stripe
 session is created.
+
+A set is discounted like anything else by an unscoped code, and not at all by a
+category-scoped one. A set is priced as a single thing, its pieces may come off
+half a dozen different shelves, and a bundle row has no category of its own to
+test against — so "20% off teas" takes its twenty percent off the loose tea in
+the basket and leaves the Tea Starter Set beside it at full price.
 
 The one adjustment made on top of that: Stripe refuses to charge less than fifty
 cents, so a quote never leaves a total in the gap between nothing and that. A
@@ -460,8 +636,15 @@ each master in `public/images/`, re-encodes the brand marks, and rewrites the
 adding or replacing photography, and commit the output.
 
 `ResilientImage` resolves `srcSet` and `sizes` from its own `src`, so call sites
-only choose a `sizeRole` (`hero`, `card`, `tile`, `detail`, `thumb`). Owner-uploaded
-photographs served from `/media/` have no variants and fall back to a plain `src`.
+only choose a `sizeRole` (`hero`, `card`, `tile`, `detail`, `thumb`).
+
+Owner-uploaded photographs cannot be processed at build time, because they arrive
+from Tammy's phone at request time. They are resized in the browser instead — up
+to 1600px wide, re-encoded as WebP, with 400/800/1200 copies uploaded alongside — and the stored filename carries the widths that exist beside it
+(`<uuid>-v400-800-1200-1600.webp`), so the same `srcSet` builder covers both
+sources with nothing to look up. Uploads from before this existed have unmarked
+names and keep the plain single `src` they always had. See
+`docs/admin-image-uploads.md`.
 
 ## Amazon influencer picks
 
@@ -624,6 +807,9 @@ Before accepting live orders or class registrations:
 - Confirm that inventory decrements once and customer emails arrive as expected.
 - Complete the Telnyx two-device test in `docs/telnyx-video-classes.md`.
 - Replace sample gallery images with Tammy’s real work.
+- Assign product attributes (pet safe, low light, beginner friendly, handmade) so the shop filters and site search have something to work with.
+- Read through the seeded category pages at `/collections` and edit anything that is not true of this shop — they are starting copy, and they stop being overwritten the moment they are edited.
+- Arrange the homepage rows at `/admin/merchandising`.
 - Set `AMAZON_ASSOCIATE_TAG` to Tammy’s associate tag, then add one pick from a link and confirm it appears on `/amazon` with the tag on its button.
 - Create Tammy’s admin account, confirm she can sign in with it, and unset the shared `ADMIN_PASSWORD` once every admin has their own.
 - Verify mobile navigation, checkout, online classroom, admin login and label printing on Tammy’s actual devices.

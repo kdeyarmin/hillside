@@ -6,6 +6,8 @@ import {
   cartRestoreDropped,
   readCartRestoreToken
 } from '@/lib/cart-restore';
+import { bundleAvailability, bundleContentsLine, bundleFulfillment } from '@/lib/bundles';
+import { bundlesBySlug } from '@/lib/bundle-queries';
 import { db } from '@/lib/db';
 import { readJsonBody } from '@/lib/request-body';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
@@ -23,7 +25,8 @@ const schema = z.object({
       z.object({
         slug: z.string().max(140),
         quantity: z.coerce.number().int().min(1).max(50),
-        size: z.string().max(60).optional()
+        size: z.string().max(60).optional(),
+        kind: z.enum(['product', 'bundle']).optional()
       })
     )
     .max(50)
@@ -41,7 +44,7 @@ const schema = z.object({
 
 async function emailSavedCart(
   email: string,
-  items: Array<{ slug: string; quantity: number; size?: string }>,
+  items: Array<{ slug: string; quantity: number; size?: string; kind?: 'bundle' }>,
   subtotalCents: number
 ) {
   const token = createCartRestoreToken(email, items);
@@ -96,7 +99,8 @@ export async function POST(request: Request) {
     const items = input.items.map((item) => ({
       slug: item.slug,
       quantity: Math.max(1, Math.min(20, item.quantity)),
-      ...(item.size ? { size: item.size } : {})
+      ...(item.size ? { size: item.size } : {}),
+      ...(item.kind === 'bundle' ? { kind: 'bundle' as const } : {})
     }));
 
     await db.cartLead.upsert({
@@ -155,23 +159,72 @@ export async function GET(request: Request) {
     );
   }
 
-  const products = await db.product.findMany({
-    where: { active: true, slug: { in: payload.items.map((item) => item.slug) } },
-    select: {
-      slug: true,
-      name: true,
-      priceCents: true,
-      imageUrl: true,
-      inventory: true,
-      type: true,
-      ships: true,
-      pickup: true,
-      sizes: true
-    }
-  });
+  const [products, bundles] = await Promise.all([
+    db.product.findMany({
+      where: {
+        active: true,
+        slug: {
+          in: payload.items.filter((item) => item.kind !== 'bundle').map((item) => item.slug)
+        }
+      },
+      select: {
+        slug: true,
+        name: true,
+        priceCents: true,
+        imageUrl: true,
+        inventory: true,
+        type: true,
+        ships: true,
+        pickup: true,
+        sizes: true
+      }
+    }),
+    bundlesBySlug(payload.items.filter((item) => item.kind === 'bundle').map((item) => item.slug))
+  ]);
+
+  /** One basket line as the cart drawer expects it back. */
+  type RestoredLine = {
+    kind: 'product' | 'bundle';
+    slug: string;
+    name: string;
+    priceCents: number;
+    imageUrl: string | null;
+    inventory: number;
+    type: string;
+    ships: boolean;
+    pickup: boolean;
+    size: string | null;
+    quantity: number;
+    contents?: string;
+  };
 
   const requestedPieces = payload.items;
-  const items = payload.items.flatMap((requested) => {
+  const items = payload.items.flatMap((requested): RestoredLine[] => {
+    if (requested.kind === 'bundle') {
+      const bundle = bundles.find((candidate) => candidate.slug === requested.slug);
+      if (!bundle || !bundle.active) return [];
+      // How many sets are buildable right now, which is the only stock a set has.
+      const available = bundleAvailability(bundle).sets;
+      if (available <= 0) return [];
+      const fulfillment = bundleFulfillment(bundle);
+      return [
+        {
+          kind: 'bundle',
+          slug: bundle.slug,
+          name: bundle.title,
+          priceCents: bundle.priceCents,
+          imageUrl: bundle.imageUrl,
+          inventory: available,
+          type: 'BUNDLE',
+          ships: fulfillment.ships,
+          pickup: fulfillment.pickup,
+          size: null,
+          quantity: clampQuantity(requested.quantity, available),
+          contents: bundleContentsLine(bundle)
+        }
+      ];
+    }
+
     const product = products.find((candidate) => candidate.slug === requested.slug);
     if (!product || product.inventory <= 0) return [];
     /**
@@ -192,6 +245,7 @@ export async function GET(request: Request) {
     if (available <= 0) return [];
     return [
       {
+        kind: 'product',
         slug: product.slug,
         name: product.name,
         priceCents: chosen?.priceCents ?? product.priceCents,

@@ -19,6 +19,7 @@ import ResilientImage from '@/components/ResilientImage';
 import CheckoutOptions from '@/components/CheckoutOptions';
 import { giftCardTail } from '@/lib/discount-request';
 import { lineKey, useCart } from '@/components/CartProvider';
+import { lineHref } from '@/lib/cart-lines';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { cartFulfillment } from '@/lib/fulfillment';
 import { focusableElements, trapTabKey } from '@/lib/focus-trap';
@@ -108,27 +109,39 @@ type Suggestion = {
   pickup?: boolean;
   sizes?: unknown;
   sizeLabel?: string | null;
+  /** Why this is being offered, from the same rules the product page uses. */
+  reason?: string | null;
 };
 
 function CartDrawerSuggestions() {
   const { items, addItem, closeCart } = useCart();
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  const slugs = items.map((item) => item.slug).join(',');
+  // Sets are sent separately: their slugs live in their own namespace, and the
+  // server anchors on what is inside the box rather than on the box.
+  const slugs = items
+    .filter((item) => item.kind !== 'bundle')
+    .map((item) => item.slug)
+    .join(',');
+  const sets = items
+    .filter((item) => item.kind === 'bundle')
+    .map((item) => item.slug)
+    .join(',');
 
   useEffect(() => {
-    if (!slugs) {
+    if (!slugs && !sets) {
       setSuggestions([]);
       return;
     }
     const controller = new AbortController();
-    fetch(`/api/recommendations?exclude=${encodeURIComponent(slugs)}`, {
-      signal: controller.signal
-    })
+    const query = new URLSearchParams();
+    if (slugs) query.set('exclude', slugs);
+    if (sets) query.set('sets', sets);
+    fetch(`/api/recommendations?${query.toString()}`, { signal: controller.signal })
       .then((response) => (response.ok ? response.json() : { products: [] }))
       .then((data: { products?: Suggestion[] }) => setSuggestions(data.products?.slice(0, 2) || []))
       .catch(() => setSuggestions([]));
     return () => controller.abort();
-  }, [slugs]);
+  }, [sets, slugs]);
 
   if (!suggestions.length) return null;
 
@@ -152,6 +165,9 @@ function CartDrawerSuggestions() {
             <div>
               <b>{product.name}</b>
               <span>{formatSizePriceRange(sizes, product.priceCents)}</span>
+              {/* The reason is the whole point: without it this strip is just
+                  another shelf, which is what it used to be. */}
+              {product.reason && <span>{product.reason}</span>}
             </div>
             {/* A suggestion cannot take a size choice either, so a sized product
                 is offered as a link to the page where the choice lives, and says
@@ -329,12 +345,15 @@ function CartDrawer({
                       decoding="async"
                     />
                     <div className="cart-line-copy">
-                      <Link href={`/shop/${item.slug}`} onClick={closeCart}>
+                      <Link href={lineHref(item)} onClick={closeCart}>
                         <b>{item.name}</b>
                       </Link>
                       {/* Named on the line rather than folded into the title, so
                           two sizes of one plant read as the two lines they are. */}
                       {item.size && <span className="cart-line-size">{item.size}</span>}
+                      {/* A set costs one price, so the line has to say what is
+                          in the box or the figure looks arbitrary. */}
+                      {item.contents && <span className="cart-line-size">{item.contents}</span>}
                       <span>{formatMoney(item.priceCents)}</span>
                       <div className="cart-line-actions">
                         <div
@@ -455,9 +474,16 @@ function CartDrawer({
 
 export function SiteHeader({
   catalogEmpty = false,
+  bundlesAvailable = false,
   freeShippingThreshold
 }: {
   catalogEmpty?: boolean;
+  /**
+   * Whether any set can actually be built right now. The link is hidden rather
+   * than pointing at an empty page, and the answer is derived from the
+   * components — there is no "do we have bundles" flag to go stale.
+   */
+  bundlesAvailable?: boolean;
   freeShippingThreshold: number;
 }) {
   const pathname = usePathname();
@@ -675,6 +701,15 @@ export function SiteHeader({
                 {label}
               </Link>
             ))}
+            {bundlesAvailable && (
+              <Link
+                className={isActive('/bundles') ? 'active' : ''}
+                href="/bundles"
+                aria-current={isActive('/bundles') ? 'page' : undefined}
+              >
+                Sets &amp; Kits
+              </Link>
+            )}
             {!catalogEmpty && (
               <Link className="sale-link" href="/shop?sort=new">
                 New Arrivals
@@ -703,6 +738,11 @@ export function SiteHeader({
                 </Link>
               ))}
               {!catalogEmpty && <Link href="/shop">Shop everything</Link>}
+              {bundlesAvailable && (
+                <Link href="/bundles" aria-current={isActive('/bundles') ? 'page' : undefined}>
+                  Sets &amp; Kits
+                </Link>
+              )}
               {!catalogEmpty && <Link href="/shop?sort=new">New Arrivals</Link>}
               <Link
                 href="/order-status"
@@ -747,10 +787,13 @@ export function SiteHeader({
  */
 export function SiteFooter({
   contactEmail = DEFAULT_BUSINESS_EMAIL,
-  catalogEmpty = false
+  catalogEmpty = false,
+  bundlesAvailable = false
 }: {
   contactEmail?: string;
   catalogEmpty?: boolean;
+  /** Hidden while no set can be built, for the same reason the header link is. */
+  bundlesAvailable?: boolean;
 }) {
   const pathname = usePathname();
   const showNewsletter = pathname !== '/';
@@ -804,6 +847,11 @@ export function SiteFooter({
               <Link href="/shop">Shop</Link>
             </p>
           )}
+          {bundlesAvailable && (
+            <p>
+              <Link href="/bundles">Sets &amp; kits</Link>
+            </p>
+          )}
           {CLASSES_PUBLICLY_VISIBLE && (
             <p>
               <Link href="/classes">Classes</Link>
@@ -811,6 +859,14 @@ export function SiteFooter({
           )}
           <p>
             <Link href="/care">Care sheets</Link>
+          </p>
+          <p>
+            <Link href="/collections">Collections</Link>
+          </p>
+          <p>
+            {/* The local page is where "plant shop near me" lands, so it needs a
+                link from every page rather than only from the sitemap. */}
+            <Link href="/visit">Visit &amp; local pickup</Link>
           </p>
           <p>
             <Link href="/gallery">Gallery</Link>

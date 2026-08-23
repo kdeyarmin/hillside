@@ -14,7 +14,12 @@ export const metadata = { title: 'Packing Slip' };
 export default async function PackingSlip({ params }: { params: Promise<{ id: string }> }) {
   if (!(await isAdmin())) redirect('/admin');
   const { id } = await params;
-  const order = await db.order.findUnique({ where: { id }, include: { items: true } });
+  const order = await db.order.findUnique({
+    where: { id },
+    // A set's line names the box; its components name what to take off the
+    // bench, which is what the packer is actually holding this sheet for.
+    include: { items: { include: { components: true } } }
+  });
   if (!order) notFound();
   const pickup = isPickupOrder(order);
 
@@ -107,7 +112,18 @@ export default async function PackingSlip({ params }: { params: Promise<{ id: st
               <tr key={item.id}>
                 {/* The size is what tells the packer which jar to reach for,
                     so it prints on the line rather than only in the order. */}
-                <td>{sizedName(item.name, item.size)}</td>
+                <td>
+                  {sizedName(item.name, item.size)}
+                  {item.components.length > 0 && (
+                    <ul className="packing-components">
+                      {item.components.map((component) => (
+                        <li key={component.id}>
+                          {sizedName(component.name, component.size)} × {component.quantity}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </td>
                 <td>{item.quantity}</td>
                 <td>{formatMoney(item.unitCents)}</td>
                 <td>{formatMoney(item.unitCents * item.quantity)}</td>

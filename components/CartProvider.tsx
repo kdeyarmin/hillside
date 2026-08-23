@@ -19,8 +19,9 @@ import {
   sanitizeGiftMessage,
   type FulfillmentChoice
 } from '@/lib/fulfillment';
+import { basketLineKey, readLineKind, type LineKind } from '@/lib/cart-lines';
 import { CODE_INPUT_MAX } from '@/lib/discount-request';
-import { cartLineKey, normalizeSizeLabel } from '@/lib/product-sizes';
+import { normalizeSizeLabel } from '@/lib/product-sizes';
 import { clampQuantity } from '@/lib/store';
 
 export type CartProduct = {
@@ -28,18 +29,28 @@ export type CartProduct = {
   name: string;
   priceCents: number;
   imageUrl: string | null;
+  /**
+   * The ceiling on this line. For a set that is how many complete sets the
+   * bench can build, worked out from the components — a bundle has no count of
+   * its own, and the drawer must not let a shopper climb past what exists.
+   */
   inventory: number;
   type?: string;
   ships?: boolean;
   pickup?: boolean;
   /** The size the shopper chose, for products sold in more than one size. */
   size?: string | null;
+  /** `bundle` for a set. Absent means an ordinary product. */
+  kind?: LineKind;
+  /** "Hillside Calm Tea × 1 · Stainless infuser × 1", shown under a set's line. */
+  contents?: string | null;
 };
 
 export type CartLine = CartProduct & { quantity: number };
 
 export type CheckoutAdjustment = {
   slug: string;
+  kind?: LineKind;
   name: string;
   requested: number;
   available: number;
@@ -74,13 +85,14 @@ export type DiscountSummary = {
 type DiscountMessages = Partial<Record<DiscountField, string>>;
 
 /**
- * A basket line is a product *and* a size, so every operation below addresses
- * lines by this key rather than by the slug. Keyed on the slug alone, adding a
- * 6" pot of a plant already in the basket in 4" would have silently changed the
- * size of the line that was there.
+ * A basket line is a kind, a slug *and* a size, so every operation below
+ * addresses lines by this key rather than by the slug. Keyed on the slug alone,
+ * adding a 6" pot of a plant already in the basket in 4" would have silently
+ * changed the size of the line that was there — and a set could have collided
+ * with a product that happened to share its slug.
  */
-export function lineKey(line: { slug: string; size?: string | null }) {
-  return cartLineKey(line.slug, line.size);
+export function lineKey(line: { slug: string; size?: string | null; kind?: LineKind }) {
+  return basketLineKey(line.kind || 'product', line.slug, line.size);
 }
 
 /**
@@ -233,6 +245,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                * one-size lines they were.
                */
               size: normalizeSizeLabel(line.size) || null,
+              kind: readLineKind(line.kind),
+              contents: line.contents ? String(line.contents) : null,
               quantity: clampQuantity(Number(line.quantity) || 1, inventory)
             }
           ];
@@ -318,9 +332,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             fulfillment,
             promoCode: codes.promoCode,
             giftCardCode: codes.giftCardCode,
+            // The same lines checkout sends, sets included: a quote priced
+            // against a different basket than the one being bought is worse
+            // than no quote.
             items: items.map((item) => ({
               id: item.slug,
               quantity: item.quantity,
+              ...(item.kind === 'bundle' ? { kind: 'bundle' } : {}),
               ...(item.size ? { size: item.size } : {})
             }))
           })
@@ -412,7 +430,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setLastAdded(
       product.size
         ? `${product.name} (${product.size}) added to your basket.`
-        : `${product.name} added to your basket.`
+        : product.kind === 'bundle'
+          ? `The ${product.name} set was added to your basket.`
+          : `${product.name} added to your basket.`
     );
     setItems((current) => {
       const key = lineKey(product);
@@ -497,6 +517,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             id: item.slug,
             quantity: item.quantity,
             priceCents: item.priceCents,
+            ...(item.kind === 'bundle' ? { kind: 'bundle' } : {}),
             ...(item.size ? { size: item.size } : {})
           }))
         })
@@ -531,9 +552,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         const adjustments = result.adjustments;
         setItems((current) =>
           current.flatMap((item) => {
-            const change = adjustments.find(
-              (entry) => cartLineKey(entry.slug, entry.size) === lineKey(item)
-            );
+            const change = adjustments.find((entry) => lineKey(entry) === lineKey(item));
             if (!change) return [item];
             if (change.reason === 'price' && change.priceCents != null) {
               return [{ ...item, priceCents: change.priceCents }];

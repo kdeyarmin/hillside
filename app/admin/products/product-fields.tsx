@@ -1,4 +1,12 @@
-import type { ProductSpecKind, ProductType } from '@prisma/client';
+import { InventoryStatus, type ProductSpecKind, type ProductType } from '@prisma/client';
+import ProductPhotoManager from '@/components/ProductPhotoManager';
+import { groupTags, PRODUCT_TAGS } from '@/lib/product-tags';
+import {
+  INVENTORY_STATUS_HINTS,
+  INVENTORY_STATUS_LABELS,
+  inventoryStatusValue,
+  restockDateValue
+} from '@/lib/inventory';
 import { SPEC_KIND_BY_TYPE, SPEC_KIND_LABELS } from '@/lib/product-categories';
 import {
   readProductSpecs,
@@ -45,7 +53,24 @@ export type AdminProductDraft = {
   compareAtCents: number | null;
   inventory: number;
   imageUrl: string | null;
+  lifestyleImageUrl: string | null;
+  detailImageUrl: string | null;
+  scaleImageUrl: string | null;
+  packagingImageUrl: string | null;
+  supplier: string | null;
+  supplierItemNumber: string | null;
+  reorderPoint: number | null;
+  reorderQuantity: number | null;
+  inventoryNotes: string | null;
+  inventoryStatus: InventoryStatus;
+  lastRestockedAt: Date | null;
   badge: string | null;
+  botanical: string | null;
+  searchTerms: string | null;
+  staffPick: boolean;
+  tags: string[];
+  seasonStartsAt: Date | null;
+  seasonEndsAt: Date | null;
   active: boolean;
   featured: boolean;
   sortOrder: number;
@@ -295,6 +320,9 @@ export default function ProductFields({
   product?: AdminProductDraft;
 }) {
   const assigned = new Set((product?.collections || []).map((collection) => collection.id));
+  const chosenTags = new Set(product?.tags || []);
+  const dateValue = (value: Date | null | undefined) =>
+    value ? value.toISOString().slice(0, 10) : '';
   const stored = readStoredSizes(product?.sizes);
   const counted = storedSizesTrackStock(stored);
   const sizeStock = sizeStockSummary(product?.sizes);
@@ -438,15 +466,6 @@ export default function ProductFields({
           />
         </label>
         <label className="admin-label">
-          Photo URL
-          <input
-            className="admin-input"
-            name="imageUrl"
-            type="text"
-            defaultValue={product?.imageUrl || ''}
-          />
-        </label>
-        <label className="admin-label">
           Shipping weight (oz)
           <input
             className="admin-input"
@@ -516,17 +535,209 @@ export default function ProductFields({
             defaultValue={product?.shippingNote || ''}
           />
         </label>
-        <label className="admin-label full">
-          Extra photo URLs (one per line)
-          <textarea
-            className="admin-input"
-            name="galleryImages"
-            rows={3}
-            defaultValue={(product?.galleryImages || []).join('\n')}
-            placeholder={'/media/second-angle.jpg\n/media/detail.jpg'}
-          />
-        </label>
       </div>
+
+      {/* Named fields rather than the whole row: everything handed to a client
+          component is serialized into the payload twice over, and the photo
+          editor has no use for the variant list or the supplier. */}
+      <ProductPhotoManager
+        product={
+          product && {
+            imageUrl: product.imageUrl,
+            lifestyleImageUrl: product.lifestyleImageUrl,
+            detailImageUrl: product.detailImageUrl,
+            scaleImageUrl: product.scaleImageUrl,
+            packagingImageUrl: product.packagingImageUrl,
+            galleryImages: product.galleryImages || []
+          }
+        }
+      />
+
+      <fieldset className="admin-subsection">
+        <legend>
+          <h3>How it is found and merchandised</h3>
+        </legend>
+        <div className="admin-grid">
+          <label className="admin-label">
+            Botanical (Latin) name
+            <input
+              className="admin-input"
+              name="botanical"
+              defaultValue={product?.botanical || ''}
+              placeholder="Epipremnum aureum"
+            />
+            <span className="admin-hint">
+              Shown under the product name, and searchable — a lot of people type the Latin name.
+            </span>
+          </label>
+          <label className="admin-label">
+            Other words people search for
+            <input
+              className="admin-input"
+              name="searchTerms"
+              defaultValue={product?.searchTerms || ''}
+              placeholder="devil's ivy, money plant"
+            />
+            <span className="admin-hint">
+              Never shown to customers. Nicknames, common misspellings, what it is called elsewhere.
+            </span>
+          </label>
+          <label className="admin-label">
+            In season from
+            <input
+              className="admin-input"
+              name="seasonStartsAt"
+              type="date"
+              defaultValue={dateValue(product?.seasonStartsAt)}
+            />
+            <span className="admin-hint">
+              Only the day and month matter — a season repeats every year. Leave both empty unless
+              this is a seasonal item.
+            </span>
+          </label>
+          <label className="admin-label">
+            In season until
+            <input
+              className="admin-input"
+              name="seasonEndsAt"
+              type="date"
+              defaultValue={dateValue(product?.seasonEndsAt)}
+            />
+            <span className="admin-hint">
+              Out of season it keeps its page and its price — it just stops appearing in seasonal
+              rows.
+            </span>
+          </label>
+          <label className="admin-checkbox">
+            <input name="staffPick" type="checkbox" defaultChecked={product?.staffPick ?? false} />{' '}
+            Tammy&rsquo;s pick
+          </label>
+        </div>
+      </fieldset>
+
+      {/* Attributes are what customers filter the shop by: pet safe, low light,
+          handmade. Grouped the way they are shown to shoppers, and the plant ones
+          are marked so a soap does not get a light requirement. */}
+      <fieldset className="admin-collection-picker">
+        <legend>What is true about this product</legend>
+        <span className="admin-hint">
+          These become the filters in the shop and the “good to know” links on the product page.
+        </span>
+        {groupTags(PRODUCT_TAGS).map((group) => (
+          <div className="admin-tag-group" key={group.key}>
+            <b>
+              {group.label}
+              {group.tags.every((tag) => tag.types?.includes('PLANT')) ? ' (plants)' : ''}
+            </b>
+            {group.tags.map((tag) => (
+              <label className="admin-checkbox" key={tag.slug} title={tag.hint}>
+                <input
+                  type="checkbox"
+                  name="tags"
+                  value={tag.slug}
+                  defaultChecked={chosenTags.has(tag.slug)}
+                />{' '}
+                {tag.label}
+              </label>
+            ))}
+          </div>
+        ))}
+      </fieldset>
+
+      <fieldset className="admin-subsection">
+        <legend>
+          <h3>Restocking</h3>
+        </legend>
+        <p className="admin-hint">
+          Owner-facing only — none of this appears in the shop. It is what decides whether an empty
+          shelf is a job.
+        </p>
+        <div className="admin-grid">
+          <label className="admin-label">
+            Supplier or vendor
+            <input
+              className="admin-input"
+              name="supplier"
+              defaultValue={product?.supplier || ''}
+              placeholder="Ebensburg Growers"
+            />
+          </label>
+          <label className="admin-label">
+            Their item number
+            <input
+              className="admin-input"
+              name="supplierItemNumber"
+              defaultValue={product?.supplierItemNumber || ''}
+              placeholder="As it reads on their packing slip"
+            />
+          </label>
+          <label className="admin-label">
+            Reorder point
+            <input
+              className="admin-input"
+              name="reorderPoint"
+              type="number"
+              min="0"
+              defaultValue={product?.reorderPoint ?? ''}
+              placeholder="Leave empty if you never reorder this"
+            />
+            <span className="admin-hint">
+              When the quantity on hand drops to this, it appears under Needs reorder.
+            </span>
+          </label>
+          <label className="admin-label">
+            Reorder quantity
+            <input
+              className="admin-input"
+              name="reorderQuantity"
+              type="number"
+              min="0"
+              defaultValue={product?.reorderQuantity ?? ''}
+              placeholder="How many to order at a time"
+            />
+          </label>
+          <label className="admin-label">
+            Inventory status
+            <select
+              className="admin-input"
+              name="inventoryStatus"
+              defaultValue={product?.inventoryStatus || InventoryStatus.STOCKED}
+            >
+              {Object.values(InventoryStatus).map((status) => (
+                <option value={status} key={status}>
+                  {INVENTORY_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </select>
+            <span className="admin-hint">
+              {INVENTORY_STATUS_HINTS[inventoryStatusValue(product?.inventoryStatus)]}
+            </span>
+          </label>
+          <label className="admin-label">
+            Last restocked
+            <input
+              className="admin-input"
+              name="lastRestockedAt"
+              type="date"
+              defaultValue={restockDateValue(product?.lastRestockedAt)}
+            />
+            <span className="admin-hint">
+              Fills itself in whenever you raise the quantity on hand. Change it here if the box
+              actually arrived on another day.
+            </span>
+          </label>
+          <label className="admin-label full">
+            Private inventory notes
+            <textarea
+              className="admin-input"
+              name="inventoryNotes"
+              rows={2}
+              defaultValue={product?.inventoryNotes || ''}
+              placeholder="Two trays under the bench. Order by the flat of 18."
+            />
+          </label>
+        </div>
+      </fieldset>
 
       <section className="admin-subsection" data-spec-sections>
         <h3>Details for this kind of product</h3>

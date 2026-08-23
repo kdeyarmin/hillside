@@ -14,7 +14,9 @@ const {
   stripeProductDescription,
   stripeProductImages,
   stripeCheckoutItemsMetadata,
-  STRIPE_METADATA_VALUE_MAX
+  STRIPE_METADATA_VALUE_MAX,
+  checkoutLineFulfillment,
+  discountLinesForCheckout
 } = await import('../lib/checkout-format.ts');
 
 describe('readCheckoutItems', () => {
@@ -257,6 +259,176 @@ describe('checkoutAdjustments', () => {
   });
 });
 
+describe('checkoutAdjustments for bundles', () => {
+  const tea = {
+    id: 'p-tea',
+    slug: 'calm-tea',
+    name: 'Hillside Calm Tea',
+    active: true,
+    priceCents: 1800,
+    inventory: 4
+  };
+  const infuser = {
+    id: 'p-infuser',
+    slug: 'stainless-infuser',
+    name: 'Stainless infuser',
+    active: true,
+    priceCents: 1400,
+    inventory: 2
+  };
+  const set = {
+    slug: 'tea-starter-set',
+    title: 'Tea Starter Set',
+    priceCents: 2800,
+    active: true,
+    items: [
+      { quantity: 1, product: tea },
+      { quantity: 1, product: infuser }
+    ]
+  };
+  const shelf = [
+    { slug: tea.slug, name: tea.name, inventory: tea.inventory, priceCents: tea.priceCents },
+    {
+      slug: infuser.slug,
+      name: infuser.name,
+      inventory: infuser.inventory,
+      priceCents: infuser.priceCents
+    }
+  ];
+
+  it('passes a set the bench can build', () => {
+    assert.deepEqual(
+      checkoutAdjustments(
+        [{ id: 'tea-starter-set', kind: 'bundle', quantity: 2, priceCents: 2800 }],
+        shelf,
+        [set]
+      ),
+      []
+    );
+  });
+
+  it('caps the line at the fewest sets a component can supply', () => {
+    const changes = checkoutAdjustments(
+      [{ id: 'tea-starter-set', kind: 'bundle', quantity: 3, priceCents: 2800 }],
+      shelf,
+      [set]
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'stock');
+    assert.equal(changes[0].available, 2);
+    assert.equal(changes[0].name, 'Tea Starter Set');
+  });
+
+  it('charges the set’s own price, never the basket’s', () => {
+    const changes = checkoutAdjustments(
+      [{ id: 'tea-starter-set', kind: 'bundle', quantity: 1, priceCents: 1900 }],
+      shelf,
+      [set]
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'price');
+    assert.equal(changes[0].priceCents, 2800);
+  });
+
+  it('spends the same shelf a loose product beside it draws on', () => {
+    // Two infusers on the bench. One goes in the set, so the loose line can
+    // only have the other — checked on its own it would have claimed both.
+    const changes = checkoutAdjustments(
+      [
+        { id: 'tea-starter-set', kind: 'bundle', quantity: 1, priceCents: 2800 },
+        { id: 'stainless-infuser', quantity: 2, priceCents: 1400 }
+      ],
+      shelf,
+      [set]
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'stock');
+    assert.equal(changes[0].slug, 'stainless-infuser');
+    assert.equal(changes[0].available, 1);
+  });
+
+  it('refuses an archived set, and one whose recipe is empty', () => {
+    for (const broken of [
+      { ...set, active: false },
+      { ...set, items: [] }
+    ]) {
+      const changes = checkoutAdjustments(
+        [{ id: 'tea-starter-set', kind: 'bundle', quantity: 1 }],
+        shelf,
+        [broken]
+      );
+      assert.equal(changes.length, 1);
+      assert.equal(changes[0].reason, 'unavailable');
+    }
+  });
+
+  it('needs one jar per recipe line when both draw on one pile', () => {
+    /**
+     * A lotion sold in two sizes off one shelf. Metered line by line, a single
+     * jar answered "one set available" to a recipe needing one of each — and the
+     * reservation then failed against a correction repeating the same number.
+     */
+    const lotion = {
+      id: 'p-lotion',
+      slug: 'lotion',
+      name: 'Lotion',
+      active: true,
+      priceCents: 1200,
+      inventory: 1,
+      sizes: [{ label: '2 oz' }, { label: '8 oz' }]
+    };
+    const gift = {
+      slug: 'gift-box',
+      title: 'Gift Box',
+      priceCents: 2000,
+      active: true,
+      items: [
+        { quantity: 1, size: '2 oz', product: lotion },
+        { quantity: 1, size: '8 oz', product: lotion }
+      ]
+    };
+    const oneJar = [
+      { slug: 'lotion', name: 'Lotion', inventory: 1, priceCents: 1200, sizes: lotion.sizes }
+    ];
+    const changes = checkoutAdjustments(
+      [{ id: 'gift-box', kind: 'bundle', quantity: 1, priceCents: 2000 }],
+      oneJar,
+      [gift]
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'stock');
+    assert.equal(changes[0].available, 0);
+
+    // Two jars build exactly one set.
+    const twoJars = [{ ...oneJar[0], inventory: 2 }];
+    assert.deepEqual(
+      checkoutAdjustments(
+        [{ id: 'gift-box', kind: 'bundle', quantity: 1, priceCents: 2000 }],
+        twoJars,
+        [
+          {
+            ...gift,
+            items: gift.items.map((i) => ({ ...i, product: { ...lotion, inventory: 2 } }))
+          }
+        ]
+      ),
+      []
+    );
+  });
+
+  it('keeps a set and a product that share a slug apart', () => {
+    const twins = readCheckoutItems({
+      items: [
+        { id: 'calm-tea', quantity: 1 },
+        { id: 'calm-tea', kind: 'bundle', quantity: 1 }
+      ]
+    });
+    assert.equal(twins.length, 2);
+    assert.equal(twins[0].kind, undefined);
+    assert.equal(twins[1].kind, 'bundle');
+  });
+});
+
 describe('Stripe product fields', () => {
   it('truncates descriptions to Stripe’s 500-character cap', () => {
     const long = 'Care note. '.repeat(80);
@@ -353,24 +525,84 @@ describe('encode/parse checkout items', () => {
   });
 });
 
+describe('checkoutLineFulfillment', () => {
+  const product = {
+    id: 'p1',
+    slug: 'golden-pothos',
+    name: 'Golden Pothos',
+    shortDescription: null,
+    description: 'A trailing plant.',
+    priceCents: 2400,
+    inventory: 8,
+    imageUrl: null,
+    ships: true,
+    pickup: true
+  };
+
+  it("answers with the variant's resolved figures, not the product's", () => {
+    /**
+     * The 8" decorative planter does not post safely, so its variant is pickup
+     * only even though the product ships. Reading the product here would let a
+     * cart mixing it with a ships-only line past the conflict check and into an
+     * order the shop cannot fulfil either way.
+     */
+    const line = {
+      kind: 'product' as const,
+      product,
+      quantity: 1,
+      size: '8" decorative planter',
+      unitCents: 5200,
+      ships: false,
+      pickup: true
+    };
+    assert.deepEqual(checkoutLineFulfillment(line), { ships: false, pickup: true });
+  });
+
+  it('falls back to the product when a line carries no answer of its own', () => {
+    const line = { kind: 'product' as const, product, quantity: 1, unitCents: 2400 };
+    assert.deepEqual(checkoutLineFulfillment(line), { ships: true, pickup: true });
+  });
+
+  it('answers for a set from the recipe, which sellableBundle resolved', () => {
+    const line = {
+      kind: 'bundle' as const,
+      bundle: { id: 'b1', slug: 'tea-starter-set', title: 'Tea Starter Set' },
+      quantity: 1,
+      unitCents: 4200,
+      ships: false,
+      pickup: true,
+      contents: 'one 2 oz tin and one infuser'
+    } as never;
+    assert.deepEqual(checkoutLineFulfillment(line), { ships: false, pickup: true });
+  });
+});
+
 describe('resolveCheckoutLines', () => {
   const monstera = {
+    id: 'p-monstera',
     slug: 'monstera',
     name: 'Monstera',
+    shortDescription: null,
+    description: 'A trailing plant.',
     priceCents: 3200,
     inventory: 4,
     active: true,
     imageUrl: '/images/monstera.webp',
+    categoryId: 'houseplants',
     ships: true,
     pickup: true
   };
   const lotion = {
+    id: 'p-lotion',
     slug: 'lotion',
     name: 'Hillside lotion',
+    shortDescription: null,
+    description: 'A hand lotion.',
     priceCents: 1400,
     inventory: 5,
     active: true,
     imageUrl: null,
+    categoryId: 'botanicals',
     ships: true,
     pickup: true,
     sizes: [
@@ -378,11 +610,16 @@ describe('resolveCheckoutLines', () => {
       { label: '8 oz', priceCents: 2600, inventory: 0, ships: false }
     ]
   };
+  /** Narrows a resolved line to the product it is, for the assertions below. */
+  const productLine = (lines: ReturnType<typeof resolveCheckoutLines>) => {
+    const [line] = lines;
+    assert.equal(line?.kind, 'product');
+    return line as Extract<typeof line, { kind: 'product' }>;
+  };
 
   it('prices a line from the product, never from the basket', () => {
-    const [line] = resolveCheckoutLines(
-      [{ id: 'monstera', quantity: 2, priceCents: 1 }],
-      [monstera]
+    const line = productLine(
+      resolveCheckoutLines([{ id: 'monstera', quantity: 2, priceCents: 1 }], [monstera])
     );
     assert.equal(line.unitCents, 3200);
     assert.equal(line.quantity, 2);
@@ -390,14 +627,18 @@ describe('resolveCheckoutLines', () => {
   });
 
   it("charges a variant's own price and carries its shipping answer", () => {
-    const [line] = resolveCheckoutLines([{ id: 'lotion', quantity: 1, size: '2 oz' }], [lotion]);
+    const line = productLine(
+      resolveCheckoutLines([{ id: 'lotion', quantity: 1, size: '2 oz' }], [lotion])
+    );
     assert.equal(line.unitCents, 1400);
     assert.equal(line.size, '2 oz');
     assert.equal(line.ships, true);
   });
 
   it('trims a line to what is on the bench for the size that was chosen', () => {
-    const [line] = resolveCheckoutLines([{ id: 'lotion', quantity: 9, size: '2 oz' }], [lotion]);
+    const line = productLine(
+      resolveCheckoutLines([{ id: 'lotion', quantity: 9, size: '2 oz' }], [lotion])
+    );
     assert.equal(line.quantity, 3);
   });
 
@@ -422,5 +663,56 @@ describe('resolveCheckoutLines', () => {
     );
     // A sized product with no size chosen is refused rather than guessed at.
     assert.deepEqual(resolveCheckoutLines([{ id: 'lotion', quantity: 1 }], [lotion]), []);
+    // A set the basket names but the shop cannot find.
+    assert.deepEqual(
+      resolveCheckoutLines(
+        [{ id: 'tea-starter-set', kind: 'bundle', quantity: 1 }],
+        [monstera],
+        []
+      ),
+      []
+    );
+  });
+});
+
+describe('discountLinesForCheckout', () => {
+  const line = {
+    kind: 'product' as const,
+    product: {
+      id: 'p1',
+      slug: 'tea',
+      name: 'Breakfast tea',
+      shortDescription: null,
+      description: 'A tea.',
+      priceCents: 1200,
+      inventory: 6,
+      imageUrl: null,
+      categoryId: 'teas'
+    },
+    quantity: 2,
+    unitCents: 1200
+  };
+
+  it('carries the category a scoped promo code meters against', () => {
+    assert.deepEqual(discountLinesForCheckout([line]), [
+      { unitCents: 1200, quantity: 2, categoryId: 'teas' }
+    ]);
+  });
+
+  it('gives a set no category, so a category code takes nothing off it', () => {
+    const bundle = {
+      kind: 'bundle' as const,
+      bundle: { id: 'b1', slug: 'tea-starter-set', title: 'Tea Starter Set' },
+      quantity: 1,
+      unitCents: 4200
+    } as never;
+    assert.deepEqual(discountLinesForCheckout([bundle]), [
+      { unitCents: 4200, quantity: 1, categoryId: null }
+    ]);
+  });
+
+  it('reads a product filed under no category as ineligible for a scoped code', () => {
+    const uncategorised = { ...line, product: { ...line.product, categoryId: null } };
+    assert.equal(discountLinesForCheckout([uncategorised])[0].categoryId, null);
   });
 });

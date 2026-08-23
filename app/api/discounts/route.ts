@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { readCheckoutItems, resolveCheckoutLines } from '@/lib/checkout';
+import {
+  checkoutLineFulfillment,
+  discountLinesForCheckout,
+  readCheckoutItems,
+  resolveCheckoutLines
+} from '@/lib/checkout';
+import { bundleSaleInclude } from '@/lib/bundle-queries';
 import { readDiscountCodes } from '@/lib/discount-request';
 import { quoteCartDiscounts } from '@/lib/discount-store';
 import { cartFulfillment, readFulfillmentChoice } from '@/lib/fulfillment';
@@ -61,10 +67,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const products = await db.product.findMany({
-    where: { slug: { in: requested.map((item) => item.id) } }
-  });
-  const items = resolveCheckoutLines(requested, products);
+  const productSlugs = requested.filter((item) => item.kind !== 'bundle').map((item) => item.id);
+  const bundleSlugs = requested.filter((item) => item.kind === 'bundle').map((item) => item.id);
+  const [products, bundles] = await Promise.all([
+    db.product.findMany({ where: { slug: { in: productSlugs } } }),
+    bundleSlugs.length
+      ? db.bundle.findMany({ where: { slug: { in: bundleSlugs } }, include: bundleSaleInclude })
+      : Promise.resolve([])
+  ]);
+  const items = resolveCheckoutLines(requested, products, bundles);
   if (!items.length) {
     return NextResponse.json(
       { error: 'The items in your basket are unavailable or sold out.' },
@@ -72,7 +83,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const options = cartFulfillment(items);
+  const options = cartFulfillment(items.map(checkoutLineFulfillment));
   const method = options.forced ?? readFulfillmentChoice(body);
   // Only as much fulfillment as the shipping figure needs. Whether the pickup
   // was arranged is checkout's question, not this one's.
@@ -82,11 +93,7 @@ export async function POST(request: Request) {
   const shippingCents = standardShippingCents(subtotalCents, { pickup });
 
   const { quote, promotion, giftCard, promotionError, giftCardError } = await quoteCartDiscounts({
-    lines: items.map((item) => ({
-      unitCents: item.unitCents,
-      quantity: item.quantity,
-      categoryId: item.product.categoryId
-    })),
+    lines: discountLinesForCheckout(items),
     subtotalCents,
     shippingCents,
     promoCode: codes.promoCode,

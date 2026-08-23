@@ -7,6 +7,7 @@ import ResilientImage from '@/components/ResilientImage';
 import { lineKey, useCart, type CartLine } from '@/components/CartProvider';
 import CheckoutOptions from '@/components/CheckoutOptions';
 import DiscountCodeFields from '@/components/DiscountCodeFields';
+import { lineHref } from '@/lib/cart-lines';
 import { giftCardTail } from '@/lib/discount-request';
 import { cartFulfillment } from '@/lib/fulfillment';
 import { sizedName } from '@/lib/product-sizes';
@@ -143,6 +144,7 @@ export default function CartPageClient({
           items: items.map((item) => ({
             slug: item.slug,
             quantity: item.quantity,
+            ...(item.kind === 'bundle' ? { kind: 'bundle' } : {}),
             ...(item.size ? { size: item.size } : {})
           }))
         })
@@ -219,7 +221,7 @@ export default function CartPageClient({
       <div className="cart-page-lines">
         {items.map((item) => (
           <article className="cart-page-line" key={lineKey(item)}>
-            <Link href={`/shop/${item.slug}`} aria-label={`View ${lineName(item)}`}>
+            <Link href={lineHref(item)} aria-label={`View ${lineName(item)}`}>
               <ResilientImage
                 sizeRole="thumb"
                 src={item.imageUrl || FALLBACK_PRODUCT_IMAGE}
@@ -236,9 +238,12 @@ export default function CartPageClient({
                   outrank the stylesheet, so hardcoding Georgia here opted the cart
                   out of the brand display face every other heading uses. */}
               <h2 className="cart-page-line-title">
-                <Link href={`/shop/${item.slug}`}>{item.name}</Link>
+                <Link href={lineHref(item)}>{item.name}</Link>
               </h2>
               {item.size && <p className="cart-line-size">{item.size}</p>}
+              {/* A set costs one price, so the line has to say what is in the
+                  box or the figure looks arbitrary. */}
+              {item.contents && <p className="cart-line-size">{item.contents}</p>}
               <p className="muted" style={{ marginTop: 0 }}>
                 {formatMoney(item.priceCents)} each
               </p>

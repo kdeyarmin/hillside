@@ -1,6 +1,12 @@
 import crypto from 'crypto';
 
-export type RestorableCartItem = { slug: string; quantity: number; size?: string | null };
+export type RestorableCartItem = {
+  slug: string;
+  quantity: number;
+  size?: string | null;
+  /** `bundle` for a set. Absent means a product, so old links still read. */
+  kind?: string | null;
+};
 
 type RestorePayload = {
   email: string;
@@ -42,7 +48,10 @@ export function createCartRestoreToken(
       slug: String(item.slug).slice(0, 140),
       quantity: Math.max(1, Math.min(20, Math.floor(item.quantity) || 1)),
       // A saved basket that forgot the size would come back as the wrong pot.
-      ...(item.size ? { size: String(item.size).slice(0, 60) } : {})
+      ...(item.size ? { size: String(item.size).slice(0, 60) } : {}),
+      // Only sets carry a kind, so a link made before bundles existed still
+      // reads as the list of products it always was.
+      ...(item.kind === 'bundle' ? { kind: 'bundle' } : {})
     })),
     exp: now + CART_RESTORE_TTL_MS
   };
