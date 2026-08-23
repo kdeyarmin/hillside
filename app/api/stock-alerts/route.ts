@@ -53,21 +53,27 @@ export async function POST(request: Request) {
     let joined = false;
     if (parsed.data.joinNewsletter) {
       /**
-       * `create` only. An address already on the list keeps the source it
-       * arrived with, and — more importantly — someone who has since
-       * unsubscribed is not silently resubscribed by ticking a box on a
-       * different form.
+       * Add-only, and in one statement.
+       *
+       * An address already on the list keeps the source it arrived with, and —
+       * more importantly — someone who has since unsubscribed is not silently
+       * resubscribed by ticking a box on a different form. Reading first and
+       * then creating expressed that, but left a gap: two requests for the
+       * same address (a double-tapped button, a retry) could both find nothing
+       * and both insert, and the loser hit the unique constraint on `email`.
+       * That threw, and the throw was caught by the handler below — so the
+       * customer was told their restock request had failed when it had in fact
+       * already been saved.
+       *
+       * `createMany` with `skipDuplicates` is a single `on conflict do
+       * nothing`: no gap to lose, and `count` still says whether this request
+       * is the one that added them.
        */
-      const existing = await db.newsletterSubscriber.findUnique({
-        where: { email },
-        select: { id: true }
+      const created = await db.newsletterSubscriber.createMany({
+        data: [{ email, source: 'back-in-stock', sourceDetail: `/shop/${product.slug}` }],
+        skipDuplicates: true
       });
-      if (!existing) {
-        await db.newsletterSubscriber.create({
-          data: { email, source: 'back-in-stock', sourceDetail: `/shop/${product.slug}` }
-        });
-        joined = true;
-      }
+      joined = created.count > 0;
     }
 
     return NextResponse.json({
