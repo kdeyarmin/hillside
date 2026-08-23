@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { CalendarDays, Leaf, Search, ShoppingBag } from 'lucide-react';
+import { CalendarDays, Leaf, Package, Search, ShoppingBag } from 'lucide-react';
+import BundleCard from '@/components/BundleCard';
 import ProductGrid from '@/components/ProductGrid';
+import { bundleCardData, sellableBundles } from '@/lib/bundle-queries';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { classFormatLabel } from '@/lib/class-access';
@@ -37,7 +39,7 @@ export default async function SearchPage({
   const term = normalizeSearchTerm(q || '');
   const contains = { contains: term, mode: 'insensitive' as const };
 
-  const [productCandidates, guideCandidates, classCandidates, catalogCount] = term
+  const [productCandidates, guideCandidates, classCandidates, bundleCandidates, catalogCount] = term
     ? await Promise.all([
         db.product.findMany({
           where: {
@@ -72,9 +74,15 @@ export default async function SearchPage({
               take: SEARCH_CANDIDATE_LIMIT
             })
           : [],
+        /**
+         * Sets are filtered by availability rather than by SQL, so the whole
+         * (small) shelf is loaded and matched in memory like everything else
+         * here — and a set the shop cannot build never reaches the results.
+         */
+        sellableBundles(),
         db.product.count({ where: { active: true } })
       ])
-    : [[], [], [], 0];
+    : [[], [], [], [], 0];
 
   /**
    * Prisma can only do substring `contains`. The word-aware filter is what
@@ -98,6 +106,19 @@ export default async function SearchPage({
     term,
     6
   );
+  const bundles = filterSearchHits(
+    bundleCandidates,
+    // Matched on what is in the box too: somebody searching "infuser" should
+    // find the Tea Starter Set that contains one.
+    (bundle) => [
+      bundle.title,
+      bundle.tagline,
+      bundle.description,
+      ...bundle.items.map((item) => item.product.name)
+    ],
+    term,
+    6
+  );
 
   const ratings = await ratingsByProduct(products.map((product) => product.id));
   const shopProducts = products.map((product) => ({
@@ -106,7 +127,7 @@ export default async function SearchPage({
     reviewCount: ratings.get(product.id)?.count ?? 0
   }));
 
-  const total = products.length + guides.length + classes.length;
+  const total = products.length + bundles.length + guides.length + classes.length;
 
   return (
     <>
@@ -197,6 +218,29 @@ export default async function SearchPage({
                 </Link>
               </div>
               <ProductGrid products={shopProducts} />
+            </div>
+          )}
+
+          {bundles.length > 0 && (
+            <div className="search-group">
+              <div className="editorial-heading-row">
+                <div>
+                  <div className="eyebrow">
+                    <Package size={14} /> Sets &amp; kits
+                  </div>
+                  <h2>
+                    {bundles.length} {bundles.length === 1 ? 'set' : 'sets'}
+                  </h2>
+                </div>
+                <Link className="editorial-link" href="/bundles">
+                  All sets &rarr;
+                </Link>
+              </div>
+              <div className="product-grid">
+                {bundles.map((bundle) => (
+                  <BundleCard bundle={bundleCardData(bundle)} key={bundle.slug} />
+                ))}
+              </div>
             </div>
           )}
 

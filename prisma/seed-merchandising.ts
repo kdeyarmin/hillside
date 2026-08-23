@@ -1,0 +1,243 @@
+import { PrismaClient, ProductRelationKind } from '@prisma/client';
+
+const db = new PrismaClient();
+
+/**
+ * Starter merchandising: a couple of sets, the tags the recommendation rules
+ * match on, and a few worked examples of "show this beside that".
+ *
+ * Everything here is seeded **once and never re-applied**, the same discipline
+ * `seed-collections.ts` follows. Re-matching on every deploy would undo Tammy's
+ * own work: a product she deliberately removed from a set would keep coming
+ * back, and a recommendation she deleted would reappear the next time the
+ * service restarted.
+ *
+ * Nothing is invented, either. A set is only created when every product it names
+ * already exists, so this can run against a catalog that has been rebuilt from
+ * scratch without producing a box the shop cannot pack.
+ */
+
+/** Products matched by slug, then by a keyword in the name — in that order. */
+type Match = { slug?: string; keyword?: string };
+
+type BundleSeed = {
+  slug: string;
+  title: string;
+  tagline: string;
+  description: string;
+  imageUrl: string;
+  badge?: string;
+  featured: boolean;
+  sortOrder: number;
+  /** What the set sells for. Left below the sum of the parts on purpose. */
+  priceCents: number;
+  items: Array<Match & { quantity?: number; optional?: boolean; note?: string }>;
+};
+
+const bundles: BundleSeed[] = [
+  {
+    slug: 'tea-starter-set',
+    title: 'Tea Starter Set',
+    tagline: 'A blend, and the one tool that makes brewing it easy.',
+    description:
+      'Loose-leaf tea is worth the small amount of fuss, and this is the whole of that fuss: a tin of our own blend and a fine-mesh infuser that drops into any mug you already own. It is the set we give to people who say they have never got on with loose leaf.',
+    imageUrl: '/images/catalog/apothecary.webp',
+    badge: 'Gift ready',
+    featured: true,
+    sortOrder: 1,
+    priceCents: 2800,
+    items: [
+      { slug: 'hillside-calm-tea', note: 'Our own chamomile and lemon balm blend.' },
+      { slug: 'stainless-tea-infuser', note: 'Fine enough for the smallest leaf.' }
+    ]
+  },
+  {
+    slug: 'hillside-gift-box',
+    title: 'Hillside Gift Box',
+    tagline: 'Tea, soap and lotion, boxed and ready to hand over.',
+    description:
+      'What we put together when somebody wants one thing to give and does not want to choose. A tin of tea, a bar of our garden herb soap and a bottle of the hand lotion — all made or blended here, all packed in one box with a card you can write on.',
+    imageUrl: '/images/catalog/apothecary.webp',
+    featured: true,
+    sortOrder: 2,
+    priceCents: 4200,
+    items: [
+      { slug: 'hillside-calm-tea' },
+      { slug: 'garden-herb-soap' },
+      { slug: 'botanical-hand-lotion' }
+    ]
+  },
+  {
+    slug: 'new-plant-parent-kit',
+    title: 'New Plant Parent Kit',
+    tagline: 'A plant that forgives beginners, with what it needs to settle in.',
+    description:
+      'Chosen because it is genuinely hard to kill. The kit goes home with the care guide for it, so the first month is a matter of following something written down rather than guessing.',
+    imageUrl: '/images/catalog/live-plant-planters.webp',
+    badge: 'Beginner friendly',
+    featured: false,
+    sortOrder: 3,
+    priceCents: 3600,
+    items: [
+      { slug: 'golden-pothos', note: 'The plant we hand to anyone who has killed a few.' },
+      { keyword: 'planter', note: 'Somewhere to put it that is not the nursery pot.' }
+    ]
+  }
+];
+
+/**
+ * Tags exist for the recommendation rules. Seeded only onto products that have
+ * none at all, so a product Tammy has tagged herself is never overwritten.
+ */
+const tagsByKeyword: Array<{ keyword: string; tags: string[] }> = [
+  { keyword: 'tea', tags: ['tea'] },
+  { keyword: 'infuser', tags: ['infuser', 'teaware'] },
+  { keyword: 'soap', tags: ['soap'] },
+  { keyword: 'lotion', tags: ['lotion'] },
+  { keyword: 'planter', tags: ['planter'] },
+  { keyword: 'moss', tags: ['moss', 'terrarium'] }
+];
+
+/** Worked examples, so the sections on a product page are not empty on day one. */
+const relations: Array<{ from: Match; to: Match; kind: ProductRelationKind; note: string }> = [
+  {
+    from: { slug: 'hillside-calm-tea' },
+    to: { slug: 'stainless-tea-infuser' },
+    kind: ProductRelationKind.PAIRS_WITH,
+    note: 'What we brew ours in. It drops into any mug and rinses clean.'
+  },
+  {
+    from: { slug: 'stainless-tea-infuser' },
+    to: { slug: 'hillside-calm-tea' },
+    kind: ProductRelationKind.PAIRS_WITH,
+    note: 'The blend it was bought for, more often than not.'
+  },
+  {
+    from: { slug: 'garden-herb-soap' },
+    to: { slug: 'botanical-hand-lotion' },
+    kind: ProductRelationKind.PAIRS_WITH,
+    note: 'The pair we set out by the kitchen sink.'
+  },
+  {
+    from: { slug: 'botanical-hand-lotion' },
+    to: { slug: 'garden-herb-soap' },
+    kind: ProductRelationKind.PAIRS_WITH,
+    note: 'Same botanicals, same batch.'
+  }
+];
+
+type ProductRow = { id: string; name: string; slug: string };
+
+function find(products: ProductRow[], match: Match) {
+  if (match.slug) {
+    const bySlug = products.find((product) => product.slug === match.slug);
+    if (bySlug) return bySlug;
+    if (!match.keyword) return null;
+  }
+  const keyword = (match.keyword || '').toLowerCase();
+  if (!keyword) return null;
+  return (
+    products.find((product) => `${product.name} ${product.slug}`.toLowerCase().includes(keyword)) ||
+    null
+  );
+}
+
+async function main() {
+  const products = await db.product.findMany({
+    where: { active: true },
+    select: { id: true, name: true, slug: true, tags: true }
+  });
+
+  let tagged = 0;
+  for (const product of products) {
+    if (product.tags.length) continue;
+    const haystack = `${product.name} ${product.slug}`.toLowerCase();
+    const tags = [
+      ...new Set(
+        tagsByKeyword
+          .filter((entry) => haystack.includes(entry.keyword))
+          .flatMap((entry) => entry.tags)
+      )
+    ];
+    if (!tags.length) continue;
+    await db.product.update({ where: { id: product.id }, data: { tags } });
+    tagged += 1;
+  }
+
+  let createdBundles = 0;
+  let skippedBundles = 0;
+  for (const seed of bundles) {
+    const existing = await db.bundle.findUnique({ where: { slug: seed.slug } });
+    if (existing) continue;
+
+    const resolved = seed.items.map((item) => ({ item, product: find(products, item) }));
+    // A set is only worth creating when the whole recipe resolves. Half a
+    // Hillside Gift Box is not a smaller gift box; it is a wrong one.
+    if (resolved.some((entry) => !entry.product)) {
+      skippedBundles += 1;
+      continue;
+    }
+
+    await db.bundle.create({
+      data: {
+        slug: seed.slug,
+        title: seed.title,
+        tagline: seed.tagline,
+        description: seed.description,
+        imageUrl: seed.imageUrl,
+        badge: seed.badge ?? null,
+        featured: seed.featured,
+        sortOrder: seed.sortOrder,
+        priceCents: seed.priceCents,
+        items: {
+          create: resolved.map((entry, index) => ({
+            productId: entry.product!.id,
+            quantity: entry.item.quantity ?? 1,
+            optional: entry.item.optional ?? false,
+            note: entry.item.note ?? null,
+            sortOrder: index
+          }))
+        }
+      }
+    });
+    createdBundles += 1;
+  }
+
+  let createdRelations = 0;
+  for (const seed of relations) {
+    const from = find(products, seed.from);
+    const to = find(products, seed.to);
+    if (!from || !to || from.id === to.id) continue;
+
+    const existing = await db.productRelation.findFirst({
+      where: { productId: from.id, kind: seed.kind }
+    });
+    // Seeded per product and section, not per row: once Tammy has chosen
+    // anything for "Pairs well with" on a product, this leaves it alone.
+    if (existing) continue;
+
+    await db.productRelation.create({
+      data: {
+        productId: from.id,
+        relatedProductId: to.id,
+        kind: seed.kind,
+        note: seed.note,
+        sortOrder: 0
+      }
+    });
+    createdRelations += 1;
+  }
+
+  console.log(
+    `Merchandising ready: ${createdBundles} sets created` +
+      `${skippedBundles ? ` (${skippedBundles} skipped — their products are not in the catalog)` : ''}` +
+      `, ${tagged} products tagged, ${createdRelations} recommendations added.`
+  );
+}
+
+main()
+  .catch((error) => {
+    console.error(error);
+    process.exit(1);
+  })
+  .finally(() => db.$disconnect());

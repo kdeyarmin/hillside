@@ -256,6 +256,122 @@ describe('checkoutAdjustments', () => {
   });
 });
 
+describe('checkoutAdjustments for bundles', () => {
+  const tea = {
+    id: 'p-tea',
+    slug: 'calm-tea',
+    name: 'Hillside Calm Tea',
+    active: true,
+    priceCents: 1800,
+    inventory: 4
+  };
+  const infuser = {
+    id: 'p-infuser',
+    slug: 'stainless-infuser',
+    name: 'Stainless infuser',
+    active: true,
+    priceCents: 1400,
+    inventory: 2
+  };
+  const set = {
+    slug: 'tea-starter-set',
+    title: 'Tea Starter Set',
+    priceCents: 2800,
+    active: true,
+    items: [
+      { quantity: 1, product: tea },
+      { quantity: 1, product: infuser }
+    ]
+  };
+  const shelf = [
+    { slug: tea.slug, name: tea.name, inventory: tea.inventory, priceCents: tea.priceCents },
+    {
+      slug: infuser.slug,
+      name: infuser.name,
+      inventory: infuser.inventory,
+      priceCents: infuser.priceCents
+    }
+  ];
+
+  it('passes a set the bench can build', () => {
+    assert.deepEqual(
+      checkoutAdjustments(
+        [{ id: 'tea-starter-set', kind: 'bundle', quantity: 2, priceCents: 2800 }],
+        shelf,
+        [set]
+      ),
+      []
+    );
+  });
+
+  it('caps the line at the fewest sets a component can supply', () => {
+    const changes = checkoutAdjustments(
+      [{ id: 'tea-starter-set', kind: 'bundle', quantity: 3, priceCents: 2800 }],
+      shelf,
+      [set]
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'stock');
+    assert.equal(changes[0].available, 2);
+    assert.equal(changes[0].name, 'Tea Starter Set');
+  });
+
+  it('charges the set’s own price, never the basket’s', () => {
+    const changes = checkoutAdjustments(
+      [{ id: 'tea-starter-set', kind: 'bundle', quantity: 1, priceCents: 1900 }],
+      shelf,
+      [set]
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'price');
+    assert.equal(changes[0].priceCents, 2800);
+  });
+
+  it('spends the same shelf a loose product beside it draws on', () => {
+    // Two infusers on the bench. One goes in the set, so the loose line can
+    // only have the other — checked on its own it would have claimed both.
+    const changes = checkoutAdjustments(
+      [
+        { id: 'tea-starter-set', kind: 'bundle', quantity: 1, priceCents: 2800 },
+        { id: 'stainless-infuser', quantity: 2, priceCents: 1400 }
+      ],
+      shelf,
+      [set]
+    );
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].reason, 'stock');
+    assert.equal(changes[0].slug, 'stainless-infuser');
+    assert.equal(changes[0].available, 1);
+  });
+
+  it('refuses an archived set, and one whose recipe is empty', () => {
+    for (const broken of [
+      { ...set, active: false },
+      { ...set, items: [] }
+    ]) {
+      const changes = checkoutAdjustments(
+        [{ id: 'tea-starter-set', kind: 'bundle', quantity: 1 }],
+        shelf,
+        [broken]
+      );
+      assert.equal(changes.length, 1);
+      assert.equal(changes[0].reason, 'unavailable');
+    }
+  });
+
+  it('keeps a set and a product that share a slug apart', () => {
+    const twins = readCheckoutItems({
+      items: [
+        { id: 'calm-tea', quantity: 1 },
+        { id: 'calm-tea', kind: 'bundle', quantity: 1 }
+      ]
+    });
+    assert.equal(twins.length, 2);
+    assert.equal(twins[0].kind, undefined);
+    assert.equal(twins[1].kind, 'bundle');
+  });
+});
+
 describe('Stripe product fields', () => {
   it('truncates descriptions to Stripe’s 500-character cap', () => {
     const long = 'Care note. '.repeat(80);

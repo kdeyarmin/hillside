@@ -8,9 +8,13 @@ import {
   parseCheckoutItems,
   releaseExpiredProductHolds,
   releaseProductHold,
-  returnSizeStock,
+  restockInclude,
+  returnOrderStockInTransaction,
   takeAvailableInventory
 } from '@/lib/checkout';
+import { bundleStockLines } from '@/lib/bundles';
+import { bundleSaleInclude } from '@/lib/bundle-queries';
+import { orderStockLines } from '@/lib/order-stock';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
 import { refundedOrderStatus, shouldRestoreInventoryOnRefund } from '@/lib/orders';
@@ -22,6 +26,7 @@ import {
   type FulfillmentChoice
 } from '@/lib/fulfillment';
 import { findSize, productSizes, sizedName } from '@/lib/product-sizes';
+import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { formatMoney, newInvoiceNumber, ownerNotificationEmails } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -67,13 +72,25 @@ async function subscribeFromCheckout(session: Stripe.Checkout.Session) {
   }
 }
 
+/**
+ * Order lines with their bundle components, because every stock movement below
+ * has to reach the products a set is built from rather than the set itself.
+ */
+const orderWithStock = { items: { include: { components: true } } } as const;
+
 async function findReservedOrder(session: Stripe.Checkout.Session) {
   const reservedId = session.metadata?.orderId?.trim();
   if (reservedId) {
-    const byId = await db.order.findUnique({ where: { id: reservedId }, include: { items: true } });
+    const byId = await db.order.findUnique({
+      where: { id: reservedId },
+      include: orderWithStock
+    });
     if (byId) return byId;
   }
-  return db.order.findUnique({ where: { stripeSessionId: session.id }, include: { items: true } });
+  return db.order.findUnique({
+    where: { stripeSessionId: session.id },
+    include: orderWithStock
+  });
 }
 
 function giftFromSession(session: Stripe.Checkout.Session, fallback: string | null) {
@@ -143,18 +160,20 @@ async function completeReservedOrder(
   await db.$transaction(async (transaction) => {
     const current = await transaction.order.findUnique({
       where: { id: order.id },
-      include: { items: true }
+      include: orderWithStock
     });
     if (!current || (current.status !== 'PENDING' && current.status !== 'CANCELLED')) return;
 
     const mustReacquire = current.status === 'CANCELLED' || Boolean(current.inventoryRestoredAt);
     if (mustReacquire) {
-      for (const item of current.items) {
+      // A set's stock is its components', so this walks what actually left the
+      // shelf rather than the order's lines.
+      for (const line of orderStockLines(current)) {
         const took = await takeAvailableInventory(
           transaction,
-          item.productId,
-          item.quantity,
-          item.size
+          line.productId,
+          line.quantity,
+          line.size
         );
         if (!took) oversold = true;
       }
@@ -219,17 +238,56 @@ async function fulfillProductOrder(session: Stripe.Checkout.Session) {
   await fulfillLegacyProductOrder(session);
 }
 
+/** One line rebuilt from the metadata snapshot: a product, or a whole set. */
+type LegacyLine = {
+  productId?: string;
+  bundleId?: string;
+  name: string;
+  size: string | null;
+  quantity: number;
+  unitCents: number;
+  components: Array<{ productId: string; name: string; size: string | null; quantity: number }>;
+};
+
 /**
  * Sessions created before inventory holds existed have no reserved order row.
  * Fulfill from the snapshot in metadata, and refuse to drop a paid line item.
  */
 async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
   const requested = parseCheckoutItems(session.metadata?.items);
-  const requestedIds = requested.map((item) => item.id);
-  const products = await db.product.findMany({
-    where: { OR: [{ id: { in: requestedIds } }, { slug: { in: requestedIds } }] }
-  });
-  const lineItems = requested.flatMap((item) => {
+  const productIds = requested.filter((item) => item.k !== 'b').map((item) => item.id);
+  const bundleIds = requested.filter((item) => item.k === 'b').map((item) => item.id);
+  const [products, bundles] = await Promise.all([
+    db.product.findMany({
+      where: { OR: [{ id: { in: productIds } }, { slug: { in: productIds } }] }
+    }),
+    bundleIds.length
+      ? db.bundle.findMany({ where: { id: { in: bundleIds } }, include: bundleSaleInclude })
+      : Promise.resolve([])
+  ]);
+  const lineItems = requested.flatMap((item): LegacyLine[] => {
+    if (item.k === 'b') {
+      const bundle = bundles.find((candidate) => candidate.id === item.id);
+      if (!bundle) return [];
+      /**
+       * The recipe as it stands now is the best answer available: the snapshot
+       * carries only the bundle's id, and a session old enough to reach this
+       * path is one whose reserved order row has gone missing. Recording what
+       * the set contains today is closer to the truth than recording nothing.
+       */
+      const { lines } = bundleStockLines(bundle, item.q);
+      return [
+        {
+          bundleId: bundle.id,
+          name: bundle.title,
+          size: null,
+          quantity: item.q,
+          unitCents: item.p ?? bundle.priceCents,
+          components: lines
+        }
+      ];
+    }
+
     const product = products.find(
       (candidate) => candidate.id === item.id || candidate.slug === item.id
     );
@@ -247,7 +305,8 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
         name: product.name,
         size: chosen?.label || null,
         quantity: item.q,
-        unitCents: item.p ?? chosen?.priceCents ?? product.priceCents
+        unitCents: item.p ?? chosen?.priceCents ?? product.priceCents,
+        components: []
       }
     ];
   });
@@ -296,17 +355,22 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
           fulfillmentMethod,
           giftMessage: giftFromSession(session, null),
           shippingMethod: shippingMethodLabel(fulfillmentMethod, shippingCents),
-          items: { create: lineItems }
+          items: {
+            create: lineItems.map(({ components, ...line }) => ({
+              ...line,
+              ...(components.length ? { components: { create: components } } : {})
+            }))
+          }
         },
-        include: { items: true }
+        include: orderWithStock
       });
 
-      for (const item of lineItems) {
+      for (const line of orderStockLines(created)) {
         const took = await takeAvailableInventory(
           transaction,
-          item.productId,
-          item.quantity,
-          item.size
+          line.productId,
+          line.quantity,
+          line.size
         );
         if (!took) oversold = true;
       }
@@ -562,11 +626,18 @@ async function applyRefund(charge: Stripe.Charge) {
 
   const order = await db.order.findFirst({
     where: { paymentIntentId },
-    include: { items: true }
+    include: restockInclude
   });
   if (!order) return;
 
   const status = refundedOrderStatus({ fullyRefunded });
+  /**
+   * A refund can be what puts a sold-out product back on the shelf, and the
+   * people on its waiting list should hear about that the same way they do
+   * after a cancelled order. Collected inside the transaction, emailed after it
+   * commits, so a failing send cannot roll the refund back.
+   */
+  let restocked: Array<{ id: string; name: string; slug: string }> = [];
 
   await db.$transaction(async (transaction) => {
     const current = await transaction.order.findUnique({
@@ -596,15 +667,17 @@ async function applyRefund(charge: Stripe.Charge) {
     });
     if (claimed.count === 0) return;
 
-    for (const item of order.items) {
-      await transaction.product.update({
-        where: { id: item.productId },
-        data: { inventory: { increment: item.quantity } }
-      });
-      // Back onto the size that was refunded, not onto the product at large.
-      await returnSizeStock(transaction, item.productId, item.size, item.quantity);
-    }
+    /**
+     * Back onto the size that was refunded, not onto the product at large — and
+     * for a refunded set, back onto each of the components it took, using the
+     * snapshot recorded when it sold rather than whatever the recipe says now.
+     */
+    restocked = await returnOrderStockInTransaction(transaction, order);
   });
+
+  for (const product of restocked) {
+    await notifyStockAlerts(product.id, product.name, product.slug);
+  }
 }
 
 async function expireSession(session: Stripe.Checkout.Session) {

@@ -3,7 +3,9 @@ import Stripe from 'stripe';
 import { db } from '@/lib/db';
 import {
   attachStripeSessionToOrder,
+  bundleCheckoutLine,
   checkoutAdjustments,
+  checkoutLineFulfillment,
   holdExpiryUnix,
   InsufficientStockError,
   readCheckoutItems,
@@ -12,8 +14,10 @@ import {
   reserveProductOrder,
   stripeCheckoutItemsMetadata,
   stripeProductDescription,
-  stripeProductImages
+  stripeProductImages,
+  type CheckoutLine
 } from '@/lib/checkout';
+import { bundleSaleInclude } from '@/lib/bundle-queries';
 import {
   findSize,
   productSizes,
@@ -70,9 +74,15 @@ export async function POST(request: Request) {
     if (!requested.length)
       return NextResponse.json({ error: 'Your cart is empty.' }, { status: 400 });
 
-    const products = await db.product.findMany({
-      where: { slug: { in: requested.map((item) => item.id) } }
-    });
+    const productSlugs = requested.filter((item) => item.kind !== 'bundle').map((item) => item.id);
+    const bundleSlugs = requested.filter((item) => item.kind === 'bundle').map((item) => item.id);
+
+    const [products, bundles] = await Promise.all([
+      db.product.findMany({ where: { slug: { in: productSlugs } } }),
+      bundleSlugs.length
+        ? db.bundle.findMany({ where: { slug: { in: bundleSlugs } }, include: bundleSaleInclude })
+        : Promise.resolve([])
+    ]);
 
     /**
      * Anything the server had to change is reported back rather than applied
@@ -80,17 +90,26 @@ export async function POST(request: Request) {
      * Price changes used to skip this path: the drawer showed the old figure
      * and Stripe charged the new one.
      */
-    const adjustments = checkoutAdjustments(requested, products);
+    const adjustments = checkoutAdjustments(requested, products, bundles);
     if (adjustments.length) {
       return NextResponse.json({ adjustments }, { status: 409 });
     }
 
     /**
-     * Prices are taken from the product and its size list, never from the
-     * basket: the browser sends what it displayed only so a stale figure can be
-     * reported back as an adjustment above, not so it can set the charge.
+     * Prices are taken from the product, its size list and the bundle row, never
+     * from the basket: the browser sends what it displayed only so a stale
+     * figure can be reported back as an adjustment above, not so it can set the
+     * charge.
      */
-    const items = requested.flatMap((requestedItem) => {
+    const items = requested.flatMap((requestedItem): CheckoutLine[] => {
+      if (requestedItem.kind === 'bundle') {
+        const bundle = bundles.find((candidate) => candidate.slug === requestedItem.id);
+        // `checkoutAdjustments` has already refused anything unsellable, so a
+        // set that reaches here can be built at the quantity asked for.
+        if (!bundle || !bundle.active) return [];
+        return [bundleCheckoutLine(bundle, requestedItem.quantity)];
+      }
+
       const product = products.find((candidate) => candidate.slug === requestedItem.id);
       if (!product || !product.active || product.inventory <= 0) return [];
       const sizes = productSizes(product.sizes, product.priceCents);
@@ -102,6 +121,7 @@ export async function POST(request: Request) {
       if (available <= 0) return [];
       return [
         {
+          kind: 'product',
           product,
           quantity: Math.min(requestedItem.quantity, available),
           size: chosen?.label || null,
@@ -119,7 +139,9 @@ export async function POST(request: Request) {
 
     const fulfillment = resolveFulfillment(
       readFulfillmentChoice(body),
-      cartFulfillment(items.map(({ product }) => product)),
+      // A set can only ship if every single thing in the box can, which is what
+      // `checkoutLineFulfillment` already worked out from its components.
+      cartFulfillment(items.map(checkoutLineFulfillment)),
       readPickupArranged(body)
     );
     if (!fulfillment.ok) {
@@ -164,26 +186,35 @@ export async function POST(request: Request) {
         /**
          * Stock fell between the check above and the reservation. The whole
          * basket is priced against the shelf again rather than only the line
-         * that failed: sizes of one product share a stock count, so answering
-         * with that product's total would tell a 6" line it could have every
-         * jar the 4" line beside it is already claiming, and the correction
-         * would bounce straight back.
+         * that failed: sizes of one product share a stock count — and a set
+         * shares its components' counts with the loose products beside it — so
+         * answering with one product's total would tell a 6" line it could have
+         * every jar the 4" line is already claiming, and the correction would
+         * bounce straight back.
          */
-        const latest = await db.product.findMany({
-          where: { slug: { in: requested.map((item) => item.id) } }
-        });
-        const corrections = checkoutAdjustments(requested, latest);
+        const [latest, latestBundles] = await Promise.all([
+          db.product.findMany({ where: { slug: { in: productSlugs } } }),
+          bundleSlugs.length
+            ? db.bundle.findMany({
+                where: { slug: { in: bundleSlugs } },
+                include: bundleSaleInclude
+              })
+            : Promise.resolve([])
+        ]);
+        const corrections = checkoutAdjustments(requested, latest, latestBundles);
         if (corrections.length) {
           return NextResponse.json({ adjustments: corrections }, { status: 409 });
         }
         // Stock came back before we could read it. Nothing to correct, so the
         // basket stands and the customer only has to ask again.
+        const claimed =
+          error.label ||
+          latest.find((product) => product.slug === error.slug)?.name ||
+          latestBundles.find((bundle) => bundle.slug === error.slug)?.title ||
+          'An item';
         return NextResponse.json(
           {
-            error: `${sizedName(
-              latest.find((product) => product.slug === error.slug)?.name || 'An item',
-              error.size
-            )} was claimed while we were reserving your basket. Please try checkout again.`
+            error: `${sizedName(claimed, error.size)} was claimed while we were reserving your basket. Please try checkout again.`
           },
           { status: 409 }
         );
@@ -199,27 +230,58 @@ export async function POST(request: Request) {
         mode: 'payment',
         client_reference_id: invoiceNumber,
         customer_creation: 'always',
-        line_items: items.map(({ product, quantity, size, unitCents }) => ({
-          quantity,
-          price_data: {
-            currency: 'usd',
-            unit_amount: unitCents,
-            product_data: {
-              // The size belongs in the name so it reaches the Stripe receipt,
-              // the invoice and the dashboard, none of which read metadata.
-              name: sizedName(product.name, size),
-              description: stripeProductDescription(
-                product.shortDescription || product.description
-              ),
-              images: stripeProductImages(product.imageUrl),
-              metadata: {
-                hillsideProductId: product.id,
-                hillsideSlug: product.slug,
-                ...(size ? { hillsideSize: size } : {})
+        line_items: items.map((item): Stripe.Checkout.SessionCreateParams.LineItem =>
+          item.kind === 'bundle'
+            ? {
+                quantity: item.quantity,
+                price_data: {
+                  currency: 'usd' as const,
+                  unit_amount: item.unitCents,
+                  product_data: {
+                    name: item.bundle.title,
+                    /**
+                     * The contents go in the description so the receipt, the
+                     * invoice and the Stripe dashboard all say what was in the
+                     * box. Stripe charges one line for the set — the components
+                     * are inventory, not separate charges — so this is the only
+                     * place the customer's paperwork can list them.
+                     */
+                    description: stripeProductDescription(
+                      `Includes ${item.contents}.${
+                        item.bundle.tagline ? ` ${item.bundle.tagline}` : ''
+                      }`
+                    ),
+                    images: stripeProductImages(item.bundle.imageUrl),
+                    metadata: {
+                      hillsideBundleId: item.bundle.id,
+                      hillsideSlug: item.bundle.slug
+                    }
+                  }
+                }
               }
-            }
-          }
-        })),
+            : {
+                quantity: item.quantity,
+                price_data: {
+                  currency: 'usd' as const,
+                  unit_amount: item.unitCents,
+                  product_data: {
+                    // The size belongs in the name so it reaches the Stripe
+                    // receipt, the invoice and the dashboard, none of which read
+                    // metadata.
+                    name: sizedName(item.product.name, item.size),
+                    description: stripeProductDescription(
+                      item.product.shortDescription || item.product.description
+                    ),
+                    images: stripeProductImages(item.product.imageUrl),
+                    metadata: {
+                      hillsideProductId: item.product.id,
+                      hillsideSlug: item.product.slug,
+                      ...(item.size ? { hillsideSize: item.size } : {})
+                    }
+                  }
+                }
+              }
+        ),
         /**
          * Expires with the inventory hold. Left at Stripe's 24-hour default, a
          * customer could pay long after abandoned-checkout stock had been

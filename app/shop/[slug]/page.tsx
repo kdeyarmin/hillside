@@ -1,16 +1,20 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Truck } from 'lucide-react';
+import { BookOpen, Package, Truck } from 'lucide-react';
 import AddToCartButton from '@/components/AddToCartButton';
+import BundleCard from '@/components/BundleCard';
 import ProductGallery from '@/components/ProductGallery';
 import ProductGrid from '@/components/ProductGrid';
 import ProductViewTracker from '@/components/ProductViewTracker';
 import ProductReviews from '@/components/ProductReviews';
 import StockAlertForm from '@/components/StockAlertForm';
+import { bundleCardData, sellableBundlesContaining } from '@/lib/bundle-queries';
+import { careGuideTypeLabel } from '@/lib/care-guides';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
+import { recommendationsForProduct } from '@/lib/recommendation-queries';
 import { ratingsByProduct } from '@/lib/reviews';
 import { jsonLd } from '@/lib/json-ld';
 import {
@@ -30,7 +34,6 @@ import {
   HANDLING_MIN_DAYS,
   priceValidUntil,
   productTypeLabel,
-  productTypePlural,
   returnPolicyForType,
   resolveImageUrl
 } from '@/lib/store';
@@ -71,7 +74,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     where: { slug },
     include: {
       collections: { where: { active: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
-      careSheets: { where: { published: true }, take: 2 }
+      /**
+       * Both the guide this product is the subject of and any guide that
+       * features it, so a venus flytrap reaches its own profile *and* the
+       * watering guide that keeps it alive.
+       */
+      careSheets: { where: { published: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
+      careGuides: {
+        where: { careSheet: { published: true } },
+        orderBy: { sortOrder: 'asc' },
+        include: { careSheet: true },
+        take: 4
+      }
     }
   });
   if (!product) notFound();
@@ -80,26 +94,27 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     return <RetiredProduct product={product} catalogEmpty={catalogEmpty} />;
   }
 
-  const [related, reviews, rating] = await Promise.all([
-    db.product.findMany({
-      where: { active: true, id: { not: product.id }, type: product.type },
-      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
-      take: 3
-    }),
+  const [reviews, rating, rails, inSets] = await Promise.all([
     db.review.findMany({
       where: { productId: product.id, status: 'APPROVED' },
       orderBy: { createdAt: 'desc' },
       take: 20
     }),
-    ratingsByProduct([product.id]).then((map) => map.get(product.id) || { average: 0, count: 0 })
+    ratingsByProduct([product.id]).then((map) => map.get(product.id) || { average: 0, count: 0 }),
+    recommendationsForProduct(product),
+    sellableBundlesContaining(product.id)
   ]);
 
-  const relatedRatings = await ratingsByProduct(related.map((item) => item.id));
-  const relatedProducts = related.map((item) => ({
-    ...item,
-    averageRating: relatedRatings.get(item.id)?.average ?? null,
-    reviewCount: relatedRatings.get(item.id)?.count ?? 0
-  }));
+  /**
+   * Every guide that touches this product, the subject one first, with
+   * duplicates folded out — a guide can be both the product's own profile and a
+   * featured link, and listing it twice looks like a mistake.
+   */
+  const guides = [
+    ...product.careSheets,
+    ...product.careGuides.map((link) => link.careSheet)
+  ].filter((sheet, index, all) => all.findIndex((other) => other.id === sheet.id) === index);
+  const primaryGuide = guides[0] || null;
 
   const threshold = freeShippingThresholdCents();
   const soldOut = product.inventory <= 0;
@@ -332,6 +347,26 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               </div>
             </div>
 
+            {/* Above the Add button, not buried at the foot of the page: the
+                care guide is what tells a nervous first-time buyer this plant is
+                survivable, and that decision is made here. */}
+            {primaryGuide && (
+              <div className="care-guide-link">
+                <BookOpen size={22} aria-hidden="true" />
+                <div>
+                  <b>
+                    {primaryGuide.guideType === 'PLANT'
+                      ? `How to keep ${product.name} alive`
+                      : primaryGuide.plantName}
+                  </b>
+                  <span>{primaryGuide.summary}</span>
+                </div>
+                <Link className="btn outline small" href={`/care/${primaryGuide.slug}`}>
+                  Read the care guide
+                </Link>
+              </div>
+            )}
+
             {soldOut ? (
               <StockAlertForm slug={product.slug} name={product.name} />
             ) : (
@@ -350,6 +385,29 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 }}
               />
             )}
+
+            {/* Sets that contain this exact product, and only while every other
+                piece in them is on the bench too — so the nudge can never point
+                at a box the shop cannot pack. */}
+            {inSets.map((set) => {
+              const card = bundleCardData(set);
+              return (
+                <div className="bundle-nudge" key={set.slug}>
+                  <div>
+                    <b>
+                      <Package size={15} aria-hidden="true" /> Also in the {set.title}
+                    </b>
+                    <span>
+                      {card.contents}
+                      {card.savingsCents > 0 ? ` — ${card.savingsNote?.toLowerCase()}` : ''}
+                    </span>
+                  </div>
+                  <Link className="btn outline small" href={`/bundles/${set.slug}`}>
+                    See the set
+                  </Link>
+                </div>
+              );
+            })}
 
             {product.collections.length > 0 && (
               <p className="product-collections">
@@ -380,7 +438,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </div>
         )}
 
-        {product.careSheets.length > 0 && (
+        {guides.length > 0 && (
           <div className="product-details-section">
             <div className="sectionhead">
               <div className="eyebrow">Keep it thriving</div>
@@ -389,11 +447,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   ? 'Care guides for this plant.'
                   : 'Care guides for this item.'}
               </h2>
+              <p>Written here, free to read before you buy, and printable once it is home.</p>
             </div>
             <div className="care-related-grid">
-              {product.careSheets.map((sheet) => (
+              {guides.map((sheet) => (
                 <article className="care-related-card" key={sheet.id}>
-                  <span>Plant care</span>
+                  <span>{careGuideTypeLabel(sheet.guideType)}</span>
                   <h3>
                     <Link href={`/care/${sheet.slug}`}>{sheet.plantName}</Link>
                   </h3>
@@ -424,16 +483,46 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           }))}
         />
 
-        {relatedProducts.length > 0 && (
+        {/*
+          Four separate questions, each with its own heading, rather than one
+          "More in plants" shelf. A rail only renders when something genuinely
+          answers it — an empty "Complete the setup" is a better answer than a
+          full one that is wrong, because a shopper shown a bar of soap under a
+          fly trap stops reading the section entirely.
+        */}
+        {rails.length > 0 && (
+          <div className="product-details-section">
+            {rails.map((rail) => (
+              <section className="recommendation-rail" key={rail.key}>
+                <div className="recommendation-rail-head">
+                  <div>
+                    <div className="eyebrow">
+                      {rail.key === 'complete' ? 'Goes with it' : 'Our suggestion'}
+                    </div>
+                    <h2>{rail.title}</h2>
+                  </div>
+                  <p>{rail.blurb}</p>
+                </div>
+                <ProductGrid products={rail.products} eagerCount={0} />
+              </section>
+            ))}
+          </div>
+        )}
+
+        {inSets.length > 0 && (
           <div className="product-details-section">
             <div className="sectionhead">
-              {/* The query behind this list matches on product type, not on the
-                  collections above, so the heading says type — as a plural,
-                  because it introduces a shelf of them, not one. */}
-              <div className="eyebrow">You may also like</div>
-              <h2>More in {productTypePlural(product.type).toLowerCase()}.</h2>
+              <div className="eyebrow">Buy it as a set</div>
+              <h2>
+                {product.name} is part of {inSets.length === 1 ? 'a kit' : 'these kits'}.
+              </h2>
+              <p>Priced below what the pieces cost on their own.</p>
             </div>
-            <ProductGrid products={relatedProducts} />
+            <div className="product-grid">
+              {inSets.map((set) => (
+                <BundleCard bundle={bundleCardData(set)} key={set.slug} />
+              ))}
+            </div>
           </div>
         )}
       </div>

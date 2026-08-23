@@ -735,9 +735,9 @@ export const starterCareGuides = [
   }
 ] satisfies Prisma.CareSheetUncheckedCreateInput[];
 
-export function careGuideTypeLabel(type: CareGuideType | string) {
-  if (type === CareGuideType.GENERAL) return 'Plant care basics';
-  if (type === CareGuideType.PROBLEM) return 'Common issue';
-  if (type === CareGuideType.SEASONAL) return 'Seasonal care';
-  return 'Plant profile';
-}
+/**
+ * Re-exported from `lib/care-guides.ts`, which is now the one place these labels
+ * are written. Kept here so existing imports keep working without dragging the
+ * whole starter library into every page that only wanted a word.
+ */
+export { careGuideTypeLabel } from './care-guides.ts';

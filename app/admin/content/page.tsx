@@ -179,6 +179,7 @@ export default async function ContentManager({
         <img src="/logo.webp" alt="The Hillside Gardens" />
         <b>Website Content Manager</b>
         <Link href="/admin">← Business dashboard</Link>
+        <Link href="/admin/merchandising">Sets &amp; recommendations</Link>
         <a href="#collections">Collections</a>
         <a href="#classes">Classes</a>
         <a href="#gallery">Gallery</a>

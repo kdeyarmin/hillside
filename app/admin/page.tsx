@@ -414,7 +414,11 @@ export default async function Admin({
       orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
       include: { collections: { select: { id: true } } }
     }),
-    db.order.findMany({ orderBy: { createdAt: 'desc' }, take: 75, include: { items: true } }),
+    db.order.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 75,
+      include: { items: { include: { components: true } } }
+    }),
     /**
      * Net revenue: partially refunded orders still earned everything that was not
      * given back, so they belong in the figure with their refund subtracted rather
@@ -453,26 +457,34 @@ export default async function Admin({
    * Which reviewer emails actually appear on a paid order for that product.
    * A reviewer cannot claim the badge themselves, so this is the evidence Tammy
    * needs to grant it during moderation.
+   *
+   * A product bought inside a set counts, which is why the components are
+   * searched alongside the order lines: someone who received a plant in the New
+   * Plant Parent Kit bought it just as surely as someone who bought it loose,
+   * and a bundle line carries no `productId` of its own to be found by.
    */
-  const reviewPurchaseMatches = new Set(
-    (
-      await db.orderItem.findMany({
-        where: {
-          productId: { in: reviews.map((review) => review.productId) },
-          order: {
-            status: {
-              in: [OrderStatus.PAID, OrderStatus.FULFILLED, OrderStatus.PARTIALLY_REFUNDED]
-            },
-            email: {
-              in: reviews.map((review) => review.email || '').filter(Boolean),
-              mode: 'insensitive'
-            }
-          }
-        },
-        select: { productId: true, order: { select: { email: true } } }
-      })
-    ).map((item) => `${item.productId}:${item.order.email.toLowerCase()}`)
-  );
+  const reviewedProductIds = reviews.map((review) => review.productId);
+  const reviewerEmails = reviews.map((review) => review.email || '').filter(Boolean);
+  const paidOrder = {
+    status: { in: [OrderStatus.PAID, OrderStatus.FULFILLED, OrderStatus.PARTIALLY_REFUNDED] },
+    email: { in: reviewerEmails, mode: 'insensitive' as const }
+  };
+  const [purchasedLoose, purchasedInSets] = await Promise.all([
+    db.orderItem.findMany({
+      where: { productId: { in: reviewedProductIds }, order: paidOrder },
+      select: { productId: true, order: { select: { email: true } } }
+    }),
+    db.orderItemComponent.findMany({
+      where: { productId: { in: reviewedProductIds }, orderItem: { order: paidOrder } },
+      select: { productId: true, orderItem: { select: { order: { select: { email: true } } } } }
+    })
+  ]);
+  const reviewPurchaseMatches = new Set([
+    ...purchasedLoose.map((item) => `${item.productId}:${item.order.email.toLowerCase()}`),
+    ...purchasedInSets.map(
+      (component) => `${component.productId}:${component.orderItem.order.email.toLowerCase()}`
+    )
+  ]);
 
   const lowStock = products.filter(productIsLowStock).length;
   const openOrders = orders.filter((order) =>
@@ -526,6 +538,7 @@ export default async function Admin({
         <a href="#reviews">Reviews</a>
         <a href="#restock">Restock requests</a>
         <Link href="/admin/email">Email</Link>
+        <Link href="/admin/merchandising">Sets &amp; recommendations</Link>
         <Link href="/admin/content">Website content</Link>
         <Link href="/admin/care">Plant care library</Link>
         <Link href="/admin/accounts">Admin accounts</Link>
@@ -782,6 +795,18 @@ export default async function Admin({
                         <div className="summary-row" key={item.id}>
                           <span>
                             {sizedName(item.name, item.size)} × {item.quantity}
+                            {/* A set is one line and one price; what has to come
+                                off the bench for it is the list underneath. */}
+                            {item.components.length > 0 && (
+                              <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                                {item.components
+                                  .map(
+                                    (component) =>
+                                      `${sizedName(component.name, component.size)} × ${component.quantity}`
+                                  )
+                                  .join(' · ')}
+                              </span>
+                            )}
                           </span>
                           <span>{formatMoney(item.unitCents * item.quantity)}</span>
                         </div>

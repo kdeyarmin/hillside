@@ -31,6 +31,13 @@ export type ProductCardProduct = {
   sizeLabel?: string | null;
   averageRating?: number | null;
   reviewCount?: number;
+  /**
+   * Why this card is being shown here — Tammy's own note on a recommendation
+   * she configured, or the rule that matched. A recommendation without a reason
+   * is indistinguishable from filler, which is what this whole section is meant
+   * to stop being.
+   */
+  reason?: string | null;
 };
 
 function Stars({ rating, count }: { rating: number; count: number }) {
@@ -105,6 +112,7 @@ export default function ProductCard({
           <Stars rating={product.averageRating || 0} count={product.reviewCount} />
         ) : null}
         <p>{product.shortDescription || product.description}</p>
+        {product.reason && <span className="recommendation-reason">{product.reason}</span>}
         <p>
           <strong className="price">{formatSizePriceRange(sizes, product.priceCents)}</strong>
           {saving > 0 && compareAt && (

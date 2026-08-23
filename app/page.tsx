@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { ArrowRight, BookOpen, Leaf, Package, Sparkles, Sprout, Truck } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
+import BundleCard from '@/components/BundleCard';
 import NewsletterForm from '@/components/NewsletterForm';
 import ProductGrid from '@/components/ProductGrid';
+import { bundleCardData, sellableBundles } from '@/lib/bundle-queries';
 import {
   classDateLabel,
   classFormatLabel,
@@ -34,32 +36,44 @@ export const metadata = {
 
 export default async function Home() {
   const freeShippingThreshold = freeShippingThresholdCents();
-  const [featuredProducts, upcomingClasses, collections, careGuideCount, catalogCount] =
-    await Promise.all([
-      db.product.findMany({
-        where: { active: true, featured: true },
-        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-        take: 4
-      }),
-      // Hidden classes are not fetched at all, so the homepage costs one query
-      // less rather than rendering nothing from a result it paid for.
-      CLASSES_PUBLICLY_VISIBLE
-        ? db.classEvent.findMany({
-            where: { active: true, startsAt: { gte: new Date() } },
-            orderBy: { startsAt: 'asc' },
-            take: 2
-          })
-        : [],
-      // Only collections that actually hold something are advertised, so a tile on
-      // the homepage always leads to real stock.
-      db.collection.findMany({
-        where: { active: true, featured: true, products: { some: { active: true } } },
-        orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-        include: { _count: { select: { products: { where: { active: true } } } } }
-      }),
-      db.careSheet.count({ where: { published: true } }),
-      db.product.count({ where: { active: true } })
-    ]);
+  const [
+    featuredProducts,
+    featuredSets,
+    upcomingClasses,
+    collections,
+    careGuideCount,
+    catalogCount
+  ] = await Promise.all([
+    db.product.findMany({
+      where: { active: true, featured: true },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      take: 4
+    }),
+    /**
+     * Featured sets, but only ones that can actually be built right now — a
+     * kit whose last component sold this morning drops off the homepage on its
+     * own rather than sending the day's visitors to a sold-out page.
+     */
+    sellableBundles({ featured: true, take: 3 }),
+    // Hidden classes are not fetched at all, so the homepage costs one query
+    // less rather than rendering nothing from a result it paid for.
+    CLASSES_PUBLICLY_VISIBLE
+      ? db.classEvent.findMany({
+          where: { active: true, startsAt: { gte: new Date() } },
+          orderBy: { startsAt: 'asc' },
+          take: 2
+        })
+      : [],
+    // Only collections that actually hold something are advertised, so a tile on
+    // the homepage always leads to real stock.
+    db.collection.findMany({
+      where: { active: true, featured: true, products: { some: { active: true } } },
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      include: { _count: { select: { products: { where: { active: true } } } } }
+    }),
+    db.careSheet.count({ where: { published: true } }),
+    db.product.count({ where: { active: true } })
+  ]);
 
   const ratings = await ratingsByProduct(featuredProducts.map((product) => product.id));
   const featured = featuredProducts.map((product) => ({
@@ -238,6 +252,29 @@ export default async function Home() {
                 </Link>
               </div>
               <ProductGrid products={featured} />
+            </div>
+          </section>
+        )}
+
+        {featuredSets.length > 0 && (
+          <section className="section editorial-products home-products-section">
+            <div className="container">
+              <div className="editorial-heading-row">
+                <div>
+                  <div className="eyebrow">
+                    <Package size={14} aria-hidden="true" /> Everything in one box
+                  </div>
+                  <h2>Sets we have made up.</h2>
+                </div>
+                <Link className="editorial-link" href="/bundles">
+                  All sets &amp; kits &rarr;
+                </Link>
+              </div>
+              <div className="product-grid">
+                {featuredSets.map((set) => (
+                  <BundleCard bundle={bundleCardData(set)} key={set.slug} />
+                ))}
+              </div>
             </div>
           </section>
         )}

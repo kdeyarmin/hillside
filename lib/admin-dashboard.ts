@@ -105,6 +105,10 @@ export function adminEmailPath(query: Record<string, string | undefined | null> 
   return adminDashboardPath(query).replace(/^\/admin/, '/admin/email');
 }
 
+export function adminMerchandisingPath(query: Record<string, string | undefined | null> = {}) {
+  return adminDashboardPath(query).replace(/^\/admin/, '/admin/merchandising');
+}
+
 /**
  * Next can hand a repeated query string through as `string[]`. The dashboard
  * used to call `.trim()` on `params.q` directly, so `/admin?q=one&q=two`
@@ -152,6 +156,15 @@ export const ADMIN_NOTICES: Record<string, string> = {
     'Amazon sent nothing new, so the pick is unchanged. It is still live — add a photo below if it needs one.',
   'care-saved': 'Care sheet saved.',
   'care-created': 'Care sheet published.',
+  'bundle-saved': 'Set saved.',
+  'bundle-created': 'Set created.',
+  'bundle-archived': 'Set archived. It is no longer offered on the website.',
+  'bundle-live':
+    'Set is live — it will appear on the website whenever every piece in it is in stock.',
+  'bundle-deleted': 'Set deleted. Past orders that contained it are unchanged.',
+  'relations-saved': 'Recommendations saved.',
+  'tags-saved': 'Tags saved. They are what the automatic suggestions match on.',
+  'guide-products-saved': 'Products on that guide saved.',
   'content-archived': 'Archived. It is no longer on the public website.',
   'email-sent': 'Email sent.',
   'reply-sent': 'Reply sent. It is saved with the message below.'
@@ -186,6 +199,15 @@ export const ADMIN_ERRORS: Record<string, string> = {
     'The class was saved, but the Telnyx room could not be prepared. Check TELNYX_API_KEY and try Prepare room again.',
   'content-invalid': 'That form was missing a required field.',
   'content-missing': 'That item is no longer here.',
+  'bundle-invalid': 'A set needs a name, a description and a price.',
+  'bundle-empty':
+    'A set needs at least one required item in it. An "extra" on its own is not something we can pack.',
+  'bundle-slug': 'That set URL is already in use. Choose a different one.',
+  'bundle-missing': 'That set is no longer here.',
+  'bundle-product-missing':
+    'One of the products in that set is no longer available to add. Refresh the page and choose again.',
+  'relation-invalid': 'Choose a product before saving its recommendations.',
+  'guide-missing': 'That care guide is no longer here.',
   'amazon-url':
     'That does not look like an Amazon link. Paste the item’s own address — an amazon.com one (or any other Amazon country address), or a shortened a.co or amzn.to link.',
   throttled: 'Too many sign-in attempts. Please wait a few minutes and try again.',

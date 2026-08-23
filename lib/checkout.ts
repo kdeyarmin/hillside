@@ -7,6 +7,7 @@ import {
   InsufficientStockError,
   type CheckoutLine
 } from '@/lib/checkout-format';
+import type { BundleStockLine } from '@/lib/bundles';
 import { shippingMethodLabel, type FulfillmentChoice } from '@/lib/fulfillment';
 import {
   productInventoryForSizes,
@@ -26,6 +27,9 @@ export {
   stripeProductImages,
   readCheckoutItems,
   checkoutAdjustments,
+  checkoutLineFulfillment,
+  checkoutLineName,
+  bundleCheckoutLine,
   encodeCheckoutItems,
   parseCheckoutItems,
   stripeCheckoutItemsMetadata
@@ -35,6 +39,8 @@ export type {
   CheckoutRequestedItem,
   CheckoutAdjustment,
   CheckoutLine,
+  CheckoutBundleLine,
+  CheckoutProductLine,
   ParsedCheckoutItem
 } from '@/lib/checkout-format';
 
@@ -129,24 +135,71 @@ export async function reserveProductOrder({
   const expiresAt = holdExpiry();
   const holdId = `hold_${crypto.randomUUID()}`;
 
+  /**
+   * What each set actually took, which is not always what it set out to take:
+   * an extra whose shelf emptied between pricing the basket and reserving it is
+   * dropped rather than failing the checkout. Recorded per line so the order
+   * stores what went in the box, not what the recipe hoped would.
+   */
+  const takenByLine = new Map<CheckoutLine, BundleStockLine[]>();
+
   const order = await db.$transaction(async (transaction) => {
     for (const item of items) {
-      const result = await transaction.product.updateMany({
-        where: { id: item.product.id, active: true, inventory: { gte: item.quantity } },
-        data: { inventory: { decrement: item.quantity } }
-      });
-      if (result.count === 0) {
-        throw new InsufficientStockError(item.product.slug, item.size || null);
-      }
       /**
-       * The product having enough altogether is not the same question as this
-       * size having enough: a plant with nine on the bench can still be out of
-       * 6" pots. Throwing rolls back the decrement above along with the rest of
-       * the hold, so a size that comes up short reserves nothing.
+       * A set reserves the products it is built from, never itself: a bundle has
+       * no count of its own, and inventing one here is the duplicate stock this
+       * whole feature is designed not to keep.
        */
-      if (!(await takeSizeStock(transaction, item.product.id, item.size, item.quantity))) {
-        throw new InsufficientStockError(item.product.slug, item.size || null);
+      const lines: BundleStockLine[] =
+        item.kind === 'bundle'
+          ? item.components
+          : [
+              {
+                productId: item.product.id,
+                name: item.product.name,
+                size: item.size || null,
+                quantity: item.quantity
+              }
+            ];
+      const taken: BundleStockLine[] = [];
+
+      for (const line of lines) {
+        const slug = item.kind === 'bundle' ? item.bundle.slug : item.product.slug;
+        const result = await transaction.product.updateMany({
+          where: { id: line.productId, active: true, inventory: { gte: line.quantity } },
+          data: { inventory: { decrement: line.quantity } }
+        });
+        if (result.count === 0) {
+          // An extra is exactly the thing a set is allowed to go without.
+          if (line.optional) continue;
+          throw new InsufficientStockError(slug, line.size, line.name);
+        }
+        /**
+         * The product having enough altogether is not the same question as this
+         * size having enough: a plant with nine on the bench can still be out of
+         * 6" pots. Throwing rolls back the decrement above along with the rest of
+         * the hold, so a size that comes up short reserves nothing — and for a
+         * set, one *required* component coming up short reserves none of the
+         * others either.
+         *
+         * An extra that fails here has already had its total decremented, so it
+         * is put straight back rather than left held for an order that will not
+         * contain it.
+         */
+        if (!(await takeSizeStock(transaction, line.productId, line.size, line.quantity))) {
+          if (line.optional) {
+            await transaction.product.update({
+              where: { id: line.productId },
+              data: { inventory: { increment: line.quantity } }
+            });
+            continue;
+          }
+          throw new InsufficientStockError(slug, line.size, line.name);
+        }
+        taken.push(line);
       }
+
+      takenByLine.set(item, taken);
     }
 
     return transaction.order.create({
@@ -169,13 +222,32 @@ export async function reserveProductOrder({
         giftMessage: giftMessage || null,
         shippingMethod: shippingMethodLabel(fulfillmentMethod, shippingCents),
         items: {
-          create: items.map((item) => ({
-            productId: item.product.id,
-            name: item.product.name,
-            size: item.size || null,
-            quantity: item.quantity,
-            unitCents: item.unitCents
-          }))
+          create: items.map((item) =>
+            item.kind === 'bundle'
+              ? {
+                  bundleId: item.bundle.id,
+                  name: item.bundle.title,
+                  quantity: item.quantity,
+                  unitCents: item.unitCents,
+                  components: {
+                    create: (takenByLine.get(item) || []).map(
+                      ({ productId, name, size, quantity }) => ({
+                        productId,
+                        name,
+                        size,
+                        quantity
+                      })
+                    )
+                  }
+                }
+              : {
+                  productId: item.product.id,
+                  name: item.product.name,
+                  size: item.size || null,
+                  quantity: item.quantity,
+                  unitCents: item.unitCents
+                }
+          )
         }
       }
     });
@@ -239,16 +311,123 @@ export async function attachStripeSessionToOrder(holdId: string, stripeSessionId
   });
 }
 
+/**
+ * The Prisma shape every restock path reads: the order's lines, plus for a
+ * bundle line the components that actually left the shelf, each with the
+ * product row a waiting-list notice needs.
+ */
+const restockInclude = {
+  items: {
+    include: {
+      product: { select: { name: true, slug: true, inventory: true } },
+      components: {
+        include: { product: { select: { name: true, slug: true, inventory: true } } }
+      }
+    }
+  }
+} as const;
+
+export type RestockOrder = {
+  items: Array<{
+    productId: string | null;
+    name: string;
+    size: string | null;
+    quantity: number;
+    product: { name: string; slug: string; inventory: number } | null;
+    components: Array<{
+      productId: string;
+      name: string;
+      size: string | null;
+      quantity: number;
+      product: { name: string; slug: string; inventory: number };
+    }>;
+  }>;
+};
+
+type ReturnedLine = {
+  productId: string;
+  size: string | null;
+  quantity: number;
+  product: { name: string; slug: string; inventory: number };
+};
+
+/** Every physical line an order's stock has to be given back on. */
+function linesToReturn(order: RestockOrder): ReturnedLine[] {
+  return order.items.flatMap((item) =>
+    item.components.length
+      ? item.components.map((component) => ({
+          productId: component.productId,
+          size: component.size,
+          quantity: component.quantity,
+          product: component.product
+        }))
+      : item.productId && item.product
+        ? [
+            {
+              productId: item.productId,
+              size: item.size,
+              quantity: item.quantity,
+              product: item.product
+            }
+          ]
+        : []
+  );
+}
+
+/**
+ * Puts every line of an order back on the shelf inside an open transaction, and
+ * answers with the products that crossed from sold out to sellable.
+ *
+ * The before/after counts are tracked per *product*, not per line, because one
+ * order can touch the same product more than once — two sizes of a lotion, or a
+ * set and a loose jar of the tea inside it. Reading "how many were there before"
+ * off each line's own included row would read the same pre-transaction number
+ * twice and could announce a restock that the second line had already covered.
+ */
+async function returnOrderStock(transaction: Prisma.TransactionClient, order: RestockOrder) {
+  const before = new Map<string, number>();
+  const after = new Map<string, number>();
+  const named = new Map<string, { name: string; slug: string }>();
+
+  for (const line of linesToReturn(order)) {
+    if (!before.has(line.productId)) {
+      before.set(line.productId, line.product.inventory);
+      after.set(line.productId, line.product.inventory);
+      named.set(line.productId, { name: line.product.name, slug: line.product.slug });
+    }
+    await transaction.product.update({
+      where: { id: line.productId },
+      data: { inventory: { increment: line.quantity } }
+    });
+    const returned = await returnSizeStock(transaction, line.productId, line.size, line.quantity);
+    /**
+     * A size the owner retired while this was in flight has nowhere to go back
+     * to, so the total can come back unchanged — and a waiting list told "it's
+     * back" about a product with nothing sellable on it would send everyone to
+     * a sold-out page.
+     */
+    after.set(line.productId, returned ?? (after.get(line.productId) ?? 0) + line.quantity);
+  }
+
+  const restocked: Array<{ id: string; name: string; slug: string }> = [];
+  for (const [productId, wasOnHand] of before) {
+    const nowOnHand = after.get(productId) ?? wasOnHand;
+    const naming = named.get(productId);
+    if (wasOnHand <= 0 && nowOnHand > 0 && naming) {
+      restocked.push({ id: productId, ...naming });
+    }
+  }
+  return restocked;
+}
+
 export async function releaseProductHold(orderId: string) {
   const order = await db.order.findUnique({
     where: { id: orderId },
-    include: {
-      items: { include: { product: { select: { name: true, slug: true, inventory: true } } } }
-    }
+    include: restockInclude
   });
   if (!order || order.status !== 'PENDING') return false;
 
-  const restocked: Array<{ id: string; name: string; slug: string }> = [];
+  let restocked: Array<{ id: string; name: string; slug: string }> = [];
   let released = false;
 
   await db.$transaction(async (transaction) => {
@@ -258,25 +437,7 @@ export async function releaseProductHold(orderId: string) {
     });
     if (claimed.count === 0) return;
     released = true;
-
-    for (const item of order.items) {
-      const previousInventory = item.product.inventory;
-      await transaction.product.update({
-        where: { id: item.productId },
-        data: { inventory: { increment: item.quantity } }
-      });
-      const returned = await returnSizeStock(transaction, item.productId, item.size, item.quantity);
-      /**
-       * A size the owner retired while this was in flight has nowhere to go
-       * back to, so the total can come back unchanged — and a waiting list told
-       * "it's back" about a product with nothing sellable on it would send
-       * everyone to a sold-out page.
-       */
-      const nowOnHand = returned ?? previousInventory + item.quantity;
-      if (previousInventory <= 0 && nowOnHand > 0) {
-        restocked.push({ id: item.productId, name: item.product.name, slug: item.product.slug });
-      }
-    }
+    restocked = await returnOrderStock(transaction, order);
   });
 
   for (const product of restocked) {
@@ -295,13 +456,11 @@ export async function releaseProductHold(orderId: string) {
 export async function restoreUnshippedOrderInventory(orderId: string) {
   const order = await db.order.findUnique({
     where: { id: orderId },
-    include: {
-      items: { include: { product: { select: { name: true, slug: true, inventory: true } } } }
-    }
+    include: restockInclude
   });
   if (!order || order.inventoryRestoredAt || order.fulfilledAt) return false;
 
-  const restocked: Array<{ id: string; name: string; slug: string }> = [];
+  let restocked: Array<{ id: string; name: string; slug: string }> = [];
   let restored = false;
 
   await db.$transaction(async (transaction) => {
@@ -311,25 +470,7 @@ export async function restoreUnshippedOrderInventory(orderId: string) {
     });
     if (claimed.count === 0) return;
     restored = true;
-
-    for (const item of order.items) {
-      const previousInventory = item.product.inventory;
-      await transaction.product.update({
-        where: { id: item.productId },
-        data: { inventory: { increment: item.quantity } }
-      });
-      const returned = await returnSizeStock(transaction, item.productId, item.size, item.quantity);
-      /**
-       * A size the owner retired while this was in flight has nowhere to go
-       * back to, so the total can come back unchanged — and a waiting list told
-       * "it's back" about a product with nothing sellable on it would send
-       * everyone to a sold-out page.
-       */
-      const nowOnHand = returned ?? previousInventory + item.quantity;
-      if (previousInventory <= 0 && nowOnHand > 0) {
-        restocked.push({ id: item.productId, name: item.product.name, slug: item.product.slug });
-      }
-    }
+    restocked = await returnOrderStock(transaction, order);
   });
 
   for (const product of restocked) {
@@ -338,6 +479,20 @@ export async function restoreUnshippedOrderInventory(orderId: string) {
 
   return restored;
 }
+
+/**
+ * The same give-back, for a caller that already holds the transaction and the
+ * order's rows — the Stripe refund webhook, which has to claim the order and
+ * return its stock in one go.
+ */
+export async function returnOrderStockInTransaction(
+  transaction: Prisma.TransactionClient,
+  order: RestockOrder
+) {
+  return returnOrderStock(transaction, order);
+}
+
+export { restockInclude };
 
 /**
  * Abandoned checkouts whose Stripe session never expired into the webhook —
