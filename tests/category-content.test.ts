@@ -108,7 +108,15 @@ describe('categoryDescription', () => {
       categoryDescription({ title: 'Succulents', intro: 'Store their own water.' }),
       'Store their own water.'
     );
-    assert.match(categoryDescription({ title: 'Succulents' }), /^Shop the Succulents collection/);
+    /**
+     * The last-resort sentence names neither "collection" nor "category": it
+     * serves both kinds of grouping, and a category with no copy of its own used
+     * to introduce itself as a collection.
+     */
+    const invented = categoryDescription({ title: 'Succulents' });
+    assert.match(invented, /^Shop Succulents at The Hillside Gardens/);
+    assert.equal(invented.includes('collection'), false);
+    assert.equal(invented.includes('category'), false);
   });
 
   it('truncates on a word boundary rather than mid-word', () => {

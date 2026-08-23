@@ -42,6 +42,10 @@ const routes = [
      is the widest two-column block on the storefront. */
   { name: 'product-variants', path: '/shop/golden-pothos' },
   { name: 'collections', path: '/collections' },
+  /* A category page is the shop's main landing surface from search: hero,
+     editorial prose, a product grid, care-guide cards and an FAQ list on one
+     page, which is more stacked layout than anything else on the site. */
+  { name: 'category', path: '/categories/houseplants' },
   { name: 'collection', path: '/collections/tammys-favorites' },
   /* The sets pages carry two layouts nothing else on the site has: a card whose
      body holds a contents list of arbitrary length, and a manifest of two-column

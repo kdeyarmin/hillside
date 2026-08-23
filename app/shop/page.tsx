@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import ShopClient from '@/components/ShopClient';
+import { cache } from 'react';
 import { db } from '@/lib/db';
 import { PRODUCT_CARD_SELECT, withCardFacts } from '@/lib/product-cards';
 import { tagsWithFlags } from '@/lib/merchandising-data';
@@ -15,13 +16,28 @@ type ShopParams = Record<string, string | string[] | undefined>;
 
 const KNOWN_TAGS = ALL_TAGS.map((tag) => tag.slug);
 
+/**
+ * Every category slug the shop can filter by. `cache()` so `generateMetadata`
+ * and the page itself, which both parse the same query string, read it once.
+ */
+const knownCategorySlugs = cache(async () => {
+  const categories = await db.category.findMany({ select: { slug: true } });
+  return categories.map((category) => category.slug);
+});
+
 export async function generateMetadata({
   searchParams
 }: {
   searchParams: Promise<ShopParams>;
 }): Promise<Metadata> {
   const params = await searchParams;
-  const filters = parseShopFilters(params, KNOWN_TAGS);
+  /**
+   * The category slugs have to be handed to the parser, or it cannot tell a real
+   * one from a stale link and falls back to `ALL`. Without this
+   * `/shop?category=houseplants` silently showed the whole catalog — the filter
+   * every category page's "filter these in the shop" link depends on.
+   */
+  const filters = parseShopFilters(params, KNOWN_TAGS, await knownCategorySlugs());
 
   if (filters.search) {
     return {
@@ -79,7 +95,7 @@ export async function generateMetadata({
 
 export default async function Shop({ searchParams }: { searchParams: Promise<ShopParams> }) {
   const params = await searchParams;
-  const filters = parseShopFilters(params, KNOWN_TAGS);
+  const filters = parseShopFilters(params, KNOWN_TAGS, await knownCategorySlugs());
 
   const [products, collections, categories] = await Promise.all([
     /**

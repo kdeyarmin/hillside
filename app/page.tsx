@@ -217,7 +217,7 @@ export default async function Home() {
             <ul className="hero-catalog">
               {heroCategories.map((category) => (
                 <li key={category.id}>
-                  <Link href={`/shop?category=${category.slug}`}>{category.title}</Link>
+                  <Link href={`/categories/${category.slug}`}>{category.title}</Link>
                 </li>
               ))}
             </ul>
@@ -338,7 +338,7 @@ export default async function Home() {
                 {categoryTiles.map((category) => (
                   <Link
                     className="category-tile"
-                    href={`/shop?category=${category.slug}`}
+                    href={`/categories/${category.slug}`}
                     key={category.id}
                   >
                     <BrandMockupScene
