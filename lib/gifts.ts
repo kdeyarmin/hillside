@@ -328,7 +328,3 @@ export function productsForGiftGuide<T extends GiftMatchable>(
 ) {
   return products.filter((product) => matchesGiftGuide(product, guide));
 }
-
-export const BUNDLE_ITEM_MAX = 12;
-
-/** Parses the admin form's one-item-per-line box into stored bundle contents. */
