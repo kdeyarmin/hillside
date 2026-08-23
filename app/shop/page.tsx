@@ -73,6 +73,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
         badge: true,
         sizes: true,
         sizeLabel: true,
+        bundle: true,
         featured: true,
         sortOrder: true,
         createdAt: true,

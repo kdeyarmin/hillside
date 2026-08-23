@@ -7,7 +7,14 @@ export const runtime = 'nodejs';
 
 const schema = z.object({
   slug: z.string().trim().min(1).max(140),
-  email: z.string().trim().email().max(254)
+  email: z.string().trim().email().max(254),
+  /**
+   * The opt-in beside the restock field. Off unless the shopper ticked it —
+   * a back-in-stock request is one specific thing they asked for, and quietly
+   * turning it into a marketing subscription is how a shop loses the trust
+   * that made them leave an address at all.
+   */
+  joinNewsletter: z.boolean().optional().default(false)
 });
 
 export async function POST(request: Request) {
@@ -42,8 +49,30 @@ export async function POST(request: Request) {
       create: { productId: product.id, email }
     });
 
+    let joined = false;
+    if (parsed.data.joinNewsletter) {
+      /**
+       * `create` only. An address already on the list keeps the source it
+       * arrived with, and — more importantly — someone who has since
+       * unsubscribed is not silently resubscribed by ticking a box on a
+       * different form.
+       */
+      const existing = await db.newsletterSubscriber.findUnique({
+        where: { email },
+        select: { id: true }
+      });
+      if (!existing) {
+        await db.newsletterSubscriber.create({
+          data: { email, source: 'back-in-stock', sourceDetail: `/shop/${product.slug}` }
+        });
+        joined = true;
+      }
+    }
+
     return NextResponse.json({
-      message: `You're on the list — we'll email you when ${product.name} is back.`
+      message: joined
+        ? `You're on the list — we'll email you when ${product.name} is back, and add you to The Hillside Notes.`
+        : `You're on the list — we'll email you when ${product.name} is back.`
     });
   } catch (error) {
     console.error('Unable to record stock alert', error);

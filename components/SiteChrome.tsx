@@ -50,15 +50,22 @@ const lineName = (line: { name: string; size?: string | null }) => sizedName(lin
  * These three slugs are locked in the content manager (see
  * `lib/collections.ts`) so the header can never point at a deleted collection.
  */
-const navigation: ReadonlyArray<readonly [label: string, href: string]> = [
-  ['Plants', '/collections/plants'],
-  ['Teas & Herbals', '/collections/teas-herbals'],
-  ['Botanicals', '/collections/botanicals'],
-  ...(CLASSES_PUBLICLY_VISIBLE ? ([['Classes', '/classes']] as const) : []),
-  ['Plant Care', '/care'],
-  ['Gallery', '/gallery'],
-  ['Our Picks', '/amazon']
-];
+function primaryNavigation(
+  catalogEmpty: boolean
+): ReadonlyArray<readonly [label: string, href: string]> {
+  return [
+    ['Plants', '/collections/plants'],
+    ['Teas & Herbals', '/collections/teas-herbals'],
+    ['Botanicals', '/collections/botanicals'],
+    // Gifts leads to a page built entirely out of the catalog, so it leaves
+    // with the catalog rather than pointing at an apology.
+    ...(catalogEmpty ? [] : ([['Gifts', '/gifts']] as const)),
+    ...(CLASSES_PUBLICLY_VISIBLE ? ([['Classes', '/classes']] as const) : []),
+    ['Plant Care', '/care'],
+    ['Gallery', '/gallery'],
+    ['Our Picks', '/amazon']
+  ];
+}
 
 const SOCIAL_LINKS = [
   { label: 'Instagram', href: process.env.NEXT_PUBLIC_INSTAGRAM_URL, Icon: Instagram },
@@ -441,6 +448,7 @@ export function SiteHeader({
   const { count, drawerOpen, openCart, lastAdded } = useCart();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const navigation = primaryNavigation(catalogEmpty);
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
@@ -732,7 +740,9 @@ export function SiteFooter({
             <div className="eyebrow">The Hillside Notes</div>
             <h3>Seasonal tips, plant care and new arrivals.</h3>
           </div>
-          <NewsletterForm compact />
+          {/* The footer is on every page, so the placement alone would not tell
+              Tammy anything. `NewsletterForm` sends the current path with it. */}
+          <NewsletterForm compact source="footer" />
         </div>
       )}
       <div className="container footergrid">
@@ -771,6 +781,11 @@ export function SiteFooter({
           {!catalogEmpty && (
             <p>
               <Link href="/shop">Shop</Link>
+            </p>
+          )}
+          {!catalogEmpty && (
+            <p>
+              <Link href="/gifts">Gift guide</Link>
             </p>
           )}
           {CLASSES_PUBLICLY_VISIBLE && (

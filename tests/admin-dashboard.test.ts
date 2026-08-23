@@ -4,8 +4,14 @@ import {
   adminContentPath,
   adminDashboardPath,
   firstSearchParam,
+  incompleteProductFields,
+  isCustomPlanterRequest,
+  orderMatchesAdminFilter,
+  parseAdminOrderFilter,
   parseAdminStockFilter,
+  productHasIncompleteInfo,
   productIsLowStock,
+  productIsOutOfStock,
   productMatchesAdminFilter,
   productNeedsPhoto,
   uniqueConstraintField
@@ -145,5 +151,115 @@ describe('adminContentPath', () => {
       }),
       '/admin/content?notice=collection-saved&section=collections&item=col_1'
     );
+  });
+});
+
+describe('productIsOutOfStock', () => {
+  it('separates a listing with nothing to sell from one running low', () => {
+    assert.equal(productIsOutOfStock({ active: true, inventory: 0 }), true);
+    assert.equal(productIsOutOfStock({ active: true, inventory: 1 }), false);
+    // An archived product is not on the shop, so it is not a problem.
+    assert.equal(productIsOutOfStock({ active: false, inventory: 0 }), false);
+  });
+});
+
+describe('incompleteProductFields', () => {
+  const complete = {
+    name: 'Monstera',
+    slug: 'monstera',
+    sku: 'PL-01',
+    active: true,
+    inventory: 4,
+    imageUrl: '/media/monstera.jpg',
+    shortDescription: 'A bold tropical.',
+    description: 'A bold, easygoing tropical with iconic split leaves and a lot of presence.',
+    details: 'Nursery grown, potted here.'
+  };
+
+  it('says nothing about a finished listing', () => {
+    assert.deepEqual(incompleteProductFields(complete), []);
+    assert.equal(productHasIncompleteInfo(complete), false);
+  });
+
+  it('names each gap rather than counting them', () => {
+    assert.deepEqual(incompleteProductFields({ ...complete, shortDescription: '  ' }), [
+      'card blurb'
+    ]);
+    assert.deepEqual(incompleteProductFields({ ...complete, sku: null, details: null }), [
+      'details',
+      'SKU'
+    ]);
+    assert.deepEqual(incompleteProductFields({ ...complete, description: 'Short.' }), [
+      'description'
+    ]);
+  });
+
+  it('leaves an archived product alone', () => {
+    assert.equal(productHasIncompleteInfo({ ...complete, sku: null, active: false }), false);
+  });
+
+  it('is a filter of its own on the inventory list', () => {
+    const thin = { ...complete, details: null };
+    assert.equal(productMatchesAdminFilter(thin, '', 'incomplete'), true);
+    assert.equal(productMatchesAdminFilter(complete, '', 'incomplete'), false);
+    assert.equal(productMatchesAdminFilter({ ...complete, inventory: 0 }, '', 'out'), true);
+  });
+});
+
+describe('parseAdminStockFilter', () => {
+  it('accepts the filters the dashboard links at and nothing else', () => {
+    for (const value of ['active', 'archived', 'photo', 'low', 'out', 'incomplete']) {
+      assert.equal(parseAdminStockFilter(value), value);
+    }
+    assert.equal(parseAdminStockFilter('everything'), 'all');
+    assert.equal(parseAdminStockFilter(null), 'all');
+  });
+});
+
+describe('order filters', () => {
+  it('reads only the two narrowed views', () => {
+    assert.equal(parseAdminOrderFilter('awaiting'), 'awaiting');
+    assert.equal(parseAdminOrderFilter('pickup'), 'pickup');
+    assert.equal(parseAdminOrderFilter('paid'), 'all');
+    assert.equal(parseAdminOrderFilter(undefined), 'all');
+  });
+
+  it('shows only pickups that still owe the customer something', () => {
+    const collected = { awaiting: false, pickup: true };
+    const waiting = { awaiting: true, pickup: true };
+    const shipping = { awaiting: true, pickup: false };
+    assert.equal(orderMatchesAdminFilter(collected, 'pickup'), false);
+    assert.equal(orderMatchesAdminFilter(waiting, 'pickup'), true);
+    assert.equal(orderMatchesAdminFilter(shipping, 'pickup'), false);
+    assert.equal(orderMatchesAdminFilter(shipping, 'awaiting'), true);
+    assert.equal(orderMatchesAdminFilter(collected, 'all'), true);
+  });
+});
+
+describe('isCustomPlanterRequest', () => {
+  it('recognises the contact form’s own subject', () => {
+    assert.equal(
+      isCustomPlanterRequest({ subject: 'Custom planter arrangement', message: '' }),
+      true
+    );
+  });
+
+  it('recognises someone asking in their own words', () => {
+    assert.equal(
+      isCustomPlanterRequest({
+        subject: 'Question',
+        message: 'Could you make a dish garden for my mother?'
+      }),
+      true
+    );
+    assert.equal(
+      isCustomPlanterRequest({ subject: 'Hello', message: 'Do you ship to Ohio?' }),
+      false
+    );
+  });
+
+  it('copes with a message that has no body', () => {
+    assert.equal(isCustomPlanterRequest({ subject: 'centerpiece for a wedding' }), true);
+    assert.equal(isCustomPlanterRequest({ subject: 'Hello' }), false);
   });
 });

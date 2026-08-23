@@ -19,6 +19,7 @@ import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
+import { parseBundleItems, readGiftTags } from '@/lib/gifts';
 import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { releaseProductHold, restoreUnshippedOrderInventory } from '@/lib/checkout';
@@ -33,6 +34,7 @@ import {
 import { amazonPickDraft, DEFAULT_PICK_TITLE, extractAsin, isAmazonLink } from '@/lib/amazon-pick';
 import { associateTag, lookupAmazonProduct } from '@/lib/amazon-lookup';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
+import { sendDueReviewRequests } from '@/lib/review-request-send';
 import { nextFulfilledAt } from '@/lib/orders';
 import { isPickupOrder } from '@/lib/fulfillment';
 import { sanitizePublicHref } from '@/lib/public-href';
@@ -152,7 +154,15 @@ export async function saveProduct(formData: FormData) {
       .split(/[\n,]+/)
       .map((entry) => entry.trim())
       .filter(Boolean)
-      .slice(0, 8)
+      .slice(0, 8),
+    /**
+     * Gift merchandising. `readGiftTags` drops anything that is not a guide
+     * this build knows, so a renamed guide cannot leave a dead value behind in
+     * the column, and the "not a gift" answer replaces the rest of the list.
+     */
+    giftTags: readGiftTags(formData.getAll('giftTags').map((value) => String(value))),
+    bundle: checked(formData, 'bundle'),
+    bundleItems: parseBundleItems(text(formData, 'bundleItems'))
   };
 
   if (!data.ships && !data.pickup) {
@@ -279,7 +289,7 @@ export async function saveProduct(formData: FormData) {
     await notifyStockAlerts(product.id, product.name, product.slug);
   }
 
-  refresh('/shop', '/', '/collections', `/shop/${slug}`);
+  refresh('/shop', '/', '/collections', '/gifts', `/shop/${slug}`);
   redirect(
     adminDashboardPath({
       notice: id ? 'product-saved' : 'product-created',
@@ -392,7 +402,7 @@ export async function archiveProduct(formData: FormData) {
     data: { active: false, featured: false },
     select: { slug: true }
   });
-  refresh('/shop', '/');
+  refresh('/shop', '/', '/gifts');
   redirect(
     adminDashboardPath({ notice: 'product-archived', product: product.slug, section: 'inventory' })
   );
@@ -408,7 +418,7 @@ export async function setProductActive(formData: FormData) {
     data: active ? { active: true } : { active: false, featured: false },
     select: { slug: true }
   });
-  refresh('/shop', '/', '/collections', `/shop/${product.slug}`);
+  refresh('/shop', '/', '/collections', '/gifts', `/shop/${product.slug}`);
   redirect(
     adminDashboardPath({
       notice: active ? 'product-live' : 'product-archived',
@@ -581,6 +591,34 @@ export async function resendOrderConfirmation(formData: FormData) {
       error,
       order: id,
       section: 'orders'
+    })
+  );
+}
+
+/**
+ * Sends the "how did it settle in?" note to every order that is due one.
+ *
+ * The batch is capped and every order is stamped as it goes, so pressing the
+ * button twice cannot mail anyone twice — the second run finds nothing due.
+ */
+export async function sendReviewRequests() {
+  await guard();
+  const result = await sendDueReviewRequests();
+  /**
+   * One message, not two. A run that found orders and failed to mail them is a
+   * failure, not a failure *and* a "nothing was due" — and the dashboard
+   * renders the notice and the error side by side.
+   */
+  const failedOutright = result.sent === 0 && result.failed > 0;
+  redirect(
+    adminDashboardPath({
+      notice: failedOutright
+        ? undefined
+        : result.sent > 0
+          ? 'review-requests-sent'
+          : 'review-requests-none',
+      error: failedOutright ? 'review-requests-failed' : undefined,
+      section: 'review-requests'
     })
   );
 }

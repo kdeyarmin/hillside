@@ -134,6 +134,36 @@ async function main() {
       badge: 'Handmade',
       featured: false,
       sortOrder: 6
+    },
+    {
+      /* A bundle is an ordinary product with a flag, which is the whole point:
+         one price, one quantity on hand, one line at checkout, and nothing in
+         the inventory, hold or refund paths that has to know about it. Seeded so
+         a fresh install shows what the gift pages look like with one. */
+      name: 'Slow Evening Gift Set',
+      slug: 'slow-evening-gift-set',
+      sku: 'HG-BUNDLE-EVENING',
+      shortDescription: 'Our calm tea, an infuser and a herb soap, boxed together.',
+      description:
+        'The three things we reach for at the end of a long day, put together as one gift. Boxed by hand and ready to give, with room for a note.',
+      details:
+        'Contents may vary slightly with what is in the batch. Final ingredient and allergen information should be entered before public sale.',
+      careNotes: null,
+      shippingNote: 'Packed together in one box. Ships as a single parcel.',
+      type: ProductType.OTHER,
+      priceCents: 3400,
+      compareAtCents: 3700,
+      inventory: 6,
+      imageUrl: '/images/catalog/apothecary.webp',
+      badge: null,
+      featured: false,
+      sortOrder: 7,
+      bundle: true,
+      bundleItems: [
+        'One tin of Hillside Calm loose-leaf tea',
+        'Stainless steel tea infuser',
+        'One bar of garden herb soap'
+      ]
     }
   ];
 

@@ -53,6 +53,9 @@ function enhanceImageInput(input: HTMLInputElement) {
   fileInput.accept = 'image/jpeg,image/png,image/webp,image/gif';
   fileInput.className = 'admin-upload-file';
   fileInput.tabIndex = -1;
+  /* Off-screen and driven by the button below, but still a form control in the
+     accessibility tree — one with no name at all until this. */
+  fileInput.setAttribute('aria-label', 'Choose a product photo to upload');
 
   const chooseButton = document.createElement('button');
   chooseButton.type = 'button';
@@ -153,6 +156,7 @@ function enhanceGalleryInput(textarea: HTMLTextAreaElement) {
   fileInput.accept = 'image/jpeg,image/png,image/webp,image/gif';
   fileInput.className = 'admin-upload-file';
   fileInput.tabIndex = -1;
+  fileInput.setAttribute('aria-label', 'Choose an extra photo to upload');
 
   const chooseButton = document.createElement('button');
   chooseButton.type = 'button';

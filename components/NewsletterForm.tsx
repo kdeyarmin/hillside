@@ -1,11 +1,31 @@
 'use client';
 
 import { FormEvent, useId, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import FormStatus from '@/components/FormStatus';
+import type { NewsletterSourceKey } from '@/lib/newsletter-source';
 
-export default function NewsletterForm({ compact = false }: { compact?: boolean }) {
+export default function NewsletterForm({
+  compact = false,
+  /**
+   * Which placement this is. Every form on the site names itself, so the
+   * dashboard can say where the list is actually growing instead of reporting
+   * "website" for all of it.
+   */
+  source = 'website',
+  /**
+   * The page behind the signup, when the placement alone is not specific
+   * enough — the footer is on every page. Defaults to the current path.
+   */
+  sourceDetail
+}: {
+  compact?: boolean;
+  source?: NewsletterSourceKey;
+  sourceDetail?: string;
+}) {
   const formId = useId();
+  const pathname = usePathname();
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
@@ -29,7 +49,9 @@ export default function NewsletterForm({ compact = false }: { compact?: boolean 
         body: JSON.stringify({
           name: data.get('name'),
           email: data.get('email'),
-          website: data.get('website')
+          website: data.get('website'),
+          source,
+          sourceDetail: sourceDetail ?? pathname
         }),
         signal: controller.signal
       });

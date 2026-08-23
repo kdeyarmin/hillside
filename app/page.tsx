@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, BookOpen, Leaf, Package, Sparkles, Sprout, Truck } from 'lucide-react';
+import { ArrowRight, BookOpen, Gift, Leaf, Package, Sparkles, Sprout, Truck } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import NewsletterForm from '@/components/NewsletterForm';
 import ProductGrid from '@/components/ProductGrid';
@@ -241,6 +241,25 @@ export default async function Home() {
             </div>
           </section>
         )}
+
+        {catalogCount > 0 && (
+          <section className="section gift-promo home-gift-section">
+            <div className="container care-promo-inner">
+              <Gift size={42} aria-hidden="true" />
+              <div>
+                <div className="eyebrow">Shopping for someone else?</div>
+                <h2>Gifts, sorted by who they are for.</h2>
+                <p>
+                  Ready-made bundles, gifts under $25 and $50, and picks for plant lovers, tea
+                  drinkers, teachers and new homes. Add a gift message free at checkout.
+                </p>
+              </div>
+              <Link className="btn light" href="/gifts">
+                Open the gift guide
+              </Link>
+            </div>
+          </section>
+        )}
       </div>
 
       <section className="section tammy-story home-story-section">
@@ -356,7 +375,7 @@ export default async function Home() {
             <h3>Seasonal tips, plant care & fresh arrivals.</h3>
             <p>A thoughtful note from us, sent occasionally.</p>
           </div>
-          <NewsletterForm />
+          <NewsletterForm source="homepage" />
         </div>
       </section>
     </>

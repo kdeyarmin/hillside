@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import Stripe from 'stripe';
+import InlineNewsletter from '@/components/InlineNewsletter';
 import OrderSuccessClient from '@/components/OrderSuccessClient';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { db } from '@/lib/db';
@@ -174,6 +175,16 @@ export default async function Success({
             Check an order later →
           </Link>
         </p>
+        {/* The one moment someone has actively chosen us, so the one place a
+            signup can be offered without interrupting anything. Still a panel
+            on the page, still ignorable, and never a dialog over the receipt. */}
+        <div className="no-print" style={{ textAlign: 'left' }}>
+          <InlineNewsletter
+            source="checkout"
+            heading="Hear when the next batch is ready."
+            blurb="An occasional note about new arrivals, gift bundles and seasonal plant care. Nothing about this order — that comes by email already."
+          />
+        </div>
       </div>
     </section>
   );

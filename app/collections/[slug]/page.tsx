@@ -34,6 +34,7 @@ async function loadCollection(slug: string) {
           badge: true,
           sizes: true,
           sizeLabel: true,
+          bundle: true,
           ships: true,
           pickup: true
         },

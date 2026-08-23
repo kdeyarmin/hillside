@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { unsubscribeUrl } from '@/lib/newsletter';
+import { readNewsletterSource, readNewsletterSourceDetail } from '@/lib/newsletter-source';
 import { rateLimited } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
@@ -16,7 +17,14 @@ const requestSchema = z.object({
    * branch below could never run and a bot was told plainly that the field was
    * the problem. The cap keeps it from being used to post a payload.
    */
-  website: z.string().max(200).optional().default('')
+  website: z.string().max(200).optional().default(''),
+  /**
+   * Which form this was, and the page it was on. Both are bounded here and
+   * narrowed to a known placement and a plain site path below — they land in a
+   * column the owner reads, so neither is stored as posted.
+   */
+  source: z.string().max(60).optional().default(''),
+  sourceDetail: z.string().max(200).optional().default('')
 });
 
 export async function POST(request: Request) {
@@ -39,11 +47,20 @@ export async function POST(request: Request) {
     const name = parsed.data.name || null;
     if (website) return NextResponse.json({ message: 'You’re on the list.' });
 
+    const source = readNewsletterSource(parsed.data.source);
+    const sourceDetail = readNewsletterSourceDetail(parsed.data.sourceDetail);
+
     const existing = await db.newsletterSubscriber.findUnique({ where: { email } });
     const subscriber = await db.newsletterSubscriber.upsert({
       where: { email },
+      /**
+       * A resubscribe keeps the source it first arrived with. That row is the
+       * record of which form won the address; overwriting it with whichever
+       * form they happened to use the second time would quietly rewrite the
+       * history the breakdown is counted from.
+       */
       update: { name: name || existing?.name || null, active: true, unsubscribedAt: null },
-      create: { email, name, source: 'website' }
+      create: { email, name, source, sourceDetail }
     });
 
     if (!existing || !existing.active) {

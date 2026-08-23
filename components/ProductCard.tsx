@@ -29,6 +29,8 @@ export type ProductCardProduct = {
   /** Raw `Product.sizes`; a card only needs to know whether a choice is due. */
   sizes?: unknown;
   sizeLabel?: string | null;
+  /** A set sold as one product. Badged wherever it appears, not only on /gifts. */
+  bundle?: boolean | null;
   averageRating?: number | null;
   reviewCount?: number;
 };
@@ -85,6 +87,7 @@ export default function ProductCard({
     <article className="product-card">
       <Link className="product-image-wrap" href={`/shop/${product.slug}`}>
         <span className="product-badges">
+          {product.bundle && <span className="product-badge bundle">Gift bundle</span>}
           {saving > 0 && <span className="product-badge sale">Save {saving}%</span>}
           {product.badge && <span className="product-badge">{product.badge}</span>}
         </span>

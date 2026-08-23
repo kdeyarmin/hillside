@@ -1,6 +1,8 @@
 import type { MetadataRoute } from 'next';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
+import { giftGuideProducts, loadGiftCatalog } from '@/lib/gift-catalog';
+import { GIFT_GUIDES, giftGuidePath } from '@/lib/gifts';
 import { absoluteUrl } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -9,6 +11,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const pages = [
     '',
     '/shop',
+    '/gifts',
     '/collections',
     // Submitting a 404 is how a sitemap loses a crawler's trust for the URLs in
     // it that are real, so the classes entry leaves with the page.
@@ -24,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '/terms'
   ];
 
-  const [products, careGuides, collections] = await Promise.all([
+  const [products, careGuides, collections, giftCatalog] = await Promise.all([
     db.product.findMany({
       where: { active: true },
       select: { slug: true, updatedAt: true }
@@ -36,7 +39,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     db.collection.findMany({
       where: { active: true, products: { some: { active: true } } },
       select: { slug: true, updatedAt: true }
-    })
+    }),
+    loadGiftCatalog()
   ]);
 
   /**
@@ -62,6 +66,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticModified: Record<string, Date | undefined> = {
     '': anyModified,
     '/shop': productsModified,
+    '/gifts': productsModified,
     '/collections': collectionsModified,
     '/care': guidesModified
   };
@@ -96,5 +101,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.85
   }));
 
-  return [...staticPages, ...collectionPages, ...productPages, ...guidePages];
+  /**
+   * Only the gift guides that currently hold something. A guide is a view over
+   * the catalog rather than a row of its own, so an empty one is a real page
+   * with an honest empty state — and submitting it would spend crawl budget on
+   * a page with nothing to index.
+   */
+  const giftPages: MetadataRoute.Sitemap = GIFT_GUIDES.filter(
+    (guide) => giftGuideProducts(giftCatalog, guide).length > 0
+  ).map((guide) => ({
+    url: absoluteUrl(giftGuidePath(guide.slug)),
+    lastModified: productsModified,
+    changeFrequency: 'weekly',
+    priority: 0.8
+  }));
+
+  return [...staticPages, ...collectionPages, ...giftPages, ...productPages, ...guidePages];
 }

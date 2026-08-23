@@ -36,6 +36,10 @@ const routes = [
   { name: 'product', path: '/shop/monstera-deliciosa' },
   { name: 'collections', path: '/collections' },
   { name: 'collection', path: '/collections/plants' },
+  { name: 'gifts', path: '/gifts' },
+  /* The busiest gift guide: a full product grid, the price-band tiles above it
+     and the gift-note panel below, all on one page. */
+  { name: 'gift-guide', path: '/gifts/under-50' },
   // '/classes' is hidden from the storefront (lib/class-visibility.ts) and
   // answers 404; restore this line with the flag.
   { name: 'care', path: '/care' },
@@ -65,6 +69,7 @@ const reducedRoutes = new Set([
   'home',
   'shop',
   'product',
+  'gifts',
   'classes',
   'care',
   'contact',

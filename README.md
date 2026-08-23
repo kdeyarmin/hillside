@@ -19,9 +19,12 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Site-wide search across products and care guides
 - Searchable and filterable live product catalog, with sale and new-arrival sorting
 - Individual SEO-ready product pages with live inventory, multiple photographs and customer reviews
+- Review blocks with an average, a star-by-star breakdown, verified-purchase badges, owner replies, helpful votes and most-recent / most-helpful sorting once a product has enough reviews to warrant it
 - A size dropdown on products sold in more than one size, with an optional price and quantity on hand for each size
 - Back-in-stock email alerts on sold-out products
 - Persistent shopping cart and secure Stripe Checkout
+- A gift guide at `/gifts` — ready-made bundles first, then price bands and picks for plant lovers, tea drinkers, teachers, new homes and the holidays
+- Gift bundles: an ordinary product sold as a set, badged wherever it appears and listing what is inside on its own page
 - Optional gift message at checkout, printed on the packing slip
 - Local pickup in Ebensburg at checkout, or standard US shipping
 - Configurable flat or free standard shipping
@@ -31,6 +34,7 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Gallery of Tammy’s past planter arrangements
 - Tammy’s Amazon influencer picks with affiliate disclosure, published by pasting the item’s link
 - Newsletter signup, cart saving and customer contact form
+- Newsletter signup forms on the homepage, in the footer and quietly in place on the product, cart, care-guide, gift and post-checkout pages — each one recording where it came from. No popups anywhere
 - Care guides that link through to the plant they describe
 - Google Analytics 4 ecommerce events (opt-in through an environment variable)
 - LocalBusiness structured data, plus a purpose-built social share image
@@ -39,20 +43,36 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 
 ## Owner dashboard
 
-The dashboard at `/admin` includes:
+The dashboard at `/admin` opens on **Today**: a board of the jobs that are
+actually waiting, most costly to ignore first, each one linking straight at the
+list that clears it. Anything at zero is left off rather than rendered as a
+reassuring nought, and when nothing is waiting the board says so in one line.
+The board covers orders to pack, pickups to prepare, confirmations that never
+sent, custom planter requests, unread messages, listings that are sold out or
+running low, people waiting on a restock, reviews to approve and to ask for,
+products missing a photograph and products missing their information.
 
-- Revenue and operations overview
+A quieter strip below it carries the four figures worth a glance rather than an
+action: what sold in the last seven days, subscriber growth, net revenue and how
+much is listed.
+
+It also includes:
+
 - Order fulfillment, private notes, carrier and tracking entry, gift messages and pickup orders
+- Order filters for what is waiting to be packed and which pickups still need preparing
 - Automatic customer shipping-update email when an order is marked fulfilled
 - Packing-slip and 4 × 6 shipping-label printing
 - Shipping-address, full-order and newsletter-subscriber CSV exports
 - Product creation and editing, price, sale price, SKU, inventory, badges and featured products
 - Per-product size choices, typed one per line, with a price and a quantity on hand on any size that needs its own
-- Low-stock visibility and product archiving
+- Low-stock, sold-out, missing-photograph and missing-information filters over the catalog, each naming what a listing is short of
+- Gift merchandising per product: which gift guides it should appear in, whether it is a bundle, and what is in that bundle
+- Product archiving
 - Paid and free class registrations and seat counts
 - Customer website inbox
-- Newsletter subscriber management
+- Newsletter subscriber management, with a breakdown of which signup form each address came from and the page it was on
 - Customer review moderation with optional public replies
+- A one-click batch that asks customers for a review a fortnight after their order was fulfilled — once per order, never twice
 - Restock request list, emailed automatically when stock returns
 - Collection management and per-product collection assignment
 - Visibility of products still missing their own photograph
@@ -224,6 +244,86 @@ What the shop then does:
   refunded onto a size that has since been removed is dropped rather than added
   to the product's total, because a total larger than the sizes add up to would
   advertise stock no option on the page can sell.
+
+## Gift guides and bundles
+
+`/gifts` is a view over the catalog, not a second catalog. Nothing has to be
+entered twice, and no guide can point at something that is not on the bench:
+the pages are built from active, in-stock products only, and a guide with
+nothing in it is left out of the hub and out of the sitemap.
+
+`lib/gifts.ts` defines every guide and the rule that fills it. A product is in a
+guide when:
+
+- Tammy ticked that guide on the product form, **or**
+- the guide's own rules match it — its product type, a word in its name or copy,
+  or, for a price band, the cheapest price a shopper can actually pay for it.
+
+Tagging only ever adds. She should not have to tag the whole catalog before the
+gift pages work, and tagging one product should not lose the placement it
+already had. Two things a tag deliberately cannot do: put a product into a price
+band it is too expensive for, or make something a bundle. Both would be a claim
+the next page contradicts. To keep a product out of gifting altogether — a bag
+of potting substrate is a fine product and a poor present — tick **Not a gift**,
+which is stored as the reserved `none` tag and overrides everything else.
+
+A **bundle** is an ordinary product with `bundle` set: one price, one SKU, one
+quantity on hand, one line at checkout. Nothing in the inventory, hold, refund
+or Stripe paths knows or needs to know about bundles, which is the point — the
+flag is merchandising. It earns the product a badge wherever it appears, a
+"what is in this bundle" list on its own page from the contents Tammy types one
+per line, and top billing on the gift pages.
+
+Price bands measure the **lowest** price a shopper can actually pay, so a plant
+whose 4" pot is $18 belongs under $25 even when its 8" pot does not.
+
+## Where newsletter signups come from
+
+Every signup form on the site names itself. The placements are a fixed list in
+`lib/newsletter-source.ts` — homepage, footer, product, cart, care guide,
+back-in-stock, checkout, gift guide — because the value is posted by the browser
+and an allowlist keeps the column a small set Tammy can count rather than free
+text. Anything else is stored as `website`.
+
+The footer form is on every page, so it also records the path it was used on;
+that turns "footer" into "the care guide for monstera is bringing people in".
+Only a plain relative path is kept — an absolute URL, a scheme or a fragment is
+dropped rather than stored and later rendered.
+
+A resubscribe keeps the source the address first arrived with, so the breakdown
+stays a record of which form won that customer.
+
+**There are no popups, and that is a decision rather than an omission.** Popups
+convert by interrupting, they are the first thing a returning customer learns to
+dismiss, and getting the "don't show this again" rules right is a worse problem
+than the one they solve. The site uses `InlineNewsletter` instead: a quiet panel
+in the flow of the page, where somebody who has just finished reading a care
+guide or placing an order can opt in if they want to. The back-in-stock form
+carries a single unticked checkbox, and it only ever adds an address that is not
+already on the list — nobody who has unsubscribed is quietly put back.
+
+## Asking customers for a review
+
+Fourteen days after an order is marked fulfilled, it becomes eligible for one
+email asking how the plants settled in, naming what was bought and linking to
+each product's review form. Everything about that flow is built so it cannot
+become spam:
+
+- One email per order, ever. `Order.reviewRequestSentAt` is stamped as it goes
+  out, and the stamp is written whether or not the send succeeded — a retry loop
+  on a mail failure is how a customer ends up with four copies of the same note.
+- Only `FULFILLED` orders. Nothing cancelled, refunded or still on the bench.
+- Nothing older than 90 days, so switching the flow on cannot mail every
+  customer the shop has ever had.
+- No second reminder, no drip, and no newsletter unsubscribe footer — this is
+  not newsletter mail, and the letter says in its own last line that it is the
+  only note about that order.
+
+Tammy sends the batch from **Ask for reviews** on the dashboard, which is the
+path that gets used. `POST /api/tasks/review-requests` runs the same batch on a
+schedule; it is switched **off** unless `TASKS_SECRET` is set, and authorises
+with `Authorization: Bearer <TASKS_SECRET>`. A route that sends customer email
+must never be callable by anyone who finds its address.
 
 ## Why the database-backed pages are `force-dynamic`
 
@@ -416,6 +516,8 @@ Before accepting live orders or class registrations:
 - Complete the Telnyx two-device test in `docs/telnyx-video-classes.md`.
 - Replace sample gallery images with Tammy’s real work.
 - Set `AMAZON_ASSOCIATE_TAG` to Tammy’s associate tag, then add one pick from a link and confirm it appears on `/amazon` with the tag on its button.
+- Open `/gifts` and check every guide leads somewhere worth arriving at. Build at least one bundle — the gift pages lead with them, and an empty bundle shelf is the one thing that page cannot make up for.
+- Decide whether the review follow-up runs on a schedule. Leave `TASKS_SECRET` unset to send each batch by hand from the dashboard; set it and point a daily job at `POST /api/tasks/review-requests` to send them automatically.
 - Create Tammy’s admin account, confirm she can sign in with it, and unset the shared `ADMIN_PASSWORD` once every admin has their own.
 - Verify mobile navigation, checkout, online classroom, admin login and label printing on Tammy’s actual devices.
 
@@ -435,7 +537,7 @@ audits run against a server you have started yourself:
 npm install --no-save --package-lock=false playwright@1.55.0 axe-core
 npm run audit:a11y                       # axe-core over the public routes
 npm run audit:weight / /shop /care       # transferred bytes on an iPhone viewport
-node scripts/responsive-audit.mjs        # 9 viewports x 19 routes
+node scripts/responsive-audit.mjs        # 9 viewports x 21 routes
 ```
 
 The browser tooling is installed on demand rather than kept in `package.json`,
@@ -445,7 +547,9 @@ matching what `.github/workflows/responsive-audit.yml` already does. Set
 The unit tests deliberately cover the code where a mistake costs money or access
 rather than aiming at coverage: money formatting and quantity clamping, the
 loopback guard on the origin Stripe returns customers to, invoice-number
-uniqueness, the rate limiter's client identification, and class join tokens.
+uniqueness, the rate limiter's client identification, class join tokens, which
+products a gift guide claims to hold, the rules that decide who is asked for a
+review and when, and the ordering of the dashboard's priority board.
 
 ## Local development
 

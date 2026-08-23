@@ -1,8 +1,19 @@
 'use client';
 
-import { useState } from 'react';
-import { Star } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Star, ThumbsUp } from 'lucide-react';
 import FormStatus from '@/components/FormStatus';
+import {
+  averageRating,
+  helpfulLabel,
+  offersReviewSorting,
+  ratingDistribution,
+  REVIEW_VISIBLE_STEP,
+  sortReviews,
+  totalReviews,
+  type RatingCounts,
+  type ReviewSort
+} from '@/lib/review-display';
 
 export type PublicReview = {
   id: string;
@@ -12,8 +23,21 @@ export type PublicReview = {
   body: string;
   verifiedPurchase: boolean;
   ownerReply: string | null;
+  helpfulCount: number;
   createdAt: string;
 };
+
+const HELPFUL_STORAGE_KEY = 'hillside-helpful-reviews-v1';
+
+/** Which reviews this browser has already marked helpful. */
+function readVoted(): string[] {
+  try {
+    const saved = JSON.parse(localStorage.getItem(HELPFUL_STORAGE_KEY) || '[]') as unknown;
+    return Array.isArray(saved) ? saved.filter((entry): entry is string => typeof entry === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 function StarRow({ rating, size = 15, label }: { rating: number; size?: number; label?: string }) {
   return (
@@ -30,6 +54,102 @@ function StarRow({ rating, size = 15, label }: { rating: number; size?: number; 
         />
       ))}
     </span>
+  );
+}
+
+/**
+ * The five-bar breakdown. It answers the question an average alone cannot —
+ * whether 4.2 means "everyone liked it" or "most loved it and two people had a
+ * plant arrive badly" — and the counts are read from every approved review, not
+ * from the page of them rendered below.
+ */
+function RatingBreakdown({ counts }: { counts: RatingCounts }) {
+  const bars = ratingDistribution(counts);
+  const total = totalReviews(counts);
+  if (!total) return null;
+
+  return (
+    <ul className="rating-breakdown">
+      {bars.map((bar) => (
+        <li key={bar.stars}>
+          <span className="rating-breakdown-label">
+            {bar.stars} <span aria-hidden="true">★</span>
+            <span className="sr-only">{bar.stars === 1 ? 'star' : 'stars'}</span>
+          </span>
+          {/* Presentational: the row's numbers are already in the text either
+              side of it, so a second announcement would only repeat them. */}
+          <span className="rating-breakdown-track" role="presentation">
+            <span style={{ width: `${bar.percent}%` }} />
+          </span>
+          <span className="rating-breakdown-count">
+            {bar.count}
+            <span className="sr-only">
+              {' '}
+              {bar.count === 1 ? 'review' : 'reviews'} ({bar.percent}%)
+            </span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function HelpfulButton({ review }: { review: PublicReview }) {
+  const [count, setCount] = useState(review.helpfulCount);
+  const [marked, setMarked] = useState(false);
+  const [pending, setPending] = useState(false);
+
+  /**
+   * Read after mount, never during render. The server has no localStorage, so
+   * a render that consulted it would send "Helpful" and hydrate to "Marked
+   * helpful" — a mismatch React resolves by throwing the client tree away.
+   */
+  useEffect(() => {
+    if (readVoted().includes(review.id)) setMarked(true);
+  }, [review.id]);
+
+  async function vote() {
+    if (marked || pending) return;
+    setPending(true);
+    try {
+      const response = await fetch('/api/reviews/helpful', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: review.id })
+      });
+      const result = (await response.json()) as { helpfulCount?: number };
+      if (!response.ok) throw new Error('vote failed');
+      setCount(result.helpfulCount ?? count + 1);
+      setMarked(true);
+      try {
+        const saved = new Set(readVoted());
+        saved.add(review.id);
+        localStorage.setItem(HELPFUL_STORAGE_KEY, JSON.stringify([...saved].slice(-200)));
+      } catch {
+        /* A browser that refuses storage still gets its vote counted. */
+      }
+    } catch {
+      /* Nothing to report: a helpfulness vote is not worth an error message. */
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const label = helpfulLabel(count);
+
+  return (
+    <div className="review-helpful">
+      <button
+        className="text-button"
+        type="button"
+        onClick={vote}
+        disabled={marked || pending}
+        aria-label={marked ? 'You marked this review helpful' : 'Mark this review helpful'}
+      >
+        <ThumbsUp size={14} aria-hidden="true" /> {marked ? 'Marked helpful' : 'Helpful'}
+      </button>
+      {label && <span className="muted">{label}</span>}
+    </div>
   );
 }
 
@@ -160,15 +280,23 @@ export default function ProductReviews({
   productSlug,
   productName,
   reviews,
-  average,
-  count
+  counts
 }: {
   productSlug: string;
   productName: string;
   reviews: PublicReview[];
-  average: number;
-  count: number;
+  /** Every approved review at each star, counted in SQL. */
+  counts: RatingCounts;
 }) {
+  const [sort, setSort] = useState<ReviewSort>('recent');
+  const [visible, setVisible] = useState(REVIEW_VISIBLE_STEP);
+
+  const count = totalReviews(counts);
+  const average = averageRating(counts);
+  const ordered = useMemo(() => sortReviews(reviews, sort), [reviews, sort]);
+  const shown = ordered.slice(0, visible);
+  const canSort = offersReviewSorting(reviews.length);
+
   return (
     <section className="product-details-section reviews-section" id="reviews">
       <div className="reviews-head">
@@ -187,14 +315,37 @@ export default function ProductReviews({
         <ReviewForm productSlug={productSlug} />
       </div>
 
-      {reviews.length > 0 && (
+      {count > 0 && (
+        <div className="reviews-overview">
+          <RatingBreakdown counts={counts} />
+          {canSort && (
+            <div className="reviews-sort">
+              <label htmlFor="review-sort">Sort reviews</label>
+              <select
+                className="sort-select"
+                id="review-sort"
+                value={sort}
+                onChange={(event) => {
+                  setSort(event.target.value === 'helpful' ? 'helpful' : 'recent');
+                  setVisible(REVIEW_VISIBLE_STEP);
+                }}
+              >
+                <option value="recent">Most recent</option>
+                <option value="helpful">Most helpful</option>
+              </select>
+            </div>
+          )}
+        </div>
+      )}
+
+      {shown.length > 0 && (
         <ol className="review-list">
-          {reviews.map((review) => (
+          {shown.map((review) => (
             <li className="review" key={review.id}>
               <div className="review-head">
                 <StarRow rating={review.rating} label={`Rated ${review.rating} out of 5`} />
                 <b>{review.authorName}</b>
-                {review.verifiedPurchase && <span className="pill">Verified purchase</span>}
+                {review.verifiedPurchase && <span className="pill verified">Verified purchase</span>}
                 <time dateTime={review.createdAt}>
                   {new Date(review.createdAt).toLocaleDateString('en-US', {
                     month: 'long',
@@ -212,9 +363,22 @@ export default function ProductReviews({
                   <p>{review.ownerReply}</p>
                 </div>
               )}
+              <HelpfulButton review={review} />
             </li>
           ))}
         </ol>
+      )}
+
+      {ordered.length > shown.length && (
+        <div className="reviews-more">
+          <button
+            className="btn outline"
+            type="button"
+            onClick={() => setVisible((current) => current + REVIEW_VISIBLE_STEP)}
+          >
+            Show more reviews ({ordered.length - shown.length} left)
+          </button>
+        </div>
       )}
     </section>
   );

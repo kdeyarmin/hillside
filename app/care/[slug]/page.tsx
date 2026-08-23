@@ -18,6 +18,7 @@ import {
   Wind,
   Wrench
 } from 'lucide-react';
+import InlineNewsletter from '@/components/InlineNewsletter';
 import ProductGrid from '@/components/ProductGrid';
 import PrintButton from '@/components/PrintButton';
 import ResilientImage from '@/components/ResilientImage';
@@ -415,6 +416,14 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
             </div>
           </section>
         )}
+
+        <div className="no-print">
+          <InlineNewsletter
+            source="care-guide"
+            heading="Plant care, once in a while."
+            blurb="Seasonal notes on watering, light and the problems that actually come up. No daily flood."
+          />
+        </div>
       </div>
     </section>
   );

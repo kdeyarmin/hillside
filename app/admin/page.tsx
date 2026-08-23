@@ -12,15 +12,26 @@ import {
   ADMIN_NOTICES,
   adminDashboardPath,
   firstSearchParam,
+  incompleteProductFields,
+  isCustomPlanterRequest,
+  orderMatchesAdminFilter,
+  parseAdminOrderFilter,
   parseAdminStockFilter,
+  productHasIncompleteInfo,
   productIsLowStock,
+  productIsOutOfStock,
   productMatchesAdminFilter,
   productNeedsPhoto
 } from '@/lib/admin-dashboard';
+import { buildPriorityCards, prioritySummary } from '@/lib/admin-priorities';
 import { db } from '@/lib/db';
 import { currentAdmin } from '@/lib/admin';
-import { REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
+import { GIFT_EXCLUDE_TAG, GIFT_TAG_CHOICES } from '@/lib/gifts';
+import { newsletterSourceBreakdown, newsletterSourceLabel } from '@/lib/newsletter-source';
+import { AWAITING_SHIPMENT_STATUSES, REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
 import { sizedName, sizeLines, sizeStockSummary } from '@/lib/product-sizes';
+import { REVIEW_REQUEST_DELAY_DAYS } from '@/lib/review-request';
+import { countOrdersAwaitingReviewRequest } from '@/lib/review-request-send';
 import { formatMoney, productTypeLabel } from '@/lib/store';
 import { orderStatusBadge } from '@/lib/tracking';
 import {
@@ -30,6 +41,7 @@ import {
   resendOrderConfirmation,
   resendPickupReady,
   saveProduct,
+  sendReviewRequests,
   setProductActive,
   updateMessageStatus,
   updateOrder,
@@ -67,6 +79,9 @@ function ProductFields({
 }: {
   collections: Array<{ id: string; title: string }>;
   product?: {
+    giftTags?: string[];
+    bundle?: boolean;
+    bundleItems?: string[];
     id: string;
     name: string;
     slug: string;
@@ -95,6 +110,8 @@ function ProductFields({
 }) {
   const assigned = new Set((product?.collections || []).map((collection) => collection.id));
   const sizeStock = sizeStockSummary(product?.sizes);
+  const giftTags = new Set(product?.giftTags || []);
+  const notAGift = giftTags.has(GIFT_EXCLUDE_TAG);
   return (
     <>
       {product && <input type="hidden" name="id" value={product.id} />}
@@ -282,6 +299,54 @@ function ProductFields({
           />
         </label>
       </div>
+      <fieldset className="admin-collection-picker admin-gift-picker">
+        <legend>Gifting</legend>
+        <p className="admin-hint">
+          The gift pages already place products by price, category and wording — a plant is in
+          “gifts for plant lovers” without you doing anything. Tick a guide to put this one
+          somewhere it would not land on its own.
+        </p>
+        <div className="admin-checkbox-row">
+          {GIFT_TAG_CHOICES.map((guide) => (
+            <label className="admin-checkbox" key={guide.slug}>
+              <input
+                type="checkbox"
+                name="giftTags"
+                value={guide.slug}
+                defaultChecked={giftTags.has(guide.slug)}
+              />{' '}
+              {guide.shortTitle}
+            </label>
+          ))}
+          <label className="admin-checkbox">
+            <input
+              type="checkbox"
+              name="giftTags"
+              value={GIFT_EXCLUDE_TAG}
+              defaultChecked={notAGift}
+            />{' '}
+            Not a gift — keep it off the gift pages
+          </label>
+        </div>
+        <label className="admin-checkbox" style={{ marginTop: 12 }}>
+          <input name="bundle" type="checkbox" defaultChecked={product?.bundle ?? false} /> This is
+          a gift bundle
+        </label>
+        <label className="admin-label full" style={{ marginTop: 10 }}>
+          What is in the bundle (one item per line)
+          <textarea
+            className="admin-input"
+            name="bundleItems"
+            rows={3}
+            defaultValue={(product?.bundleItems || []).join('\n')}
+            placeholder={'One tin of Hillside Calm tea\nStainless infuser\nGarden herb soap'}
+          />
+          <span className="admin-hint">
+            A bundle is an ordinary product — one price, one quantity on hand, one line at checkout.
+            This list is what the product page shows under “what is in this bundle”.
+          </span>
+        </label>
+      </fieldset>
       {collections.length > 0 && (
         <fieldset className="admin-collection-picker">
           <legend>Collections this product belongs to</legend>
@@ -331,6 +396,8 @@ export default async function Admin({
     review?: string | string[];
     q?: string | string[];
     stock?: string | string[];
+    orders?: string | string[];
+    messages?: string | string[];
     section?: string | string[];
   }>;
 }) {
@@ -399,6 +466,15 @@ export default async function Admin({
     );
   }
 
+  /**
+   * The counts behind the priority board are read as counts, not derived from
+   * the pages of rows rendered below. The order list stops at 75 and the
+   * restock list at 100, so a busy week would have had the board quietly
+   * under-report the very numbers it exists to be trusted on.
+   */
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
   const [
     products,
     orders,
@@ -408,7 +484,16 @@ export default async function Admin({
     subscribers,
     reviews,
     stockAlerts,
-    collections
+    collections,
+    ordersToFulfilCount,
+    pickupsToPrepareCount,
+    undeliveredEmailCount,
+    restockDemandCount,
+    reviewsToApproveCount,
+    reviewRequestsDue,
+    recentlySold,
+    newSubscribers,
+    subscriberSources
   ] = await Promise.all([
     db.product.findMany({
       orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
@@ -446,6 +531,49 @@ export default async function Admin({
     db.collection.findMany({
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
       select: { id: true, title: true }
+    }),
+    db.order.count({
+      where: { status: { in: [...AWAITING_SHIPMENT_STATUSES] }, fulfilledAt: null }
+    }),
+    db.order.count({
+      where: {
+        status: { in: [...AWAITING_SHIPMENT_STATUSES] },
+        fulfilledAt: null,
+        fulfillmentMethod: 'PICKUP'
+      }
+    }),
+    /**
+     * Never delivered, rather than "has an error on it". An order whose
+     * confirmation went out and whose later resend failed has the receipt the
+     * customer needed, and counting it here sent Tammy looking for a problem
+     * that had already been solved.
+     */
+    db.order.count({
+      where: { confirmationEmailError: { not: null }, confirmationEmailSentAt: null }
+    }),
+    db.stockAlert.count({ where: { notifiedAt: null } }),
+    db.review.count({ where: { status: ReviewStatus.PENDING } }),
+    countOrdersAwaitingReviewRequest(),
+    /** What actually left the shop this week, busiest line first. */
+    db.orderItem.groupBy({
+      by: ['name'],
+      where: {
+        order: { status: { in: [...REVENUE_STATUSES] }, createdAt: { gte: sevenDaysAgo } }
+      },
+      _sum: { quantity: true },
+      orderBy: { _sum: { quantity: 'desc' } },
+      take: 6
+    }),
+    db.newsletterSubscriber.count({ where: { createdAt: { gte: thirtyDaysAgo } } }),
+    /**
+     * Grouped in SQL rather than counted from the hundred rows the table below
+     * renders — the whole point of the breakdown is the shape of the entire
+     * list, which the most recent hundred would misreport as soon as there are
+     * more than a hundred.
+     */
+    db.newsletterSubscriber.groupBy({
+      by: ['source', 'active'],
+      _count: { _all: true }
     })
   ]);
 
@@ -475,23 +603,66 @@ export default async function Admin({
   );
 
   const lowStock = products.filter(productIsLowStock).length;
-  const openOrders = orders.filter((order) =>
-    isAwaitingShipment(order.status, order.fulfilledAt)
-  ).length;
+  const outOfStock = products.filter(productIsOutOfStock).length;
+  const incompleteProducts = products.filter(productHasIncompleteInfo).length;
   const unreadMessages = messages.filter((message) => message.status === MessageStatus.NEW).length;
+  const planterRequests = messages.filter(
+    (message) => message.status === MessageStatus.NEW && isCustomPlanterRequest(message)
+  ).length;
   const activeSubscribers = subscribers.filter((subscriber) => subscriber.active).length;
-  const pendingReviews = reviews.filter((review) => review.status === ReviewStatus.PENDING).length;
   const missingPhotos = products.filter(
     (product) => product.active && productNeedsPhoto(product.imageUrl)
   ).length;
-  const undeliveredEmails = orders.filter((order) => Boolean(order.confirmationEmailError)).length;
   const activeCount = products.filter((product) => product.active).length;
   const archivedCount = products.length - activeCount;
+  const undeliveredEmails = undeliveredEmailCount;
+
+  /**
+   * The board. Every count on it links at the list that clears it, and anything
+   * at zero is left off rather than rendered as a reassuring nought.
+   */
+  const priorityCards = buildPriorityCards({
+    ordersToFulfil: ordersToFulfilCount,
+    pickupsToPrepare: pickupsToPrepareCount,
+    undeliveredEmails: undeliveredEmailCount,
+    newMessages: unreadMessages,
+    customPlanterRequests: planterRequests,
+    outOfStock,
+    needsReorder: lowStock,
+    backInStockDemand: restockDemandCount,
+    reviewsToApprove: reviewsToApproveCount,
+    reviewRequestsDue,
+    missingPhotos,
+    incompleteProducts
+  });
+
+  const sourceBreakdown = newsletterSourceBreakdown(
+    subscriberSources.map((row) => ({
+      source: row.source,
+      active: row.active,
+      count: row._count._all
+    }))
+  );
+  const soldThisWeek = recentlySold.filter((row) => (row._sum.quantity || 0) > 0);
+  const soldCount = soldThisWeek.reduce((total, row) => total + (row._sum.quantity || 0), 0);
+
   const stockFilter = parseAdminStockFilter(firstSearchParam(params.stock));
+  const orderFilter = parseAdminOrderFilter(firstSearchParam(params.orders));
+  const planterOnly = firstSearchParam(params.messages) === 'planter';
   const productQuery = firstSearchParam(params.q);
   const visibleProducts = products.filter((product) =>
     productMatchesAdminFilter(product, productQuery, stockFilter)
   );
+  const visibleOrders = orders.filter((order) =>
+    orderMatchesAdminFilter(
+      {
+        awaiting: isAwaitingShipment(order.status, order.fulfilledAt),
+        pickup: order.fulfillmentMethod === 'PICKUP'
+      },
+      orderFilter
+    )
+  );
+  const visibleMessages = planterOnly ? messages.filter(isCustomPlanterRequest) : messages;
   const archivedProducts = products.filter((product) => !product.active);
   const notice = ADMIN_NOTICES[firstSearchParam(params.notice)];
   const errorMessage = ADMIN_ERRORS[firstSearchParam(params.error)];
@@ -516,7 +687,7 @@ export default async function Admin({
       <aside className="sidebar">
         <img src="/logo.webp" alt="The Hillside Gardens" />
         <b>Owner Business Center</b>
-        <a href="#overview">Overview</a>
+        <a href="#today">Today</a>
         <a href="#orders">Orders & shipping</a>
         <a href="#inventory">Inventory & products</a>
         <a href="#add-product">Add a product</a>
@@ -524,13 +695,17 @@ export default async function Admin({
         <a href="#messages">Customer messages</a>
         <a href="#subscribers">Email subscribers</a>
         <a href="#reviews">Reviews</a>
+        <a href="#review-requests">Ask for reviews</a>
         <a href="#restock">Restock requests</a>
         <Link href="/admin/email">Email</Link>
         <Link href="/admin/content">Website content</Link>
         <Link href="/admin/care">Plant care library</Link>
         <Link href="/admin/accounts">Admin accounts</Link>
         <Link href="/">View public website</Link>
-        <p className="muted" style={{ marginTop: 16, marginBottom: 0, fontSize: 14 }}>
+        {/* Not `.muted`: that token is tuned for text on white and measures
+            2.2:1 against the sidebar's forest green. This is the colour the
+            links beside it already use. */}
+        <p style={{ marginTop: 16, marginBottom: 0, fontSize: 14, color: '#dce6de' }}>
           Signed in as {admin.name}
         </p>
         <form action={logoutAdmin}>
@@ -541,13 +716,11 @@ export default async function Admin({
       </aside>
 
       <div className="adminmain">
-        <div className="toolbar" id="overview">
+        <div className="toolbar" id="today">
           <div>
             <div className="eyebrow">The Hillside Gardens</div>
-            <h1>Business dashboard</h1>
-            <p className="muted">
-              Orders, inventory, classes, customer messages and website operations in one place.
-            </p>
+            <h1>Today</h1>
+            <p className="muted">{prioritySummary(priorityCards)}</p>
           </div>
           <div className="admin-actions">
             <a className="btn" href="/api/admin/shipping.csv">
@@ -568,52 +741,74 @@ export default async function Admin({
           </div>
         </div>
 
-        <div className="statgrid">
-          <div className="stat">
-            <span>Paid revenue</span>
+        {/* The board only ever shows work that is actually waiting. A row of
+            zeros is not reassurance, it is ten things to read past to find the
+            two that matter — and a shop's revenue figure, however nice, is not
+            a job anybody can do today. */}
+        {priorityCards.length > 0 ? (
+          <div className="priority-board">
+            {priorityCards.map((card) => (
+              <Link className={`priority-card ${card.tone}`} href={card.href} key={card.key}>
+                <strong>{card.count}</strong>
+                <span className="priority-label">{card.label}</span>
+                <span className="priority-detail">{card.detail}</span>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="admin-card admin-notice" role="status">
+            <b>Nothing is waiting on you.</b>
+            <p className="muted" style={{ marginBottom: 0 }}>
+              No orders to pack, no unread messages, nothing out of stock and no reviews to read.
+              This is the whole list — when something needs doing it appears here.
+            </p>
+          </div>
+        )}
+
+        {/* Kept apart from the board on purpose: these are worth a glance, but
+            none of them is a job, and mixing them in is how a to-do list turns
+            back into a wall of numbers. */}
+        <section className="admin-pulse" aria-label="The last week at a glance">
+          <div>
+            <span>Sold in the last 7 days</span>
+            <strong>{soldCount}</strong>
+            <small>
+              {soldThisWeek.length
+                ? soldThisWeek
+                    .slice(0, 3)
+                    .map((row) => `${row.name} ×${row._sum.quantity || 0}`)
+                    .join(' · ')
+                : 'Nothing has gone out this week.'}
+            </small>
+          </div>
+          <div>
+            <span>New subscribers, 30 days</span>
+            <strong>{newSubscribers}</strong>
+            <small>
+              {activeSubscribers} active on the list
+              {sourceBreakdown[0] ? ` · mostly from ${sourceBreakdown[0].label.toLowerCase()}` : ''}
+            </small>
+          </div>
+          <div>
+            <span>Net revenue, all time</span>
             <strong>
               {formatMoney(
                 Math.max(0, (revenue._sum.totalCents || 0) - (revenue._sum.refundedCents || 0))
               )}
             </strong>
+            <small>Paid and shipped orders, less anything refunded.</small>
           </div>
-          <div className="stat">
-            <span>Orders to fulfill</span>
-            <strong>{openOrders}</strong>
-          </div>
-          <div className="stat">
-            <span>Active products</span>
+          <div>
+            <span>Listed in the shop</span>
             <strong>{activeCount}</strong>
+            <small>
+              {archivedCount} archived ·{' '}
+              <Link className="text-link" href={adminDashboardPath({ section: 'inventory' })}>
+                open the catalog
+              </Link>
+            </small>
           </div>
-          <div className="stat">
-            <span>Archived products</span>
-            <strong>{archivedCount}</strong>
-          </div>
-          <div className="stat">
-            <span>Low stock</span>
-            <strong>{lowStock}</strong>
-          </div>
-          <div className="stat">
-            <span>New messages</span>
-            <strong>{unreadMessages}</strong>
-          </div>
-          <div className="stat">
-            <span>Email subscribers</span>
-            <strong>{activeSubscribers}</strong>
-          </div>
-          <div className="stat">
-            <span>Reviews to approve</span>
-            <strong>{pendingReviews}</strong>
-          </div>
-          <div className="stat">
-            <span>Products needing a photo</span>
-            <strong>{missingPhotos}</strong>
-          </div>
-          <div className="stat">
-            <span>Waiting on restock</span>
-            <strong>{stockAlerts.length}</strong>
-          </div>
-        </div>
+        </section>
 
         {notice && (
           <div className="admin-card admin-notice" role="status">
@@ -690,9 +885,46 @@ export default async function Admin({
               </a>
             </div>
           </div>
-          {orders.length ? (
+
+          {/* Chips rather than a dropdown: they are the destination the
+              priority board links at, so each one has to be a real address. */}
+          <div className="filter-row" aria-label="Order filters">
+            {(
+              [
+                ['all', 'Recent orders', orders.length],
+                [
+                  'awaiting',
+                  'To pack',
+                  orders.filter((order) => isAwaitingShipment(order.status, order.fulfilledAt))
+                    .length
+                ],
+                [
+                  'pickup',
+                  'Pickups',
+                  orders.filter(
+                    (order) =>
+                      order.fulfillmentMethod === 'PICKUP' &&
+                      isAwaitingShipment(order.status, order.fulfilledAt)
+                  ).length
+                ]
+              ] as const
+            ).map(([key, label, count]) => (
+              <Link
+                key={key}
+                className={`filter-chip${orderFilter === key ? ' active' : ''}`}
+                href={adminDashboardPath({
+                  section: 'orders',
+                  orders: key === 'all' ? undefined : key
+                })}
+              >
+                {label} ({count})
+              </Link>
+            ))}
+          </div>
+
+          {visibleOrders.length ? (
             <div className="admin-list">
-              {orders.map((order) => (
+              {visibleOrders.map((order) => (
                 <details
                   open={
                     isAwaitingShipment(order.status, order.fulfilledAt) || order.id === focusOrder
@@ -902,7 +1134,22 @@ export default async function Admin({
             </div>
           ) : (
             <div className="admin-card">
-              <p>No orders yet.</p>
+              <p>
+                {orders.length
+                  ? orderFilter === 'pickup'
+                    ? 'No pickup orders are waiting to be prepared.'
+                    : 'Nothing is waiting to be packed.'
+                  : 'No orders yet.'}
+                {orders.length > 0 && orderFilter !== 'all' && (
+                  <>
+                    {' '}
+                    <Link className="text-link" href={adminDashboardPath({ section: 'orders' })}>
+                      Show recent orders
+                    </Link>
+                    .
+                  </>
+                )}
+              </p>
             </div>
           )}
         </section>
@@ -942,8 +1189,10 @@ export default async function Admin({
                 ['all', 'Everything', products.length],
                 ['active', 'In the shop', activeCount],
                 ['archived', 'Archived', archivedCount],
+                ['out', 'Sold out', outOfStock],
                 ['low', 'Low stock', lowStock],
-                ['photo', 'Needs a photo', missingPhotos]
+                ['photo', 'Needs a photo', missingPhotos],
+                ['incomplete', 'Missing information', incompleteProducts]
               ] as const
             ).map(([key, label, count]) => (
               <Link
@@ -1015,10 +1264,22 @@ export default async function Admin({
                       {product.name} • {formatMoney(product.priceCents)} • {product.inventory} in
                       stock
                       <SizeStockNote sizes={product.sizes} />
+                      {product.bundle && <> • bundle</>}
                       {productNeedsPhoto(product.imageUrl) && (
                         <>
                           {' '}
                           • <b className="needs-photo">needs a photo</b>
+                        </>
+                      )}
+                      {/* Named rather than counted. "3 fields missing" sends
+                          Tammy hunting through the form for which three. */}
+                      {productHasIncompleteInfo(product) && (
+                        <>
+                          {' '}
+                          •{' '}
+                          <b className="needs-photo">
+                            no {incompleteProductFields(product).join(', no ')}
+                          </b>
                         </>
                       )}
                     </span>
@@ -1142,9 +1403,32 @@ export default async function Admin({
 
         <section className="admin-section" id="messages">
           <h2>Customer messages</h2>
-          {messages.length ? (
+          <div className="filter-row" aria-label="Message filters">
+            {(
+              [
+                ['all', 'Every message', messages.length],
+                [
+                  'planter',
+                  'Custom planter requests',
+                  messages.filter(isCustomPlanterRequest).length
+                ]
+              ] as const
+            ).map(([key, label, count]) => (
+              <Link
+                key={key}
+                className={`filter-chip${(planterOnly ? 'planter' : 'all') === key ? ' active' : ''}`}
+                href={adminDashboardPath({
+                  section: 'messages',
+                  messages: key === 'all' ? undefined : key
+                })}
+              >
+                {label} ({count})
+              </Link>
+            ))}
+          </div>
+          {visibleMessages.length ? (
             <div className="admin-list">
-              {messages.map((message) => (
+              {visibleMessages.map((message) => (
                 <details
                   open={message.status === MessageStatus.NEW || message.id === focusMessage}
                   id={`message-${message.id}`}
@@ -1153,6 +1437,12 @@ export default async function Admin({
                   <summary>
                     <span>
                       {message.subject} • {message.name}
+                      {isCustomPlanterRequest(message) && (
+                        <>
+                          {' '}
+                          • <b className="needs-photo">custom planter</b>
+                        </>
+                      )}
                     </span>
                     <span className={`status-badge ${message.status}`}>{message.status}</span>
                   </summary>
@@ -1192,7 +1482,20 @@ export default async function Admin({
             </div>
           ) : (
             <div className="admin-card">
-              <p>No website messages yet.</p>
+              <p>
+                {messages.length
+                  ? 'Nothing here reads like a custom planter request.'
+                  : 'No website messages yet.'}
+                {messages.length > 0 && planterOnly && (
+                  <>
+                    {' '}
+                    <Link className="text-link" href={adminDashboardPath({ section: 'messages' })}>
+                      Show every message
+                    </Link>
+                    .
+                  </>
+                )}
+              </p>
             </div>
           )}
         </section>
@@ -1293,6 +1596,38 @@ export default async function Admin({
           )}
         </section>
 
+        <section className="admin-section" id="review-requests">
+          <h2>Ask customers for a review</h2>
+          <p className="muted">
+            Orders you marked fulfilled at least {REVIEW_REQUEST_DELAY_DAYS} days ago, where the
+            customer has never been asked. Each one gets a single email naming what they bought,
+            with a link to each product. Nobody is asked twice, and orders older than three months
+            are left alone.
+          </p>
+          <div className="admin-card">
+            {reviewRequestsDue > 0 ? (
+              <>
+                <p style={{ marginTop: 0 }}>
+                  <b>
+                    {reviewRequestsDue} {reviewRequestsDue === 1 ? 'order is' : 'orders are'} ready
+                    to ask.
+                  </b>
+                </p>
+                <form action={sendReviewRequests}>
+                  <button className="btn">
+                    Send {reviewRequestsDue === 1 ? 'the request' : `${reviewRequestsDue} requests`}
+                  </button>
+                </form>
+              </>
+            ) : (
+              <p style={{ margin: 0 }}>
+                Nobody is due a review request. Fulfilled orders appear here{' '}
+                {REVIEW_REQUEST_DELAY_DAYS} days after you mark them shipped or collected.
+              </p>
+            )}
+          </div>
+        </section>
+
         <section className="admin-section" id="restock">
           <h2>Restock requests</h2>
           <p className="muted">
@@ -1342,14 +1677,45 @@ export default async function Admin({
             <div>
               <h2>Email subscribers</h2>
               <p className="muted">
-                Export-ready subscriber records are stored here. Connect an email campaign platform
-                before sending bulk marketing messages.
+                {activeSubscribers} active {activeSubscribers === 1 ? 'address' : 'addresses'},{' '}
+                {newSubscribers} joined in the last 30 days. Export-ready records are stored here;
+                connect an email campaign platform before sending bulk marketing messages.
               </p>
             </div>
             <a className="btn small" href="/api/admin/subscribers.csv">
               Export subscribers CSV
             </a>
           </div>
+
+          {/* Which forms are actually earning their place. Counted over the
+              whole list, not the hundred rows below, so the two do not
+              disagree once the list outgrows one page. */}
+          {sourceBreakdown.length > 0 && (
+            <div className="admin-card source-breakdown">
+              <h3>Where signups come from</h3>
+              <ul>
+                {sourceBreakdown.map((entry) => (
+                  <li key={entry.key}>
+                    <span className="source-label">{entry.label}</span>
+                    <span className="source-track" role="presentation">
+                      <span
+                        style={{
+                          width: `${Math.round((entry.total / (sourceBreakdown[0]?.total || 1)) * 100)}%`
+                        }}
+                      />
+                    </span>
+                    <span className="source-count">
+                      {entry.total}
+                      {entry.active !== entry.total && (
+                        <span className="muted"> ({entry.active} active)</span>
+                      )}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {subscribers.length ? (
             <div className="table-wrap">
               <table className="table">
@@ -1357,7 +1723,7 @@ export default async function Admin({
                   <tr>
                     <th>Email</th>
                     <th>Name</th>
-                    <th>Source</th>
+                    <th>Came from</th>
                     <th>Joined</th>
                     <th>Status</th>
                   </tr>
@@ -1367,7 +1733,15 @@ export default async function Admin({
                     <tr key={subscriber.id}>
                       <td>{subscriber.email}</td>
                       <td>{subscriber.name || '—'}</td>
-                      <td>{subscriber.source || 'website'}</td>
+                      <td>
+                        {newsletterSourceLabel(subscriber.source)}
+                        {subscriber.sourceDetail && (
+                          <>
+                            <br />
+                            <small className="muted">{subscriber.sourceDetail}</small>
+                          </>
+                        )}
+                      </td>
                       <td>{subscriber.createdAt.toLocaleDateString()}</td>
                       <td>
                         <form action={updateSubscriber}>

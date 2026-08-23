@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Truck } from 'lucide-react';
+import { Gift, Truck } from 'lucide-react';
 import AddToCartButton from '@/components/AddToCartButton';
+import InlineNewsletter from '@/components/InlineNewsletter';
 import ProductGallery from '@/components/ProductGallery';
 import ProductGrid from '@/components/ProductGrid';
 import ProductViewTracker from '@/components/ProductViewTracker';
@@ -11,7 +12,9 @@ import StockAlertForm from '@/components/StockAlertForm';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
-import { ratingsByProduct } from '@/lib/reviews';
+import { bundleContents, giftGuidePath, giftGuidesForProduct } from '@/lib/gifts';
+import { REVIEW_PAGE_SIZE } from '@/lib/review-display';
+import { ratingCountsForProduct, ratingsByProduct } from '@/lib/reviews';
 import { jsonLd } from '@/lib/json-ld';
 import {
   comparableAtCents,
@@ -80,7 +83,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     return <RetiredProduct product={product} catalogEmpty={catalogEmpty} />;
   }
 
-  const [related, reviews, rating] = await Promise.all([
+  const [related, reviews, rating, ratingCounts] = await Promise.all([
     db.product.findMany({
       where: { active: true, id: { not: product.id }, type: product.type },
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
@@ -89,9 +92,15 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     db.review.findMany({
       where: { productId: product.id, status: 'APPROVED' },
       orderBy: { createdAt: 'desc' },
-      take: 20
+      take: REVIEW_PAGE_SIZE
     }),
-    ratingsByProduct([product.id]).then((map) => map.get(product.id) || { average: 0, count: 0 })
+    ratingsByProduct([product.id]).then((map) => map.get(product.id) || { average: 0, count: 0 }),
+    /**
+     * Counted over every approved review, not over the page fetched above, so
+     * the breakdown and the review count beside it cannot disagree once a
+     * product has more reviews than one page holds.
+     */
+    ratingCountsForProduct(product.id)
   ]);
 
   const relatedRatings = await ratingsByProduct(related.map((item) => item.id));
@@ -111,6 +120,14 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
    * exact price arrives with the choice, in the dropdown and beneath it.
    */
   const priceSpan = sizePriceRange(sizes, product.priceCents);
+  const insideTheBundle = product.bundle ? bundleContents(product.bundleItems) : [];
+  /**
+   * The gift guides this product is actually in. Rendered as links so the
+   * product page joins the gift experience rather than sitting outside it —
+   * a shopper who arrived from a search now has a way into "more like this,
+   * for the same person".
+   */
+  const giftGuides = soldOut ? [] : giftGuidesForProduct(product);
 
   const productJsonLd = {
     '@context': 'https://schema.org',
@@ -254,6 +271,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <div className="product-detail-copy">
             <div className="eyebrow">{productTypeLabel(product.type)}</div>
             <div className="product-detail-badges">
+              {product.bundle && <span className="pill bundle">Gift bundle</span>}
               {saving > 0 && <span className="pill sale">Save {saving}%</span>}
               {product.badge && <span className="pill">{product.badge}</span>}
             </div>
@@ -309,6 +327,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               </p>
             )}
 
+            {insideTheBundle.length > 0 && (
+              <div className="bundle-contents">
+                <b>What is in this bundle</b>
+                <ul>
+                  {insideTheBundle.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+                <span className="muted">One price, one parcel, packed together by hand.</span>
+              </div>
+            )}
+
             <div className="product-detail-notes">
               {product.careNotes && (
                 <div className="note-box">
@@ -349,6 +379,26 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   pickup: product.pickup
                 }}
               />
+            )}
+
+            {giftGuides.length > 0 && (
+              <div className="product-gift-guides">
+                <b>
+                  <Gift size={15} aria-hidden="true" /> Giving it to someone?
+                </b>
+                <p>
+                  Add a free gift message at checkout. This one is in{' '}
+                  {giftGuides.map((guide, index) => (
+                    <span key={guide.slug}>
+                      {index > 0 && (index === giftGuides.length - 1 ? ' and ' : ', ')}
+                      <Link className="text-link" href={giftGuidePath(guide.slug)}>
+                        {guide.title.toLowerCase()}
+                      </Link>
+                    </span>
+                  ))}
+                  .
+                </p>
+              </div>
             )}
 
             {product.collections.length > 0 && (
@@ -410,8 +460,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         <ProductReviews
           productSlug={product.slug}
           productName={product.name}
-          average={rating.average}
-          count={rating.count}
+          counts={ratingCounts}
           reviews={reviews.map((review) => ({
             id: review.id,
             authorName: review.authorName,
@@ -420,6 +469,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             body: review.body,
             verifiedPurchase: review.verifiedPurchase,
             ownerReply: review.ownerReply,
+            helpfulCount: review.helpfulCount,
             createdAt: review.createdAt.toISOString()
           }))}
         />
@@ -436,6 +486,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             <ProductGrid products={relatedProducts} />
           </div>
         )}
+
+        <InlineNewsletter
+          source="product"
+          heading="Told first when this kind of thing comes back."
+          blurb="An occasional note about new arrivals, restocks and seasonal plant care."
+        />
       </div>
     </section>
   );
