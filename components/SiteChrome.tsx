@@ -201,7 +201,7 @@ function CartDrawer({
     removeItem,
     checkout
   } = useCart();
-  const dialogRef = useRef<HTMLElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -241,7 +241,11 @@ function CartDrawer({
         aria-label="Close cart"
         tabIndex={-1}
       />
-      <aside
+      {/* A div, not an <aside>: ARIA in HTML does not allow `dialog` on an
+          element whose implicit role is `complementary`, and axe reports it.
+          The gallery lightbox already uses a div for the same dialog; the
+          drawer is styled entirely by class, so the element is free to change. */}
+      <div
         className="cart-drawer"
         ref={dialogRef}
         role="dialog"
@@ -422,7 +426,7 @@ function CartDrawer({
             </div>
           </>
         )}
-      </aside>
+      </div>
     </div>
   );
 }

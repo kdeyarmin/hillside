@@ -8,6 +8,7 @@ import {
   matchesSearchTermFuzzy,
   rankSearchHits,
   searchScore,
+  searchTokenFilters,
   tokenizeSearch
 } from '../lib/search.ts';
 
@@ -167,5 +168,53 @@ describe('searchScore and rankSearchHits', () => {
 
   it('honours the limit', () => {
     assert.equal(rankSearchHits(items, fieldsFor, 'pothos', 1).length, 1);
+  });
+});
+
+describe('searchTokenFilters', () => {
+  const fields = ['plantName', 'summary'] as const;
+
+  /**
+   * The live regression: `/search` pre-filtered in SQL with a `contains` on the
+   * whole phrase, so it only ever handed the word-aware filter rows whose text
+   * held the typed words adjacent and in order. "root rot" found the guide and
+   * "rot root" found nothing; "yellow pattern" found nothing against a summary
+   * that contains both words.
+   */
+  it('asks for every token separately, in any field', () => {
+    assert.deepEqual(searchTokenFilters('rot root', fields), [
+      {
+        OR: [
+          { plantName: { contains: 'rot', mode: 'insensitive' } },
+          { summary: { contains: 'rot', mode: 'insensitive' } }
+        ]
+      },
+      {
+        OR: [
+          { plantName: { contains: 'root', mode: 'insensitive' } },
+          { summary: { contains: 'root', mode: 'insensitive' } }
+        ]
+      }
+    ]);
+  });
+
+  it('is a superset of the word-aware filter that runs after it', () => {
+    const haystack = ['Root Rot: Signs, Rescue and Prevention', 'Roots starved of oxygen.'];
+    for (const term of ['root rot', 'rot root', 'rescue root']) {
+      assert.equal(matchesAnySearchField(haystack, term), true, term);
+      const filters = searchTokenFilters(term, fields);
+      // Every token the filter demands is a plain substring of one of the fields,
+      // which is exactly what `contains` matches on.
+      const text = haystack.join('\n').toLowerCase();
+      for (const filter of filters) {
+        const token = Object.values(filter.OR[0])[0].contains;
+        assert.equal(text.includes(token), true, `${term} / ${token}`);
+      }
+    }
+  });
+
+  it('has nothing to ask for when the term holds no tokens', () => {
+    assert.deepEqual(searchTokenFilters('', fields), []);
+    assert.deepEqual(searchTokenFilters('!!!', fields), []);
   });
 });

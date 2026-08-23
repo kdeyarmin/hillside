@@ -18,7 +18,7 @@ import {
   PRODUCT_CARD_SELECT,
   tagsWithFlags
 } from '@/lib/merchandising-data';
-import { normalizeSearchTerm, rankSearchHits } from '@/lib/search';
+import { normalizeSearchTerm, rankSearchHits, tokenizeSearch } from '@/lib/search';
 import { formatMoney } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
 
@@ -65,9 +65,26 @@ export default async function SearchPage({
   const { q } = await searchParams;
   const term = normalizeSearchTerm(q || '');
 
-  const [productRows, guideRows, collectionRows, classRows, catalogCount] = term
-    ? await Promise.all([
-        db.product.findMany({
+  /**
+   * A term of pure punctuation cannot match anything — `tokenizeSearch` drops
+   * it — so the scans below are gated on there being a token rather than on
+   * there being a term. Otherwise `/search?q=!!!` runs four full scans whose
+   * every row the ranking then discards.
+   */
+  const searchable = tokenizeSearch(term).length > 0;
+
+  /**
+   * `catalogCount` is asked for whenever there is a term, not only when that
+   * term is searchable. It is not part of the search: it decides which empty
+   * state a miss gets — "try a shorter word" against a stocked shop, "we are
+   * between batches" against an empty one — and a term of pure punctuation
+   * lands on that same empty state. Gated alongside the scans it would read
+   * zero, and `/search?q=!!!` would tell a shopper the shop was empty while
+   * seven products were on the bench.
+   */
+  const [productRows, guideRows, collectionRows, classRows, catalogCount] = await Promise.all([
+    searchable
+      ? db.product.findMany({
           where: { active: true },
           select: {
             ...PRODUCT_CARD_SELECT,
@@ -81,13 +98,17 @@ export default async function SearchPage({
           },
           orderBy: [{ featured: 'desc' }, { name: 'asc' }],
           take: PRODUCT_SCAN_LIMIT
-        }),
-        db.careSheet.findMany({
+        })
+      : [],
+    searchable
+      ? db.careSheet.findMany({
           where: { published: true },
           orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
           take: GUIDE_SCAN_LIMIT
-        }),
-        db.collection.findMany({
+        })
+      : [],
+    searchable
+      ? db.collection.findMany({
           where: { active: true },
           orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
           select: {
@@ -100,17 +121,17 @@ export default async function SearchPage({
             keywords: true
           },
           take: 50
-        }),
-        CLASSES_PUBLICLY_VISIBLE
-          ? db.classEvent.findMany({
-              where: { active: true, startsAt: { gte: new Date() } },
-              orderBy: { startsAt: 'asc' },
-              take: 50
-            })
-          : [],
-        db.product.count({ where: { active: true } })
-      ])
-    : [[], [], [], [], 0];
+        })
+      : [],
+    searchable && CLASSES_PUBLICLY_VISIBLE
+      ? db.classEvent.findMany({
+          where: { active: true, startsAt: { gte: new Date() } },
+          orderBy: { startsAt: 'asc' },
+          take: 50
+        })
+      : [],
+    term ? db.product.count({ where: { active: true } }) : 0
+  ]);
 
   // Derived attributes first, so "best seller" and "in stock" are searchable
   // terms rather than things only the filter rail knows about.

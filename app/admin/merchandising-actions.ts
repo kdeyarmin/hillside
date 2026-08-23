@@ -6,6 +6,7 @@ import { HomepageSectionKind, MerchandisingMode } from '@prisma/client';
 import { isAdmin } from '@/lib/admin';
 import { db } from '@/lib/db';
 import { adminMerchandisingPath } from '@/lib/admin-dashboard';
+import { formInteger } from '@/lib/form-values';
 import { homepageSectionNeedsCollection } from '@/lib/merchandising';
 
 /**
@@ -21,10 +22,10 @@ import { homepageSectionNeedsCollection } from '@/lib/merchandising';
 const text = (form: FormData, name: string) => String(form.get(name) || '').trim();
 const checked = (form: FormData, name: string) =>
   form.get(name) === 'on' || form.get(name) === 'true';
-const integer = (value: FormDataEntryValue | null, fallback = 0) => {
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.floor(number) : fallback;
-};
+// `formInteger`, not a local `Number()` guard: `Number('')` is 0 and 0 is
+// finite, so a cleared "how many to show" box would store zero and step past the
+// default beside the call. See lib/form-values.ts.
+const integer = formInteger;
 
 async function guard() {
   if (!(await isAdmin())) redirect('/admin');

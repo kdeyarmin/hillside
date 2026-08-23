@@ -18,6 +18,7 @@ import { isNavigationCollection } from '@/lib/collections';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { db } from '@/lib/db';
+import { formInteger } from '@/lib/form-values';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
@@ -54,10 +55,12 @@ const money = (value: FormDataEntryValue | null) => {
   const number = Number(value || 0);
   return Number.isFinite(number) ? Math.round(number * 100) : 0;
 };
-const integer = (value: FormDataEntryValue | null, fallback = 0) => {
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.floor(number) : fallback;
-};
+/**
+ * `formInteger` rather than a local `Number()` guard: an absent or empty field
+ * reads as `0` through `Number`, which is finite, so every fallback beside a
+ * call below used to be unreachable. See lib/form-values.ts.
+ */
+const integer = formInteger;
 const optionalDate = (value: string) => {
   if (!value) return null;
   const date = new Date(value);
