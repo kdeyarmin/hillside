@@ -410,7 +410,22 @@ async function fulfillLegacyProductOrder(session: Stripe.Checkout.Session) {
 
 async function sendOrderEmails(orderId: string) {
   const result = await sendOrderConfirmationEmail(orderId);
-  if (result.reason === 'already-sent' || result.reason === 'missing') return;
+  /**
+   * `not-confirmable` belongs beside these two rather than in the throw below.
+   * It means the order has moved past the point a confirmation is sent — Tammy
+   * marked it shipped, or it was refunded — which a redelivered
+   * `checkout.session.completed` can easily arrive after when the first send
+   * never happened (SendGrid unconfigured, say, so `confirmationEmailSentAt` is
+   * still null and the guard above does not catch it). Throwing answered Stripe
+   * with a 500 and had it redeliver a fulfilled order for days.
+   */
+  if (
+    result.reason === 'already-sent' ||
+    result.reason === 'missing' ||
+    result.reason === 'not-confirmable'
+  ) {
+    return;
+  }
   if (!result.sent && result.reason !== 'not-configured' && result.reason !== 'no-email') {
     throw new Error(
       `Order ${result.invoiceNumber || orderId} confirmation email not sent: ${result.reason}`

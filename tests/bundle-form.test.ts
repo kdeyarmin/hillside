@@ -136,14 +136,31 @@ describe('parseBundleInput', () => {
     assert.equal(parsed.data.slug, 'tea-starter-set');
   });
 
-  it('reads a price of zero rather than refusing it', () => {
-    // A giveaway set is a legitimate thing to publish; a negative one is not.
+  it('reads a deliberate price of zero rather than refusing it', () => {
+    // A giveaway set is a legitimate thing to publish.
     const free = parseBundleInput(form({ ...base, ...oneItem, price: '0' }));
     assert.equal(free.ok, true);
     if (free.ok) assert.equal(free.data.priceCents, 0);
+  });
 
-    const negative = parseBundleInput(form({ ...base, ...oneItem, price: '-10' }));
-    assert.equal(negative.ok, true);
-    if (negative.ok) assert.equal(negative.data.priceCents, 0);
+  it('refuses a price box that does not hold a price', () => {
+    /**
+     * `Number(null)` and `Number('')` are both a finite 0, so the obvious
+     * implementation publishes a set the shop gives away for nothing whenever
+     * the box is empty or holds "twenty".
+     */
+    for (const price of ['', '   ', 'twenty', '-10']) {
+      const parsed = parseBundleInput(form({ ...base, ...oneItem, price }));
+      assert.equal(parsed.ok, false, `expected "${price}" to be refused`);
+    }
+    const missing = { ...base, ...oneItem } as Record<string, string>;
+    delete missing.price;
+    assert.equal(parseBundleInput(form(missing)).ok, false);
+  });
+
+  it('tolerates a dollar sign and commas, the way the size box does', () => {
+    const parsed = parseBundleInput(form({ ...base, ...oneItem, price: '$1,240.50' }));
+    assert.equal(parsed.ok, true);
+    if (parsed.ok) assert.equal(parsed.data.priceCents, 124050);
   });
 });

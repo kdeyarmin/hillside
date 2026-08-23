@@ -3,13 +3,20 @@ import Link from 'next/link';
 import { CalendarDays, Leaf, Package, Search, ShoppingBag } from 'lucide-react';
 import BundleCard from '@/components/BundleCard';
 import ProductGrid from '@/components/ProductGrid';
+import { Prisma } from '@prisma/client';
 import { bundleCardData, sellableBundles } from '@/lib/bundle-queries';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { classFormatLabel } from '@/lib/class-access';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
-import { SEARCH_CANDIDATE_LIMIT, filterSearchHits, normalizeSearchTerm } from '@/lib/search';
+import {
+  SEARCH_CANDIDATE_LIMIT,
+  filterSearchHits,
+  normalizeSearchTerm,
+  searchTokenFilters,
+  tokenizeSearch
+} from '@/lib/search';
 import { formatMoney } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
 
@@ -37,52 +44,83 @@ export default async function SearchPage({
 }) {
   const { q } = await searchParams;
   const term = normalizeSearchTerm(q || '');
-  const contains = { contains: term, mode: 'insensitive' as const };
+  /**
+   * The candidate query asks for each word separately rather than for the typed
+   * phrase, because the word-aware filter below accepts the words in any order
+   * and spread across different fields. Asked for the phrase, the database never
+   * handed those rows over: "rot root" and "yellow pattern" returned nothing
+   * against guides that plainly matched.
+   *
+   * Gated on the tokens rather than on `term`, so a query that is only
+   * punctuation stops here instead of running three unfiltered table scans whose
+   * every row the filter would then drop.
+   */
+  const searchable = tokenizeSearch(term).length > 0;
 
-  const [productCandidates, guideCandidates, classCandidates, bundleCandidates, catalogCount] = term
-    ? await Promise.all([
-        db.product.findMany({
-          where: {
-            active: true,
-            OR: [{ name: contains }, { shortDescription: contains }, { description: contains }]
-          },
-          orderBy: [{ featured: 'desc' }, { name: 'asc' }],
-          take: SEARCH_CANDIDATE_LIMIT
-        }),
-        db.careSheet.findMany({
-          where: {
-            published: true,
-            OR: [
-              { plantName: contains },
-              { botanical: contains },
-              { summary: contains },
-              { symptoms: contains },
-              { category: contains }
-            ]
-          },
-          orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
-          take: SEARCH_CANDIDATE_LIMIT
-        }),
-        CLASSES_PUBLICLY_VISIBLE
-          ? db.classEvent.findMany({
-              where: {
-                active: true,
-                startsAt: { gte: new Date() },
-                OR: [{ title: contains }, { description: contains }]
-              },
-              orderBy: { startsAt: 'asc' },
-              take: SEARCH_CANDIDATE_LIMIT
-            })
-          : [],
-        /**
-         * Sets are filtered by availability rather than by SQL, so the whole
-         * (small) shelf is loaded and matched in memory like everything else
-         * here — and a set the shop cannot build never reaches the results.
-         */
-        sellableBundles(),
-        db.product.count({ where: { active: true } })
-      ])
-    : [[], [], [], [], 0];
+  /**
+   * `catalogCount` is asked for whenever there is a term, not only when that
+   * term is searchable. It is not part of the search: it decides which empty
+   * state a miss gets — "try a shorter word" against a stocked shop, "we are
+   * between batches" against an empty one — and a term of pure punctuation
+   * lands on that same empty state. Gated alongside the candidates it read
+   * zero, and `/search?q=!!!` told a shopper the shop was empty while seven
+   * products were on the bench.
+   */
+  const [productCandidates, guideCandidates, classCandidates, bundleCandidates, catalogCount] =
+    await Promise.all([
+      searchable
+        ? db.product.findMany({
+            where: {
+              active: true,
+              AND: searchTokenFilters(term, [
+                'name',
+                'shortDescription',
+                'description'
+              ]) as Prisma.ProductWhereInput[]
+            },
+            orderBy: [{ featured: 'desc' }, { name: 'asc' }],
+            take: SEARCH_CANDIDATE_LIMIT
+          })
+        : [],
+      searchable
+        ? db.careSheet.findMany({
+            where: {
+              published: true,
+              AND: searchTokenFilters(term, [
+                'plantName',
+                'botanical',
+                'summary',
+                'symptoms',
+                'category'
+              ]) as Prisma.CareSheetWhereInput[]
+            },
+            orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
+            take: SEARCH_CANDIDATE_LIMIT
+          })
+        : [],
+      searchable && CLASSES_PUBLICLY_VISIBLE
+        ? db.classEvent.findMany({
+            where: {
+              active: true,
+              startsAt: { gte: new Date() },
+              AND: searchTokenFilters(term, [
+                'title',
+                'description'
+              ]) as Prisma.ClassEventWhereInput[]
+            },
+            orderBy: { startsAt: 'asc' },
+            take: SEARCH_CANDIDATE_LIMIT
+          })
+        : [],
+      /**
+       * Sets cannot be filtered in SQL — how many of one can be built is a
+       * minimum over its components, and per-size counts live in a JSON column
+       * — so the whole (small) shelf is loaded and matched in memory like
+       * everything else here. A set the shop cannot build is never in it.
+       */
+      searchable ? sellableBundles() : [],
+      term ? db.product.count({ where: { active: true } }) : 0
+    ]);
 
   /**
    * Prisma can only do substring `contains`. The word-aware filter is what

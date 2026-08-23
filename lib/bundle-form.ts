@@ -7,6 +7,7 @@
  */
 
 import { MAX_BUNDLE_ITEMS, MAX_BUNDLE_ITEM_QUANTITY } from './bundles.ts';
+import { formInteger } from './form-values.ts';
 import { normalizeSizeLabel } from './product-sizes.ts';
 
 export type BundleItemInput = {
@@ -35,6 +36,24 @@ export type BundleFields = {
 export type ParsedBundle =
   | { ok: true; id: string; data: BundleFields; items: BundleItemInput[] }
   | { ok: false; reason: 'required' | 'no-items'; id: string; slug: string };
+
+/**
+ * The set's price in cents, or null when the box holds something that is not a
+ * price.
+ *
+ * Null rather than zero for the unreadable cases, because `Number(null)` and
+ * `Number('')` are both a finite 0 — so an empty box or a typed "twenty" would
+ * otherwise publish a set the shop gives away for nothing. A deliberate 0 is
+ * still a price, and still allowed.
+ */
+function priceCentsFrom(value: FormDataEntryValue | null) {
+  if (value == null) return null;
+  const raw = typeof value === 'string' ? value.trim().replace(/[$,]/g, '') : value;
+  if (raw === '') return null;
+  const number = Number(raw);
+  if (!Number.isFinite(number) || number < 0) return null;
+  return Math.round(number * 100);
+}
 
 function text(form: FormData, name: string) {
   return String(form.get(name) || '').trim();
@@ -73,7 +92,7 @@ export function parseBundleItems(form: FormData): BundleItemInput[] {
     const size = normalizeSizeLabel(text(form, `itemSize-${index}`)) || null;
     const quantity = Math.max(
       1,
-      Math.min(MAX_BUNDLE_ITEM_QUANTITY, Math.floor(Number(form.get(`itemQuantity-${index}`)) || 1))
+      Math.min(MAX_BUNDLE_ITEM_QUANTITY, formInteger(form.get(`itemQuantity-${index}`), 1))
     );
     const key = `${productId}::${size ?? ''}`;
     const existing = merged.get(key);
@@ -98,10 +117,9 @@ export function parseBundleInput(form: FormData): ParsedBundle {
   const title = text(form, 'title');
   const slug = slugifyBundle(text(form, 'slug')) || slugifyBundle(title);
   const description = text(form, 'description');
-  const priceRaw = Number(form.get('price'));
-  const priceCents = Number.isFinite(priceRaw) ? Math.max(0, Math.round(priceRaw * 100)) : 0;
+  const priceCents = priceCentsFrom(form.get('price'));
 
-  if (!title || !slug || !description) {
+  if (!title || !slug || !description || priceCents == null) {
     return { ok: false, reason: 'required', id, slug };
   }
 
@@ -134,7 +152,7 @@ export function parseBundleInput(form: FormData): ParsedBundle {
       badge: text(form, 'badge') || null,
       active: form.get('active') === 'on' || form.get('active') === 'true',
       featured: form.get('featured') === 'on' || form.get('featured') === 'true',
-      sortOrder: Math.floor(Number(form.get('sortOrder')) || 0)
+      sortOrder: formInteger(form.get('sortOrder'))
     },
     items
   };
