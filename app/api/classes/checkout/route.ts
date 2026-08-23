@@ -1,7 +1,12 @@
 import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
-import { classFormatLabel, classLocationLabel, isOnlineClass } from '@/lib/class-access';
+import {
+  classFormatLabel,
+  classLocationLabel,
+  isOnlineClass,
+  seatsShortLabel
+} from '@/lib/class-access';
 import { attachSessionToHold, holdExpiryUnix, releaseHold, reserveSeats } from '@/lib/class-seats';
 import { stripeProductDescription, stripeProductImages } from '@/lib/checkout';
 import { CLASSES_EXIT_LINK, CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
@@ -82,11 +87,7 @@ export async function POST(request: Request) {
     });
     if (!reservation.ok) {
       return NextResponse.json(
-        {
-          error: reservation.seatsLeft
-            ? `Only ${reservation.seatsLeft} seats remain.`
-            : 'This class is sold out.'
-        },
+        { error: seatsShortLabel(reservation.seatsLeft) },
         { status: 400 }
       );
     }

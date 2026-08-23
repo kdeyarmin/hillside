@@ -7,6 +7,7 @@ import {
   readCartRestoreToken
 } from '@/lib/cart-restore';
 import { db } from '@/lib/db';
+import { readJsonBody } from '@/lib/request-body';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { rateLimited } from '@/lib/rate-limit';
 import { findSize, productSizes, sizeAvailable, sizeChoiceRejected } from '@/lib/product-sizes';
@@ -84,7 +85,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const parsed = schema.safeParse(await request.json());
+    const parsed = schema.safeParse(await readJsonBody(request));
     if (!parsed.success) {
       return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 });
     }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
+import { readJsonBody } from '@/lib/request-body';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { rateLimited } from '@/lib/rate-limit';
 import { ownerNotificationEmails } from '@/lib/store';
@@ -29,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const parsed = schema.safeParse(await request.json());
+    const parsed = schema.safeParse(await readJsonBody(request));
     if (!parsed.success) {
       return NextResponse.json(
         { error: 'Please add your name, a valid email, a rating and a little more detail.' },
