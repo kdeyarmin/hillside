@@ -12,6 +12,13 @@
 export type MerchandisingMode = 'AUTO' | 'ALWAYS' | 'NEVER';
 
 /** How long a product counts as new when nobody has said otherwise. */
+/**
+ * The most items any homepage row may show, and the ceiling the row editor's
+ * "How many to show" input enforces. Anything fetching for a row has to reach
+ * this far or the row silently caps below what Tammy set.
+ */
+export const MAX_HOMEPAGE_SECTION_ITEMS = 8;
+
 export const NEW_ARRIVAL_DAYS = 45;
 
 /**

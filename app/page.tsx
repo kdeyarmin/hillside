@@ -19,6 +19,7 @@ import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { withCardFacts } from '@/lib/product-cards';
 import { pageMetadata } from '@/lib/seo';
+import { MAX_HOMEPAGE_SECTION_ITEMS } from '@/lib/merchandising';
 import { productsForSection, type MerchandisedProduct } from '@/lib/merchandising-data';
 import { formatMoney, formatMoneyCompact, freeShippingThresholdCents } from '@/lib/store';
 
@@ -101,7 +102,7 @@ export default async function Home() {
      * kit whose last component sold this morning drops off the homepage on its
      * own rather than sending the day's visitors to a sold-out page.
      */
-    sellableBundles({ featured: true, take: 3 }),
+    sellableBundles({ featured: true, take: MAX_HOMEPAGE_SECTION_ITEMS }),
     // Hidden classes are not fetched at all, so the homepage costs one query
     // less rather than rendering nothing from a result it paid for.
     CLASSES_PUBLICLY_VISIBLE

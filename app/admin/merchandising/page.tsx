@@ -9,6 +9,7 @@ import { ADMIN_ERRORS, ADMIN_NOTICES, firstSearchParam } from '@/lib/admin-dashb
 import { db } from '@/lib/db';
 import {
   BADGE_PRESETS,
+  MAX_HOMEPAGE_SECTION_ITEMS,
   BEST_SELLER_MIN_ORDERS,
   BEST_SELLER_MIN_UNITS,
   BEST_SELLER_WINDOW_DAYS,
@@ -147,7 +148,7 @@ function SectionFields({
             name="maxItems"
             type="number"
             min="2"
-            max="8"
+            max={MAX_HOMEPAGE_SECTION_ITEMS}
             defaultValue={section?.maxItems ?? 4}
           />
         </label>
@@ -991,10 +992,9 @@ export default async function Merchandising({
                     </label>
                     <p className="muted" style={{ fontSize: 13 }}>
                       The words the automatic suggestions match on. Useful ones:{' '}
-                      {RECOMMENDATION_TAGS.join(', ')}. Traits are added to what the website
-                      already works out from the product&rsquo;s own description — to switch one of
-                      those off instead, write it with a minus in front, like{' '}
-                      <code>-terrarium</code>.
+                      {RECOMMENDATION_TAGS.join(', ')}. Traits are added to what the website already
+                      works out from the product&rsquo;s own description — to switch one of those
+                      off instead, write it with a minus in front, like <code>-terrarium</code>.
                     </p>
                     <p className="muted" style={{ fontSize: 13 }}>
                       Not the same as the <b>attributes</b> on the product form (pet safe, low
