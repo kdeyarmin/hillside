@@ -27,9 +27,16 @@ export default function NewsletterForm({ compact = false }: { compact?: boolean 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: data.get('name'),
+          /**
+           * `?? ''` because the compact form — the one in the footer of every
+           * page — has no name field at all, so `FormData.get` answers `null`.
+           * `JSON.stringify` keeps that null, and a `null` is not `undefined`:
+           * the route's optional `name` refused it and every footer signup came
+           * back "Please enter a valid email address".
+           */
+          name: data.get('name') ?? '',
           email: data.get('email'),
-          website: data.get('website')
+          website: data.get('website') ?? ''
         }),
         signal: controller.signal
       });

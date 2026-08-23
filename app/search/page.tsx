@@ -2,15 +2,43 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { CalendarDays, Leaf, Search, ShoppingBag } from 'lucide-react';
 import ProductGrid from '@/components/ProductGrid';
+import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import { withCategory } from '@/lib/product-categories';
 import { ratingsByProduct } from '@/lib/reviews';
 import { classFormatLabel } from '@/lib/class-access';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
-import { SEARCH_CANDIDATE_LIMIT, filterSearchHits, normalizeSearchTerm } from '@/lib/search';
+import {
+  SEARCH_CANDIDATE_LIMIT,
+  filterSearchHits,
+  normalizeSearchTerm,
+  searchTokenFilters,
+  tokenizeSearch
+} from '@/lib/search';
 import { formatMoney } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
+
+/**
+ * The candidate filter for products: `searchTokenFilters` over the product's own
+ * columns, with its category title offered as one more place each token may
+ * live. A shopper searching "carnivorous" should find the flytraps whether or
+ * not the word appears in their own descriptions, and the category is where it
+ * does.
+ *
+ * The relation is spelled out here rather than passed to `searchTokenFilters`,
+ * which takes columns on the row it filters. Asking that helper for one token at
+ * a time is what keeps the two halves of each filter about the same word without
+ * this function having to know how a token filter is shaped.
+ */
+function productTokenFilters(term: string): Prisma.ProductWhereInput[] {
+  return tokenizeSearch(term).map((token) => {
+    const [filter] = searchTokenFilters(token, ['name', 'shortDescription', 'description']);
+    return {
+      OR: [...filter.OR, { category: { title: { contains: token, mode: 'insensitive' as const } } }]
+    } as Prisma.ProductWhereInput;
+  });
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -36,54 +64,66 @@ export default async function SearchPage({
 }) {
   const { q } = await searchParams;
   const term = normalizeSearchTerm(q || '');
-  const contains = { contains: term, mode: 'insensitive' as const };
+  /**
+   * The candidate query asks for each word separately rather than for the typed
+   * phrase, because the word-aware filter below accepts the words in any order
+   * and spread across different fields. Asked for the phrase, the database never
+   * handed those rows over: "rot root" and "yellow pattern" returned nothing
+   * against guides that plainly matched.
+   *
+   * Gated on the tokens rather than on `term`, so a query that is only
+   * punctuation stops here instead of running three unfiltered table scans whose
+   * every row the filter would then drop.
+   */
+  const searchable = tokenizeSearch(term).length > 0;
 
-  const [productCandidates, guideCandidates, classCandidates, catalogCount] = term
-    ? await Promise.all([
-        db.product.findMany({
-          where: {
-            active: true,
-            OR: [
-              { name: contains },
-              { shortDescription: contains },
-              { description: contains },
-              // A shopper searching "carnivorous" should find the flytraps
-              // whether or not the word appears in their own descriptions.
-              { category: { title: contains } }
-            ]
-          },
+  /**
+   * `catalogCount` is asked for whenever there is a term, not only when that
+   * term is searchable. It is not part of the search: it decides which empty
+   * state a miss gets — "try a shorter word" against a stocked shop, "we are
+   * between batches" against an empty one — and a term of pure punctuation
+   * lands on that same empty state. Gated alongside the candidates it read
+   * zero, and `/search?q=!!!` told a shopper the shop was empty while seven
+   * products were on the bench.
+   */
+  const [productCandidates, guideCandidates, classCandidates, catalogCount] = await Promise.all([
+    searchable
+      ? db.product.findMany({
+          where: { active: true, AND: productTokenFilters(term) },
           orderBy: [{ featured: 'desc' }, { name: 'asc' }],
           take: SEARCH_CANDIDATE_LIMIT,
           include: { category: { select: { slug: true, title: true } } }
-        }),
-        db.careSheet.findMany({
+        })
+      : [],
+    searchable
+      ? db.careSheet.findMany({
           where: {
             published: true,
-            OR: [
-              { plantName: contains },
-              { botanical: contains },
-              { summary: contains },
-              { symptoms: contains },
-              { category: contains }
-            ]
+            AND: searchTokenFilters(term, [
+              'plantName',
+              'botanical',
+              'summary',
+              'symptoms',
+              'category'
+            ]) as Prisma.CareSheetWhereInput[]
           },
           orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
           take: SEARCH_CANDIDATE_LIMIT
-        }),
-        CLASSES_PUBLICLY_VISIBLE
-          ? db.classEvent.findMany({
-              where: {
-                active: true,
-                startsAt: { gte: new Date() },
-                OR: [{ title: contains }, { description: contains }]
-              },
-              orderBy: { startsAt: 'asc' },
-              take: SEARCH_CANDIDATE_LIMIT
-            })
-          : [],
-        db.product.count({ where: { active: true } })
-      ])
-    : [[], [], [], 0];
+        })
+      : [],
+    searchable && CLASSES_PUBLICLY_VISIBLE
+      ? db.classEvent.findMany({
+          where: {
+            active: true,
+            startsAt: { gte: new Date() },
+            AND: searchTokenFilters(term, ['title', 'description']) as Prisma.ClassEventWhereInput[]
+          },
+          orderBy: { startsAt: 'asc' },
+          take: SEARCH_CANDIDATE_LIMIT
+        })
+      : [],
+    term ? db.product.count({ where: { active: true } }) : 0
+  ]);
 
   /**
    * Prisma can only do substring `contains`. The word-aware filter is what
