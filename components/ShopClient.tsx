@@ -104,12 +104,13 @@ export default function ShopClient({
   const filterable = useMemo(() => {
     const map = new Map<string, FilterableProduct>();
     for (const product of products) {
-      const pricing = pricingFor(product);
+      const sizes = productSizes(product.sizes, product.priceCents);
       map.set(product.id, {
         id: product.id,
         type: product.type,
-        minCents: pricing.minCents,
-        maxCents: pricing.maxCents,
+        // The prices a shopper can actually pay, so a price band never offers
+        // a product nothing about which can be bought at that price.
+        prices: sizes.length ? sizes.map((size) => size.priceCents) : [product.priceCents],
         tags: product.tags,
         collectionSlugs: (product.collections || []).map((collection) => collection.slug)
       });
@@ -117,19 +118,35 @@ export default function ShopClient({
     return map;
   }, [products]);
 
-  const facets = useMemo(
-    () => buildFacets([...filterable.values()], state, collections),
-    [collections, filterable, state]
-  );
+  /** Which products answer the search box, before any filter is applied. */
+  const searchMatched = useMemo(() => {
+    const term = state.search.trim();
+    if (!term) return null;
+    const matched = new Set<string>();
+    for (const product of products) {
+      const { primary, secondary } = productSearchFields(product, product.tags);
+      if (matchesAnySearchFieldFuzzy([...primary, ...secondary], term)) matched.add(product.id);
+    }
+    return matched;
+  }, [products, state.search]);
+
+  /**
+   * Facets describe what is findable *within the current search*, not within
+   * the whole catalog. A shopper who typed "soap" was still offered "Low light"
+   * — a chip that could only ever empty the grid.
+   */
+  const facets = useMemo(() => {
+    const scope = [...filterable.values()].filter(
+      (product) => !searchMatched || searchMatched.has(product.id)
+    );
+    return buildFacets(scope, state, collections);
+  }, [collections, filterable, searchMatched, state]);
 
   const visibleProducts = useMemo(() => {
-    const term = state.search.trim();
     const matched = products.filter((product) => {
       const shape = filterable.get(product.id);
       if (!shape || !matchesFilters(shape, state)) return false;
-      if (!term) return true;
-      const { primary, secondary } = productSearchFields(product, product.tags);
-      return matchesAnySearchFieldFuzzy([...primary, ...secondary], term);
+      return !searchMatched || searchMatched.has(product.id);
     });
 
     return [...matched].sort((a, b) => {
@@ -153,7 +170,7 @@ export default function ShopClient({
         a.name.localeCompare(b.name)
       );
     });
-  }, [filterable, products, state]);
+  }, [filterable, products, searchMatched, state]);
 
   const chips = activeFilterChips(state, collections);
   const filtered = hasActiveFilters(state);
@@ -174,7 +191,6 @@ export default function ShopClient({
       if (key === 'category') return { ...current, category: 'ALL' };
       if (key === 'collection') return { ...current, collection: '' };
       if (key === 'price') return { ...current, price: '' };
-      if (key === 'sale') return { ...current, onSaleOnly: false };
       return { ...current, tags: current.tags.filter((entry) => entry !== value) };
     });
 
@@ -185,7 +201,6 @@ export default function ShopClient({
       price: '',
       tags: [],
       search: '',
-      onSaleOnly: false,
       sort: current.sort
     }));
 

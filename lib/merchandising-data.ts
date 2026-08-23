@@ -224,21 +224,38 @@ export async function bestSellingProducts(limit = 4): Promise<MerchandisedProduc
     .map((entry) => entry.product);
 }
 
-/** Best sellers that have sold in the last month, newest sale first. */
+/**
+ * Best sellers measured over the last month rather than the season, most sold
+ * first.
+ *
+ * The same decision as `bestSellingProducts`, only against a shorter window —
+ * not "anything that sold at all recently". Admitting a single unit would have
+ * put a one-off purchase under a heading that reads as a recommendation, shown
+ * a product Tammy had set to `NEVER`, and hidden one she had pinned to
+ * `ALWAYS`. A row about what is selling has to obey the same rules as the badge
+ * that says so.
+ */
 export async function recentBestSellers(limit = 4): Promise<MerchandisedProduct[]> {
   const stats = await salesStats(RECENT_BEST_SELLER_DAYS);
   const ids = [...stats.entries()]
     .filter(([, stat]) => stat.units > 0)
     .sort((a, b) => b[1].units - a[1].units)
     .map(([id]) => id);
-  if (!ids.length) return [];
 
   const products = await db.product.findMany({
-    where: { active: true, id: { in: ids.slice(0, 40) } },
-    select: PRODUCT_CARD_SELECT
+    where: {
+      active: true,
+      OR: [{ id: { in: ids.slice(0, 40) } }, { bestSellerMode: 'ALWAYS' }]
+    },
+    select: PRODUCT_CARD_SELECT,
+    take: 200
   });
+
   const order = new Map(ids.map((id, index) => [id, index]));
   return products
+    .filter((product) =>
+      isBestSeller({ bestSellerMode: product.bestSellerMode }, stats.get(product.id))
+    )
     .sort((a, b) => (order.get(a.id) ?? 999) - (order.get(b.id) ?? 999))
     .slice(0, limit);
 }
@@ -257,8 +274,14 @@ export async function bestSellingCategory(): Promise<{
   const stats = await salesStats();
   if (!stats.size) return null;
 
+  /**
+   * Active products only. A category ranked on archived stock can be announced
+   * as "most shopped right now" and link to a shop filter with nothing in it —
+   * the discontinued plants that earned the ranking are exactly the ones a
+   * shopper cannot buy.
+   */
   const products = await db.product.findMany({
-    where: { id: { in: [...stats.keys()] } },
+    where: { active: true, id: { in: [...stats.keys()] } },
     select: { id: true, type: true }
   });
 

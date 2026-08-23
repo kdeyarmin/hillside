@@ -49,7 +49,8 @@ Four things read all of this:
 
 - the **badge** on cards and product pages;
 - the **best-selling products** row on the homepage, and the "Selling right now"
-  row, which is the same rule over a 30-day window;
+  row, which applies the same rule and the same overrides over a 30-day window
+  rather than admitting anything that sold at all;
 - the **best-selling category** line on `/collections`, which needs the unit
   floor only, because a whole category leading the shop off one order is not a
   failure worth a second threshold;
@@ -100,10 +101,17 @@ A collection is a page, not a filter. Beyond its name and picture it can carry:
 
 `prisma/seed-category-content.ts` writes starting copy for the canonical
 categories — houseplants, carnivorous plants, succulents, air plants, terrarium
-supplies, moss, botanical goods, teas, planted arrangements. It fills a field
-**only when that field is still empty**, so the moment Tammy edits a category
-her words are the ones that stay, on this deploy and every one after it. The
-same file seeds the default homepage rows, once, into an empty table.
+supplies, moss, botanical goods, teas, planted arrangements — and seeds the
+default homepage rows.
+
+Both run **once, ever**, recorded in the `SeedMarker` table. Emptiness is not
+the test: it cannot tell an untouched install from an owner who deliberately
+cleared something, and the deploy runs this on every release — so a category
+introduction Tammy deleted, or a homepage stripped of every row, would simply
+come back. Within a category's one turn, each field is still filled only when
+it is empty, so copy she has already written is never overwritten either. A
+category added to the seed file later gets its own turn, because the marker is
+per category.
 
 ## Filters
 
@@ -140,7 +148,10 @@ Two rules keep the results honest:
   "sea" and "tear" into the results for "tea".
 
 Results are ranked, not just filtered: a product whose _name_ is what was typed
-outranks one that mentions it in the third paragraph.
+outranks one that mentions it in the third paragraph. Each primary field is
+compared on its own for the exact and prefix bonuses — joined together, a
+product called exactly "Golden Pothos" stopped counting as an exact match the
+moment it also carried a botanical name.
 
 There is deliberately no search index. The catalog is a few hundred rows;
 reading the searchable columns and ranking them in memory is both better and

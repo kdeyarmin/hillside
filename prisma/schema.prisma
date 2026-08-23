@@ -582,6 +582,23 @@ model CartLead {
   updatedAt     DateTime  @updatedAt
 }
 
+/**
+ * A record that a one-time seed has already run.
+ * Seeds that write starting content used to decide "has this run?" by looking at
+ * whether the content was empty — which cannot tell an untouched install from an
+ * owner who deliberately cleared it. Emptiness is valid editor output: Tammy
+ * clearing a category's introduction, or deleting every homepage row, is a
+ * choice, and re-running the deploy seed put all of it back. A row here says the
+ * seed has had its turn, so it never takes another.
+ */
+model SeedMarker {
+  /**
+   * e.g. `homepage-sections`, or `category-content:carnivorous-plants`.
+   */
+  key       String   @id
+  createdAt DateTime @default(now())
+}
+
 model AdminUser {
   id                String    @id @default(cuid())
   email             String    @unique

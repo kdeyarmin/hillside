@@ -34,11 +34,17 @@ export type ShopFilterState = {
   collection: string;
   /** A `PRICE_BANDS` key, or empty. */
   price: string;
-  /** Attribute slugs, assignable or derived. All must match. */
+  /**
+   * Attribute slugs, assignable or derived. All must match.
+   *
+   * "On sale" lives here rather than in a flag of its own. It used to be both —
+   * a boolean *and* a derived tag — which meant two ways to express one filter
+   * and a chip the shopper could tick but not untick, because the toggle wrote
+   * the tag while the flag stayed set.
+   */
   tags: string[];
   search: string;
   sort: string;
-  onSaleOnly: boolean;
 };
 
 export const EMPTY_FILTERS: ShopFilterState = {
@@ -47,16 +53,22 @@ export const EMPTY_FILTERS: ShopFilterState = {
   price: '',
   tags: [],
   search: '',
-  sort: 'featured',
-  onSaleOnly: false
+  sort: 'featured'
 };
 
 export type FilterableProduct = {
   id: string;
   type: string;
-  /** Cheapest and dearest size, or the price twice when sold one way. */
-  minCents: number;
-  maxCents: number;
+  /**
+   * Every price a shopper can actually pay: one per size, or the single price
+   * when the product is sold one way.
+   *
+   * Deliberately the real prices rather than the range they span. Testing a
+   * band against the span put a plant sold at $12 and $40 into "$15 to $30",
+   * where nothing about it can be bought — a filter answering with something
+   * the shopper cannot buy at the price they asked for.
+   */
+  prices: readonly number[];
   /** Every attribute, assigned and derived. */
   tags: readonly string[];
   collectionSlugs: readonly string[];
@@ -65,9 +77,10 @@ export type FilterableProduct = {
 function inPriceBand(product: FilterableProduct, key: string) {
   const band = PRICE_BANDS.find((entry) => entry.key === key);
   if (!band) return true;
-  // A product sold in several sizes belongs to every band its sizes fall in —
-  // a $12–$40 plant is a real answer to "under $15" and to "$30 to $60".
-  return product.minCents < band.maxCents && product.maxCents >= band.minCents;
+  // A product sold in several sizes belongs to every band one of its sizes
+  // falls in — a $12–$40 plant answers "under $15" and "$30 to $60", and
+  // neither of the bands in between.
+  return product.prices.some((price) => price >= band.minCents && price < band.maxCents);
 }
 
 function inCategory(product: FilterableProduct, category: string) {
@@ -80,7 +93,6 @@ export function matchesFilters(product: FilterableProduct, state: ShopFilterStat
   if (!inCategory(product, state.category)) return false;
   if (state.collection && !product.collectionSlugs.includes(state.collection)) return false;
   if (state.price && !inPriceBand(product, state.price)) return false;
-  if (state.onSaleOnly && !product.tags.includes('on-sale')) return false;
   return state.tags.every((tag) => product.tags.includes(tag));
 }
 
@@ -194,37 +206,56 @@ export function buildFacets(
    * the tags that apply to the product types on screen. This is what keeps a
    * light-requirement filter away from a soap shopper.
    */
-  const tagScope = scopeFor(products, state, { tags: [] });
   const applicable: ProductTag[] = tagsForTypes(presentTypes);
-  const derivedOnScreen = ['in-stock', 'local-pickup', 'ships', 'new', 'best-seller', 'staff-pick'];
-  const buyingTags = derivedOnScreen.map((slug) => ({ value: slug, label: tagLabel(slug) }));
+  /**
+   * Attributes the shop works out rather than stores. `on-sale` belongs here:
+   * without it the rail had no way to filter by sale at all, and the only route
+   * to it was a hand-written query string.
+   */
+  const derivedOnScreen = [
+    'in-stock',
+    'local-pickup',
+    'ships',
+    'new',
+    'best-seller',
+    'staff-pick',
+    'on-sale'
+  ];
 
-  for (const group of groupTags(applicable)) {
+  /**
+   * Counted with only *this* group's own selections relaxed, not every tag.
+   * Clearing all of them made the Light counts ignore a selected "Pet safe", so
+   * the rail could offer "Bright light (1)" off a plant that is not pet safe and
+   * ticking it emptied the grid — the exact dead end these counts exist to
+   * prevent.
+   */
+  const tagFacet = (key: string, label: string, tags: Array<{ value: string; label: string }>) => {
+    const own = new Set(tags.map((tag) => tag.value));
+    const scope = scopeFor(products, state, {
+      tags: state.tags.filter((tag) => !own.has(tag))
+    });
     const options = buildOptions(
-      group.tags.map((tag) => ({ value: tag.slug, label: tag.label })),
-      tagScope,
+      tags,
+      scope,
       (value) => state.tags.includes(value),
       (product, value) => product.tags.includes(value)
     );
-    if (options.length) {
-      facets.push({ key: `tag:${group.key}`, label: group.label, choice: 'many', options });
-    }
+    if (options.length) facets.push({ key, label, choice: 'many', options });
+  };
+
+  for (const group of groupTags(applicable)) {
+    tagFacet(
+      `tag:${group.key}`,
+      group.label,
+      group.tags.map((tag) => ({ value: tag.slug, label: tag.label }))
+    );
   }
 
-  const buyingOptions = buildOptions(
-    buyingTags,
-    tagScope,
-    (value) => state.tags.includes(value),
-    (product, value) => product.tags.includes(value)
+  tagFacet(
+    'tag:buying',
+    'Getting it home',
+    derivedOnScreen.map((slug) => ({ value: slug, label: tagLabel(slug) }))
   );
-  if (buyingOptions.length) {
-    facets.push({
-      key: 'tag:buying',
-      label: 'Getting it home',
-      choice: 'many',
-      options: buyingOptions
-    });
-  }
 
   return facets;
 }
@@ -254,7 +285,6 @@ export function activeFilterChips(
     const band = PRICE_BANDS.find((entry) => entry.key === state.price);
     if (band) chips.push({ key: 'price', value: state.price, label: band.label });
   }
-  if (state.onSaleOnly) chips.push({ key: 'sale', value: 'true', label: 'On sale' });
   for (const tag of state.tags) {
     chips.push({ key: 'tag', value: tag, label: tagLabel(tag) });
   }
@@ -266,7 +296,6 @@ export function hasActiveFilters(state: ShopFilterState) {
     state.category !== 'ALL' ||
     Boolean(state.collection) ||
     Boolean(state.price) ||
-    state.onSaleOnly ||
     state.tags.length > 0 ||
     Boolean(state.search.trim())
   );
@@ -279,34 +308,52 @@ export function isShopSort(value: string): value is ShopSort {
   return (SORTS as readonly string[]).includes(value);
 }
 
+/** Every category value the shop can honour: a group key, or a bare type. */
+const KNOWN_CATEGORIES = new Set([
+  ...Object.keys(CATEGORY_GROUPS),
+  ...Object.values(CATEGORY_GROUPS).flatMap((group) => group.types)
+]);
+
 /**
- * Reads the filter state out of a URL. Unknown tags are dropped rather than
- * carried, so a stale link cannot produce an empty grid with an unnameable
- * filter chip attached to it.
+ * Reads the filter state out of a URL.
+ *
+ * Everything is validated, not merely read. An unknown tag, an unknown price
+ * band, an unknown category or a category of pure whitespace is dropped rather
+ * than carried — because a value the shop cannot honour still filters the grid
+ * to nothing while showing a chip nobody can name, which is precisely the stale
+ * link this is here to survive. Text is trimmed for the same reason: a
+ * collection slug or search term with a trailing space is a different string to
+ * every comparison that follows it.
  */
 export function parseShopFilters(
   params: Record<string, string | string[] | undefined>,
   knownTags: readonly string[]
 ): ShopFilterState {
   const first = (value: string | string[] | undefined) =>
-    (Array.isArray(value) ? value[0] : value) || '';
+    ((Array.isArray(value) ? value[0] : value) || '').trim();
   const rawTags = params.tags;
   const tagList = (Array.isArray(rawTags) ? rawTags.join(',') : rawTags || '')
     .split(',')
     .map((tag) => tag.trim().toLowerCase())
     .filter((tag) => knownTags.includes(tag));
 
+  /**
+   * `?sale=true` is still honoured as an alias for the on-sale attribute, so
+   * links written before sale became an ordinary filter keep working.
+   */
+  if (first(params.sale) === 'true' && knownTags.includes('on-sale')) tagList.push('on-sale');
+
   const sort = first(params.sort);
   const price = first(params.price);
+  const category = first(params.category).toUpperCase();
 
   return {
-    category: first(params.category).toUpperCase() || 'ALL',
+    category: KNOWN_CATEGORIES.has(category) ? category : 'ALL',
     collection: first(params.collection),
     price: PRICE_BANDS.some((band) => band.key === price) ? price : '',
     tags: Array.from(new Set(tagList)),
     search: first(params.q),
-    sort: isShopSort(sort) ? sort : 'featured',
-    onSaleOnly: first(params.sale) === 'true'
+    sort: isShopSort(sort) ? sort : 'featured'
   };
 }
 
@@ -318,7 +365,6 @@ export function shopFilterQuery(state: ShopFilterState): string {
   if (state.collection) params.set('collection', state.collection);
   if (state.price) params.set('price', state.price);
   if (state.tags.length) params.set('tags', [...state.tags].sort().join(','));
-  if (state.onSaleOnly) params.set('sale', 'true');
   if (state.sort && state.sort !== 'featured') params.set('sort', state.sort);
   return params.toString();
 }

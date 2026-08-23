@@ -194,10 +194,20 @@ export function searchScore(
 
   let score = 1;
   const normalized = normalizeSearchTerm(term).toLowerCase();
-  const primaryLower = primaryText.toLowerCase();
 
-  if (primaryLower === normalized) score += 100;
-  else if (primaryLower.startsWith(normalized)) score += 60;
+  /**
+   * Each primary field is compared on its own, not as one joined blob. Joined,
+   * a product called exactly "Golden Pothos" stopped being an exact match for
+   * "golden pothos" the moment it also carried a botanical name — so it tied
+   * with "Golden Pothos Planter", and the featured-first candidate order could
+   * put the wrong one on top.
+   */
+  const primaryValues = primary
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.trim().toLowerCase());
+
+  if (primaryValues.some((value) => value === normalized)) score += 100;
+  else if (primaryValues.some((value) => value.startsWith(normalized))) score += 60;
   if (matchesSearchTerm(primaryText, term)) score += 30;
   // Every token landing exactly beats a set that needed the fuzzy fallback.
   if (matchesSearchTerm(everything, term)) score += 10;

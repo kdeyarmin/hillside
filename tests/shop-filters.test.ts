@@ -18,11 +18,17 @@ const KNOWN = ALL_TAGS.map((tag) => tag.slug);
 const product = (
   id: string,
   type: string,
-  minCents: number,
+  priceCents: number,
   tags: string[],
   collectionSlugs: string[] = [],
-  maxCents = minCents
-): FilterableProduct => ({ id, type, minCents, maxCents, tags, collectionSlugs });
+  extraPrices: number[] = []
+): FilterableProduct => ({
+  id,
+  type,
+  prices: [priceCents, ...extraPrices],
+  tags,
+  collectionSlugs
+});
 
 const pothos = product(
   'pothos',
@@ -63,11 +69,24 @@ describe('matchesFilters', () => {
     assert.equal(matchesFilters(flytrap, filters({ collection: 'house-plants' })), false);
   });
 
-  it('puts a product sold in several sizes in every band its sizes fall in', () => {
-    const ranged = product('ranged', 'PLANT', 1200, ['in-stock'], [], 4000);
+  /**
+   * The bands a multi-size product belongs to are the ones its sizes are
+   * actually priced in — not every band between the cheapest and the dearest.
+   * A $12/$40 plant answering "$15 to $30" is a filter offering something the
+   * shopper cannot buy at the price they asked for.
+   */
+  it('matches only the bands its real size prices fall in', () => {
+    const ranged = product('ranged', 'PLANT', 1200, ['in-stock'], [], [4000]);
     assert.equal(matchesFilters(ranged, filters({ price: 'under-15' })), true);
     assert.equal(matchesFilters(ranged, filters({ price: '30-60' })), true);
+    assert.equal(matchesFilters(ranged, filters({ price: '15-30' })), false);
     assert.equal(matchesFilters(ranged, filters({ price: '60-plus' })), false);
+  });
+
+  it('treats a band as half open, so a price on the boundary lands in one band', () => {
+    const exactly30 = product('p30', 'PLANT', 3000, ['in-stock']);
+    assert.equal(matchesFilters(exactly30, filters({ price: '15-30' })), false);
+    assert.equal(matchesFilters(exactly30, filters({ price: '30-60' })), true);
   });
 });
 
@@ -140,6 +159,31 @@ describe('buildFacets', () => {
     );
   });
 
+  /**
+   * Counting with *every* tag cleared let the Light facet advertise a plant the
+   * rail had already filtered out: after ticking "Pet safe", "Bright light (1)"
+   * was counted off a plant that is not pet safe, and ticking it emptied the
+   * grid.
+   */
+  it('counts one attribute group against the selections made in the others', () => {
+    const facets = buildFacets(catalog, filters({ tags: ['pet-safe'] }));
+    const light = facets.find((facet) => facet.key === 'tag:light');
+    const bright = light?.options.find((option) => option.value === 'bright-light');
+    // The only bright-light plant in the catalog is the flytrap, which is not
+    // pet safe, so nothing is left for it to count.
+    assert.equal(bright?.count ?? 0, 0);
+    const low = light?.options.find((option) => option.value === 'low-light');
+    assert.equal(low?.count, 1);
+  });
+
+  it('offers on sale in the rail when something is discounted', () => {
+    const discounted = product('sale-plant', 'PLANT', 2000, ['in-stock', 'on-sale']);
+    const facets = buildFacets([...catalog, discounted], filters());
+    const buying = facets.find((facet) => facet.key === 'tag:buying');
+    const onSale = buying?.options.find((option) => option.value === 'on-sale');
+    assert.equal(onSale?.count, 1, 'sale was reachable only through a hand-written URL');
+  });
+
   it('only offers a collection filter when collections are passed and differ', () => {
     const withCollections = buildFacets(catalog, filters(), [
       { slug: 'house-plants', title: 'House Plants' },
@@ -162,10 +206,9 @@ describe('parseShopFilters and shopFilterQuery', () => {
       category: 'PLANT',
       collection: 'house-plants',
       price: '15-30',
-      tags: ['pet-safe', 'low-light'],
+      tags: ['pet-safe', 'low-light', 'on-sale'],
       search: 'pothos',
-      sort: 'price-low',
-      onSaleOnly: true
+      sort: 'price-low'
     });
     const query = shopFilterQuery(state);
     const parsed = parseShopFilters(Object.fromEntries(new URLSearchParams(query)), KNOWN);
@@ -189,6 +232,26 @@ describe('parseShopFilters and shopFilterQuery', () => {
     assert.equal(parsed.sort, 'featured');
   });
 
+  it('drops a category the shop cannot honour, including one of pure whitespace', () => {
+    assert.equal(parseShopFilters({ category: 'BOGUS' }, KNOWN).category, 'ALL');
+    assert.equal(parseShopFilters({ category: '   ' }, KNOWN).category, 'ALL');
+    assert.equal(parseShopFilters({ category: 'plant' }, KNOWN).category, 'PLANT');
+    assert.equal(parseShopFilters({ category: 'BOTANICAL' }, KNOWN).category, 'BOTANICAL');
+  });
+
+  it('trims the text it reads, so a trailing space is not a different value', () => {
+    const parsed = parseShopFilters({ q: '  pothos ', collection: ' house-plants ' }, KNOWN);
+    assert.equal(parsed.search, 'pothos');
+    assert.equal(parsed.collection, 'house-plants');
+  });
+
+  it('still honours ?sale=true from links written before sale was a tag', () => {
+    assert.deepEqual(parseShopFilters({ sale: 'true' }, KNOWN).tags, ['on-sale']);
+    assert.deepEqual(parseShopFilters({ sale: 'false' }, KNOWN).tags, []);
+    // And it does not double up when both forms are present.
+    assert.deepEqual(parseShopFilters({ sale: 'true', tags: 'on-sale' }, KNOWN).tags, ['on-sale']);
+  });
+
   it('reads a repeated query parameter without crashing the page', () => {
     const parsed = parseShopFilters({ q: ['pothos', 'monstera'], category: ['plant'] }, KNOWN);
     assert.equal(parsed.search, 'pothos');
@@ -199,12 +262,12 @@ describe('parseShopFilters and shopFilterQuery', () => {
 describe('activeFilterChips and hasActiveFilters', () => {
   it('names every applied filter so each can be removed on its own', () => {
     const chips = activeFilterChips(
-      filters({ category: 'PLANT', price: '15-30', tags: ['pet-safe'], onSaleOnly: true }),
+      filters({ category: 'PLANT', price: '15-30', tags: ['pet-safe', 'on-sale'] }),
       []
     );
     assert.deepEqual(
       chips.map((chip) => chip.label),
-      ['Plants', '$15 to $30', 'On sale', 'Pet safe']
+      ['Plants', '$15 to $30', 'Pet safe', 'On sale']
     );
   });
 

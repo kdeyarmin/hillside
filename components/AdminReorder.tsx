@@ -58,10 +58,18 @@ export default function AdminReorder({
             className={`admin-reorder-row${dragging === item.id ? ' dragging' : ''}`}
             key={item.id}
             draggable
-            onDragStart={() => setDragging(item.id)}
+            onDragStart={(event) => {
+              /* Firefox refuses to start a drag unless the event carries data,
+                 so the row looks draggable and simply never moves without
+                 this. The value is not read back — the order lives in state. */
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', item.id);
+              setDragging(item.id);
+            }}
             onDragEnd={() => setDragging(null)}
             onDragOver={(event) => {
               event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
               if (!dragging || dragging === item.id) return;
               const from = order.findIndex((entry) => entry.id === dragging);
               if (from === -1 || from === index) return;

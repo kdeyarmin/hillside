@@ -272,14 +272,27 @@ export function tagLabel(slug: string) {
   return BY_SLUG.get(slug)?.label || slug.replaceAll('-', ' ');
 }
 
-/** Only tags this file knows about, deduplicated and in catalog order. */
-export function normalizeTags(values: readonly string[] | null | undefined): string[] {
-  const wanted = new Set((values || []).map((value) => value.trim().toLowerCase()));
-  return PRODUCT_TAGS.filter((tag) => wanted.has(tag.slug)).map((tag) => tag.slug);
-}
-
 function appliesToType(tag: ProductTag, type: string) {
   return !tag.types || tag.types.includes(type);
+}
+
+/**
+ * Only tags this file knows about, deduplicated and in catalog order.
+ *
+ * Pass `type` when storing a product's attributes and the ones that do not
+ * apply to it are dropped too. The dashboard renders every group whatever the
+ * product is, so without this a bar of soap could be saved as "low light" and
+ * would then answer a light filter, and a plant search, for the rest of its
+ * life.
+ */
+export function normalizeTags(
+  values: readonly string[] | null | undefined,
+  type?: string | null
+): string[] {
+  const wanted = new Set((values || []).map((value) => value.trim().toLowerCase()));
+  return PRODUCT_TAGS.filter(
+    (tag) => wanted.has(tag.slug) && (!type || appliesToType(tag, type))
+  ).map((tag) => tag.slug);
 }
 
 /**

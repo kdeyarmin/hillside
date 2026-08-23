@@ -157,11 +157,27 @@ export function merchandisingBadges(
   limit = 2
 ): MerchBadge[] {
   const badges: MerchBadge[] = [];
+  /**
+   * The saving is never suppressed. It is a fact about the price rather than a
+   * label about the product, and a shopper scanning a grid for a discount is
+   * entitled to see it whatever else the product is carrying.
+   */
   if (flags.savingPercent && flags.savingPercent > 0)
     badges.push({ label: `Save ${flags.savingPercent}%`, tone: 'sale' });
 
+  /**
+   * Tammy's own words replace the automatic labels rather than sitting beside
+   * them. The dashboard tells her exactly that — "a product with a badge shows
+   * that instead of Best seller" — and appending both broke the promise while
+   * making it impossible to override an earned badge with better copy, which is
+   * the only reason to type one.
+   */
   const custom = product.badge?.trim();
-  if (custom) badges.push({ label: custom, tone: 'custom' });
+  if (custom) {
+    badges.push({ label: custom, tone: 'custom' });
+    return badges.slice(0, Math.max(1, limit));
+  }
+
   if (flags.isBestSeller) badges.push({ label: 'Best seller', tone: 'best-seller' });
   if (product.staffPick) badges.push({ label: 'Tammy’s pick', tone: 'staff-pick' });
   if (flags.isNew) badges.push({ label: 'New', tone: 'new' });
@@ -225,7 +241,7 @@ export const HOMEPAGE_SECTION_KINDS: ReadonlyArray<{
   {
     kind: 'RECENT_BEST_SELLERS',
     label: 'Selling right now',
-    description: `What has actually sold in the last ${RECENT_BEST_SELLER_DAYS} days, most first.`
+    description: `Best sellers by the last ${RECENT_BEST_SELLER_DAYS} days rather than the season, most sold first.`
   },
   {
     kind: 'STAFF_PICKS',

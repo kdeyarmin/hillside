@@ -38,17 +38,33 @@ export const metadata = {
 };
 
 /**
- * Where a row's "shop all" link goes. A best-sellers row should land on the shop
- * sorted by what is selling, not on an unsorted grid the shopper then has to
- * re-find the row in.
+ * Where a row's "shop all" link goes, and what it should be called.
+ *
+ * A best-sellers row should land on the shop sorted by what is selling, not on
+ * an unsorted grid the shopper then has to re-find the row in. A collection row
+ * goes to that collection's own page: sending it to `/shop` dropped the one
+ * thing the row was curated by, which is the whole reason somebody clicked it.
  */
-function shopHrefForSection(kind: string) {
-  if (kind === 'BEST_SELLERS' || kind === 'RECENT_BEST_SELLERS') return '/shop?sort=best-selling';
-  if (kind === 'NEW_ARRIVALS') return '/shop?sort=new';
-  if (kind === 'ON_SALE') return '/shop?sale=true';
-  if (kind === 'STAFF_PICKS') return '/shop?tags=staff-pick';
-  if (kind === 'SEASONAL') return '/shop?tags=seasonal';
-  return '/shop';
+function sectionLink(section: { kind: string; collection: { slug: string } | null }) {
+  switch (section.kind) {
+    case 'BEST_SELLERS':
+    case 'RECENT_BEST_SELLERS':
+      return { href: '/shop?sort=best-selling', label: 'Shop all best sellers →' };
+    case 'NEW_ARRIVALS':
+      return { href: '/shop?sort=new', label: 'Shop all new arrivals →' };
+    case 'ON_SALE':
+      return { href: '/shop?tags=on-sale', label: 'Shop everything on sale →' };
+    case 'STAFF_PICKS':
+      return { href: '/shop?tags=staff-pick', label: 'Shop all of Tammy’s picks →' };
+    case 'SEASONAL':
+      return { href: '/shop?tags=seasonal', label: 'Shop everything in season →' };
+    case 'COLLECTION':
+      return section.collection
+        ? { href: `/collections/${section.collection.slug}`, label: 'Shop the collection →' }
+        : { href: '/shop', label: 'Shop all products →' };
+    default:
+      return { href: '/shop', label: 'Shop all products →' };
+  }
 }
 
 export default async function Home() {
@@ -62,6 +78,8 @@ export default async function Home() {
     db.homepageSection.findMany({
       where: { active: true },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      // The slug is what lets a collection row link back to its own page.
+      include: { collection: { select: { slug: true } } },
       take: 8
     }),
     // Hidden classes are not fetched at all, so the homepage costs one query
@@ -285,8 +303,8 @@ export default async function Home() {
                     <h2>{section.title}</h2>
                     {section.subtitle && <p>{section.subtitle}</p>}
                   </div>
-                  <Link className="editorial-link" href={shopHrefForSection(section.kind)}>
-                    Shop all products →
+                  <Link className="editorial-link" href={sectionLink(section).href}>
+                    {sectionLink(section).label}
                   </Link>
                 </div>
                 <ProductGrid products={products.map(decorate)} />

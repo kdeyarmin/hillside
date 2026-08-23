@@ -29,6 +29,20 @@ describe('normalizeTags', () => {
     assert.deepEqual(normalizeTags(null), []);
     assert.deepEqual(normalizeTags(undefined), []);
   });
+
+  /**
+   * The product form shows every attribute group whatever is being edited, so
+   * a soap saved as "low light" would answer a light filter and a plant search
+   * for the rest of its life.
+   */
+  it('drops an attribute that cannot apply to the product being saved', () => {
+    assert.deepEqual(normalizeTags(['low-light', 'handmade'], 'SOAP'), ['handmade']);
+    assert.deepEqual(normalizeTags(['low-light', 'handmade'], 'PLANT'), ['low-light', 'handmade']);
+  });
+
+  it('keeps every known attribute when no type narrows it', () => {
+    assert.deepEqual(normalizeTags(['low-light', 'handmade']), ['low-light', 'handmade']);
+  });
 });
 
 describe('tagsForTypes', () => {

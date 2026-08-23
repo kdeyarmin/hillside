@@ -417,9 +417,19 @@ const categories: CategorySeed[] = [
   }
 ];
 
+/** Whether a one-time seed has already had its turn. */
+async function alreadySeeded(key: string) {
+  return Boolean(await db.seedMarker.findUnique({ where: { key }, select: { key: true } }));
+}
+
+async function markSeeded(key: string) {
+  await db.seedMarker.upsert({ where: { key }, create: { key }, update: {} });
+}
+
 async function seedCategoryContent() {
   let updated = 0;
   let careLinked = 0;
+  let skipped = 0;
 
   const careSheets = await db.careSheet.findMany({
     where: { published: true },
@@ -427,6 +437,19 @@ async function seedCategoryContent() {
   });
 
   for (const seed of categories) {
+    /**
+     * Once per category, ever. Emptiness cannot tell an untouched category from
+     * one whose copy Tammy deliberately cleared, and the deploy runs this on
+     * every release — so without the marker, deleting an introduction she did
+     * not want simply scheduled its return. Keyed per category so a category
+     * added to this file later still gets its starting copy.
+     */
+    const marker = `category-content:${seed.slug}`;
+    if (await alreadySeeded(marker)) {
+      skipped += 1;
+      continue;
+    }
+
     const collection = await db.collection.findUnique({
       where: { slug: seed.slug },
       select: {
@@ -443,9 +466,8 @@ async function seedCategoryContent() {
     if (!collection) continue;
 
     /**
-     * Each field is filled only when it is still empty. A category Tammy has
-     * written herself is left completely alone, which is what makes this safe to
-     * run on every deploy.
+     * Each field is filled only when it is still empty, so a category Tammy has
+     * already written is left alone even on its first pass through this seed.
      */
     const data: Prisma.CollectionUpdateInput = {};
     if (!collection.intro?.trim()) data.intro = seed.intro;
@@ -476,20 +498,40 @@ async function seedCategoryContent() {
         careLinked += Math.min(matches.length, 6);
       }
     }
+
+    await markSeeded(marker);
   }
 
-  console.log(`Category content ready: ${updated} updated, ${careLinked} care guides linked.`);
+  console.log(
+    `Category content ready: ${updated} updated, ${careLinked} care guides linked, ${skipped} left to the owner.`
+  );
 }
 
 /**
- * The homepage rows, seeded once. After this the arrangement belongs to the
- * dashboard — including an owner who deleted every row on purpose, which is why
- * this only ever runs against a completely empty table.
+ * The homepage rows, seeded exactly once.
+ *
+ * An empty table is not the same question as "has this run?": an owner who
+ * deletes every row is choosing a homepage without merchandising strips, and
+ * counting rows would have rebuilt all four on the next deploy. The marker is
+ * what makes that empty arrangement survive.
  */
 async function seedHomepageSections() {
+  if (await alreadySeeded('homepage-sections')) {
+    const existing = await db.homepageSection.count();
+    console.log(`Homepage sections left to the owner: ${existing} arranged.`);
+    return;
+  }
+
+  /**
+   * The deploy that introduces the marker meets installs that were seeded by the
+   * older count-based rule. Rows already there mean the seed has had its turn —
+   * adopt them and record the marker, rather than creating a second copy of
+   * every default row on the shop's next release.
+   */
   const existing = await db.homepageSection.count();
   if (existing > 0) {
-    console.log(`Homepage sections left alone: ${existing} already arranged.`);
+    await markSeeded('homepage-sections');
+    console.log(`Homepage sections adopted: ${existing} already arranged.`);
     return;
   }
 
@@ -503,6 +545,7 @@ async function seedHomepageSections() {
       sortOrder: section.sortOrder
     }))
   });
+  await markSeeded('homepage-sections');
   console.log(`Homepage sections created: ${DEFAULT_HOMEPAGE_SECTIONS.length}.`);
 }
 

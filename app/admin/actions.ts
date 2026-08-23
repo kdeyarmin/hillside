@@ -156,11 +156,17 @@ export async function saveProduct(formData: FormData) {
     botanical: text(formData, 'botanical') || null,
     searchTerms: text(formData, 'searchTerms') || null,
     /**
-     * Only attributes the tag catalog knows about are stored. A posted value
-     * that is not in it is a stale form or a hand-crafted request, and letting
-     * one through would put a filter in the shop that nothing can ever label.
+     * Only attributes the tag catalog knows about *and* that apply to this
+     * product's type are stored. A posted value outside the catalog is a stale
+     * form or a hand-crafted request; one that is simply wrong for the type —
+     * "low light" on a bar of soap — is a slip on a form that shows every group
+     * whatever is being edited, and either would put a product behind a filter
+     * that can never describe it.
      */
-    tags: normalizeTags(formData.getAll('tags').map((value) => String(value))),
+    tags: normalizeTags(
+      formData.getAll('tags').map((value) => String(value)),
+      type
+    ),
     seasonStartsAt: optionalDate(text(formData, 'seasonStartsAt')),
     seasonEndsAt: optionalDate(text(formData, 'seasonEndsAt')),
     sortOrder: integer(formData.get('sortOrder')),

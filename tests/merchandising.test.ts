@@ -137,6 +137,31 @@ describe('merchandisingBadges', () => {
     );
   });
 
+  /**
+   * The dashboard promises her badge shows "instead of Best seller". Appending
+   * both broke that, and made it impossible to replace an earned label with
+   * better copy — the only reason to type a badge at all.
+   */
+  it('replaces the automatic labels rather than sitting beside them', () => {
+    const badges = merchandisingBadges(
+      { badge: 'Last one', staffPick: true },
+      { isBestSeller: true, isNew: true, isInSeason: true },
+      3
+    );
+    assert.deepEqual(
+      badges.map((badge) => badge.label),
+      ['Last one']
+    );
+  });
+
+  it('still shows the saving alongside her badge, because that is about the price', () => {
+    const badges = merchandisingBadges({ badge: 'Last one' }, { savingPercent: 15 });
+    assert.deepEqual(
+      badges.map((badge) => badge.tone),
+      ['sale', 'custom']
+    );
+  });
+
   it('falls through to the automatic labels when there is no badge text', () => {
     const badges = merchandisingBadges({}, { isBestSeller: true, isNew: true });
     assert.deepEqual(
@@ -147,7 +172,7 @@ describe('merchandisingBadges', () => {
 
   it('caps the chips so a product cannot become a wall of pills', () => {
     const badges = merchandisingBadges(
-      { badge: 'Limited', staffPick: true },
+      { staffPick: true },
       { savingPercent: 10, isBestSeller: true, isNew: true, isInSeason: true },
       3
     );
