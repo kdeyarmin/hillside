@@ -1,8 +1,8 @@
 import '../../classroom.css';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import type { AmazonPick, ClassEvent, Collection, GalleryItem } from '@prisma/client';
-import { ClassFormat } from '@prisma/client';
+import type { AmazonPick, Category, ClassEvent, Collection, GalleryItem } from '@prisma/client';
+import { ClassFormat, ProductSpecKind, ProductType } from '@prisma/client';
 import AdminDeepLink from '@/components/AdminDeepLink';
 import ConfirmSubmit from '@/components/ConfirmSubmit';
 import PendingSubmit from '@/components/PendingSubmit';
@@ -14,22 +14,66 @@ import {
 } from '@/lib/admin-dashboard';
 import { careGuideTypeLabel } from '@/lib/care-seed-data';
 import { faqLines } from '@/lib/category-content';
+import { SPEC_KIND_LABELS } from '@/lib/product-categories';
 import { classFormatLabel, isOnlineClass } from '@/lib/class-access';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
-import { isNavigationCollection } from '@/lib/collections';
 import { db } from '@/lib/db';
+import { productTypeLabel } from '@/lib/store';
 import { telnyxVideoConfigured } from '@/lib/telnyx-video';
 import {
   addAmazonPickByUrl,
   archiveContent,
+  deleteCategory,
   deleteCollection,
   fillAmazonPickFromLink,
   prepareClassRoom,
   saveAmazonPick,
+  saveCategory,
   saveClassEvent,
   saveCollection,
-  saveGalleryItem
+  saveGalleryItem,
+  setCategoryActive
 } from '../actions';
+
+/**
+ * A category is the structural half of the shop's navigation, so its form asks two
+ * questions a collection's does not: which detail fields its products are asked for,
+ * and which of the six legacy product types they are recorded as. Both have
+ * consequences beyond this page, so both are explained where they are answered.
+ */
+function CategoryFields({ category }: { category?: Category }) {
+  return (
+    <>
+      {category && <input type="hidden" name="id" value={category.id} />}
+      <div className="admin-form-grid">
+        <label className="admin-label">Category name<input className="admin-input" name="title" defaultValue={category?.title} required /></label>
+        <label className="admin-label">URL slug<input className="admin-input" name="slug" defaultValue={category?.slug || ''} placeholder="created-from-name" /></label>
+        <label className="admin-label">Short tagline<input className="admin-input" name="tagline" defaultValue={category?.tagline || ''} placeholder="Living beauty for every room" /></label>
+        <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={category?.sortOrder ?? 0} /></label>
+        <label className="admin-label">
+          Which details its products are asked for
+          <select className="admin-input" name="specKind" defaultValue={category?.specKind || ProductSpecKind.GENERAL}>
+            {Object.values(ProductSpecKind).map((kind) => (<option value={kind} key={kind}>{SPEC_KIND_LABELS[kind]}</option>))}
+          </select>
+          <span className="admin-hint">Chooses the fields on the product form — a tea is asked for its steep time and allergens, a carnivorous plant for its dormancy and water type.</span>
+        </label>
+        <label className="admin-label">
+          Counts as
+          <select className="admin-input" name="legacyType" defaultValue={category?.legacyType || ProductType.OTHER}>
+            {Object.values(ProductType).map((type) => (<option value={type} key={type}>{productTypeLabel(type)}</option>))}
+          </select>
+          <span className="admin-hint">The broad shelf used by the returns policy shown in search results. Live plants and teas are final sale; everything else may be returned unopened.</span>
+        </label>
+        <label className="admin-label full">Description<textarea className="admin-input" name="description" rows={3} defaultValue={category?.description || ''} /></label>
+        <label className="admin-label full">Cover photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={category?.imageUrl || ''} /></label>
+      </div>
+      <div className="admin-actions">
+        <label className="admin-checkbox"><input name="active" type="checkbox" defaultChecked={category?.active ?? true} /> Shown in the shop</label>
+        <label className="admin-checkbox"><input name="featured" type="checkbox" defaultChecked={category?.featured ?? true} /> Offer as a shop-by tile and a filter chip</label>
+      </div>
+    </>
+  );
+}
 
 function CollectionFields({
   collection,
@@ -206,7 +250,7 @@ export default async function ContentManager({
       : focusSection === 'collections'
         ? 'collection'
         : focusSection || 'item';
-  const [classes, gallery, picks, sheets, collections] = await Promise.all([
+  const [classes, gallery, picks, sheets, collections, categories] = await Promise.all([
     db.classEvent.findMany({ orderBy: { startsAt: 'desc' } }),
     db.galleryItem.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] }),
     db.amazonPick.findMany({ orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { title: 'asc' }] }),
@@ -217,6 +261,10 @@ export default async function ContentManager({
         _count: { select: { products: { where: { active: true } } } },
         careSheets: { select: { id: true } }
       }
+    }),
+    db.category.findMany({
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      include: { _count: { select: { products: true } } }
     })
   ]);
   const telnyxReady = telnyxVideoConfigured();
@@ -231,6 +279,7 @@ export default async function ContentManager({
         <img src="/logo.webp" alt="The Hillside Gardens" />
         <b>Website Content Manager</b>
         <Link href="/admin">← Business dashboard</Link>
+        <a href="#categories">Categories</a>
         <a href="#collections">Collections</a>
         <a href="#classes">Classes</a>
         <a href="#gallery">Gallery</a>
@@ -260,15 +309,81 @@ export default async function ContentManager({
           <div className="stat"><span>Gallery photos</span><strong>{gallery.length}</strong></div>
           <div className="stat"><span>Amazon picks</span><strong>{picks.filter((item) => item.active).length}</strong></div>
           <div className="stat"><span>Care sheets</span><strong>{sheets.filter((item) => item.published).length}</strong></div>
+          <div className="stat"><span>Categories</span><strong>{categories.filter((item) => item.active).length}</strong></div>
           <div className="stat"><span>Collections</span><strong>{collections.filter((item) => item.active).length}</strong></div>
           <div className="stat"><span>Telnyx Video</span><strong>{telnyxReady ? 'Ready' : 'Setup'}</strong></div>
         </div>
 
+        <section className="admin-section" id="categories">
+          <h2>Categories</h2>
+          <p className="muted">
+            A category says <b>what a thing is</b> — Houseplants, Carnivorous Plants, Tea Accessories.
+            Every product sits in exactly one, and it is what the shop&rsquo;s filters and the site
+            header navigate by. It also decides which details a product is asked for on its own page,
+            so a tea is asked about caffeine and a flytrap about dormancy.
+          </p>
+          <div className="admin-list">
+            {categories.map((category) => (
+              <details key={category.id} id={`category-${category.id}`} open={focusItem === category.id}>
+                <summary>
+                  <span>
+                    {category.title} • {category._count.products}{' '}
+                    {category._count.products === 1 ? 'product' : 'products'} •{' '}
+                    {SPEC_KIND_LABELS[category.specKind].toLowerCase()} details
+                  </span>
+                  <span className={`status-badge ${category.active ? 'PAID' : 'CANCELLED'}`}>
+                    {category.active ? 'Shown' : 'Hidden'}
+                  </span>
+                </summary>
+                <div>
+                  <form action={saveCategory}>
+                    <CategoryFields category={category} />
+                    <div className="admin-actions">
+                      <button className="btn small">Save category</button>
+                      <Link className="btn outline small" href={`/shop?category=${category.slug}`}>View in the shop</Link>
+                    </div>
+                  </form>
+                  <div className="admin-actions">
+                    <form action={setCategoryActive}>
+                      <input type="hidden" name="id" value={category.id} />
+                      <input type="hidden" name="active" value={category.active ? 'false' : 'true'} />
+                      <button className={`text-button${category.active ? ' danger' : ''}`}>
+                        {category.active ? 'Hide from the shop' : 'Show in the shop'}
+                      </button>
+                    </form>
+                    {/* Deleting is only offered while nothing would be orphaned by it: the
+                        relation nulls on delete, so a product would survive and silently
+                        fall out of every filter that leads to it. */}
+                    {category._count.products === 0 && (
+                      <form action={deleteCategory}>
+                        <input type="hidden" name="id" value={category.id} />
+                        <ConfirmSubmit className="text-button danger" message={`Delete “${category.title}”? It holds no products, so nothing will lose its category.`}>
+                          Delete category
+                        </ConfirmSubmit>
+                      </form>
+                    )}
+                  </div>
+                </div>
+              </details>
+            ))}
+          </div>
+          <div className="admin-card" id="add-category" style={{ marginTop: 20 }}>
+            <h2 style={{ marginTop: 0 }}>Add a category</h2>
+            <p className="muted">Add one whenever the bench starts carrying something the list does not describe.</p>
+            <form action={saveCategory}>
+              <CategoryFields />
+              <button className="btn" style={{ marginTop: 14 }}>Create category</button>
+            </form>
+          </div>
+        </section>
+
         <section className="admin-section" id="collections">
           <h2>Collections</h2>
           <p className="muted">
-            Collections are how the website groups what you sell. A collection only appears on the
-            homepage once it holds at least one active product — assign products from the
+            A collection says <b>why you might want it</b> — Beginner Friendly, Low Light, Pet
+            Friendly, Gifts Under $30 — and a product joins as many as apply, on top of the one
+            category it belongs to. A collection only appears on the website once it holds at least
+            one active product; assign products from the
             <Link className="text-link" href="/admin#inventory"> inventory section</Link> of the business dashboard.
           </p>
           <div className="admin-list">
@@ -298,21 +413,17 @@ export default async function ContentManager({
                       <Link className="btn outline small" href={`/collections/${collection.slug}`}>View collection</Link>
                     </div>
                   </form>
-                  {isNavigationCollection(collection.slug) ? (
-                    <p className="muted" style={{ marginTop: 10 }}>
-                      This collection is linked from the site header, so it cannot be deleted or hidden.
-                    </p>
-                  ) : (
-                    <form action={deleteCollection} style={{ marginTop: 10 }}>
-                      <input type="hidden" name="id" value={collection.id} />
-                      <ConfirmSubmit
-                        className="text-button danger"
-                        message={`Delete “${collection.title}”? Products stay in inventory, but this collection page will 404.`}
-                      >
-                        Delete collection
-                      </ConfirmSubmit>
-                    </form>
-                  )}
+                  {/* Every collection is the owner's to delete: the header navigates by
+                      category now, so nothing structural depends on one surviving. */}
+                  <form action={deleteCollection} style={{ marginTop: 10 }}>
+                    <input type="hidden" name="id" value={collection.id} />
+                    <ConfirmSubmit
+                      className="text-button danger"
+                      message={`Delete “${collection.title}”? Products stay in inventory, but this collection page will 404.`}
+                    >
+                      Delete collection
+                    </ConfirmSubmit>
+                  </form>
                 </div>
               </details>
             ))}

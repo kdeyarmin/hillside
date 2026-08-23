@@ -2,15 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import ShopClient from '@/components/ShopClient';
 import { db } from '@/lib/db';
-import { ratingsByProduct } from '@/lib/reviews';
-import {
-  merchandisingFlagsFor,
-  PRODUCT_CARD_SELECT,
-  tagsWithFlags
-} from '@/lib/merchandising-data';
+import { PRODUCT_CARD_SELECT, withCardFacts } from '@/lib/product-cards';
+import { tagsWithFlags } from '@/lib/merchandising-data';
 import { ALL_TAGS, tagLabel } from '@/lib/product-tags';
 import { parseShopFilters, shopFilterQuery } from '@/lib/shop-filters';
-import { categoryLabel } from '@/lib/store';
+import { categoryLabel, isLegacyCategoryFilter } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
@@ -41,7 +37,6 @@ export async function generateMetadata({
   /**
    * A filtered view is the shop with a narrower selection, not a page of its
    * own, so it keeps the shop's canonical while carrying its own title and card.
-   * Categories worth their own indexable page are collections, which have one.
    */
   if (filters.tags.length === 1 && filters.category === 'ALL') {
     const label = tagLabel(filters.tags[0]);
@@ -53,28 +48,32 @@ export async function generateMetadata({
   }
 
   if (filters.category !== 'ALL') {
+    /**
+     * The category's own row supplies the title and the sentence under it, so a
+     * shared `/shop?category=carnivorous-plants` link previews as what Tammy
+     * called the shelf rather than as a slug. A legacy `?category=BOTANICAL`
+     * link has no row, and `categoryLabel` is what answers for it.
+     */
+    const row = isLegacyCategoryFilter(filters.category)
+      ? null
+      : await db.category.findUnique({
+          where: { slug: filters.category },
+          select: { title: true, description: true, tagline: true }
+        });
+    const title = row?.title || categoryLabel(filters.category);
     return pageMetadata({
       path: '/shop',
-      title: `${categoryLabel(filters.category)} — Shop`,
-      description: `Shop ${categoryLabel(filters.category).toLowerCase()} from The Hillside Gardens, potted and packed by hand in Ebensburg, PA.`
+      title: `${title} — Shop`,
+      description:
+        row?.description || row?.tagline || `Shop ${title.toLowerCase()} from The Hillside Gardens.`
     });
   }
 
   return pageMetadata({
     path: '/shop',
-    title: 'Shop Houseplants, Botanicals & Terrarium Supplies',
+    title: 'Shop Plants, Botanical Goods & Creative Planting',
     description:
-      'Shop houseplants, carnivorous plants, succulents, air plants, terrarium supplies, loose-leaf tea and handmade botanical goods from The Hillside Gardens in Ebensburg, PA. Filter by light, pet safety and more.',
-    keywords: [
-      'houseplants',
-      'carnivorous plants',
-      'succulents',
-      'air plants',
-      'terrarium supplies',
-      'botanical goods',
-      'pet safe plants',
-      'plant shop Cambria County'
-    ]
+      'Shop houseplants, carnivorous plants, succulents, air plants, living arrangements, terrarium supplies, moss, driftwood, handmade soap, botanical lotion and tea from The Hillside Gardens.'
   });
 }
 
@@ -82,7 +81,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
   const params = await searchParams;
   const filters = parseShopFilters(params, KNOWN_TAGS);
 
-  const [products, collections] = await Promise.all([
+  const [products, collections, categories] = await Promise.all([
     /**
      * Only the fields a card renders, and a ceiling on the row count.
      *
@@ -109,27 +108,31 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
       select: { slug: true, title: true },
       take: 12
+    }),
+    /**
+     * The categories offered as chips, in the owner's order. `featured` is what
+     * the category form calls "offer as a shop-by tile and a filter chip", so
+     * the shop has to honour it too — reading `active` alone meant unticking it
+     * took the homepage tile away and left the chip behind, which is not what
+     * the checkbox says it does. The chips are narrowed further to the ones that
+     * hold something in the browser, where the catalog being filtered already is.
+     */
+    db.category.findMany({
+      where: { active: true, featured: true },
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      select: { slug: true, title: true }
     })
   ]);
 
-  const [ratings, flags] = await Promise.all([
-    ratingsByProduct(products.map((product) => product.id)),
-    merchandisingFlagsFor(products)
-  ]);
-
-  const shopProducts = products.map((product) => {
-    const productFlags = flags.get(product.id);
-    return {
-      ...product,
-      averageRating: ratings.get(product.id)?.average ?? null,
-      reviewCount: ratings.get(product.id)?.count ?? 0,
-      // Assigned attributes plus the ones the shop worked out, so the filter
-      // rail in the browser and the badges on the cards agree.
-      tags: tagsWithFlags(product, productFlags),
-      flags: productFlags,
-      unitsSold: productFlags?.unitsSold ?? 0
-    };
-  });
+  /**
+   * Assigned attributes plus the ones the shop worked out, so the filter rail in
+   * the browser and the badges on the cards agree.
+   */
+  const shopProducts = (await withCardFacts(products)).map((product) => ({
+    ...product,
+    tags: tagsWithFlags(product, product.flags),
+    unitsSold: product.flags?.unitsSold ?? 0
+  }));
 
   const catalogEmpty = products.length === 0;
 
@@ -137,7 +140,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
     <>
       <section className="pagehero">
         <div className="container">
-          <div className="eyebrow">Plants • Teas • Botanicals</div>
+          <div className="eyebrow">Plants • Botanical goods • Creative planting</div>
           {catalogEmpty ? (
             <>
               <h1>The bench is between batches.</h1>
@@ -150,9 +153,9 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
             <>
               <h1>Shop The Hillside.</h1>
               <p>
-                Houseplants, carnivorous plants, succulents, air plants, terrarium supplies and
-                small-batch botanical goods — potted and packed by hand in Ebensburg, Pennsylvania,
-                for local pickup or shipping.
+                Houseplants, carnivorous plants, succulents and air plants; living arrangements and
+                terrarium supplies; moss, driftwood, handmade soap, botanical lotion and tea.
+                Shipped across the US, or collected here in Ebensburg.
               </p>
             </>
           )}
@@ -178,6 +181,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
             key={shopFilterQuery(filters)}
             products={shopProducts}
             collections={collections}
+            categories={categories}
             initial={filters}
           />
         </div>

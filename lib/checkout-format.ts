@@ -60,6 +60,15 @@ export type CheckoutLine = {
   size?: string | null;
   /** What this line is charged, which for a sized line is the size's price. */
   unitCents: number;
+  /**
+   * How this line gets home. A variant may answer differently from its product
+   * — a specimen too large to post safely beside pots that ship fine — so the
+   * line carries the resolved answer rather than the caller re-deriving it.
+   */
+  ships?: boolean;
+  pickup?: boolean;
+  /** The photograph for this line, which a variant may override. */
+  imageUrl?: string | null;
 };
 
 export function holdExpiry(now = new Date()) {

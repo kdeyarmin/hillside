@@ -294,7 +294,12 @@ export type OfferInput = {
   /** Total stock, used when the sizes are not counted separately. */
   inventory: number;
   priceCents: number;
-  sizes: Array<{ label: string; priceCents: number; inventory: number | null }>;
+  sizes: Array<{
+    label: string;
+    priceCents: number;
+    inventory: number | null;
+    sku?: string | null;
+  }>;
 };
 
 /**
@@ -394,7 +399,12 @@ export function productOffers(product: OfferInput) {
       priceCents: size.priceCents,
       available: countedSeparately ? (size.inventory ?? 0) > 0 : product.inventory > 0,
       name: size.label,
-      sku: product.sku ? `${product.sku}-${size.label.replace(/\s+/g, '-')}` : null
+      /**
+       * A variant carrying its own SKU is the one the shop actually picks and
+       * ships, so it is the one published. The derived suffix is only for
+       * variants that never had one of their own.
+       */
+      sku: size.sku || (product.sku ? `${product.sku}-${size.label.replace(/\s+/g, '-')}` : null)
     })
   );
 }

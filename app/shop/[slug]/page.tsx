@@ -11,13 +11,20 @@ import StockAlertForm from '@/components/StockAlertForm';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
-import { ratingsByProduct } from '@/lib/reviews';
+import { specKindFor } from '@/lib/product-categories';
+import { withCardFacts } from '@/lib/product-cards';
+import { productPhotos } from '@/lib/product-photos';
+import { specSections } from '@/lib/product-specs';
+import { ratingForProduct } from '@/lib/reviews';
 import { jsonLd } from '@/lib/json-ld';
 import {
   comparableAtCents,
   formatSizePriceRange,
+  fulfillmentAcrossVariants,
   productSizes,
-  sizePriceRange
+  sizeFieldLabel,
+  sizePriceRange,
+  variantsDifferOnFulfillment
 } from '@/lib/product-sizes';
 import { breadcrumbJsonLd, pageMetadata, productJsonLd, productOffers } from '@/lib/seo';
 import { merchandisingBadges } from '@/lib/merchandising';
@@ -31,7 +38,7 @@ import {
   productTypePlural,
   resolveImageUrl
 } from '@/lib/store';
-import { fulfillmentBlurb, offersPickup, offersShipping } from '@/lib/fulfillment';
+import { fulfillmentBlurb } from '@/lib/fulfillment';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,7 +64,8 @@ const RELATED_SELECT = {
   newArrivalMode: true,
   bestSellerMode: true,
   seasonStartsAt: true,
-  seasonEndsAt: true
+  seasonEndsAt: true,
+  category: { select: { slug: true, title: true } }
 } as const;
 
 /**
@@ -107,6 +115,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const product = await db.product.findFirst({
     where: { slug },
     include: {
+      category: true,
       collections: { where: { active: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
       careSheets: { where: { published: true }, take: 2 },
       /**
@@ -149,8 +158,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       : db.product.findMany({
           where: {
             active: true,
-            type: product.type,
-            id: { notIn: [product.id, ...chosenRelated.map((item) => item.id)] }
+            id: { notIn: [product.id, ...chosenRelated.map((item) => item.id)] },
+            // A flytrap suggests other carnivorous plants rather than every
+            // plant in the shop. A product predating the taxonomy has only its
+            // broad type to fall back on.
+            ...(product.categoryId ? { categoryId: product.categoryId } : { type: product.type })
           },
           orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
           select: RELATED_SELECT,
@@ -161,26 +173,21 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       orderBy: { createdAt: 'desc' },
       take: 20
     }),
-    ratingsByProduct([product.id]).then((map) => map.get(product.id) || { average: 0, count: 0 })
+    ratingForProduct(product.id)
   ]);
 
   const related = [...chosenRelated, ...fallbackRelated].slice(0, 3);
   const sideProducts = [...related, ...crossSells, ...bundleItems];
-  const [relatedRatings, sideFlags] = await Promise.all([
-    ratingsByProduct(sideProducts.map((item) => item.id)),
-    merchandisingFlagsFor([product, ...sideProducts])
+  const [decoratedSide, ownFlags] = await Promise.all([
+    withCardFacts(sideProducts),
+    merchandisingFlagsFor([product])
   ]);
-  const withRating = <T extends { id: string }>(item: T) => ({
-    ...item,
-    averageRating: relatedRatings.get(item.id)?.average ?? null,
-    reviewCount: relatedRatings.get(item.id)?.count ?? 0,
-    flags: sideFlags.get(item.id)
-  });
-  const relatedProducts = related.map(withRating);
-  const crossSellProducts = crossSells.map(withRating);
-  const bundleProducts = bundleItems.map(withRating);
+  const bySlug = new Map(decoratedSide.map((item) => [item.id, item]));
+  const relatedProducts = related.map((item) => bySlug.get(item.id)!);
+  const crossSellProducts = crossSells.map((item) => bySlug.get(item.id)!);
+  const bundleProducts = bundleItems.map((item) => bySlug.get(item.id)!);
 
-  const flags = sideFlags.get(product.id);
+  const flags = ownFlags.get(product.id);
   const primaryCollection = product.collections[0] || null;
   /**
    * Only the attributes Tammy assigned. The derived ones — in stock, ships, on
@@ -191,7 +198,31 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   const threshold = freeShippingThresholdCents();
   const soldOut = product.inventory <= 0;
-  const sizes = productSizes(product.sizes, product.priceCents);
+  /**
+   * Resolved against the product, so a variant that says nothing about its
+   * photograph, its SKU or how it gets home answers with the product's.
+   */
+  const sizes = productSizes(product.sizes, product.priceCents, {
+    sku: product.sku,
+    imageUrl: product.imageUrl,
+    weightOunces: product.weightOunces,
+    dimensions: product.dimensions,
+    ships: product.ships,
+    pickup: product.pickup
+  });
+  const specs = specSections(specKindFor(product), product.specs);
+  const categoryName = product.category?.title || productTypeLabel(product.type);
+  const mixedFulfillment = variantsDifferOnFulfillment(sizes);
+  /**
+   * How this product actually gets home. Read from the variants where there are
+   * any, because they may override the product's own two checkboxes: a plant
+   * ticked as shipping whose every variant is pickup-only ships in no sense a
+   * customer can act on, and checkout — which resolves the variant — would
+   * refuse the order this page had just offered.
+   */
+  const fulfillment = fulfillmentAcrossVariants(sizes, product);
+  /** Whether the section below has anything to say at all. */
+  const hasSpecifics = specs.length > 0 || Boolean(product.dimensions);
   const compareAt = comparableAtCents(sizes, product.priceCents, product.compareAtCents);
   const saving = discountPercent(product.priceCents, compareAt);
   /**
@@ -220,9 +251,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const breadcrumbSchema = breadcrumbJsonLd([
     { name: 'Home', path: '/' },
     { name: 'Shop', path: '/shop' },
-    ...(primaryCollection
-      ? [{ name: primaryCollection.title, path: `/collections/${primaryCollection.slug}` }]
-      : []),
+    /**
+     * The category is the structural parent — a product has exactly one — so it
+     * is the crumb. A collection cuts across categories and is not a path down
+     * to this page; it is only used where a product has no category yet.
+     */
+    ...(product.category
+      ? [{ name: product.category.title, path: `/shop?category=${product.category.slug}` }]
+      : primaryCollection
+        ? [{ name: primaryCollection.title, path: `/collections/${primaryCollection.slug}` }]
+        : []),
     { name: product.name, path: `/shop/${product.slug}` }
   ]);
 
@@ -247,6 +285,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <Link href="/">Home</Link>
           <span>/</span>
           <Link href="/shop">Shop</Link>
+          {product.category && (
+            <>
+              <span>/</span>
+              <Link href={`/shop?category=${product.category.slug}`}>{product.category.title}</Link>
+            </>
+          )}
           <span>/</span>
           <span>{product.name}</span>
         </div>
@@ -257,11 +301,22 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               name={product.name}
               type={product.type}
               imageUrl={product.imageUrl}
-              images={product.galleryImages}
+              photos={productPhotos(product)}
             />
           </div>
           <div className="product-detail-copy">
-            <div className="eyebrow">{productTypeLabel(product.type)}</div>
+            <div className="eyebrow">
+              {product.category ? (
+                <Link
+                  className="product-category-link"
+                  href={`/shop?category=${product.category.slug}`}
+                >
+                  {product.category.title}
+                </Link>
+              ) : (
+                categoryName
+              )}
+            </div>
             <div className="product-detail-badges">
               {merchandisingBadges(
                 product,
@@ -318,7 +373,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   : `${product.inventory} available`}
             </p>
 
-            {threshold > 0 && offersShipping(product) && (
+            {threshold > 0 && fulfillment.ships && (
               <p className="shipping-nudge">
                 <Truck size={17} aria-hidden="true" />
                 {/* Quoted against the cheapest size, so the promise holds
@@ -328,7 +383,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   : `Free standard shipping on orders over ${formatMoney(threshold)}.`}
               </p>
             )}
-            {!offersShipping(product) && offersPickup(product) && (
+            {!fulfillment.ships && fulfillment.pickup && (
               <p className="shipping-nudge">
                 <Truck size={17} aria-hidden="true" />
                 Local pickup only — this piece does not ship.
@@ -350,7 +405,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               )}
               <div className="note-box">
                 <b>How it gets home</b>
-                {fulfillmentBlurb(product)}
+                {mixedFulfillment
+                  ? `This is not sold the same way in every ${sizeFieldLabel(
+                      product.sizeLabel
+                    ).toLowerCase()} — choose one above and the panel says whether it ships, is collected here, or both.`
+                  : fulfillmentBlurb(fulfillment)}
               </div>
               <div className="note-box">
                 <b>Secure checkout</b>Payment is processed by Stripe. A receipt and invoice are
@@ -413,11 +472,82 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </div>
         </div>
 
+        {/* Ingredients and brewing are not repeated here: they are structured
+            fields, and the specifics section below renders them from the same
+            registry the form writes, rather than from a second copy that can
+            disagree with it. */}
         {product.details && (
           <div className="product-details-section narrow prose">
             <div className="eyebrow">Product details</div>
             <h2>About this item</h2>
             <p style={{ whiteSpace: 'pre-line' }}>{product.details}</p>
+          </div>
+        )}
+
+        {/* The structured detail Tammy filled in for this kind of product — a
+            plant's light and water, a tea's steep time and allergens, a bag of
+            gravel's dimensions. Anything she left blank is not rendered, so a
+            listing says what is known and stays quiet about the rest. */}
+        {hasSpecifics && (
+          <div className="product-details-section">
+            <div className="sectionhead">
+              <div className="eyebrow">The specifics</div>
+              <h2>{categoryName} details.</h2>
+            </div>
+            <div className="spec-groups">
+              {specs.map((section) => (
+                <section className="spec-group" key={section.title}>
+                  <h3>{section.title}</h3>
+                  <dl>
+                    {section.rows.map((row) => (
+                      <div className={row.long ? 'spec-row long' : 'spec-row'} key={row.key}>
+                        <dt>{row.label}</dt>
+                        <dd style={row.long ? { whiteSpace: 'pre-line' } : undefined}>
+                          {row.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ))}
+              {/* Whether a piece can be collected is the product's own answer,
+                  not a field somebody has to remember to fill in twice. */}
+              <section className="spec-group">
+                <h3>Getting it home</h3>
+                <dl>
+                  <div className="spec-row">
+                    <dt>Shipping</dt>
+                    <dd>
+                      {fulfillment.ships
+                        ? mixedFulfillment
+                          ? 'Ships to US addresses, depending on the size chosen'
+                          : 'Ships to US addresses'
+                        : 'Does not ship'}
+                    </dd>
+                  </div>
+                  <div className="spec-row">
+                    <dt>Local pickup</dt>
+                    <dd>
+                      {fulfillment.pickup
+                        ? 'Available in Ebensburg, once a time is arranged'
+                        : 'Not available'}
+                    </dd>
+                  </div>
+                  {product.dimensions && (
+                    <div className="spec-row">
+                      <dt>Dimensions</dt>
+                      <dd>{product.dimensions}</dd>
+                    </div>
+                  )}
+                  {product.sku && (
+                    <div className="spec-row">
+                      <dt>Item number</dt>
+                      <dd>{product.sku}</dd>
+                    </div>
+                  )}
+                </dl>
+              </section>
+            </div>
           </div>
         )}
 
@@ -522,6 +652,10 @@ function RetiredProduct({
     shortDescription: string | null;
     description: string;
     imageUrl: string | null;
+    lifestyleImageUrl: string | null;
+    detailImageUrl: string | null;
+    scaleImageUrl: string | null;
+    packagingImageUrl: string | null;
     galleryImages: string[];
     careSheets: Array<{ id: string; slug: string; plantName: string; summary: string }>;
   };
@@ -541,7 +675,7 @@ function RetiredProduct({
               name={product.name}
               type={product.type}
               imageUrl={product.imageUrl}
-              images={product.galleryImages}
+              photos={productPhotos(product)}
             />
           </div>
           <div className="product-detail-copy">

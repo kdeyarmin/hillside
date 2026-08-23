@@ -1,37 +1,50 @@
 import Link from 'next/link';
-import {
-  MessageStatus,
-  OrderStatus,
-  ProductType,
-  RegistrationStatus,
-  ReviewStatus
-} from '@prisma/client';
+import { MessageStatus, OrderStatus, RegistrationStatus, ReviewStatus } from '@prisma/client';
 import AdminDeepLink from '@/components/AdminDeepLink';
-import AdminProductPicker from '@/components/AdminProductPicker';
 import {
   ADMIN_ERRORS,
   ADMIN_NOTICES,
+  ADMIN_STOCK_FILTERS,
   adminDashboardPath,
+  adminStockFilterCounts,
   firstSearchParam,
+  inventoryAttention,
   parseAdminStockFilter,
-  productIsLowStock,
   productMatchesAdminFilter,
   productNeedsPhoto
 } from '@/lib/admin-dashboard';
 import { db } from '@/lib/db';
 import { currentAdmin } from '@/lib/admin';
+import {
+  inventorySignals,
+  inventoryStatusLabel,
+  inventoryStatusValue,
+  reorderSuggestion,
+  restockedLabel
+} from '@/lib/inventory';
 import { REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
-import { sizedName, sizeLines, sizeStockSummary } from '@/lib/product-sizes';
-import { groupTags, PRODUCT_TAGS } from '@/lib/product-tags';
-import { formatMoney, productTypeLabel } from '@/lib/store';
+import {
+  productCompleteness,
+  publishedIncomplete,
+  PUBLISH_STATE_LABELS,
+  type Completeness
+} from '@/lib/product-completeness';
+import { realPhotoCount } from '@/lib/product-photos';
+import {
+  readStoredSizes,
+  sizedName,
+  sizeStockSummary,
+  storedSizesTrackStock
+} from '@/lib/product-sizes';
+import { formatMoney } from '@/lib/store';
 import { orderStatusBadge } from '@/lib/tracking';
 import {
   loginAdmin,
   logoutAdmin,
+  receiveStock,
   resendClassConfirmation,
   resendOrderConfirmation,
   resendPickupReady,
-  saveProduct,
   setProductActive,
   updateMessageStatus,
   updateOrder,
@@ -63,386 +76,68 @@ function SizeStockNote({ sizes }: { sizes: unknown }) {
   return summary ? <> ({summary})</> : null;
 }
 
-function ProductFields({
-  product,
-  collections,
-  catalog
+/**
+ * How finished this listing is, and what is still missing. Lives here rather
+ * than in the product editor because it is what makes the dashboard's inventory
+ * list scannable: the gap is visible without opening the product.
+ */
+function CompletenessPanel({
+  completeness,
+  active
 }: {
-  collections: Array<{ id: string; title: string }>;
-  /** Every product, for the "goes with this" pickers. */
-  catalog: Array<{ id: string; name: string; sku: string | null }>;
-  product?: {
-    id: string;
-    name: string;
-    slug: string;
-    sku: string | null;
-    shortDescription: string | null;
-    description: string;
-    details: string | null;
-    careNotes: string | null;
-    shippingNote: string | null;
-    ships?: boolean;
-    pickup?: boolean;
-    type: ProductType;
-    priceCents: number;
-    compareAtCents: number | null;
-    inventory: number;
-    imageUrl: string | null;
-    badge: string | null;
-    active: boolean;
-    featured: boolean;
-    sortOrder: number;
-    galleryImages: string[];
-    sizes: unknown;
-    sizeLabel: string | null;
-    botanical?: string | null;
-    searchTerms?: string | null;
-    staffPick?: boolean;
-    tags?: string[];
-    seasonStartsAt?: Date | null;
-    seasonEndsAt?: Date | null;
-    collections?: Array<{ id: string }>;
-    relatedProducts?: Array<{ id: string }>;
-    crossSells?: Array<{ id: string }>;
-    bundleItems?: Array<{ id: string }>;
-  };
+  completeness: Completeness;
+  active: boolean;
 }) {
-  const assigned = new Set((product?.collections || []).map((collection) => collection.id));
-  const sizeStock = sizeStockSummary(product?.sizes);
-  const chosenTags = new Set(product?.tags || []);
-  const dateValue = (value: Date | null | undefined) =>
-    value ? value.toISOString().slice(0, 10) : '';
-  const otherProducts = catalog.filter((entry) => entry.id !== product?.id);
+  const { score, missing, blockers, state } = completeness;
+  const tone = score === 100 ? 'good' : score >= 70 ? 'fair' : 'poor';
+
   return (
-    <>
-      {product && <input type="hidden" name="id" value={product.id} />}
-      {product && <input type="hidden" name="expectedInventory" value={product.inventory} />}
-      <div className="admin-form-grid">
-        <label className="admin-label">
-          Product name
-          <input className="admin-input" name="name" defaultValue={product?.name} required />
-        </label>
-        <label className="admin-label">
-          URL slug
-          <input
-            className="admin-input"
-            name="slug"
-            defaultValue={product?.slug}
-            placeholder="created-from-name"
-          />
-        </label>
-        <label className="admin-label">
-          SKU / item number
-          <input className="admin-input" name="sku" defaultValue={product?.sku || ''} />
-        </label>
-        <label className="admin-label">
-          Category
-          <select
-            className="admin-input"
-            name="type"
-            defaultValue={product?.type || ProductType.PLANT}
-          >
-            {Object.values(ProductType).map((type) => (
-              <option value={type} key={type}>
-                {productTypeLabel(type)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="admin-label">
-          Price
-          <input
-            className="admin-input"
-            name="price"
-            type="number"
-            min="0"
-            step="0.01"
-            defaultValue={product ? (product.priceCents / 100).toFixed(2) : ''}
-            required
-          />
-        </label>
-        <label className="admin-label">
-          Compare-at price
-          <input
-            className="admin-input"
-            name="compareAt"
-            type="number"
-            min="0"
-            step="0.01"
-            defaultValue={product?.compareAtCents ? (product.compareAtCents / 100).toFixed(2) : ''}
-          />
-        </label>
-        <label className="admin-label">
-          Quantity on hand
-          <input
-            className="admin-input"
-            name="inventory"
-            type="number"
-            min="0"
-            defaultValue={product?.inventory ?? 0}
-            required
-          />
-          {/* Counted sizes own this number — it is the sum of them — so saying
-              so here is the only way the box explains itself on a form that has
-              no scripting to grey it out. */}
-          <span className="admin-hint">
-            {sizeStock
-              ? `Added up from the sizes below: ${sizeStock}. Change a size's quantity to change this.`
-              : 'Leave this as the whole shelf. Count the sizes separately below if you want a quantity for each.'}
-          </span>
-        </label>
-        <label className="admin-label">
-          Display order
-          <input
-            className="admin-input"
-            name="sortOrder"
-            type="number"
-            defaultValue={product?.sortOrder ?? 0}
-          />
-        </label>
-        <label className="admin-label">
-          Badge
-          <input
-            className="admin-input"
-            name="badge"
-            defaultValue={product?.badge || ''}
-            placeholder="Our pick"
-          />
-        </label>
-        <label className="admin-label">
-          Photo URL
-          <input
-            className="admin-input"
-            name="imageUrl"
-            type="text"
-            defaultValue={product?.imageUrl || ''}
-          />
-        </label>
-        <label className="admin-label full">
-          Short card description
-          <input
-            className="admin-input"
-            name="shortDescription"
-            defaultValue={product?.shortDescription || ''}
-          />
-        </label>
-        <label className="admin-label full">
-          Main description
-          <textarea
-            className="admin-input"
-            name="description"
-            rows={4}
-            defaultValue={product?.description}
-            required
-          />
-        </label>
-        <label className="admin-label full">
-          Product details, ingredients or contents
-          <textarea
-            className="admin-input"
-            name="details"
-            rows={4}
-            defaultValue={product?.details || ''}
-          />
-        </label>
-        <label className="admin-label full">
-          Plant care note
-          <textarea
-            className="admin-input"
-            name="careNotes"
-            rows={2}
-            defaultValue={product?.careNotes || ''}
-          />
-        </label>
-        <label className="admin-label full">
-          Shipping / pickup note
-          <textarea
-            className="admin-input"
-            name="shippingNote"
-            rows={2}
-            defaultValue={product?.shippingNote || ''}
-          />
-        </label>
-        <label className="admin-label">
-          What the size dropdown is called
-          <input
-            className="admin-input"
-            name="sizeLabel"
-            defaultValue={product?.sizeLabel || ''}
-            placeholder="Size"
-          />
-        </label>
-        <label className="admin-label full">
-          Sizes to choose from (one per line, leave empty if this is sold one way)
-          <textarea
-            className="admin-input"
-            name="sizes"
-            rows={3}
-            defaultValue={sizeLines(product?.sizes)}
-            placeholder={'4" pot | 18.00 | 6\n6" pot | 24.00 | 4\n8" pot | 32.00 | 2'}
-          />
-          <span className="admin-hint">
-            One size per line: <b>name | price | quantity on hand</b>. Leave the price out —{' '}
-            <code>6&quot; pot | | 4</code> — and the size uses the price above. Leave the quantity
-            out on every line and all the sizes share the one quantity on hand; put a quantity on
-            any line and each size is counted on its own, so a size you leave blank is treated as
-            none left.
-          </span>
-        </label>
-        <label className="admin-label full">
-          Extra photo URLs (one per line)
-          <textarea
-            className="admin-input"
-            name="galleryImages"
-            rows={3}
-            defaultValue={(product?.galleryImages || []).join('\n')}
-            placeholder={'/media/second-angle.jpg\n/media/detail.jpg'}
-          />
-        </label>
-        <label className="admin-label">
-          Botanical (Latin) name
-          <input
-            className="admin-input"
-            name="botanical"
-            defaultValue={product?.botanical || ''}
-            placeholder="Epipremnum aureum"
-          />
-          <span className="admin-hint">
-            Shown under the product name, and searchable — a lot of people type the Latin name.
-          </span>
-        </label>
-        <label className="admin-label">
-          Other words people search for
-          <input
-            className="admin-input"
-            name="searchTerms"
-            defaultValue={product?.searchTerms || ''}
-            placeholder="devil's ivy, money plant"
-          />
-          <span className="admin-hint">
-            Never shown to customers. Nicknames, common misspellings, what it is called elsewhere.
-          </span>
-        </label>
-        <label className="admin-label">
-          In season from
-          <input
-            className="admin-input"
-            name="seasonStartsAt"
-            type="date"
-            defaultValue={dateValue(product?.seasonStartsAt)}
-          />
-          <span className="admin-hint">
-            Only the day and month matter — a season repeats every year. Leave both empty unless
-            this is a seasonal item.
-          </span>
-        </label>
-        <label className="admin-label">
-          In season until
-          <input
-            className="admin-input"
-            name="seasonEndsAt"
-            type="date"
-            defaultValue={dateValue(product?.seasonEndsAt)}
-          />
-          <span className="admin-hint">
-            Out of season it keeps its page and its price — it just stops appearing in seasonal
-            rows.
-          </span>
-        </label>
-      </div>
-
-      {/* Attributes are what customers filter the shop by: pet safe, low light,
-          handmade. Grouped the way they are shown to shoppers, and the plant ones
-          are marked so a soap does not get a light requirement. */}
-      <fieldset className="admin-collection-picker">
-        <legend>What is true about this product</legend>
-        <span className="admin-hint">
-          These become the filters in the shop and the “good to know” links on the product page.
+    <div className="completeness">
+      <div className="completeness-head">
+        <b>Product completeness: {score}%</b>
+        <span
+          className={`status-badge ${state === 'published' ? 'PAID' : state === 'ready' ? 'NEW' : 'CANCELLED'}`}
+        >
+          {PUBLISH_STATE_LABELS[state]}
         </span>
-        {groupTags(PRODUCT_TAGS).map((group) => (
-          <div className="admin-tag-group" key={group.key}>
-            <b>
-              {group.label}
-              {group.tags.every((tag) => tag.types?.includes('PLANT')) ? ' (plants)' : ''}
-            </b>
-            {group.tags.map((tag) => (
-              <label className="admin-checkbox" key={tag.slug} title={tag.hint}>
-                <input
-                  type="checkbox"
-                  name="tags"
-                  value={tag.slug}
-                  defaultChecked={chosenTags.has(tag.slug)}
-                />{' '}
-                {tag.label}
-              </label>
-            ))}
-          </div>
-        ))}
-      </fieldset>
-
-      {otherProducts.length > 0 && (
-        <div className="admin-picker-grid">
-          <AdminProductPicker
-            name="relatedIds"
-            legend="Related products"
-            hint="Shown under “You may also like”. Leave empty to let the shop suggest similar items itself."
-            products={otherProducts}
-            selectedIds={(product?.relatedProducts || []).map((entry) => entry.id)}
-          />
-          <AdminProductPicker
-            name="crossSellIds"
-            legend="Goes well with this"
-            hint="Shown as “what people usually add” — the pot, the mix, the soap that goes with it."
-            products={otherProducts}
-            selectedIds={(product?.crossSells || []).map((entry) => entry.id)}
-          />
-          <AdminProductPicker
-            name="bundleIds"
-            legend="What is inside this set"
-            hint="Only for a bundle or gift set. The pieces are listed on its page and still sold on their own."
-            products={otherProducts}
-            selectedIds={(product?.bundleItems || []).map((entry) => entry.id)}
-          />
-        </div>
-      )}
-      {collections.length > 0 && (
-        <fieldset className="admin-collection-picker">
-          <legend>Collections this product belongs to</legend>
-          {collections.map((collection) => (
-            <label className="admin-checkbox" key={collection.id}>
-              <input
-                type="checkbox"
-                name="collectionIds"
-                value={collection.id}
-                defaultChecked={assigned.has(collection.id)}
-              />{' '}
-              {collection.title}
-            </label>
-          ))}
-        </fieldset>
-      )}
-      <div className="admin-actions">
-        <label className="admin-checkbox">
-          <input name="active" type="checkbox" defaultChecked={product?.active ?? true} /> Active in
-          shop
-        </label>
-        <label className="admin-checkbox">
-          <input name="featured" type="checkbox" defaultChecked={product?.featured ?? false} />{' '}
-          Featured
-        </label>
-        <label className="admin-checkbox">
-          <input name="staffPick" type="checkbox" defaultChecked={product?.staffPick ?? false} />{' '}
-          Tammy&rsquo;s pick
-        </label>
-        <label className="admin-checkbox">
-          <input name="ships" type="checkbox" defaultChecked={product?.ships ?? true} /> Ships
-        </label>
-        <label className="admin-checkbox">
-          <input name="pickup" type="checkbox" defaultChecked={product?.pickup ?? true} /> Local
-          pickup
-        </label>
       </div>
-    </>
+      <div
+        className={`completeness-bar ${tone}`}
+        role="img"
+        aria-label={`${score}% of the information this product needs has been filled in`}
+      >
+        <span style={{ width: `${score}%` }} />
+      </div>
+      {missing.length === 0 ? (
+        <p className="admin-hint">Everything this kind of product needs is filled in.</p>
+      ) : (
+        <>
+          <p className="admin-hint">
+            {active
+              ? 'This is live in the shop and still missing:'
+              : 'Still to fill in before this is ready to publish:'}
+          </p>
+          <ul className="completeness-missing">
+            {missing.map((entry) => (
+              <li
+                key={entry.key}
+                className={entry.blocking ? 'blocking' : entry.required ? '' : 'optional'}
+              >
+                {entry.hint}
+                {entry.blocking && <b> — required before it can be sold</b>}
+                {!entry.required && <span className="muted"> — optional</span>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {blockers.length > 0 && (
+        <p className="admin-hint">
+          A tea, soap or lotion cannot be listed for sale until its net weight and ingredients are
+          filled in. Everything else saves normally and stays a draft.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -526,63 +221,42 @@ export default async function Admin({
     );
   }
 
-  const [
-    products,
-    orders,
-    revenue,
-    registrations,
-    messages,
-    subscribers,
-    reviews,
-    stockAlerts,
-    collections
-  ] = await Promise.all([
-    db.product.findMany({
-      orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
-      include: {
-        collections: { select: { id: true } },
-        // Only the ids — the pickers render names from the catalog list below,
-        // so pulling whole related rows per product would be the same names
-        // serialized once for every product that links to them.
-        relatedProducts: { select: { id: true } },
-        crossSells: { select: { id: true } },
-        bundleItems: { select: { id: true } }
-      }
-    }),
-    db.order.findMany({ orderBy: { createdAt: 'desc' }, take: 75, include: { items: true } }),
-    /**
-     * Net revenue: partially refunded orders still earned everything that was not
-     * given back, so they belong in the figure with their refund subtracted rather
-     * than dropped from it. Previously any refund at all — including a few dollars
-     * of shipping — marked the order REFUNDED and removed its whole value here.
-     */
-    db.order.aggregate({
-      _sum: { totalCents: true, refundedCents: true },
-      where: { status: { in: [...REVENUE_STATUSES] } }
-    }),
-    db.classRegistration.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: 75,
-      include: { classEvent: true }
-    }),
-    db.contactMessage.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
-    db.newsletterSubscriber.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }),
-    db.review.findMany({
-      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
-      take: 60,
-      include: { product: { select: { name: true, slug: true } } }
-    }),
-    db.stockAlert.findMany({
-      where: { notifiedAt: null },
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-      include: { product: { select: { name: true, slug: true, inventory: true } } }
-    }),
-    db.collection.findMany({
-      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-      select: { id: true, title: true }
-    })
-  ]);
+  const [products, orders, revenue, registrations, messages, subscribers, reviews, stockAlerts] =
+    await Promise.all([
+      db.product.findMany({
+        orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+        include: { category: { select: { title: true, specKind: true } } }
+      }),
+      db.order.findMany({ orderBy: { createdAt: 'desc' }, take: 75, include: { items: true } }),
+      /**
+       * Net revenue: partially refunded orders still earned everything that was not
+       * given back, so they belong in the figure with their refund subtracted rather
+       * than dropped from it. Previously any refund at all — including a few dollars
+       * of shipping — marked the order REFUNDED and removed its whole value here.
+       */
+      db.order.aggregate({
+        _sum: { totalCents: true, refundedCents: true },
+        where: { status: { in: [...REVENUE_STATUSES] } }
+      }),
+      db.classRegistration.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: 75,
+        include: { classEvent: true }
+      }),
+      db.contactMessage.findMany({ orderBy: { createdAt: 'desc' }, take: 50 }),
+      db.newsletterSubscriber.findMany({ orderBy: { createdAt: 'desc' }, take: 100 }),
+      db.review.findMany({
+        orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+        take: 60,
+        include: { product: { select: { name: true, slug: true } } }
+      }),
+      db.stockAlert.findMany({
+        where: { notifiedAt: null },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+        include: { product: { select: { name: true, slug: true, inventory: true } } }
+      })
+    ]);
 
   /**
    * Which reviewer emails actually appear on a paid order for that product.
@@ -609,28 +283,35 @@ export default async function Admin({
     ).map((item) => `${item.productId}:${item.order.email.toLowerCase()}`)
   );
 
-  /** Names for the "goes with this" pickers, active items first. */
-  const catalog = products
-    .filter((product) => product.active)
-    .map((product) => ({ id: product.id, name: product.name, sku: product.sku }));
-
-  const lowStock = products.filter(productIsLowStock).length;
+  /**
+   * One clock for the whole render. `recentlyRestocked` and the chip counts are
+   * asked hundreds of times below, and a `new Date()` inside each of them would
+   * let a row and the chip that put it there disagree across a midnight tick.
+   */
+  const now = new Date();
+  /**
+   * Counted over the whole catalog rather than the filtered view, because these
+   * are counts of work outstanding. A number that shrank as she typed into the
+   * search box would be answering a different question.
+   */
+  const filterCounts = adminStockFilterCounts(products, now);
+  const attention = inventoryAttention(products, now);
+  const lowStock = filterCounts.get('low') || 0;
   const openOrders = orders.filter((order) =>
     isAwaitingShipment(order.status, order.fulfilledAt)
   ).length;
   const unreadMessages = messages.filter((message) => message.status === MessageStatus.NEW).length;
   const activeSubscribers = subscribers.filter((subscriber) => subscriber.active).length;
   const pendingReviews = reviews.filter((review) => review.status === ReviewStatus.PENDING).length;
-  const missingPhotos = products.filter(
-    (product) => product.active && productNeedsPhoto(product.imageUrl)
-  ).length;
+  const missingPhotos = filterCounts.get('photo') || 0;
+  const needsReorder = filterCounts.get('reorder') || 0;
   const undeliveredEmails = orders.filter((order) => Boolean(order.confirmationEmailError)).length;
   const activeCount = products.filter((product) => product.active).length;
   const archivedCount = products.length - activeCount;
   const stockFilter = parseAdminStockFilter(firstSearchParam(params.stock));
   const productQuery = firstSearchParam(params.q);
   const visibleProducts = products.filter((product) =>
-    productMatchesAdminFilter(product, productQuery, stockFilter)
+    productMatchesAdminFilter(product, productQuery, stockFilter, now)
   );
   const archivedProducts = products.filter((product) => !product.active);
   const notice = ADMIN_NOTICES[firstSearchParam(params.notice)];
@@ -657,9 +338,10 @@ export default async function Admin({
         <img src="/logo.webp" alt="The Hillside Gardens" />
         <b>Owner Business Center</b>
         <a href="#overview">Overview</a>
+        <a href="#attention">Needs attention</a>
         <a href="#orders">Orders & shipping</a>
         <a href="#inventory">Inventory & products</a>
-        <a href="#add-product">Add a product</a>
+        <Link href="/admin/products/new">Add a product</Link>
         <a href="#registrations">Class registrations</a>
         <a href="#messages">Customer messages</a>
         <a href="#subscribers">Email subscribers</a>
@@ -735,6 +417,10 @@ export default async function Admin({
             <strong>{lowStock}</strong>
           </div>
           <div className="stat">
+            <span>Needs reorder</span>
+            <strong>{needsReorder}</strong>
+          </div>
+          <div className="stat">
             <span>New messages</span>
             <strong>{unreadMessages}</strong>
           </div>
@@ -755,6 +441,31 @@ export default async function Admin({
             <strong>{stockAlerts.length}</strong>
           </div>
         </div>
+
+        {/* The morning list. Everything here is a job with a chip behind it, so
+            a number is one click from the products it counts. Nothing at zero is
+            shown — a panel of reassuring noughts is a panel nobody reads. */}
+        <section className="admin-card attention" id="attention">
+          <h2>Needs attention</h2>
+          {attention.length ? (
+            <ul className="attention-list">
+              {attention.map((item) => (
+                <li key={item.key}>
+                  <Link href={item.href}>
+                    <b>{item.count}</b>
+                    <span>{item.detail}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">
+              {products.length
+                ? 'Nothing needs attention. Every listed product has stock, a photograph and the information its category needs.'
+                : 'No products yet. Add the first one below and this list will keep track of what each one still needs.'}
+            </p>
+          )}
+        </section>
 
         {notice && (
           <div className="admin-card admin-notice" role="status">
@@ -779,17 +490,17 @@ export default async function Admin({
                     Put one back in the shop
                   </a>
                   {' or '}
-                  <a className="text-link" href="#add-product">
+                  <Link className="text-link" href="/admin/products/new">
                     add a new product
-                  </a>
+                  </Link>
                   .
                 </>
               ) : (
                 <>
-                  Add a product below. Nothing is listed for sale until you do.{' '}
-                  <a className="text-link" href="#add-product">
+                  Nothing is listed for sale until you add one.{' '}
+                  <Link className="text-link" href="/admin/products/new">
                     Add a product
-                  </a>
+                  </Link>
                   .
                 </>
               )}
@@ -1053,12 +764,13 @@ export default async function Admin({
             <div>
               <h2>Inventory and products</h2>
               <p className="muted">
-                Open any product to change price, stock, descriptions, photos or shop visibility.
+                Open any product to change its category, price, stock, sizes, structured details,
+                photos or shop visibility.
               </p>
             </div>
-            <a className="btn small" href="#add-product">
+            <Link className="btn small" href="/admin/products/new">
               Add a product
-            </a>
+            </Link>
           </div>
 
           <form className="admin-inventory-tools" action="/admin" method="get">
@@ -1078,15 +790,7 @@ export default async function Admin({
           </form>
 
           <div className="filter-row" aria-label="Inventory filters">
-            {(
-              [
-                ['all', 'Everything', products.length],
-                ['active', 'In the shop', activeCount],
-                ['archived', 'Archived', archivedCount],
-                ['low', 'Low stock', lowStock],
-                ['photo', 'Needs a photo', missingPhotos]
-              ] as const
-            ).map(([key, label, count]) => (
+            {ADMIN_STOCK_FILTERS.map(({ key, label }) => (
               <Link
                 key={key}
                 className={`filter-chip${stockFilter === key ? ' active' : ''}`}
@@ -1095,8 +799,9 @@ export default async function Admin({
                   stock: key === 'all' ? undefined : key,
                   section: 'inventory'
                 })}
+                aria-current={stockFilter === key ? 'true' : undefined}
               >
-                {label} ({count})
+                {label} ({filterCounts.get(key) || 0})
               </Link>
             ))}
           </div>
@@ -1129,78 +834,131 @@ export default async function Admin({
             </div>
           )}
 
-          <div className="admin-card" id="add-product" style={{ marginTop: 24 }}>
-            <h2 style={{ marginTop: 0 }}>Add a product</h2>
-            <p className="muted">
-              Uncheck “Active in shop” to save a draft. Leave it checked to list the piece as soon
-              as you create it.
-            </p>
-            <form action={saveProduct}>
-              <ProductFields collections={collections} catalog={catalog} />
-              <button className="btn" style={{ marginTop: 16 }}>
-                Create product
-              </button>
-            </form>
-          </div>
-
-          <div className="admin-list" style={{ marginTop: 24 }}>
+          <div className="admin-list inventory-list" style={{ marginTop: 24 }}>
             {visibleProducts.length ? (
-              visibleProducts.map((product) => (
-                <details
-                  open={product.slug === focusProduct}
-                  id={`product-${product.slug}`}
-                  key={product.id}
-                >
-                  <summary>
-                    <span>
-                      {product.name} • {formatMoney(product.priceCents)} • {product.inventory} in
-                      stock
-                      <SizeStockNote sizes={product.sizes} />
-                      {productNeedsPhoto(product.imageUrl) && (
-                        <>
-                          {' '}
-                          • <b className="needs-photo">needs a photo</b>
-                        </>
-                      )}
-                    </span>
-                    <span className={`status-badge ${product.active ? 'PAID' : 'CANCELLED'}`}>
-                      {product.active ? 'Active' : 'Archived'}
-                    </span>
-                  </summary>
-                  <div>
-                    <form action={saveProduct}>
-                      <ProductFields
-                        product={product}
-                        collections={collections}
-                        catalog={catalog}
-                      />
+              visibleProducts.map((product) => {
+                const signals = inventorySignals(product, now);
+                const completeness = productCompleteness(product);
+                const sizeStocked = storedSizesTrackStock(readStoredSizes(product.sizes));
+                return (
+                  <details
+                    open={product.slug === focusProduct}
+                    id={`product-${product.slug}`}
+                    key={product.id}
+                  >
+                    <summary>
+                      <span className="inventory-summary">
+                        <b>{product.name}</b>
+                        <span className="inventory-line">
+                          {formatMoney(product.priceCents)} · {product.inventory} in stock
+                          <SizeStockNote sizes={product.sizes} /> ·{' '}
+                          {realPhotoCount(product) === 1
+                            ? '1 photo'
+                            : `${realPhotoCount(product)} photos`}{' '}
+                          · {completeness.score}% complete
+                        </span>
+                        <span className="inventory-flags">
+                          {signals.outOfStock && <span className="flag out">Out of stock</span>}
+                          {!signals.outOfStock && signals.lowStock && (
+                            <span className="flag low">Low stock</span>
+                          )}
+                          {signals.needsReorder && <span className="flag reorder">Reorder</span>}
+                          {productNeedsPhoto(product.imageUrl) && (
+                            <span className="flag photo">Needs a photo</span>
+                          )}
+                          {signals.missingSku && <span className="flag">No SKU</span>}
+                          {signals.missingSupplier && <span className="flag">No supplier</span>}
+                          {publishedIncomplete(completeness) && (
+                            <span className="flag incomplete">Incomplete</span>
+                          )}
+                          {signals.recentlyRestocked && (
+                            <span className="flag fresh">{restockedLabel(product, now)}</span>
+                          )}
+                          {inventoryStatusValue(product.inventoryStatus) !== 'STOCKED' && (
+                            <span className="flag">
+                              {inventoryStatusLabel(product.inventoryStatus)}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                      <span className={`status-badge ${product.active ? 'PAID' : 'CANCELLED'}`}>
+                        {product.active ? 'Active' : 'Archived'}
+                      </span>
+                    </summary>
+                    <div>
+                      <CompletenessPanel completeness={completeness} active={product.active} />
+
+                      {/* The single most repeated thing on this page: a box
+                          arrived, add it to the shelf. Typing what turned up
+                          beats reading the current number and typing the sum. */}
+                      <form className="restock-form" action={receiveStock}>
+                        <input type="hidden" name="id" value={product.id} />
+                        <label className="admin-label">
+                          Received a delivery
+                          <input
+                            className="admin-input"
+                            name="quantity"
+                            type="number"
+                            min="1"
+                            placeholder="How many arrived"
+                          />
+                        </label>
+                        {sizeStocked && (
+                          <label className="admin-label">
+                            Which size
+                            <select className="admin-input" name="size">
+                              {readStoredSizes(product.sizes).map((size) => (
+                                <option value={size.label} key={size.label}>
+                                  {size.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                        <button className="btn small">Add to stock</button>
+                        {signals.needsReorder && (
+                          <span className="admin-hint">
+                            At or below the reorder point of {product.reorderPoint}.{' '}
+                            {reorderSuggestion(product)
+                              ? `Suggested order: ${reorderSuggestion(product)}.`
+                              : ''}
+                            {product.supplier ? ` From ${product.supplier}.` : ''}
+                            {product.supplierItemNumber
+                              ? ` Their #${product.supplierItemNumber}.`
+                              : ''}
+                          </span>
+                        )}
+                      </form>
+
                       <div className="admin-actions">
-                        <button className="btn small">Save product</button>
+                        <Link className="btn small" href={`/admin/products/${product.id}`}>
+                          Edit product
+                        </Link>
                         <Link className="btn outline small" href={`/shop/${product.slug}`}>
                           View product
                         </Link>
                       </div>
-                    </form>
-                    <form action={setProductActive} style={{ marginTop: 10 }}>
-                      <input type="hidden" name="id" value={product.id} />
-                      <input
-                        type="hidden"
-                        name="active"
-                        value={product.active ? 'false' : 'true'}
-                      />
-                      <button className={`text-button${product.active ? ' danger' : ''}`}>
-                        {product.active ? 'Archive from shop' : 'Put back in shop'}
-                      </button>
-                    </form>
-                  </div>
-                </details>
-              ))
+                      <form action={setProductActive} style={{ marginTop: 10 }}>
+                        <input type="hidden" name="id" value={product.id} />
+                        <input
+                          type="hidden"
+                          name="active"
+                          value={product.active ? 'false' : 'true'}
+                        />
+                        <button className={`text-button${product.active ? ' danger' : ''}`}>
+                          {product.active ? 'Archive from shop' : 'Put back in shop'}
+                        </button>
+                      </form>
+                    </div>
+                  </details>
+                );
+              })
             ) : (
               <div className="admin-card">
                 <p>
                   {products.length
                     ? 'No products matched that search. Clear the filter to see everything.'
-                    : 'No products yet. Use the form above to add the first one.'}
+                    : 'No products yet. Use “Add a product” above to add the first one.'}
                 </p>
               </div>
             )}

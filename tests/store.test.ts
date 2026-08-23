@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  categoryLabel,
   categoryTypes,
+  isLegacyCategoryFilter,
   checkoutReturnOrigin,
   ownerNotificationEmails,
   clampQuantity,
@@ -79,6 +81,44 @@ describe('categoryTypes', () => {
 
   it('passes a bare product type straight through', () => {
     assert.deepEqual(categoryTypes('PLANT'), ['PLANT']);
+  });
+
+  it('answers with nothing for a category slug, which is how the shop tells them apart', () => {
+    assert.deepEqual(categoryTypes('carnivorous-plants'), []);
+    assert.equal(isLegacyCategoryFilter('carnivorous-plants'), false);
+    assert.equal(isLegacyCategoryFilter('BOTANICAL'), true);
+    assert.equal(isLegacyCategoryFilter('PLANT'), true);
+  });
+
+  it('reads a lowercase value as a slug even when it spells a legacy key', () => {
+    /**
+     * The live regression: `tea` and `other` are both seeded category slugs, and
+     * uppercasing before the lookup made `/shop?category=tea` — the link the
+     * homepage chip, the shop-by tile and the sitemap all emit — come back as
+     * the legacy TEA group, showing tea accessories alongside the tea and
+     * building two chips on the same key.
+     */
+    assert.deepEqual(categoryTypes('tea'), []);
+    assert.deepEqual(categoryTypes('other'), []);
+    assert.equal(isLegacyCategoryFilter('tea'), false);
+    // The uppercase form is what every link in the wild actually holds.
+    assert.deepEqual(categoryTypes('TEA'), ['TEA', 'TEA_SUPPLY']);
+    assert.deepEqual(categoryTypes('OTHER'), ['OTHER']);
+  });
+});
+
+describe('categoryLabel', () => {
+  it('names the legacy groups and types the header still links to', () => {
+    assert.equal(categoryLabel('BOTANICAL'), 'Botanicals');
+    assert.equal(categoryLabel('TEA_SUPPLY'), 'Tea supply');
+    assert.equal(categoryLabel(''), 'Everything');
+    assert.equal(categoryLabel('ALL'), 'Everything');
+  });
+
+  it('reads a slug back as words when its category row has gone', () => {
+    assert.equal(categoryLabel('driftwood-natural-materials'), 'Driftwood natural materials');
+    // And does not borrow a legacy group's name for a slug that spells one.
+    assert.equal(categoryLabel('tea'), 'Tea');
   });
 });
 
@@ -218,13 +258,36 @@ describe('pickForKey', () => {
   it('spreads realistic plant slugs across every option', () => {
     const options = ['a', 'b', 'c', 'd'];
     const slugs = [
-      'monstera-deliciosa', 'snake-plant', 'pothos-golden', 'zz-plant', 'fiddle-leaf-fig',
-      'peace-lily', 'spider-plant', 'rubber-tree', 'calathea-orbifolia', 'philodendron-brasil',
-      'aloe-vera', 'jade-plant', 'string-of-pearls', 'boston-fern', 'bird-of-paradise',
-      'chinese-money-plant', 'parlor-palm', 'english-ivy', 'swiss-cheese-plant',
-      'dracaena-marginata', 'anthurium-red', 'hoya-carnosa', 'maidenhair-fern',
-      'air-plant-trio', 'venus-flytrap', 'pitcher-plant', 'echeveria-blue',
-      'string-of-hearts', 'burros-tail', 'lucky-bamboo'
+      'monstera-deliciosa',
+      'snake-plant',
+      'pothos-golden',
+      'zz-plant',
+      'fiddle-leaf-fig',
+      'peace-lily',
+      'spider-plant',
+      'rubber-tree',
+      'calathea-orbifolia',
+      'philodendron-brasil',
+      'aloe-vera',
+      'jade-plant',
+      'string-of-pearls',
+      'boston-fern',
+      'bird-of-paradise',
+      'chinese-money-plant',
+      'parlor-palm',
+      'english-ivy',
+      'swiss-cheese-plant',
+      'dracaena-marginata',
+      'anthurium-red',
+      'hoya-carnosa',
+      'maidenhair-fern',
+      'air-plant-trio',
+      'venus-flytrap',
+      'pitcher-plant',
+      'echeveria-blue',
+      'string-of-hearts',
+      'burros-tail',
+      'lucky-bamboo'
     ];
     const used = new Set(slugs.map((slug) => pickForKey(options, slug)));
     assert.equal(used.size, options.length, `only ${used.size} of 4 options were used`);

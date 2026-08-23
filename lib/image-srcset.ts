@@ -1,16 +1,21 @@
 import { IMAGE_VARIANTS } from '@/lib/image-variants';
+import { mediaSrcSet } from '@/lib/media-variants';
 
 /**
  * Builds the `srcSet` for a site image from the variants generated beside it.
  *
- * Returns undefined for anything with no variants — owner-uploaded photographs
- * served from `/media/`, remote URLs, and the SVG placeholder. Those keep a plain
- * single `src`, which is what they had before, so nothing regresses when Tammy
- * uploads a photo from the dashboard.
+ * Two sources of variants, one answer. The site's own artwork is processed at
+ * build time and listed in `IMAGE_VARIANTS`; an owner-uploaded photograph is
+ * resized in the browser as it is uploaded and carries its widths in its
+ * filename. Anything else — remote URLs, the SVG placeholder, uploads from
+ * before the browser did any resizing — keeps a plain single `src`, exactly as
+ * it did before.
  */
 export function imageSrcSet(source?: string | null) {
   const path = source?.trim();
-  if (!path || !path.startsWith('/images/')) return undefined;
+  if (!path) return undefined;
+  if (path.startsWith('/media/')) return mediaSrcSet(path);
+  if (!path.startsWith('/images/')) return undefined;
 
   const widths = IMAGE_VARIANTS[path];
   if (!widths?.length) return undefined;

@@ -14,6 +14,7 @@ import './homepage.css';
 import './brand-mockups.css';
 import './responsive-hardening.css';
 import './commerce.css';
+import './catalog.css';
 import type { Metadata, Viewport } from 'next';
 import { Cormorant_Garamond, Manrope } from 'next/font/google';
 import Analytics from '@/components/Analytics';

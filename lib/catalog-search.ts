@@ -29,6 +29,8 @@ export type SearchableCollection = {
 };
 
 export type SearchableProduct = {
+  categoryTitle?: string | null;
+  category?: { title: string } | null;
   name: string;
   slug?: string;
   sku?: string | null;
@@ -66,6 +68,9 @@ export function productSearchFields(
       product.searchTerms,
       product.badge,
       product.sku,
+      // The category is searchable, so "carnivorous" finds the flytraps whether
+      // or not the word appears anywhere in their own copy.
+      product.categoryTitle ?? product.category?.title ?? null,
       type ? `${productTypeLabel(type)} ${productTypePlural(type)}` : null,
       tagSearchText(tags),
       collections

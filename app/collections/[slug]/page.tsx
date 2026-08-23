@@ -7,8 +7,7 @@ import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
 import { categoryDescription, proseBlocks, readFaq } from '@/lib/category-content';
 import { db } from '@/lib/db';
-import { merchandisingFlagsFor, PRODUCT_CARD_SELECT } from '@/lib/merchandising-data';
-import { ratingsByProduct } from '@/lib/reviews';
+import { PRODUCT_CARD_SELECT, withCardFacts } from '@/lib/product-cards';
 import { resolveImageUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
 import { breadcrumbJsonLd, collectionPageJsonLd, faqJsonLd, pageMetadata } from '@/lib/seo';
@@ -66,16 +65,7 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
   const collection = await loadCollection(slug);
   if (!collection) notFound();
 
-  const [ratings, flags] = await Promise.all([
-    ratingsByProduct(collection.products.map((product) => product.id)),
-    merchandisingFlagsFor(collection.products)
-  ]);
-  const products = collection.products.map((product) => ({
-    ...product,
-    averageRating: ratings.get(product.id)?.average ?? null,
-    reviewCount: ratings.get(product.id)?.count ?? 0,
-    flags: flags.get(product.id)
-  }));
+  const products = await withCardFacts(collection.products);
 
   const [catalogCount, siblings] = await Promise.all([
     products.length > 0

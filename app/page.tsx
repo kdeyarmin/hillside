@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, BookOpen, Leaf, Package, Sparkles, Sprout, Truck } from 'lucide-react';
+import { ArrowRight, BookOpen, Leaf, MapPin, Package, Sparkles, Sprout, Truck } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import NewsletterForm from '@/components/NewsletterForm';
 import ProductGrid from '@/components/ProductGrid';
@@ -15,26 +15,28 @@ import { seatsRemainingFor } from '@/lib/class-seats';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
-import { ratingsByProduct } from '@/lib/reviews';
+import { withCardFacts } from '@/lib/product-cards';
 import { pageMetadata } from '@/lib/seo';
-import {
-  merchandisingFlagsFor,
-  productsForSection,
-  type MerchandisedProduct
-} from '@/lib/merchandising-data';
+import { productsForSection, type MerchandisedProduct } from '@/lib/merchandising-data';
 import { formatMoney, formatMoneyCompact, freeShippingThresholdCents } from '@/lib/store';
+
+/**
+ * How many categories the hero names. Enough to say what the shop is without
+ * turning the first thing a visitor reads into a directory.
+ */
+const HERO_CATEGORY_LIMIT = 14;
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
   ...pageMetadata({
     path: '/',
-    title: 'The Hillside Gardens | Plants, Teas & Botanicals',
+    title: 'The Hillside Gardens | Plants, Botanical Goods & Creative Planting',
     description:
-      'Houseplants, carnivorous plants, succulents, air plants, terrarium supplies and handmade botanical goods from The Hillside Gardens in Ebensburg, PA — with free plant care guides and local pickup.',
+      'Houseplants, carnivorous plants, succulents and air plants, living arrangements, terrarium supplies, moss and driftwood, plus handmade soap, botanical lotion, tea and apothecary goods. Shipped across the US or collected in Ebensburg, PA.',
     image: '/images/scenes/hillside-hero.webp',
     imageAlt: 'Plants growing in a sunlit greenhouse at The Hillside Gardens'
   }),
-  title: { absolute: 'The Hillside Gardens | Plants, Teas & Botanicals' }
+  title: { absolute: 'The Hillside Gardens | Plants, Botanical Goods & Creative Planting' }
 };
 
 /**
@@ -69,38 +71,54 @@ function sectionLink(section: { kind: string; collection: { slug: string } | nul
 
 export default async function Home() {
   const freeShippingThreshold = freeShippingThresholdCents();
-  const [sections, upcomingClasses, collections, careGuideCount, catalogCount] = await Promise.all([
-    /**
-     * The rows Tammy arranged, in her order. The homepage used to hardcode one
-     * collection strip and one featured grid, so changing what the front page
-     * led with meant changing the code.
-     */
-    db.homepageSection.findMany({
-      where: { active: true },
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-      // The slug is what lets a collection row link back to its own page.
-      include: { collection: { select: { slug: true } } },
-      take: 8
-    }),
-    // Hidden classes are not fetched at all, so the homepage costs one query
-    // less rather than rendering nothing from a result it paid for.
-    CLASSES_PUBLICLY_VISIBLE
-      ? db.classEvent.findMany({
-          where: { active: true, startsAt: { gte: new Date() } },
-          orderBy: { startsAt: 'asc' },
-          take: 2
-        })
-      : [],
-    // Only collections that actually hold something are advertised, so a tile on
-    // the homepage always leads to real stock.
-    db.collection.findMany({
-      where: { active: true, featured: true, products: { some: { active: true } } },
-      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-      include: { _count: { select: { products: { where: { active: true } } } } }
-    }),
-    db.careSheet.count({ where: { published: true } }),
-    db.product.count({ where: { active: true } })
-  ]);
+  const [sections, upcomingClasses, categories, collections, careGuideCount, catalogCount] =
+    await Promise.all([
+      /**
+       * The rows Tammy arranged, in her order. The homepage used to hardcode one
+       * collection strip and one featured grid, so changing what the front page
+       * led with meant changing the code.
+       */
+      db.homepageSection.findMany({
+        where: { active: true },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        // The slug is what lets a collection row link back to its own page.
+        include: { collection: { select: { slug: true } } },
+        take: 8
+      }),
+      // Hidden classes are not fetched at all, so the homepage costs one query
+      // less rather than rendering nothing from a result it paid for.
+      CLASSES_PUBLICLY_VISIBLE
+        ? db.classEvent.findMany({
+            where: { active: true, startsAt: { gte: new Date() } },
+            orderBy: { startsAt: 'asc' },
+            take: 2
+          })
+        : [],
+      /**
+       * Every category the owner is showing, in her order — read once and used
+       * twice below, for the hero's list of what the shop sells and for the
+       * shop-by tiles.
+       *
+       * Read rather than hard-coded, which is the whole point of the taxonomy
+       * being rows: a static list went on advertising a category's old name
+       * after Tammy renamed it, kept linking one she had hidden, and pointed at
+       * a slug that no longer matched anything.
+       */
+      db.category.findMany({
+        where: { active: true },
+        orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+        include: { _count: { select: { products: { where: { active: true } } } } }
+      }),
+      // Only collections that actually hold something are advertised, so a tile on
+      // the homepage always leads to real stock.
+      db.collection.findMany({
+        where: { active: true, featured: true, products: { some: { active: true } } },
+        orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+        include: { _count: { select: { products: { where: { active: true } } } } }
+      }),
+      db.careSheet.count({ where: { published: true } }),
+      db.product.count({ where: { active: true } })
+    ]);
 
   const resolved = await Promise.all(
     sections.map(async (section) => ({
@@ -112,17 +130,16 @@ export default async function Home() {
     }))
   );
 
+  /**
+   * Every row's products enriched in one pass, then looked up by id. A product
+   * that appears in two rows is decorated once, and every grid on the page
+   * badges it identically because there is only one answer.
+   */
   const allProducts = resolved.flatMap((entry) => entry.products);
-  const [ratings, flags] = await Promise.all([
-    ratingsByProduct(allProducts.map((product) => product.id)),
-    merchandisingFlagsFor(allProducts)
-  ]);
-  const decorate = (product: MerchandisedProduct) => ({
-    ...product,
-    averageRating: ratings.get(product.id)?.average ?? null,
-    reviewCount: ratings.get(product.id)?.count ?? 0,
-    flags: flags.get(product.id)
-  });
+  const decorated = new Map(
+    (await withCardFacts(allProducts)).map((product) => [product.id, product])
+  );
+  const decorate = (product: MerchandisedProduct) => decorated.get(product.id)!;
 
   /**
    * A row with nothing in it is dropped rather than rendered as a heading over
@@ -137,29 +154,49 @@ export default async function Home() {
   );
   const classSeats = await seatsRemainingFor(upcomingClasses);
 
+  /**
+   * The hero names what the shop sells, so it lists a category whether or not
+   * the shelf is full today — "we sell moss" stays true between batches, and a
+   * chip for an empty category drops its filter rather than leading nowhere.
+   * The tiles below are the opposite: they are an invitation to browse, so they
+   * only appear once there is something behind them.
+   */
+  const heroCategories = categories.slice(0, HERO_CATEGORY_LIMIT);
+  const categoryTiles = categories
+    .filter((category) => category.featured && category._count.products > 0)
+    .slice(0, 8);
+
   return (
     <>
       <section className="editorial-hero">
         <div className="editorial-hero-copy">
-          <span className="eyebrow">Welcome to The Hillside Gardens</span>
-          <h1>
-            Rooted in Nature.
-            <br />
-            Grown with Care.
-          </h1>
+          <span className="eyebrow">Rooted in Nature. Grown with Care.</span>
+          <h1>Plants, Botanical Goods &amp; Creative Planting</h1>
+          <p className="hero-lede">From Our Hillside to Your Home</p>
           <div className="botanical-rule" aria-hidden="true">
             <span />
             <Leaf size={22} />
             <span />
           </div>
           <p>
-            Explore hand-selected plants, living arrangements, terrarium supplies, handmade soaps
-            and botanical goods chosen to make everyday spaces feel warmer and more personal.
+            Houseplants, carnivorous plants, succulents and air plants — with living arrangements,
+            terrariums, and the moss, driftwood and supplies to build your own. Off the same bench:
+            handmade soap, botanical lotion, apothecary goods, tea and the small tools for brewing
+            it.
           </p>
+          {heroCategories.length > 0 && (
+            <ul className="hero-catalog">
+              {heroCategories.map((category) => (
+                <li key={category.id}>
+                  <Link href={`/shop?category=${category.slug}`}>{category.title}</Link>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="actions">
             {catalogCount > 0 ? (
               <Link className="btn editorial-btn" href="/shop">
-                Shop now <ArrowRight size={17} />
+                Shop all {catalogCount} pieces <ArrowRight size={17} />
               </Link>
             ) : (
               <Link
@@ -179,6 +216,10 @@ export default async function Home() {
               </Link>
             )}
           </div>
+          <p className="hero-fulfillment">
+            <MapPin size={15} aria-hidden="true" />
+            Shipped across the US, or collected locally in Ebensburg, PA.
+          </p>
         </div>
         <BrandMockupScene variant="hero" className="editorial-hero-image" badge />
       </section>
@@ -227,7 +268,7 @@ export default async function Home() {
       </section>
 
       <div className="home-merch">
-        {catalogCount === 0 && rows.length === 0 && (
+        {catalogCount === 0 && rows.length === 0 && categoryTiles.length === 0 && (
           <section className="section editorial-section home-restock-section">
             <div className="container">
               <div className="home-restock">
@@ -248,6 +289,47 @@ export default async function Home() {
                     Plant care library →
                   </Link>
                 </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {categoryTiles.length > 0 && (
+          <section className="section editorial-section home-categories-section">
+            <div className="container">
+              <div className="sectionhead">
+                <div className="eyebrow">Shop by category</div>
+                <h2>What&rsquo;s on the bench.</h2>
+                <p>
+                  Every plant and piece is filed under one of these, so you can go straight to the
+                  shelf you came for.
+                </p>
+              </div>
+              <div className="category-tiles">
+                {categoryTiles.map((category) => (
+                  <Link
+                    className="category-tile"
+                    href={`/shop?category=${category.slug}`}
+                    key={category.id}
+                  >
+                    <BrandMockupScene
+                      variant="plants"
+                      imageSrc={category.imageUrl}
+                      seed={category.slug}
+                      alt={category.title}
+                      badge={false}
+                    />
+                    <span className="category-tile-copy">
+                      <b>{category.title}</b>
+                      <small>{category.tagline || `${category._count.products} to browse`}</small>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+              <div className="collections-all">
+                <Link className="editorial-link" href="/shop">
+                  Browse the whole shop →
+                </Link>
               </div>
             </div>
           </section>

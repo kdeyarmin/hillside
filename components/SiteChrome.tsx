@@ -37,18 +37,20 @@ import {
 const lineName = (line: { name: string; size?: string | null }) => sizedName(line.name, line.size);
 
 /**
- * Every merchandising link is a real path, not a query string. Collections are
- * owner-managed rows, so "Plants" leads somewhere that can be curated, and
- * `usePathname` alone is enough to mark the current section without pulling
- * `useSearchParams` (and a Suspense boundary) into the root layout.
+ * The header navigates the shop in three broad groups, and the shop's own chips
+ * narrow each one to a category — Plants down to Carnivorous Plants, Botanicals
+ * down to Handmade Soap. Two levels, in the two places that suit them: a header
+ * cannot hold eighteen categories, and a shopper who wants "something green"
+ * should not have to pick which kind of green first.
  *
- * These three slugs are locked in the content manager (see
- * `lib/collections.ts`) so the header can never point at a deleted collection.
+ * These used to be three collections, locked so the header could not point at a
+ * deleted row. Navigating by group instead means nothing in the header depends
+ * on a row the owner might rename, so every collection is now hers to retire.
  */
 const navigation: ReadonlyArray<readonly [label: string, href: string]> = [
-  ['Plants', '/collections/plants'],
-  ['Teas & Herbals', '/collections/teas-herbals'],
-  ['Botanicals', '/collections/botanicals'],
+  ['Plants', '/shop?category=PLANT'],
+  ['Teas & Herbals', '/shop?category=TEA'],
+  ['Botanicals', '/shop?category=BOTANICAL'],
   ...(CLASSES_PUBLICLY_VISIBLE ? ([['Classes', '/classes']] as const) : []),
   ['Plant Care', '/care'],
   ['Gallery', '/gallery'],
@@ -538,9 +540,16 @@ export function SiteHeader({
   }, [mobileOpen]);
 
   const isActive = (href: string) => {
-    const path = href.split('?')[0];
-    if (path === '/') return pathname === '/';
-    return pathname === path || pathname.startsWith(`${path}/`);
+    /**
+     * A link that carries a filter is never marked current. `usePathname` is
+     * all this component reads — deliberately, because `useSearchParams` would
+     * pull a Suspense boundary into the root layout — so on /shop it cannot
+     * tell the three group links apart, and marking all three as the current
+     * page is worse than marking none.
+     */
+    if (href.includes('?')) return false;
+    if (href === '/') return pathname === '/';
+    return pathname === href || pathname.startsWith(`${href}/`);
   };
 
   const openMobileCart = () => {

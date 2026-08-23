@@ -191,7 +191,10 @@ export const PRODUCT_CARD_SELECT = {
   newArrivalMode: true,
   bestSellerMode: true,
   seasonStartsAt: true,
-  seasonEndsAt: true
+  seasonEndsAt: true,
+  // Two strings, not the joined row: a card renders one pill from it and the
+  // whole catalog is serialized into the browser twice over.
+  category: { select: { slug: true, title: true } }
 } satisfies Prisma.ProductSelect;
 
 export type MerchandisedProduct = Prisma.ProductGetPayload<{ select: typeof PRODUCT_CARD_SELECT }>;

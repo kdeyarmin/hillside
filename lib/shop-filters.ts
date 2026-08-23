@@ -72,6 +72,15 @@ export type FilterableProduct = {
   /** Every attribute, assigned and derived. */
   tags: readonly string[];
   collectionSlugs: readonly string[];
+  /**
+   * The product's own category, which is what a category filter means now that
+   * the taxonomy is rows rather than six broad types. `type` is kept beside it
+   * because a `?category=BOTANICAL` link somebody bookmarked still has to land
+   * somewhere sensible, and a product that predates the taxonomy has nothing
+   * else to be matched on.
+   */
+  categorySlug: string | null;
+  categoryTitle: string | null;
 };
 
 function inPriceBand(product: FilterableProduct, key: string) {
@@ -83,9 +92,17 @@ function inPriceBand(product: FilterableProduct, key: string) {
   return product.prices.some((price) => price >= band.minCents && price < band.maxCents);
 }
 
+/**
+ * A category filter is read as a slug first and as a legacy group or type only
+ * when no slug could match it. Checking the legacy groups first would have made
+ * the seeded slugs `tea` and `other` behave as the broad types of the same name,
+ * so `/shop?category=tea` answered with tea accessories as well as tea.
+ */
 function inCategory(product: FilterableProduct, category: string) {
+  if (!category || category === 'ALL') return true;
+  if (product.categorySlug === category) return true;
   const types = categoryTypes(category);
-  return !types.length || types.includes(product.type);
+  return types.length ? types.includes(product.type) : false;
 }
 
 /** Whether one product answers a filter state. Search and sort are not ours. */
@@ -154,13 +171,32 @@ export function buildFacets(
   const facets: FilterFacet[] = [];
 
   const categoryScope = scopeFor(products, state, { category: 'ALL' });
-  const presentTypes = Array.from(new Set(categoryScope.map((product) => product.type)));
-  const grouped = new Set(Object.values(CATEGORY_GROUPS).flatMap((group) => group.types));
+  /**
+   * The categories actually on the shelf, named as Tammy named them. A legacy
+   * group is offered only while it is the filter in force, so an old link stays
+   * nameable and undoable without putting six broad shelves back in the rail
+   * beside the real ones.
+   */
+  const presentCategories = new Map<string, string>();
+  for (const product of categoryScope) {
+    if (product.categorySlug) {
+      presentCategories.set(product.categorySlug, product.categoryTitle || product.categorySlug);
+    }
+  }
+  const uncategorised = Array.from(
+    new Set(categoryScope.filter((product) => !product.categorySlug).map((p) => p.type))
+  );
   const categoryCandidates = [
-    ...Object.entries(CATEGORY_GROUPS).map(([key, group]) => ({ value: key, label: group.label })),
-    ...presentTypes
-      .filter((type) => !grouped.has(type))
-      .map((type) => ({ value: type, label: productTypeLabel(type) }))
+    ...Array.from(presentCategories, ([value, label]) => ({ value, label })),
+    ...uncategorised.map((type) => ({ value: type, label: productTypeLabel(type) })),
+    ...(state.category !== 'ALL' && !presentCategories.has(state.category)
+      ? [
+          {
+            value: state.category,
+            label: CATEGORY_GROUPS[state.category]?.label || productTypeLabel(state.category)
+          }
+        ]
+      : [])
   ];
   const categoryOptions = buildOptions(
     categoryCandidates,
@@ -206,6 +242,7 @@ export function buildFacets(
    * the tags that apply to the product types on screen. This is what keeps a
    * light-requirement filter away from a soap shopper.
    */
+  const presentTypes = Array.from(new Set(categoryScope.map((product) => product.type)));
   const applicable: ProductTag[] = tagsForTypes(presentTypes);
   /**
    * Attributes the shop works out rather than stores. `on-sale` belongs here:
@@ -263,14 +300,18 @@ export function buildFacets(
 /** Human wording for the "you have filtered by…" row and the clear button. */
 export function activeFilterChips(
   state: ShopFilterState,
-  collections: ReadonlyArray<{ slug: string; title: string }> = []
+  collections: ReadonlyArray<{ slug: string; title: string }> = [],
+  categories: ReadonlyArray<{ slug: string; title: string }> = []
 ): Array<{ key: string; value: string; label: string }> {
   const chips: Array<{ key: string; value: string; label: string }> = [];
   if (state.category && state.category !== 'ALL') {
     chips.push({
       key: 'category',
       value: state.category,
-      label: CATEGORY_GROUPS[state.category]?.label || productTypeLabel(state.category)
+      label:
+        categories.find((entry) => entry.slug === state.category)?.title ||
+        CATEGORY_GROUPS[state.category]?.label ||
+        productTypeLabel(state.category)
     });
   }
   if (state.collection) {
@@ -327,7 +368,8 @@ const KNOWN_CATEGORIES = new Set([
  */
 export function parseShopFilters(
   params: Record<string, string | string[] | undefined>,
-  knownTags: readonly string[]
+  knownTags: readonly string[],
+  knownCategories: readonly string[] = []
 ): ShopFilterState {
   const first = (value: string | string[] | undefined) =>
     ((Array.isArray(value) ? value[0] : value) || '').trim();
@@ -345,10 +387,19 @@ export function parseShopFilters(
 
   const sort = first(params.sort);
   const price = first(params.price);
-  const category = first(params.category).toUpperCase();
+  /**
+   * A category slug is case-sensitive and a legacy group is not, so the raw
+   * value is tried as a slug before being folded to upper case.
+   */
+  const rawCategory = first(params.category);
+  const category = knownCategories.includes(rawCategory)
+    ? rawCategory
+    : KNOWN_CATEGORIES.has(rawCategory.toUpperCase())
+      ? rawCategory.toUpperCase()
+      : 'ALL';
 
   return {
-    category: KNOWN_CATEGORIES.has(category) ? category : 'ALL',
+    category,
     collection: first(params.collection),
     price: PRICE_BANDS.some((band) => band.key === price) ? price : '',
     tags: Array.from(new Set(tagList)),

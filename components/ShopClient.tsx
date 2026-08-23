@@ -65,10 +65,13 @@ function pricingFor(product: ShopProduct) {
 export default function ShopClient({
   products,
   collections = [],
+  categories = [],
   initial
 }: {
   products: ShopProduct[];
   collections?: Array<{ slug: string; title: string }>;
+  /** Only for naming the category chip; which chips are offered is the rail's. */
+  categories?: Array<{ slug: string; title: string }>;
   initial: ShopFilterState;
 }) {
   const [state, setState] = useState<ShopFilterState>(initial);
@@ -112,7 +115,9 @@ export default function ShopClient({
         // a product nothing about which can be bought at that price.
         prices: sizes.length ? sizes.map((size) => size.priceCents) : [product.priceCents],
         tags: product.tags,
-        collectionSlugs: (product.collections || []).map((collection) => collection.slug)
+        collectionSlugs: (product.collections || []).map((collection) => collection.slug),
+        categorySlug: product.categorySlug ?? null,
+        categoryTitle: product.categoryTitle ?? null
       });
     }
     return map;
@@ -172,7 +177,7 @@ export default function ShopClient({
     });
   }, [filterable, products, searchMatched, state]);
 
-  const chips = activeFilterChips(state, collections);
+  const chips = activeFilterChips(state, collections, categories);
   const filtered = hasActiveFilters(state);
 
   const setValue = (key: keyof ShopFilterState, value: string) =>

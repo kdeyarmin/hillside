@@ -21,13 +21,16 @@ const product = (
   priceCents: number,
   tags: string[],
   collectionSlugs: string[] = [],
-  extraPrices: number[] = []
+  extraPrices: number[] = [],
+  category: { slug: string; title: string } | null = null
 ): FilterableProduct => ({
   id,
   type,
   prices: [priceCents, ...extraPrices],
   tags,
-  collectionSlugs
+  collectionSlugs,
+  categorySlug: category?.slug ?? null,
+  categoryTitle: category?.title ?? null
 });
 
 const pothos = product(
@@ -276,5 +279,65 @@ describe('activeFilterChips and hasActiveFilters', () => {
     assert.equal(hasActiveFilters(filters({ search: 'pothos' })), true);
     // Sort is not a filter: it changes the order, never what is shown.
     assert.equal(hasActiveFilters(filters({ sort: 'price-low' })), false);
+  });
+});
+
+/**
+ * The taxonomy arrived after the filter rail did, so a category filter has two
+ * possible meanings: a category slug, or one of the broad `ProductType` groups
+ * the shop navigated by beforehand. Slug first, because two of the seeded slugs
+ * — `tea` and `other` — collide with legacy group names.
+ */
+describe('category filters across the taxonomy change', () => {
+  const tea = product('tea', 'TEA', 1200, [], [], [], { slug: 'tea', title: 'Tea' });
+  const infuser = product('inf', 'TEA_SUPPLY', 1800, [], [], [], {
+    slug: 'tea-accessories',
+    title: 'Tea Accessories'
+  });
+  const legacy = product('old', 'SOAP', 900, []);
+
+  it('reads a category slug as a slug, not as the legacy group of the same name', () => {
+    const state = { ...EMPTY_FILTERS, category: 'tea' };
+    assert.equal(matchesFilters(tea, state), true);
+    // `TEA` as a legacy group covers tea accessories too; the slug must not.
+    assert.equal(matchesFilters(infuser, state), false);
+  });
+
+  it('still honours a legacy ?category=TEA link', () => {
+    const state = { ...EMPTY_FILTERS, category: 'TEA' };
+    assert.equal(matchesFilters(tea, state), true);
+    assert.equal(matchesFilters(infuser, state), true);
+  });
+
+  it('matches an uncategorised product only through its legacy type', () => {
+    assert.equal(matchesFilters(legacy, { ...EMPTY_FILTERS, category: 'SOAP' }), true);
+    assert.equal(matchesFilters(legacy, { ...EMPTY_FILTERS, category: 'tea' }), false);
+  });
+
+  it('keeps a slug as typed and folds a legacy value to upper case', () => {
+    const known = ['tea', 'tea-accessories'];
+    assert.equal(parseShopFilters({ category: 'tea' }, KNOWN, known).category, 'tea');
+    assert.equal(parseShopFilters({ category: 'soap' }, KNOWN, known).category, 'SOAP');
+    // Neither a known slug nor a value the shop can honour.
+    assert.equal(parseShopFilters({ category: 'nonsense' }, KNOWN, known).category, 'ALL');
+  });
+
+  it('offers the categories on the shelf, named as the owner named them', () => {
+    const facets = buildFacets([tea, infuser], EMPTY_FILTERS);
+    const category = facets.find((facet) => facet.key === 'category');
+    assert.ok(category);
+    assert.deepEqual(category.options.map((option) => option.label).sort(), [
+      'Tea',
+      'Tea Accessories'
+    ]);
+  });
+
+  it('names an active slug chip from the category rather than the slug', () => {
+    const chips = activeFilterChips(
+      { ...EMPTY_FILTERS, category: 'tea-accessories' },
+      [],
+      [{ slug: 'tea-accessories', title: 'Tea Accessories' }]
+    );
+    assert.equal(chips.find((chip) => chip.key === 'category')?.label, 'Tea Accessories');
   });
 });
