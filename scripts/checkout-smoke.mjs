@@ -114,30 +114,48 @@ try {
   });
 
   /**
-   * Two things the basket product has to be, both of which used to be true by
-   * luck of which product happened to be cheapest.
+   * What the basket product has to be, all of which used to be true by luck of
+   * which product happened to be cheapest.
    *
-   * It must be sold one way. Every line built below carries no size, and the
-   * checkout refuses a sized product addressed without one — correctly, but it
-   * refuses at validation, so every check after it measures the refusal rather
-   * than the thing it was written for.
+   * It must ship, because every checkout below asks for `SHIP`. A pickup-only
+   * product is refused at validation, and a refusal measured twenty times is
+   * not twenty passing checks — it is one fixture chosen wrongly.
+   *
+   * It must be sold one way, for the same reason: every line built below
+   * carries no size, and the checkout rightly refuses a sized product addressed
+   * without one.
    *
    * And it should hold fewer than 20, because a line's quantity is capped at 20
    * on the way in: a deeper shelf cannot be oversold through one line, and the
-   * oversell check below can only report itself skipped. That one is a
+   * oversell check below can only report itself skipped. That last one is a
    * preference rather than a requirement — a catalog with nothing shallow still
    * runs everything else.
    */
   const candidates = await db.product.findMany({
-    where: { active: true, inventory: { gte: 5 } },
+    where: { active: true, ships: true, inventory: { gte: 5 } },
     orderBy: { priceCents: 'asc' }
   });
-  const oneSize = candidates.filter(
-    (row) => !Array.isArray(row.sizes) || row.sizes.length === 0
-  );
+  /**
+   * `sizes` is not always an array in the column. `readStoredSizes` parses a
+   * string too — "older rows, or a hand-edited column, may hold the JSON as
+   * text" — and a bare `Array.isArray` reads one of those as unsized, which
+   * picks exactly the fixture this is here to avoid.
+   */
+  const sizeCount = (value) => {
+    let parsed = value;
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        return 0;
+      }
+    }
+    return Array.isArray(parsed) ? parsed.length : 0;
+  };
+  const oneSize = candidates.filter((row) => sizeCount(row.sizes) === 0);
   const product = oneSize.find((row) => row.inventory < 20) || oneSize[0];
   if (!product) {
-    throw new Error('no sellable one-size product to test with');
+    throw new Error('no sellable, shippable, one-size product to test with');
   }
   const line = (quantity = 1, priceCents = product.priceCents) => ([
     { id: product.slug, kind: 'product', quantity, priceCents }
