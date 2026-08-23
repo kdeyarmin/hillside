@@ -45,7 +45,7 @@ const bundles: BundleSeed[] = [
     badge: 'Gift ready',
     featured: true,
     sortOrder: 1,
-    priceCents: 2800,
+    priceCents: 2400,
     items: [
       { slug: 'hillside-calm-tea', note: 'Our own chamomile and lemon balm blend.' },
       { slug: 'stainless-tea-infuser', note: 'Fine enough for the smallest leaf.' }
@@ -60,7 +60,7 @@ const bundles: BundleSeed[] = [
     imageUrl: '/images/catalog/apothecary.webp',
     featured: true,
     sortOrder: 2,
-    priceCents: 4200,
+    priceCents: 3600,
     items: [
       { slug: 'hillside-calm-tea' },
       { slug: 'garden-herb-soap' },
