@@ -2,7 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Gift, MessageSquareHeart } from 'lucide-react';
+import BundleGrid from '@/components/BundleGrid';
 import ProductGrid from '@/components/ProductGrid';
+import { bundleCardData, sellableBundles } from '@/lib/bundle-queries';
 import { contactHref } from '@/lib/contact';
 import { giftGuideProducts, loadGiftCatalog, toGiftCard } from '@/lib/gift-catalog';
 import { findGiftGuide, GIFT_GUIDES, giftGuidePath } from '@/lib/gifts';
@@ -32,7 +34,15 @@ export default async function GiftGuidePage({ params }: { params: Promise<{ slug
   const guide = findGiftGuide(slug);
   if (!guide) notFound();
 
-  const catalog = await loadGiftCatalog();
+  /**
+   * Ready-made sets lead a guide that asks for them, as their own shelf rather
+   * than mixed into the product grid: a set is a `Bundle` with its own page,
+   * its own price and an availability derived from what is on the bench.
+   */
+  const [catalog, sets] = await Promise.all([
+    loadGiftCatalog(),
+    guide.includeBundles ? sellableBundles({ take: 3 }) : []
+  ]);
   const products = giftGuideProducts(catalog, guide);
   /** The other guides worth offering: ones that actually hold something. */
   const siblings = GIFT_GUIDES.filter(
@@ -92,6 +102,22 @@ export default async function GiftGuidePage({ params }: { params: Promise<{ slug
 
       <section className="content gift-content">
         <div className="container">
+          {sets.length > 0 && (
+            <section className="gift-bundles" aria-labelledby="gift-guide-sets">
+              <div className="gift-bundles-head">
+                <div>
+                  <div className="eyebrow">Ready to give</div>
+                  <h2 id="gift-guide-sets">Sets, boxed and ready.</h2>
+                  <p>Put together out of things we already sell, priced below their parts.</p>
+                </div>
+                <Link className="btn" href="/bundles">
+                  See every set
+                </Link>
+              </div>
+              <BundleGrid bundles={sets.map(bundleCardData)} />
+            </section>
+          )}
+
           {products.length > 0 ? (
             <>
               <div className="toolbar gift-toolbar">
