@@ -9,7 +9,7 @@ export const metadata = pageMetadata({
   path: '/collections',
   title: 'Shop by Collection',
   description:
-    'Browse The Hillside Gardens by collection — plants, teas and botanicals grouped the way we keep them.'
+    'Browse The Hillside Gardens by collection — beginner friendly, low light, pet friendly and other hand-picked groupings across the whole shop.'
 });
 
 export default async function CollectionsIndex() {
@@ -26,12 +26,16 @@ export default async function CollectionsIndex() {
     <>
       <section className="pagehero">
         <div className="container">
-          <div className="eyebrow">Shop the garden</div>
+          <div className="eyebrow">Chosen by Tammy</div>
           <h1>Every collection.</h1>
           <p>
             {stocked.length > 0
-              ? 'Each collection is curated by hand. If a collection is on the bench, you will see it here.'
+              ? 'A collection answers a question rather than naming a shelf — forgiving for a beginner, happy in low light, safe around a cat. Each one is picked by hand and can hold anything in the shop.'
               : 'These are the collections we keep. Nothing is listed for sale right now — ask us what is coming next.'}
+          </p>
+          <p className="pagehero-links">
+            <span>Looking for a particular kind of thing?</span>
+            <Link href="/shop">Browse the shop by category</Link>
           </p>
         </div>
       </section>

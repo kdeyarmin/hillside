@@ -9,7 +9,6 @@ const {
   cartLineKey,
   findSize,
   formatSizePriceRange,
-  parseSizeLines,
   productInventoryForSizes,
   productSizes,
   readStoredSizes,
@@ -20,7 +19,6 @@ const {
   sizeChoiceRejected,
   sizedName,
   sizeFieldLabel,
-  sizeLines,
   sizePriceRange,
   sizeStockSummary,
   sizedPriceCents,
@@ -28,8 +26,43 @@ const {
   sizesTrackStock,
   storedSizesTrackStock,
   takeStoredSizeStock,
+  readVariantRows,
+  variantEditorRows,
+  variantFulfillmentChoice,
+  variantsDifferOnFulfillment,
   withoutRedundantPrices
 } = await import('../lib/product-sizes.ts');
+
+type VariantRowInput = {
+  label?: string;
+  price?: string;
+  inventory?: string;
+  sku?: string;
+  imageUrl?: string;
+  weight?: string;
+  dimensions?: string;
+  fulfillment?: string;
+};
+
+/**
+ * The admin form as a browser posts it: one repeated field per column, in row
+ * order. Building it this way rather than as objects is the point of the test —
+ * what `readVariantRows` has to survive is the zipping, not the parsing.
+ */
+function variantForm(rows: VariantRowInput[]) {
+  const form = new FormData();
+  for (const row of rows) {
+    form.append('variantLabel', row.label ?? '');
+    form.append('variantPrice', row.price ?? '');
+    form.append('variantInventory', row.inventory ?? '');
+    form.append('variantSku', row.sku ?? '');
+    form.append('variantImageUrl', row.imageUrl ?? '');
+    form.append('variantWeight', row.weight ?? '');
+    form.append('variantDimensions', row.dimensions ?? '');
+    form.append('variantFulfillment', row.fulfillment ?? '');
+  }
+  return form;
+}
 
 describe('readStoredSizes', () => {
   it('keeps labels and only the prices that were set', () => {
@@ -64,13 +97,28 @@ describe('readStoredSizes', () => {
   });
 });
 
+/**
+ * A resolved variant that inherits everything: no product defaults were passed,
+ * so each field answers with "nothing in particular" and both flags with the
+ * shop's own default of yes.
+ */
+const INHERITED = {
+  inventory: null,
+  sku: null,
+  imageUrl: null,
+  weightOunces: null,
+  dimensions: null,
+  ships: true,
+  pickup: true
+};
+
 describe('productSizes', () => {
   it('falls back to the product price for options that set none', () => {
     assert.deepEqual(
       productSizes([{ label: '4" pot' }, { label: '6" pot', priceCents: 2400 }], 1800),
       [
-        { label: '4" pot', priceCents: 1800, inventory: null },
-        { label: '6" pot', priceCents: 2400, inventory: null }
+        { ...INHERITED, label: '4" pot', priceCents: 1800 },
+        { ...INHERITED, label: '6" pot', priceCents: 2400 }
       ]
     );
   });
@@ -219,25 +267,163 @@ describe('normalizeSizeLabel', () => {
   });
 });
 
-describe('parseSizeLines', () => {
-  it('reads one size per line, with an optional price', () => {
-    assert.deepEqual(parseSizeLines('4" pot\n6" pot | 24.00\n\n8" pot | $32'), [
-      { label: '4" pot' },
-      { label: '6" pot', priceCents: 2400 },
-      { label: '8" pot', priceCents: 3200 }
+describe('readVariantRows', () => {
+  it('zips the posted columns back into variants', () => {
+    assert.deepEqual(
+      readVariantRows(
+        variantForm([
+          { label: '4" nursery pot', price: '18.00', inventory: '6' },
+          { label: '6" decorative planter', price: '$32', inventory: '2' }
+        ])
+      ),
+      [
+        { label: '4" nursery pot', priceCents: 1800, inventory: 6 },
+        { label: '6" decorative planter', priceCents: 3200, inventory: 2 }
+      ]
+    );
+  });
+
+  it('drops the blank rows the form always ends with', () => {
+    assert.deepEqual(readVariantRows(variantForm([{ label: 'Small' }, {}, {}])), [
+      { label: 'Small' }
     ]);
   });
 
-  it('keeps the label when the price is unreadable', () => {
-    assert.deepEqual(parseSizeLines('Small | free\nLarge | '), [
+  it('keeps a row aligned when the ones before it are empty', () => {
+    /**
+     * The whole reason every control on a variant row is a text field or a
+     * select: an unticked checkbox posts nothing, and one missing entry would
+     * slide every row below it up by one and move this variant's answers onto
+     * another variant.
+     */
+    assert.deepEqual(
+      readVariantRows(
+        variantForm([
+          {},
+          { label: '6" pot', sku: 'HG-POTH-6', fulfillment: 'pickup', weight: '48' }
+        ])
+      ),
+      [
+        {
+          label: '6" pot',
+          sku: 'HG-POTH-6',
+          weightOunces: 48,
+          ships: false,
+          pickup: true
+        }
+      ]
+    );
+  });
+
+  it('carries a variant’s own photograph, size and shipping answer', () => {
+    assert.deepEqual(
+      readVariantRows(
+        variantForm([
+          {
+            label: '10" specimen',
+            price: '95.00',
+            imageUrl: '/media/specimen.jpg',
+            dimensions: '10" pot, 4 ft tall',
+            fulfillment: 'pickup'
+          }
+        ])
+      ),
+      [
+        {
+          label: '10" specimen',
+          priceCents: 9500,
+          imageUrl: '/media/specimen.jpg',
+          dimensions: '10" pot, 4 ft tall',
+          ships: false,
+          pickup: true
+        }
+      ]
+    );
+  });
+
+  it('leaves an unanswered fulfillment dropdown following the product', () => {
+    const [variant] = readVariantRows(variantForm([{ label: '4" pot' }]));
+    assert.equal('ships' in variant, false);
+    assert.equal('pickup' in variant, false);
+    assert.equal(variantFulfillmentChoice(variant), '');
+  });
+
+  it('round-trips a stored variant back through the dropdown', () => {
+    assert.equal(variantFulfillmentChoice({ ships: true, pickup: true }), 'both');
+    assert.equal(variantFulfillmentChoice({ ships: true, pickup: false }), 'ship');
+    assert.equal(variantFulfillmentChoice({ ships: false, pickup: true }), 'pickup');
+    // Neither is unsellable, so it is stored as following the product instead.
+    assert.equal(variantFulfillmentChoice({ ships: false, pickup: false }), '');
+  });
+});
+
+describe('variants against the product they belong to', () => {
+  it('falls back to the product for everything a variant leaves unsaid', () => {
+    const [variant] = productSizes([{ label: '4" pot' }], 1800, {
+      sku: 'HG-POTH',
+      imageUrl: '/media/pothos.jpg',
+      weightOunces: 20,
+      dimensions: '4" pot',
+      ships: true,
+      pickup: true
+    });
+    assert.deepEqual(variant, {
+      label: '4" pot',
+      priceCents: 1800,
+      inventory: null,
+      sku: 'HG-POTH',
+      imageUrl: '/media/pothos.jpg',
+      weightOunces: 20,
+      dimensions: '4" pot',
+      ships: true,
+      pickup: true
+    });
+  });
+
+  it('never makes a pickup-only product shippable by saying nothing', () => {
+    const [variant] = productSizes([{ label: '4" pot' }], 1800, { ships: false, pickup: true });
+    assert.equal(variant.ships, false);
+    assert.equal(variant.pickup, true);
+  });
+
+  it('lets one variant differ from the product it belongs to', () => {
+    const sizes = productSizes(
+      [{ label: '4" pot' }, { label: '10" specimen', ships: false, pickup: true }],
+      1800,
+      { ships: true, pickup: true }
+    );
+    assert.equal(sizes[0].ships, true);
+    assert.equal(sizes[1].ships, false);
+    assert.equal(variantsDifferOnFulfillment(sizes), true);
+  });
+
+  it('says the variants agree when they all get home the same way', () => {
+    assert.equal(
+      variantsDifferOnFulfillment(productSizes([{ label: 'Small' }, { label: 'Large' }], 1800)),
+      false
+    );
+    // One variant cannot disagree with itself, whatever it says.
+    assert.equal(
+      variantsDifferOnFulfillment(
+        productSizes([{ label: 'Only one', ships: false }], 1800, { pickup: true })
+      ),
+      false
+    );
+  });
+});
+
+describe('variantEditorRows', () => {
+  it('offers blank rows to type the next variant into', () => {
+    assert.deepEqual(variantEditorRows(null, 2), [{ label: '' }, { label: '' }]);
+    assert.deepEqual(variantEditorRows([{ label: 'Small' }], 1), [
       { label: 'Small' },
-      { label: 'Large' }
+      { label: '' }
     ]);
   });
 
-  it('round-trips through the owner textarea', () => {
-    const typed = '4" pot\n6" pot | 24.00';
-    assert.equal(sizeLines(parseSizeLines(typed)), typed);
+  it('stops offering rows once the list is full', () => {
+    const full = Array.from({ length: 12 }, (_, index) => ({ label: `Size ${index}` }));
+    assert.equal(variantEditorRows(full, 2).length, 12);
   });
 });
 
@@ -255,8 +441,8 @@ describe('counting stock by size', () => {
     // One number anywhere makes the whole list counted, and the sizes left
     // blank read as none left rather than as the product's whole shelf.
     assert.deepEqual(productSizes([{ label: '4" pot', inventory: 5 }, { label: '6" pot' }], 1800), [
-      { label: '4" pot', priceCents: 1800, inventory: 5 },
-      { label: '6" pot', priceCents: 1800, inventory: 0 }
+      { ...INHERITED, label: '4" pot', priceCents: 1800, inventory: 5 },
+      { ...INHERITED, label: '6" pot', priceCents: 1800, inventory: 0 }
     ]);
   });
 
@@ -313,33 +499,95 @@ describe('counting stock by size', () => {
   });
 
   it('reads the counts the owner typed and writes them back unchanged', () => {
-    const typed = '4" pot | | 6\n6" pot | 24.00 | 2\n8" pot | 32.00 | 0';
-    const parsed = withoutRedundantPrices(parseSizeLines(typed), 1800);
-    assert.deepEqual(parsed, counted);
-    assert.equal(sizeLines(parsed), typed);
-    assert.equal(sizeStockSummary(parsed), '4" pot 6 · 6" pot 2 · 8" pot 0');
+    const posted = withoutRedundantPrices(
+      readVariantRows(
+        variantForm([
+          { label: '4" pot', inventory: '6' },
+          { label: '6" pot', price: '24.00', inventory: '2' },
+          { label: '8" pot', price: '32.00', inventory: '0' }
+        ])
+      ),
+      1800
+    );
+    assert.deepEqual(posted, counted);
+    assert.equal(sizeStockSummary(posted), '4" pot 6 · 6" pot 2 · 8" pot 0');
   });
 
-  it('leaves the older two-field lines uncounted', () => {
-    const typed = '2 oz\n8 oz | 26.00';
-    const parsed = withoutRedundantPrices(parseSizeLines(typed), 1200);
-    assert.deepEqual(parsed, shared);
-    assert.equal(sizeLines(parsed), typed);
-    assert.equal(sizeStockSummary(parsed), null);
+  it('leaves a list with no quantities typed sharing the product’s one count', () => {
+    const posted = withoutRedundantPrices(
+      readVariantRows(variantForm([{ label: '2 oz' }, { label: '8 oz', price: '26.00' }])),
+      1200
+    );
+    assert.deepEqual(posted, shared);
+    assert.equal(sizeStockSummary(posted), null);
   });
 
-  it('only reads a third field as a count when both trailing fields are numbers', () => {
-    // `Small | free` kept its label before counts existed and still does.
-    assert.deepEqual(parseSizeLines('Small | free | 3'), [
-      { label: 'Small | free', priceCents: 300 }
+  it('refuses quantities that are not counts on a bench', () => {
+    // Fractions round down; a negative is not a quantity, so the row is left
+    // uncounted rather than stored as a number that could be spent.
+    assert.deepEqual(readVariantRows(variantForm([{ label: '4" pot', inventory: '2.7' }])), [
+      { label: '4" pot', inventory: 2 }
     ]);
-    assert.deepEqual(parseSizeLines('4" pot | $18.00 | 6'), [
-      { label: '4" pot', priceCents: 1800, inventory: 6 }
+    assert.deepEqual(readVariantRows(variantForm([{ label: '4" pot', inventory: '-3' }])), [
+      { label: '4" pot' }
     ]);
-    // A trailing bar with nothing after it is not a count of nothing.
-    assert.deepEqual(parseSizeLines('4" pot | 18.00 |'), [{ label: '4" pot', priceCents: 1800 }]);
-    // Fractions and negatives are not quantities on a bench.
-    assert.deepEqual(parseSizeLines('4" pot | | 2.7'), [{ label: '4" pot', inventory: 2 }]);
-    assert.deepEqual(parseSizeLines('4" pot | | -3'), [{ label: '4" pot' }]);
+    assert.deepEqual(readVariantRows(variantForm([{ label: '4" pot', price: 'free' }])), [
+      { label: '4" pot' }
+    ]);
+  });
+});
+
+describe('withoutRedundantPrices against the whole product', () => {
+  const product = {
+    sku: 'HG-POTH',
+    imageUrl: '/media/pothos.jpg',
+    weightOunces: 20,
+    dimensions: '4" pot',
+    ships: true,
+    pickup: true
+  };
+
+  it('drops everything a variant merely repeats from its product', () => {
+    /**
+     * Otherwise the variant is pinned to today's answers: it would keep the old
+     * photograph after Tammy replaced the product's, and keep last season's
+     * price after she raised it.
+     */
+    assert.deepEqual(
+      withoutRedundantPrices([{ label: '4" pot', priceCents: 1800, ...product }], 1800, product),
+      [{ label: '4" pot' }]
+    );
+  });
+
+  it('keeps what genuinely differs', () => {
+    assert.deepEqual(
+      withoutRedundantPrices(
+        [
+          {
+            label: '10" specimen',
+            priceCents: 9500,
+            sku: 'HG-POTH-10',
+            imageUrl: '/media/specimen.jpg',
+            weightOunces: 260,
+            dimensions: '10" pot',
+            ships: false,
+            pickup: true
+          }
+        ],
+        1800,
+        product
+      ),
+      [
+        {
+          label: '10" specimen',
+          priceCents: 9500,
+          sku: 'HG-POTH-10',
+          imageUrl: '/media/specimen.jpg',
+          weightOunces: 260,
+          dimensions: '10" pot',
+          ships: false
+        }
+      ]
+    );
   });
 });

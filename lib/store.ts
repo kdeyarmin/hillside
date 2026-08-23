@@ -60,10 +60,19 @@ export function formatMoneyCompact(cents: number) {
 }
 
 /**
- * Navigation categories are merchandising groups, not database enums. A shopper
- * looking for "Botanicals" expects soaps, lotions and anything else handmade —
- * mapping each nav link to a single ProductType hid part of the catalog from the
- * only navigation that pointed at it.
+ * The three broad groups the site header navigates by. The shop's own chips
+ * narrow each of them to a category — Plants down to Carnivorous Plants,
+ * Botanicals down to Handmade Soap — so the two levels live in the two places
+ * that suit them: a header cannot hold eighteen categories, and a shopper who
+ * wants "something green" should not have to pick which kind of green first.
+ *
+ * A shopper looking for "Botanicals" expects soaps, lotions and anything else
+ * handmade, which is why each group covers several `ProductType` values rather
+ * than one: mapping a nav link to a single type hid part of the catalog from
+ * the only navigation that pointed at it.
+ *
+ * Keeping them is also what makes a `?category=BOTANICAL` already in somebody's
+ * bookmarks go on working now that new links use a category slug.
  */
 export const CATEGORY_GROUPS: Record<string, { label: string; types: string[] }> = {
   PLANT: { label: 'Plants', types: ['PLANT'] },
@@ -71,21 +80,48 @@ export const CATEGORY_GROUPS: Record<string, { label: string; types: string[] }>
   BOTANICAL: { label: 'Botanicals', types: ['SOAP', 'LOTION', 'OTHER'] }
 };
 
-/** Accepts a group key, a bare ProductType, or a comma separated list of either. */
+const PRODUCT_TYPES = ['PLANT', 'TEA', 'TEA_SUPPLY', 'LOTION', 'SOAP', 'OTHER'];
+
+/**
+ * Accepts a legacy group key, a bare `ProductType`, or a comma separated list of
+ * either, and answers with the types it covers. A value that is neither — a
+ * category slug, which is what the shop filters by now — answers with nothing,
+ * and that empty answer is exactly how the shop tells the two apart.
+ */
 export function categoryTypes(value?: string | null): string[] {
   const raw = (value || '').trim().toUpperCase();
   if (!raw || raw === 'ALL') return [];
   return raw.split(',').flatMap((entry) => {
     const key = entry.trim();
     if (!key) return [];
-    return CATEGORY_GROUPS[key]?.types || [key];
+    const group = CATEGORY_GROUPS[key];
+    if (group) return group.types;
+    return PRODUCT_TYPES.includes(key) ? [key] : [];
   });
 }
 
+/** Whether a `?category=` value is one of the pre-taxonomy links. */
+export function isLegacyCategoryFilter(value?: string | null) {
+  return categoryTypes(value).length > 0;
+}
+
+/**
+ * What a `?category=` value is called, for a legacy link. A category slug has a
+ * real title on its row, so the shop reads that instead and only falls back
+ * here when the row has gone.
+ */
 export function categoryLabel(value?: string | null) {
   const key = (value || '').trim().toUpperCase();
   if (CATEGORY_GROUPS[key]) return CATEGORY_GROUPS[key].label;
-  return key ? productTypeLabel(key) : 'Everything';
+  if (PRODUCT_TYPES.includes(key)) return productTypeLabel(key);
+  const slug = (value || '').trim();
+  if (!slug || slug.toUpperCase() === 'ALL') return 'Everything';
+  // A slug whose row is gone still has to read as words rather than as a slug.
+  return slug
+    .split('-')
+    .filter(Boolean)
+    .map((word, index) => (index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word))
+    .join(' ');
 }
 
 export function discountPercent(priceCents: number, compareAtCents?: number | null) {

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ArrowRight, BookOpen, Leaf, Package, Sparkles, Sprout, Truck } from 'lucide-react';
+import { ArrowRight, BookOpen, Leaf, MapPin, Package, Sparkles, Sprout, Truck } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import NewsletterForm from '@/components/NewsletterForm';
 import ProductGrid from '@/components/ProductGrid';
@@ -15,31 +15,64 @@ import { seatsRemainingFor } from '@/lib/class-seats';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
+import { withCategory } from '@/lib/product-categories';
 import { ratingsByProduct } from '@/lib/reviews';
 import { pageMetadata } from '@/lib/seo';
 import { formatMoney, formatMoneyCompact, freeShippingThresholdCents } from '@/lib/store';
+
+/**
+ * What the shop sells, said plainly, in the first thing a visitor reads.
+ *
+ * The homepage used to open on "Rooted in Nature. Grown with Care." and a
+ * sentence about making spaces feel warmer, which is a mood rather than a
+ * catalog: a first-time visitor could not tell from the top of the page whether
+ * this shop sold plants, prints or candles. The branding is still here — it is
+ * good, and it is hers — but it now sits above a headline that answers the
+ * question, and a row of what is actually on the bench.
+ *
+ * Each chip is a real shop filter. A category with nothing in it drops its
+ * filter and shows the whole shop rather than an empty shelf, so a chip is
+ * never a dead end even between batches.
+ */
+const HERO_CATEGORIES: ReadonlyArray<readonly [label: string, slug: string]> = [
+  ['Houseplants', 'houseplants'],
+  ['Carnivorous plants', 'carnivorous-plants'],
+  ['Succulents', 'succulents'],
+  ['Air plants', 'air-plants'],
+  ['Living arrangements', 'live-plant-arrangements'],
+  ['Terrariums', 'terrariums'],
+  ['Terrarium supplies', 'terrarium-supplies'],
+  ['Moss', 'moss'],
+  ['Driftwood', 'driftwood-natural-materials'],
+  ['Handmade soap', 'handmade-soap'],
+  ['Botanical lotion', 'botanical-lotion'],
+  ['Apothecary', 'apothecary'],
+  ['Tea', 'tea'],
+  ['Tea accessories', 'tea-accessories']
+];
 
 export const dynamic = 'force-dynamic';
 export const metadata = {
   ...pageMetadata({
     path: '/',
-    title: 'The Hillside Gardens | Plants, Teas & Botanicals',
+    title: 'The Hillside Gardens | Plants, Botanical Goods & Creative Planting',
     description:
-      'Shop potted plants, loose-leaf teas, handmade soaps and lotions, and explore practical plant-care sheets from The Hillside Gardens.',
+      'Houseplants, carnivorous plants, succulents and air plants, living arrangements, terrarium supplies, moss and driftwood, plus handmade soap, botanical lotion, tea and apothecary goods. Shipped across the US or collected in Ebensburg, PA.',
     image: '/images/scenes/hillside-hero.webp',
     imageAlt: 'Plants growing in a sunlit greenhouse at The Hillside Gardens'
   }),
-  title: { absolute: 'The Hillside Gardens | Plants, Teas & Botanicals' }
+  title: { absolute: 'The Hillside Gardens | Plants, Botanical Goods & Creative Planting' }
 };
 
 export default async function Home() {
   const freeShippingThreshold = freeShippingThresholdCents();
-  const [featuredProducts, upcomingClasses, collections, careGuideCount, catalogCount] =
+  const [featuredProducts, upcomingClasses, categories, collections, careGuideCount, catalogCount] =
     await Promise.all([
       db.product.findMany({
         where: { active: true, featured: true },
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-        take: 4
+        take: 4,
+        include: { category: { select: { slug: true, title: true } } }
       }),
       // Hidden classes are not fetched at all, so the homepage costs one query
       // less rather than rendering nothing from a result it paid for.
@@ -50,6 +83,17 @@ export default async function Home() {
             take: 2
           })
         : [],
+      /**
+       * Shop-by-category tiles. Same rule as the collections below: only a
+       * category that actually holds something is advertised, so a tile on the
+       * homepage always leads to real stock rather than to an empty shelf.
+       */
+      db.category.findMany({
+        where: { active: true, featured: true, products: { some: { active: true } } },
+        orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+        take: 8,
+        include: { _count: { select: { products: { where: { active: true } } } } }
+      }),
       // Only collections that actually hold something are advertised, so a tile on
       // the homepage always leads to real stock.
       db.collection.findMany({
@@ -63,7 +107,7 @@ export default async function Home() {
 
   const ratings = await ratingsByProduct(featuredProducts.map((product) => product.id));
   const featured = featuredProducts.map((product) => ({
-    ...product,
+    ...withCategory(product),
     averageRating: ratings.get(product.id)?.average ?? null,
     reviewCount: ratings.get(product.id)?.count ?? 0
   }));
@@ -73,25 +117,31 @@ export default async function Home() {
     <>
       <section className="editorial-hero">
         <div className="editorial-hero-copy">
-          <span className="eyebrow">Welcome to The Hillside Gardens</span>
-          <h1>
-            Rooted in Nature.
-            <br />
-            Grown with Care.
-          </h1>
+          <span className="eyebrow">Rooted in Nature. Grown with Care.</span>
+          <h1>Plants, Botanical Goods &amp; Creative Planting</h1>
+          <p className="hero-lede">From Our Hillside to Your Home</p>
           <div className="botanical-rule" aria-hidden="true">
             <span />
             <Leaf size={22} />
             <span />
           </div>
           <p>
-            Explore hand-selected plants, living arrangements, terrarium supplies, handmade soaps
-            and botanical goods chosen to make everyday spaces feel warmer and more personal.
+            Houseplants, carnivorous plants, succulents and air plants — with living arrangements,
+            terrariums, and the moss, driftwood and supplies to build your own. Off the same bench:
+            handmade soap, botanical lotion, apothecary goods, tea and the small tools for brewing
+            it.
           </p>
+          <ul className="hero-catalog">
+            {HERO_CATEGORIES.map(([label, slug]) => (
+              <li key={slug}>
+                <Link href={`/shop?category=${slug}`}>{label}</Link>
+              </li>
+            ))}
+          </ul>
           <div className="actions">
             {catalogCount > 0 ? (
               <Link className="btn editorial-btn" href="/shop">
-                Shop now <ArrowRight size={17} />
+                Shop all {catalogCount} pieces <ArrowRight size={17} />
               </Link>
             ) : (
               <Link
@@ -111,6 +161,10 @@ export default async function Home() {
               </Link>
             )}
           </div>
+          <p className="hero-fulfillment">
+            <MapPin size={15} aria-hidden="true" />
+            Shipped across the US, or collected locally in Ebensburg, PA.
+          </p>
         </div>
         <BrandMockupScene variant="hero" className="editorial-hero-image" badge />
       </section>
@@ -159,27 +213,71 @@ export default async function Home() {
       </section>
 
       <div className="home-merch">
-        {catalogCount === 0 && collections.length === 0 && featured.length === 0 && (
-          <section className="section editorial-section home-restock-section">
-            <div className="container">
-              <div className="home-restock">
-                <div className="eyebrow">On the bench</div>
-                <h2>New pieces are being potted.</h2>
-                <p>
-                  The shop lists only what is ready to go home. Ask Tammy about a custom arrangement
-                  or a local pickup, or browse the care library in the meantime.
-                </p>
-                <div className="actions" style={{ justifyContent: 'center' }}>
-                  <Link
-                    className="btn editorial-btn"
-                    href={contactHref({ subject: 'Local pickup inquiry' })}
-                  >
-                    Ask about local pickup
-                  </Link>
-                  <Link className="editorial-link" href="/care">
-                    Plant care library →
-                  </Link>
+        {catalogCount === 0 &&
+          categories.length === 0 &&
+          collections.length === 0 &&
+          featured.length === 0 && (
+            <section className="section editorial-section home-restock-section">
+              <div className="container">
+                <div className="home-restock">
+                  <div className="eyebrow">On the bench</div>
+                  <h2>New pieces are being potted.</h2>
+                  <p>
+                    The shop lists only what is ready to go home. Ask Tammy about a custom
+                    arrangement or a local pickup, or browse the care library in the meantime.
+                  </p>
+                  <div className="actions" style={{ justifyContent: 'center' }}>
+                    <Link
+                      className="btn editorial-btn"
+                      href={contactHref({ subject: 'Local pickup inquiry' })}
+                    >
+                      Ask about local pickup
+                    </Link>
+                    <Link className="editorial-link" href="/care">
+                      Plant care library →
+                    </Link>
+                  </div>
                 </div>
+              </div>
+            </section>
+          )}
+
+        {categories.length > 0 && (
+          <section className="section editorial-section home-categories-section">
+            <div className="container">
+              <div className="sectionhead">
+                <div className="eyebrow">Shop by category</div>
+                <h2>What&rsquo;s on the bench.</h2>
+                <p>
+                  Every plant and piece is filed under one of these, so you can go straight to the
+                  shelf you came for.
+                </p>
+              </div>
+              <div className="category-tiles">
+                {categories.map((category) => (
+                  <Link
+                    className="category-tile"
+                    href={`/shop?category=${category.slug}`}
+                    key={category.id}
+                  >
+                    <BrandMockupScene
+                      variant="plants"
+                      imageSrc={category.imageUrl}
+                      seed={category.slug}
+                      alt={category.title}
+                      badge={false}
+                    />
+                    <span className="category-tile-copy">
+                      <b>{category.title}</b>
+                      <small>{category.tagline || `${category._count.products} to browse`}</small>
+                    </span>
+                  </Link>
+                ))}
+              </div>
+              <div className="collections-all">
+                <Link className="editorial-link" href="/shop">
+                  Browse the whole shop →
+                </Link>
               </div>
             </div>
           </section>
@@ -189,11 +287,11 @@ export default async function Home() {
           <section className="section editorial-section home-collections-section">
             <div className="container">
               <div className="sectionhead">
-                <div className="eyebrow">Shop the garden</div>
-                <h2>Bring a little Hillside home.</h2>
+                <div className="eyebrow">Chosen by Tammy</div>
+                <h2>Ways to shop, rather than shelves.</h2>
                 <p>
-                  Discover the plants, handmade goods and natural supplies that make The Hillside
-                  Gardens collection distinctive.
+                  Beginner friendly, happy in low light, safe around a cat, under thirty dollars —
+                  the groupings that answer a question rather than name a plant.
                 </p>
               </div>
               <div className="editorial-collections">

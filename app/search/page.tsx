@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { CalendarDays, Leaf, Search, ShoppingBag } from 'lucide-react';
 import ProductGrid from '@/components/ProductGrid';
 import { db } from '@/lib/db';
+import { withCategory } from '@/lib/product-categories';
 import { ratingsByProduct } from '@/lib/reviews';
 import { classFormatLabel } from '@/lib/class-access';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
@@ -42,10 +43,18 @@ export default async function SearchPage({
         db.product.findMany({
           where: {
             active: true,
-            OR: [{ name: contains }, { shortDescription: contains }, { description: contains }]
+            OR: [
+              { name: contains },
+              { shortDescription: contains },
+              { description: contains },
+              // A shopper searching "carnivorous" should find the flytraps
+              // whether or not the word appears in their own descriptions.
+              { category: { title: contains } }
+            ]
           },
           orderBy: [{ featured: 'desc' }, { name: 'asc' }],
-          take: SEARCH_CANDIDATE_LIMIT
+          take: SEARCH_CANDIDATE_LIMIT,
+          include: { category: { select: { slug: true, title: true } } }
         }),
         db.careSheet.findMany({
           where: {
@@ -84,7 +93,12 @@ export default async function SearchPage({
    */
   const products = filterSearchHits(
     productCandidates,
-    (product) => [product.name, product.shortDescription, product.description],
+    (product) => [
+      product.name,
+      product.shortDescription,
+      product.description,
+      product.category?.title
+    ],
     term
   );
   const guides = filterSearchHits(
@@ -101,7 +115,7 @@ export default async function SearchPage({
 
   const ratings = await ratingsByProduct(products.map((product) => product.id));
   const shopProducts = products.map((product) => ({
-    ...product,
+    ...withCategory(product),
     averageRating: ratings.get(product.id)?.average ?? null,
     reviewCount: ratings.get(product.id)?.count ?? 0
   }));

@@ -8,6 +8,7 @@ import {
   sizeFieldLabel,
   sizesArePriced,
   sizesTrackStock,
+  variantsDifferOnFulfillment,
   type SizeOption
 } from '@/lib/product-sizes';
 import { formatMoney } from '@/lib/store';
@@ -36,6 +37,11 @@ export default function AddToCartButton({
   const showPrices = sizesArePriced(sizes, product.priceCents);
   const countedSizes = sizesTrackStock(sizes);
   const fieldLabel = sizeFieldLabel(sizeLabel);
+  /**
+   * Only worth saying per variant when the variants disagree. A shop where
+   * everything ships should not print "ships" against every pot size.
+   */
+  const showFulfillment = variantsDifferOnFulfillment(sizes);
 
   /**
    * What the stepper may climb to. Before a size is picked that is the whole
@@ -60,7 +66,16 @@ export default function AddToCartButton({
         // The basket line caps itself against the size it holds, not against the
         // product's total, so the drawer cannot climb past what is on the bench.
         inventory: available,
-        size: chosen?.label || null
+        size: chosen?.label || null,
+        /**
+         * A variant may get home differently from its product — a 30" specimen
+         * that cannot post safely beside 4" pots that can. The basket has to
+         * carry the variant's answer, because that is what decides whether the
+         * whole cart can be shipped.
+         */
+        ships: chosen ? chosen.ships : product.ships,
+        pickup: chosen ? chosen.pickup : product.pickup,
+        imageUrl: chosen?.imageUrl ?? product.imageUrl
       },
       quantity
     );
@@ -111,6 +126,22 @@ export default function AddToCartButton({
                     countedSizes && available <= 3 ? ` · only ${available} left` : ''
                   }`}
           </p>
+          {/* What arrives changes with the choice, so the measurements and the
+              way it gets home arrive with it too rather than describing a
+              different pot further up the page. */}
+          {chosen && !chosenSoldOut && (chosen.dimensions || showFulfillment) && (
+            <p className="size-picker-detail">
+              {chosen.dimensions}
+              {chosen.dimensions && showFulfillment ? ' · ' : ''}
+              {showFulfillment
+                ? chosen.ships && chosen.pickup
+                  ? 'Ships or local pickup'
+                  : chosen.ships
+                    ? 'Ships to US addresses'
+                    : 'Local pickup only'
+                : ''}
+            </p>
+          )}
         </div>
       )}
       <div className="add-to-cart-panel">

@@ -7,6 +7,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/**
+ * The original, deliberately broad shelf a product sits on. Superseded for
+ * merchandising by `Category`, which the owner edits, but kept because every
+ * product row, the return-policy markup and the shop's legacy category links
+ * still read it. A product's `type` is derived from its category's
+ * `legacyType` on save, so the two can never disagree.
+ */
 enum ProductType {
   PLANT
   TEA
@@ -14,6 +21,23 @@ enum ProductType {
   LOTION
   SOAP
   OTHER
+}
+
+/**
+ * Which set of structured detail fields a product is asked for. A tea needs a
+ * steep time and a caffeine status; a flytrap needs a dormancy note and a water
+ * type; a bag of terrarium gravel needs neither. Carried on the category rather
+ * than on the product so Tammy picks one thing — "Carnivorous Plants" — and the
+ * right questions appear.
+ */
+enum ProductSpecKind {
+  PLANT
+  CARNIVOROUS_PLANT
+  TEA
+  SOAP
+  LOTION
+  HARD_GOOD
+  GENERAL
 }
 
 enum OrderStatus {
@@ -101,26 +125,58 @@ model Product {
   shippingNote     String?
   ships            Boolean      @default(true)
   pickup           Boolean      @default(true)
+  /**
+   * The broad legacy shelf. Derived from `category.legacyType` whenever a
+   * category is chosen, and left as the owner set it on the handful of rows
+   * that predate categories entirely.
+   */
   type             ProductType
+  /**
+   * The merchandising category this product primarily belongs to — one
+   * structured answer to "what is it", against which the shop filters and from
+   * which the detail fields below are chosen. Optional so no existing row had
+   * to be rewritten to add the column; the seed backfills every one of them.
+   */
+  categoryId       String?
   priceCents       Int
   compareAtCents   Int?
   inventory        Int          @default(0)
   imageUrl         String?
   badge            String?
   /**
-   * Optional size choices for a product sold in more than one size, stored as
-   * `[{ label, priceCents?, inventory? }]`. An option carries a price only when
+   * The variants a product is sold in — sizes, pot styles, jar volumes — stored
+   * as `[{ label, priceCents?, inventory?, sku?, imageUrl?, weightOunces?,
+   * dimensions?, ships?, pickup? }]`. Everything after `label` is optional and
+   * absent means "the same as the product": a variant carries a price only when
    * it differs from `priceCents`, so raising the base price still moves every
-   * size with it, and carries an `inventory` only when the owner counts the
-   * sizes separately. Once any option does, `inventory` above is kept equal to
-   * the sum of them, so every "is this sellable" query can go on reading the
+   * variant with it, and carries an `inventory` only when the owner counts the
+   * variants separately. Once any variant does, `inventory` above is kept equal
+   * to the sum of them, so every "is this sellable" query can go on reading the
    * column alone.
+   *
+   * The column keeps its original name because live rows and in-flight checkout
+   * sessions hold data under it; only the shape has grown, and it grew in a way
+   * every older row already validates against.
    */
   sizes            Json?
   /**
-   * What the dropdown is called on the product page — "Pot size", "Jar size".
+   * What the variant dropdown is called on the product page — "Pot size",
+   * "Jar size".
    */
   sizeLabel        String?
+  /**
+   * Structured, category-specific detail, stored as `{ fieldKey: value }` and
+   * read through `lib/product-specs.ts`. A plant's light and water needs, a
+   * tea's steep time and allergens, a soap's full ingredient list. Kept as JSON
+   * rather than forty mostly-null columns because which fields apply is decided
+   * by the category, and the registry that decides it also renders both the
+   * admin form and the public specification table.
+   */
+  specs            Json?
+  /** Shipping weight of the product as sold one way, in ounces. */
+  weightOunces     Int?
+  /** Packed or finished dimensions, as the owner writes them: `8 × 8 × 10 in`. */
+  dimensions       String?
   active           Boolean      @default(true)
   featured         Boolean      @default(false)
   sortOrder        Int          @default(0)
@@ -128,10 +184,44 @@ model Product {
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   items            OrderItem[]
+  category         Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   collections      Collection[] @relation("ProductCollections")
   reviews          Review[]
   stockAlerts      StockAlert[]
   careSheets       CareSheet[]
+
+  @@index([categoryId])
+}
+
+/**
+ * The merchandising taxonomy: "Houseplants", "Carnivorous Plants", "Tea
+ * Accessories". One category per product, owner-editable, and distinct from a
+ * `Collection` on purpose — a category answers *what a thing is* and a product
+ * has exactly one, while a collection answers *why you might want it* ("Pet
+ * Friendly", "Gifts Under $30") and a product may sit in as many as apply.
+ */
+model Category {
+  id          String          @id @default(cuid())
+  slug        String          @unique
+  title       String
+  tagline     String?
+  description String?
+  imageUrl    String?
+  /** Which structured detail fields products in this category are asked for. */
+  specKind    ProductSpecKind @default(GENERAL)
+  /**
+   * The legacy `ProductType` a product in this category is recorded as. Return
+   * policies, the shop's older category links and every existing order read
+   * that enum, so each category has to say which one it stands in for.
+   */
+  legacyType  ProductType     @default(OTHER)
+  active      Boolean         @default(true)
+  /** Whether the category is offered as a filter chip and a shop-by tile. */
+  featured    Boolean         @default(true)
+  sortOrder   Int             @default(0)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  products    Product[]
 }
 
 model Order {

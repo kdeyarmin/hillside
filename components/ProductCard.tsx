@@ -19,6 +19,9 @@ export type ProductCardProduct = {
   shortDescription: string | null;
   description: string;
   type: string;
+  /** The product's category, when it has one — the pill a card leads with. */
+  categorySlug?: string | null;
+  categoryTitle?: string | null;
   priceCents: number;
   compareAtCents: number | null;
   inventory: number;
@@ -97,7 +100,10 @@ export default function ProductCard({
         />
       </Link>
       <div className="product-copy">
-        <span className="pill">{productTypeLabel(product.type)}</span>
+        {/* The category is what a shopper recognises — "Carnivorous Plants",
+            not "Plant" — so the broad type is only the fallback for a product
+            that has not been given one. */}
+        <span className="pill">{product.categoryTitle || productTypeLabel(product.type)}</span>
         <h3>
           <Link href={`/shop/${product.slug}`}>{product.name}</Link>
         </h3>

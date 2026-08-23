@@ -2,6 +2,14 @@ import { PrismaClient } from '@prisma/client';
 
 const db = new PrismaClient();
 
+type SeedProduct = {
+  id: string;
+  name: string;
+  slug: string;
+  priceCents: number;
+  featured: boolean;
+};
+
 type Seed = {
   slug: string;
   title: string;
@@ -10,153 +18,87 @@ type Seed = {
   imageUrl: string;
   featured: boolean;
   sortOrder: number;
-  /** Products are matched by ProductType and/or a keyword in the name or slug. */
-  types?: string[];
-  keywords?: string[];
+  /**
+   * Which products join when the collection row is first created. Left off for
+   * the collections only Tammy can judge — nothing in the database knows which
+   * plants are pet safe until she says so, and a guess would be worse than an
+   * empty shelf, because an empty collection is hidden and a wrong one is not.
+   */
+  match?: (product: SeedProduct) => boolean;
 };
 
 /**
- * The homepage used to advertise ten collections that all resolved to the same
- * two shop filters. These are real, owner-editable rows: a collection appears on
- * the homepage only once it actually holds something.
+ * Collections are the *curated* axis of the shop, and categories are the
+ * structural one. A category says what a thing is — Houseplants, Tea, Driftwood
+ * & Natural Materials — and every product has exactly one. A collection says
+ * why you might want it, and a product joins as many as apply: a golden pothos
+ * is one houseplant that is also beginner friendly, happy in low light, and
+ * under thirty dollars.
+ *
+ * That is why the collections seeded here no longer restate the taxonomy. They
+ * used to — "Plants", "Teas & Herbals", "Botanicals", "House Plants" — which
+ * meant the shop had two navigations that disagreed about the same shelf.
+ * Existing rows are left exactly as they are; this list is only what a database
+ * without them is given.
  */
 const collections: Seed[] = [
   {
-    slug: 'plants',
-    title: 'Plants',
-    tagline: 'Living beauty for every room',
-    description: 'Every living plant we stock, from easygoing beginners to statement pieces.',
-    imageUrl: '/images/catalog/house-plants.webp',
-    featured: false,
-    sortOrder: 1,
-    types: ['PLANT']
-  },
-  {
-    slug: 'teas-herbals',
-    title: 'Teas & Herbals',
-    tagline: 'Thoughtful botanical blends',
-    description: 'Loose-leaf blends and the simple tools that make brewing them a pleasure.',
-    imageUrl: '/images/catalog/apothecary.webp',
-    featured: false,
-    sortOrder: 2,
-    types: ['TEA', 'TEA_SUPPLY']
-  },
-  {
-    slug: 'botanicals',
-    title: 'Botanicals',
-    tagline: 'Small-batch and handmade',
-    description: 'Handmade soaps, lotions and botanical goods made in small batches.',
-    imageUrl: '/images/catalog/homemade-soaps.webp',
-    featured: false,
-    sortOrder: 3,
-    types: ['SOAP', 'LOTION', 'OTHER']
-  },
-  {
-    slug: 'house-plants',
-    title: 'House Plants',
-    tagline: 'Living beauty for every room',
-    description: 'Foliage plants chosen to thrive in ordinary rooms with ordinary light.',
+    slug: 'beginner-friendly',
+    title: 'Beginner Friendly',
+    tagline: 'Forgiving plants for a first windowsill',
+    description:
+      'Plants that put up with a missed watering and a less-than-perfect window — the ones we hand to somebody who says they kill everything.',
     imageUrl: '/images/catalog/house-plants.webp',
     featured: true,
-    sortOrder: 10,
-    types: ['PLANT']
+    sortOrder: 10
   },
   {
-    slug: 'carnivorous-plants',
-    title: 'Carnivorous Plants',
-    tagline: 'Wild, unusual and wonderful',
-    description: 'Flytraps, pitcher plants and sundews, with the care notes they genuinely need.',
-    imageUrl: '/images/catalog/carnivorous-plants.webp',
+    slug: 'low-light',
+    title: 'Low Light',
+    tagline: 'For north windows and shaded corners',
+    description:
+      'Plants that keep their colour away from a bright window, for offices, hallways and rooms that never get direct sun.',
+    imageUrl: '/images/catalog/house-plants.webp',
     featured: true,
-    sortOrder: 11,
-    keywords: ['carnivor', 'flytrap', 'venus', 'pitcher', 'sarracenia', 'nepenthes', 'sundew']
+    sortOrder: 20
   },
   {
-    slug: 'live-plant-planters',
-    title: 'Live Plant Planters',
-    tagline: 'Arrangements made to take home',
-    description: 'Finished arrangements, potted and balanced, ready to set down and enjoy.',
-    imageUrl: '/images/catalog/live-plant-planters.webp',
-    featured: true,
-    sortOrder: 12,
-    keywords: ['planter', 'arrangement', 'centerpiece', 'dish garden']
-  },
-  {
-    slug: 'succulents',
-    title: 'Succulents',
-    tagline: 'Sculptural greens in forgiving forms',
-    description: 'Low-water plants with strong shapes for bright windowsills.',
-    imageUrl: '/images/catalog/succulents.webp',
-    featured: true,
-    sortOrder: 13,
-    keywords: ['succulent', 'echeveria', 'sedum', 'jade', 'aloe', 'cactus', 'haworthia']
-  },
-  {
-    slug: 'air-plants',
-    title: 'Air Plants',
-    tagline: 'Small plants with big personality',
-    description: 'Tillandsia that need no soil at all — just light, air and a weekly soak.',
+    slug: 'pet-friendly',
+    title: 'Pet Friendly',
+    tagline: 'Non-toxic to cats and dogs',
+    description:
+      'Plants that are not known to be toxic to cats and dogs, for homes where something will eventually be chewed.',
     imageUrl: '/images/catalog/air-plants.webp',
     featured: true,
-    sortOrder: 14,
-    keywords: ['air plant', 'airplant', 'tillandsia']
+    sortOrder: 30
   },
   {
-    slug: 'homemade-soaps',
-    title: 'Homemade Soaps',
-    tagline: 'Small-batch botanical bars',
-    description: 'Hand-cut soaps made in small batches with botanical scents.',
+    slug: 'tammys-favorites',
+    title: 'Tammy’s Favorites',
+    tagline: 'The pieces she keeps for herself',
+    description:
+      'What Tammy is most pleased with on the bench right now — the plants, blends and small-batch goods she would take home.',
+    imageUrl: '/images/scenes/potting-bench.webp',
+    featured: true,
+    sortOrder: 40,
+    match: (product) => product.featured
+  },
+  {
+    slug: 'gifts-under-30',
+    title: 'Gifts Under $30',
+    tagline: 'Something thoughtful, easily',
+    description:
+      'Plants and handmade goods under thirty dollars, for a housewarming, a thank you or a Tuesday.',
     imageUrl: '/images/catalog/homemade-soaps.webp',
     featured: true,
-    sortOrder: 15,
-    types: ['SOAP']
-  },
-  {
-    slug: 'moss',
-    title: 'Moss',
-    tagline: 'Natural texture for creative projects',
-    description: 'Cushions and sheets of moss for terrariums, planters and table settings.',
-    imageUrl: '/images/catalog/moss.webp',
-    featured: true,
-    sortOrder: 16,
-    keywords: ['moss']
-  },
-  {
-    slug: 'driftwood',
-    title: 'Driftwood',
-    tagline: 'One-of-a-kind natural forms',
-    description: 'Weathered wood for mounting air plants and building terrarium landscapes.',
-    imageUrl: '/images/catalog/driftwood.webp',
-    featured: true,
-    sortOrder: 17,
-    keywords: ['driftwood', 'wood']
-  },
-  {
-    slug: 'apothecary',
-    title: 'Apothecary',
-    tagline: 'Thoughtful botanical goods and rituals',
-    description: 'Lotions, salves and botanical blends for slow, ordinary evenings.',
-    imageUrl: '/images/catalog/apothecary.webp',
-    featured: true,
-    sortOrder: 18,
-    types: ['LOTION'],
-    keywords: ['lotion', 'salve', 'balm', 'tincture', 'essential oil', 'tea']
-  },
-  {
-    slug: 'terrarium-supplies',
-    title: 'Terrarium Supplies',
-    tagline: 'Everything for a tiny living world',
-    description: 'Substrate, charcoal, gravel and glass for building a terrarium that lasts.',
-    imageUrl: '/images/catalog/terrarium-supplies.webp',
-    featured: true,
-    sortOrder: 19,
-    keywords: ['terrarium', 'substrate', 'gravel', 'charcoal', 'potting mix', 'soil']
+    sortOrder: 50,
+    match: (product) => product.priceCents > 0 && product.priceCents <= 3000
   }
 ];
 
 async function main() {
   const products = await db.product.findMany({
-    select: { id: true, name: true, slug: true, type: true }
+    select: { id: true, name: true, slug: true, priceCents: true, featured: true }
   });
 
   let created = 0;
@@ -170,33 +112,27 @@ async function main() {
 
     if (existing) continue;
 
-    const collection =
-      (await db.collection.create({
-        data: {
-          slug: seed.slug,
-          title: seed.title,
-          tagline: seed.tagline,
-          description: seed.description,
-          imageUrl: seed.imageUrl,
-          featured: seed.featured,
-          sortOrder: seed.sortOrder
-        },
-      }));
+    const collection = await db.collection.create({
+      data: {
+        slug: seed.slug,
+        title: seed.title,
+        tagline: seed.tagline,
+        description: seed.description,
+        imageUrl: seed.imageUrl,
+        featured: seed.featured,
+        sortOrder: seed.sortOrder
+      }
+    });
 
     created += 1;
 
     /**
      * Memberships are seeded once, when the collection row is first created.
-     * Re-matching on every deploy would undo the owner's merchandising: a product
-     * they deliberately removed would keep reappearing because it still matches
-     * the seed's keywords.
+     * Re-matching on every deploy would undo the owner's merchandising: a
+     * product she deliberately removed would keep reappearing because it still
+     * costs less than thirty dollars.
      */
-    const matches = products.filter((product) => {
-      const haystack = `${product.name} ${product.slug}`.toLowerCase();
-      const byType = seed.types?.includes(product.type);
-      const byKeyword = seed.keywords?.some((keyword) => haystack.includes(keyword));
-      return Boolean(byType || byKeyword);
-    });
+    const matches = seed.match ? products.filter(seed.match) : [];
 
     if (matches.length) {
       await db.collection.update({

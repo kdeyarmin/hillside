@@ -8,13 +8,16 @@ import { trackSearch } from '@/lib/analytics';
 import { contactHref } from '@/lib/contact';
 import { matchesAnySearchField } from '@/lib/search';
 import { comparableAtCents, productSizes, sizePriceRange } from '@/lib/product-sizes';
-import { CATEGORY_GROUPS, categoryTypes, discountPercent, productTypeLabel } from '@/lib/store';
+import { categoryLabel, categoryTypes, discountPercent } from '@/lib/store';
 
 type Product = ProductCardProduct & {
   featured: boolean;
   sortOrder: number;
   createdAt: string | Date;
 };
+
+/** A category as the shop offers it: one chip, one `?category=` value. */
+export type ShopCategory = { slug: string; title: string };
 
 type SortOption = 'featured' | 'new' | 'name' | 'price-low' | 'price-high';
 
@@ -43,14 +46,32 @@ function pricingFor(product: Product) {
   };
 }
 
+/**
+ * Whether a product belongs under a `?category=` value.
+ *
+ * There are two kinds of value and they are told apart by asking whether the
+ * legacy groups recognise it. `BOTANICAL` and the bare product types are the
+ * links the shop navigated by before it had a category table, and they still
+ * have to work — somebody has one bookmarked. Everything else is a category
+ * slug, which is what every link the site writes today uses.
+ */
+function inCategory(product: Product, category: string) {
+  if (!category || category === 'ALL') return true;
+  const legacyTypes = categoryTypes(category);
+  if (legacyTypes.length) return legacyTypes.includes(product.type);
+  return product.categorySlug === category;
+}
+
 export default function ShopClient({
   products,
+  categories,
   initialCategory = 'ALL',
   initialSearch = '',
   initialSort = 'featured',
   initialOnSaleOnly = false
 }: {
   products: Product[];
+  categories: ShopCategory[];
   initialCategory?: string;
   initialSearch?: string;
   initialSort?: string;
@@ -59,12 +80,12 @@ export default function ShopClient({
   const [search, setSearch] = useState(initialSearch);
   const [onSaleOnly, setOnSaleOnly] = useState(initialOnSaleOnly);
   const [category, setCategory] = useState(() => {
-    const requested = initialCategory.toUpperCase();
-    if (requested === 'ALL') return 'ALL';
-    const types = categoryTypes(requested);
-    return types.some((type) => products.some((product) => product.type === type))
-      ? requested
-      : 'ALL';
+    // A filter that would empty the shelf is dropped rather than shown: a link
+    // to a category nothing is in should land on the shop, not on "no results".
+    const requested = initialCategory.trim();
+    if (!requested || requested.toUpperCase() === 'ALL') return 'ALL';
+    const key = categoryTypes(requested).length ? requested.toUpperCase() : requested;
+    return products.some((product) => inCategory(product, key)) ? key : 'ALL';
   });
   const [sort, setSort] = useState<SortOption>(
     isSortOption(initialSort) ? initialSort : 'featured'
@@ -109,21 +130,27 @@ export default function ShopClient({
   }, [category, onSaleOnly, search, sort]);
 
   /**
-   * Category chips are merchandising groups rather than raw enum values, so
-   * "Botanicals" covers soaps, lotions and anything else handmade instead of
-   * hiding two thirds of the shelf behind a single ProductType.
+   * A chip for every category that actually holds something, in the order Tammy
+   * put them in. Categories with nothing in them are not offered: a chip that
+   * leads to an empty shelf is worse than no chip at all.
+   *
+   * A legacy `?category=BOTANICAL` link has no chip of its own, so it is added
+   * as one while it is the active filter — otherwise the shop would show a
+   * filtered shelf with nothing on screen explaining why.
    */
-  const categories = useMemo(() => {
-    const present = new Set(products.map((product) => product.type));
-    const groups = Object.entries(CATEGORY_GROUPS)
-      .filter(([, group]) => group.types.some((type) => present.has(type)))
-      .map(([key, group]) => ({ key, label: group.label }));
-    const grouped = new Set(Object.values(CATEGORY_GROUPS).flatMap((group) => group.types));
-    const ungrouped = Array.from(present)
-      .filter((type) => !grouped.has(type))
-      .map((type) => ({ key: type, label: productTypeLabel(type) }));
-    return [{ key: 'ALL', label: 'Everything' }, ...groups, ...ungrouped];
-  }, [products]);
+  const chips = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const product of products) {
+      if (!product.categorySlug) continue;
+      counts.set(product.categorySlug, (counts.get(product.categorySlug) || 0) + 1);
+    }
+    const offered = categories
+      .filter((entry) => counts.has(entry.slug))
+      .map((entry) => ({ key: entry.slug, label: entry.title }));
+    const legacy =
+      categoryTypes(category).length > 0 ? [{ key: category, label: categoryLabel(category) }] : [];
+    return [{ key: 'ALL', label: 'Everything' }, ...legacy, ...offered];
+  }, [categories, category, products]);
 
   const saleCount = useMemo(
     () =>
@@ -135,20 +162,20 @@ export default function ShopClient({
 
   const visibleProducts = useMemo(() => {
     const term = search.trim();
-    const allowedTypes = categoryTypes(category);
     const filtered = products
       .map((product) => ({ product, pricing: pricingFor(product) }))
       .filter(({ product, pricing }) => {
-        const inCategory = !allowedTypes.length || allowedTypes.includes(product.type);
         const onSale =
           !onSaleOnly || discountPercent(product.priceCents, pricing.compareAtCents) > 0;
         const matchesSearch =
           !term ||
           matchesAnySearchField(
-            [product.name, product.description, product.shortDescription],
+            // The category is searchable too, so "carnivorous" finds the
+            // flytraps whether or not the word is in their descriptions.
+            [product.name, product.description, product.shortDescription, product.categoryTitle],
             term
           );
-        return inCategory && onSale && matchesSearch;
+        return inCategory(product, category) && onSale && matchesSearch;
       });
 
     return [...filtered]
@@ -231,7 +258,7 @@ export default function ShopClient({
           </label>
         </div>
         <div className="filter-row" role="group" aria-label="Product categories">
-          {categories.map(({ key, label }) => (
+          {chips.map(({ key, label }) => (
             <button
               className={`filter-chip${category === key ? ' active' : ''}`}
               type="button"
