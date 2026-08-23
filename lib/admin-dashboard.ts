@@ -304,7 +304,7 @@ export const ADMIN_NOTICES: Record<string, string> = {
     'Set is live — it will appear on the website whenever every piece in it is in stock.',
   'bundle-deleted': 'Set deleted. Past orders that contained it are unchanged.',
   'relations-saved': 'Recommendations saved.',
-  'tags-saved': 'Tags saved. They are what the automatic suggestions match on.',
+  'traits-saved': 'Traits saved. They are what the automatic suggestions match on.',
   'guide-products-saved': 'Products on that guide saved.',
   'content-archived': 'Archived. It is no longer on the public website.',
   'section-saved': 'Homepage row saved.',

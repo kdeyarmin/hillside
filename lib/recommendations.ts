@@ -97,6 +97,14 @@ export type RecommendableProduct = {
   slug: string;
   name: string;
   type: string;
+  /** Owner-written recommendation traits: `carnivorous`, `infuser`, `-terrarium`. */
+  traits?: string[] | null;
+  /**
+   * The shopper-facing filter attributes — `pet-safe`, `low-light`. Read here
+   * too, because someone buying one pet-safe plant often wants another, but
+   * never written by this module: that vocabulary is closed and
+   * `normalizeTags` owns it.
+   */
   tags?: string[] | null;
   shortDescription?: string | null;
   description?: string | null;
@@ -229,7 +237,7 @@ export function productTraits(product: RecommendableProduct): Set<string> {
   const traits = new Set<string>();
   const suppressed = new Set<string>();
 
-  for (const tag of product.tags || []) {
+  for (const tag of [...(product.traits || []), ...(product.tags || [])]) {
     const clean = normalizeTag(tag);
     if (!clean) continue;
     if (clean.startsWith('-')) suppressed.add(clean.slice(1));

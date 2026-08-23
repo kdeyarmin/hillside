@@ -3,7 +3,7 @@ import { PrismaClient, ProductRelationKind } from '@prisma/client';
 const db = new PrismaClient();
 
 /**
- * Starter merchandising: a couple of sets, the tags the recommendation rules
+ * Starter merchandising: a couple of sets, the traits the recommendation rules
  * match on, and a few worked examples of "show this beside that".
  *
  * Everything here is seeded **once and never re-applied**, the same discipline
@@ -89,13 +89,13 @@ const bundles: BundleSeed[] = [
  * Tags exist for the recommendation rules. Seeded only onto products that have
  * none at all, so a product Tammy has tagged herself is never overwritten.
  */
-const tagsByKeyword: Array<{ keyword: string; tags: string[] }> = [
-  { keyword: 'tea', tags: ['tea'] },
-  { keyword: 'infuser', tags: ['infuser', 'teaware'] },
-  { keyword: 'soap', tags: ['soap'] },
-  { keyword: 'lotion', tags: ['lotion'] },
-  { keyword: 'planter', tags: ['planter'] },
-  { keyword: 'moss', tags: ['moss', 'terrarium'] }
+const traitsByKeyword: Array<{ keyword: string; traits: string[] }> = [
+  { keyword: 'tea', traits: ['tea'] },
+  { keyword: 'infuser', traits: ['infuser', 'teaware'] },
+  { keyword: 'soap', traits: ['soap'] },
+  { keyword: 'lotion', traits: ['lotion'] },
+  { keyword: 'planter', traits: ['planter'] },
+  { keyword: 'moss', traits: ['moss', 'terrarium'] }
 ];
 
 /** Worked examples, so the sections on a product page are not empty on day one. */
@@ -145,22 +145,22 @@ function find(products: ProductRow[], match: Match) {
 async function main() {
   const products = await db.product.findMany({
     where: { active: true },
-    select: { id: true, name: true, slug: true, tags: true }
+    select: { id: true, name: true, slug: true, traits: true }
   });
 
   let tagged = 0;
   for (const product of products) {
-    if (product.tags.length) continue;
+    if (product.traits.length) continue;
     const haystack = `${product.name} ${product.slug}`.toLowerCase();
-    const tags = [
+    const traits = [
       ...new Set(
-        tagsByKeyword
+        traitsByKeyword
           .filter((entry) => haystack.includes(entry.keyword))
-          .flatMap((entry) => entry.tags)
+          .flatMap((entry) => entry.traits)
       )
     ];
-    if (!tags.length) continue;
-    await db.product.update({ where: { id: product.id }, data: { tags } });
+    if (!traits.length) continue;
+    await db.product.update({ where: { id: product.id }, data: { traits } });
     tagged += 1;
   }
 

@@ -45,6 +45,7 @@ const cardSelect = {
   careNotes: true,
   type: true,
   tags: true,
+  traits: true,
   priceCents: true,
   compareAtCents: true,
   inventory: true,
@@ -100,6 +101,7 @@ function toRecommendable(row: CandidateRow): RecommendableProduct & { collection
     name: row.name,
     type: row.type,
     tags: row.tags,
+    traits: row.traits,
     shortDescription: row.shortDescription,
     description: row.description,
     details: row.details,
@@ -167,6 +169,7 @@ export async function recommendationsForProduct(anchor: {
   name: string;
   type: string;
   tags?: string[] | null;
+  traits?: string[] | null;
   shortDescription?: string | null;
   description?: string | null;
   details?: string | null;
@@ -195,6 +198,7 @@ export async function recommendationsForProduct(anchor: {
     name: anchor.name,
     type: anchor.type,
     tags: anchor.tags,
+    traits: anchor.traits,
     shortDescription: anchor.shortDescription,
     description: anchor.description,
     details: anchor.details,

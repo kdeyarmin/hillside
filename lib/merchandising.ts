@@ -210,7 +210,8 @@ export type HomepageSectionKind =
   | 'SEASONAL'
   | 'ON_SALE'
   | 'COLLECTION'
-  | 'COLLECTION_TILES';
+  | 'COLLECTION_TILES'
+  | 'BUNDLES';
 
 /**
  * What each homepage row is and what it needs, used by the dashboard dropdown
@@ -264,6 +265,11 @@ export const HOMEPAGE_SECTION_KINDS: ReadonlyArray<{
     kind: 'COLLECTION_TILES',
     label: 'Collection tiles',
     description: 'Picture links to your featured collections.'
+  },
+  {
+    kind: 'BUNDLES',
+    label: 'Sets & kits',
+    description: 'Your featured sets, and only the ones every piece is in stock for today.'
   }
 ];
 
@@ -319,5 +325,14 @@ export const DEFAULT_HOMEPAGE_SECTIONS: ReadonlyArray<{
     title: 'Our current favorites.',
     maxItems: 4,
     sortOrder: 40
+  },
+  {
+    kind: 'BUNDLES',
+    eyebrow: 'Everything in one box',
+    title: 'Sets we have made up.',
+    subtitle:
+      'A plant, its pot and what it needs to stay alive, picked out together so nothing arrives missing a piece.',
+    maxItems: 3,
+    sortOrder: 50
   }
 ];
