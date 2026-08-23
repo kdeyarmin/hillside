@@ -358,6 +358,8 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'order-not-confirmable':
     'Confirmation mail is only sent for paid orders that have not shipped yet.',
   'order-status': 'That is not a status this shop uses. Refresh the page and try again.',
+  'order-gift-card-returned':
+    'That order’s gift card was already put back on the card, and it may well have been spent since — so the order cannot be made live again without the shop paying for it twice. Place a new order instead, which charges the card properly.',
   'order-already-paid':
     'That checkout finished paying while you were cancelling it, so the order was left paid. Refresh and look at it again.',
   'pickup-note':

@@ -706,16 +706,21 @@ async function applyRefund(charge: Stripe.Charge) {
     /**
      * Stripe can only give back what Stripe took, so the part of this order that
      * was paid with a gift card has to be returned to the card here or not at
-     * all. It goes back on a full refund whether or not the order shipped —
-     * unlike stock, a refunded balance is not a plant that has left the bench.
+     * all — and it goes back in the same proportion as the cash, on a part
+     * refund as much as a whole one.
+     *
+     * Not gated on `fullyRefunded`, deliberately. Once a card has paid for part
+     * of an order the Stripe charge is only the cash remainder, so "the whole
+     * charge" and "the whole order" stop meaning the same thing: refunding the
+     * five dollars of cash on a hundred-dollar order funded by a ninety-five
+     * dollar card would otherwise hand the whole card back. Proportion is the
+     * one reading that holds in both directions, and unlike stock, a returned
+     * balance is not a plant that has already left the bench.
      */
-    if (fullyRefunded) {
-      await returnGiftCardForRefund(
-        transaction,
-        order.id,
-        `Order ${order.invoiceNumber} was refunded.`
-      );
-    }
+    await returnGiftCardForRefund(transaction, order.id, {
+      refundedCents: charge.amount_refunded,
+      note: `Order ${order.invoiceNumber} was refunded.`
+    });
 
     if (
       !shouldRestoreInventoryOnRefund({

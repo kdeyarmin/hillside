@@ -24,7 +24,7 @@ import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { releaseProductHold, restoreUnshippedOrderInventory } from '@/lib/checkout';
-import { refundOrderGiftCard } from '@/lib/discount-store';
+import { orderGiftCardReturnedCents, refundOrderGiftCard } from '@/lib/discount-store';
 import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
 import {
   productInventoryForSizes,
@@ -735,6 +735,22 @@ export async function updateOrder(formData: FormData) {
   const trackingNumber = text(formData, 'trackingNumber') || null;
   const internalNotes = text(formData, 'internalNotes') || null;
   const pickupNote = text(formData, 'pickupNote');
+
+  /**
+   * An order whose gift card has already been handed back cannot come back to
+   * life. The card is spendable again the moment it is credited — very likely
+   * already spent — so a reopened order would be funded by money the shop has
+   * given away, and the same balance would have paid for two orders. A fresh
+   * order is the honest way to put that right, and it charges the card again.
+   */
+  const reopening =
+    (before.status === OrderStatus.REFUNDED || before.status === OrderStatus.CANCELLED) &&
+    (status === OrderStatus.PAID || status === OrderStatus.FULFILLED);
+  if (reopening && before.giftCardId && (await orderGiftCardReturnedCents(before.id)) > 0) {
+    redirect(
+      adminDashboardPath({ error: 'order-gift-card-returned', order: id, section: 'orders' })
+    );
+  }
 
   if (
     status === OrderStatus.FULFILLED &&

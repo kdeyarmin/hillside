@@ -283,6 +283,7 @@ export default async function AdminDiscounts({
   ]);
 
   const cardPages = Math.max(1, Math.ceil(cardCount / DISCOUNT_PAGE_SIZE));
+  const automaticTax = process.env.STRIPE_AUTOMATIC_TAX === 'true';
   const liveCodes = promotions.filter((promotion) => promotion.active).length;
   const outstandingCents =
     (outstanding._sum.balanceCents || 0) + (outstanding._sum.reservedCents || 0);
@@ -577,6 +578,22 @@ export default async function AdminDiscounts({
             card. Money is moved aside while a checkout is open and only taken when the order is
             paid — an abandoned basket puts it straight back.
           </p>
+
+          {/* Only where it costs something. With Stripe Tax off — how the shop
+              ships — no tax is collected at all and the note would be noise. */}
+          {automaticTax && (
+            <div className="admin-card admin-alert" role="status">
+              <b>Stripe Tax is on, and a gift card lowers the tax it works out.</b>
+              <p className="muted">
+                A card reaches Stripe as a discount, and Stripe calculates tax after discounts — so
+                a {formatMoney(5000)} card spent on {formatMoney(10000)} of taxable goods has the
+                tax worked out on {formatMoney(5000)}. The shop collects less tax than the order
+                really owes, by the tax on whatever the card covered. Nothing is wrong with the
+                order or the card; it is the tax figure that is short. Worth raising with whoever
+                does your filing before you keep selling this way.
+              </p>
+            </div>
+          )}
 
           {/* A GET form, so a search is a link Tammy can bookmark or send to
               herself, and so it works with no JavaScript at all. */}

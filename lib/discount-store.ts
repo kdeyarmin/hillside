@@ -681,30 +681,37 @@ export async function settleOrderDiscounts(
 }
 
 /**
- * Puts an order's gift-card payment back on the card.
+ * Puts a gift card's share of a refund back on the card.
  *
  * Stripe can only refund what Stripe charged, so the part of an order paid with
- * a gift card has to come back here or not at all. Keyed on the ledger's unique
- * reference rather than on a column, because both the owner cancelling a paid
- * order and Stripe's own `charge.refunded` land on this path and must between
- * them credit the card exactly once.
+ * a card has to come back here or not at all — and it comes back *in
+ * proportion*: refund half the cash and half the card returns with it. That is
+ * the rule in both directions. It stops a full refund of the small cash
+ * remainder on a mostly-card order handing back the whole card, and it fixes
+ * the opposite case, where a partial refund used to return nothing of the card
+ * at all and the customer simply lost their share.
+ *
+ * `refundedCents` is the cumulative cash refunded on the charge; leaving it out
+ * means the whole order, which is what the dashboard's own refund and cancel
+ * mean. Cumulative is also what makes a second refund work: the reference
+ * carries the running total, so a redelivered event lands once while a further
+ * refund is a new event that credits only the difference.
  */
 export async function returnGiftCardForRefund(
   transaction: Prisma.TransactionClient,
   orderId: string,
-  note = 'Order refunded.'
+  { refundedCents, note = 'Order refunded.' }: { refundedCents?: number; note?: string } = {}
 ) {
   const order = await transaction.order.findUnique({
     where: { id: orderId },
-    select: { giftCardId: true, giftCardCents: true, discountsSettledAt: true }
+    select: {
+      giftCardId: true,
+      giftCardCents: true,
+      totalCents: true,
+      discountsSettledAt: true
+    }
   });
   if (!order?.giftCardId || order.giftCardCents <= 0 || !order.discountsSettledAt) return 0;
-
-  const already = await transaction.giftCardEntry.findUnique({
-    where: { reference: `refund:${orderId}` },
-    select: { id: true }
-  });
-  if (already) return 0;
 
   /**
    * What the card actually gave, read off the ledger rather than off the order.
@@ -719,26 +726,68 @@ export async function returnGiftCardForRefund(
     where: { reference: `redeem:${orderId}` },
     select: { amountCents: true, reservedDeltaCents: true }
   });
-  const refundable = redeemed
+  const cardTaken = redeemed
     ? Math.max(0, Math.min(order.giftCardCents, -giftCardEntryMovementCents(redeemed)))
     : 0;
-  if (refundable <= 0) return 0;
+  if (cardTaken <= 0) return 0;
+
+  /**
+   * A card that covered the whole order leaves no cash to refund and no Stripe
+   * charge to refund it from, so the only way back is the dashboard — and that
+   * always means the whole thing.
+   */
+  const cashCharged = Math.max(0, order.totalCents);
+  const cashRefunded =
+    refundedCents == null ? cashCharged : Math.max(0, Math.min(refundedCents, cashCharged));
+  const target =
+    cashCharged <= 0 ? cardTaken : Math.round((cardTaken * cashRefunded) / cashCharged);
+
+  const returnedSoFar = await transaction.giftCardEntry.aggregate({
+    where: { orderId, kind: 'REFUND' },
+    _sum: { amountCents: true }
+  });
+  const alreadyBack = Math.max(0, returnedSoFar._sum.amountCents || 0);
+  const credit = Math.max(0, Math.min(target - alreadyBack, cardTaken - alreadyBack));
+  if (credit <= 0) return 0;
+
+  const reference = `refund:${orderId}:${cashRefunded}`;
+  const already = await transaction.giftCardEntry.findUnique({
+    where: { reference },
+    select: { id: true }
+  });
+  if (already) return 0;
 
   await transaction.giftCard.update({
     where: { id: order.giftCardId },
-    data: { balanceCents: { increment: refundable } }
+    data: { balanceCents: { increment: credit } }
   });
   await recordGiftCardEntry(transaction, order.giftCardId, {
     kind: 'REFUND',
-    amountCents: refundable,
-    reference: `refund:${orderId}`,
+    amountCents: credit,
+    reference,
     orderId,
     note:
-      refundable < order.giftCardCents
-        ? `${note} Only ${formatMoney(refundable)} of the ${formatMoney(order.giftCardCents)} on the order came off this card.`
+      credit < cardTaken - alreadyBack
+        ? `${note} A part refund, so ${formatMoney(credit)} of the ${formatMoney(cardTaken)} this order took comes back.`
         : note
   });
-  return refundable;
+  return credit;
+}
+
+/**
+ * How much of an order's gift-card payment has been put back on the card.
+ *
+ * The dashboard asks before letting a refunded order be moved back to paid: the
+ * card is spendable again the moment it is credited, so an order that came back
+ * to life without the money coming back with it would let the same balance fund
+ * two orders.
+ */
+export async function orderGiftCardReturnedCents(orderId: string) {
+  const returned = await db.giftCardEntry.aggregate({
+    where: { orderId, kind: 'REFUND' },
+    _sum: { amountCents: true }
+  });
+  return Math.max(0, returned._sum.amountCents || 0);
 }
 
 /**
@@ -748,7 +797,8 @@ export async function returnGiftCardForRefund(
  * `charge.refunded` from crediting the card twice between them.
  */
 export async function refundOrderGiftCard(orderId: string, note?: string) {
-  return db.$transaction((transaction) => returnGiftCardForRefund(transaction, orderId, note));
+  // No `refundedCents`: the dashboard's refund and cancel mean the whole order.
+  return db.$transaction((transaction) => returnGiftCardForRefund(transaction, orderId, { note }));
 }
 
 /**

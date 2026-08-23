@@ -540,6 +540,27 @@ charging rather than a policy choice. Free shipping is therefore its own kind of
 promotion rather than a coupon: it chooses the free shipping rate as the Stripe
 session is created.
 
+### Gift cards and sales tax
+
+**A gift card reduces the amount Stripe taxes.** Both a promo code and a gift
+card reach Stripe as one coupon, and Stripe Tax calculates after coupons — so a
+$50 card spent on $100 of taxable merchandise has Stripe work the tax out on
+$50. That is right for the promo code, which genuinely is a discount, and wrong
+for the card, which is the customer paying with money they already handed over.
+
+It costs nothing while `STRIPE_AUTOMATIC_TAX` is unset or `false`, which is how
+the shop ships: Stripe collects no tax at all, and the coupon is only deciding
+what to charge. **Turn Stripe Tax on and the shop will under-collect on every
+order paid with a gift card**, by the tax on whatever the card covered.
+
+There is no clean way round it in Stripe Checkout, which has no notion of an
+outside balance as tender — the alternatives are to stop accepting cards once
+tax is on, or for the shop to work the tax out itself rather than letting Stripe
+do it. Neither is worth it for a shop not yet collecting tax. This is written
+down so that it is a decision to revisit rather than a surprise: before enabling
+`STRIPE_AUTOMATIC_TAX`, decide what gift cards should do. The dashboard says the
+same thing on the gift card page, but only once tax is actually on.
+
 A set is discounted like anything else by an unscoped code, and not at all by a
 category-scoped one. A set is priced as a single thing, its pieces may come off
 half a dozen different shelves, and a bundle row has no category of its own to
@@ -578,10 +599,19 @@ must not be spendable by anyone else in the meantime.
    redelivered Stripe event cannot spend a card twice.
 3. **The checkout is abandoned or expires.** Both go back, exactly as the stock
    does.
-4. **The order is refunded.** The gift-card part of the payment returns to the
-   card. Stripe can only refund what Stripe charged, so nothing else would put it
-   back. The promo redemption stays recorded: a code spent on a refunded order is
-   not handed back, which is deliberate.
+4. **The order is refunded.** The gift card's share of the payment returns to
+   the card, in proportion to what was refunded — refund half the cash and half
+   the card comes back with it. Stripe can only refund what Stripe charged, so
+   nothing else would put it back, and once a card has paid for part of an order
+   the Stripe charge is only the cash remainder: "the whole charge" and "the
+   whole order" stop meaning the same thing. The promo redemption stays
+   recorded: a code spent on a refunded order is not handed back, which is
+   deliberate.
+
+   An order whose card has been credited back cannot be moved live again from
+   the dashboard. The money is spendable the moment it returns, very likely
+   already spent, so reopening the order would have the same balance pay for two
+   of them. A new order is the way to put a mistaken refund right.
 
 Every movement on a card is a row in its ledger, visible under the card on the
 dashboard, keyed so that a retried webhook lands once. Balances are only ever
