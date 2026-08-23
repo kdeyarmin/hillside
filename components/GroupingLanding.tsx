@@ -153,9 +153,11 @@ export default function GroupingLanding({
           ) : (
             <div className="empty-state wide">
               <h3>This {noun} is being restocked.</h3>
+              {/* Neutral on purpose: this page serves tea, soap and hard goods
+                  as well as plants, and "new pieces are potted" read as a
+                  plant-only shelf on a category of tea tins. */}
               <p>
-                New pieces are potted and photographed as they are ready. Everything below still
-                applies when they land.
+                New stock is listed as it is ready. Everything below still applies when it lands.
               </p>
               <div className="actions" style={{ justifyContent: 'center' }}>
                 {catalogHasStock ? (

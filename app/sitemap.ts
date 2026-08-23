@@ -48,7 +48,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
      */
     db.category.findMany({
       where: { active: true, products: { some: { active: true } } },
-      select: { slug: true, updatedAt: true }
+      /**
+       * The page renders the category's copy, its products and its care guides,
+       * so its lastmod is the newest of the three. `category.updatedAt` alone
+       * would sit still while a product was added or a guide rewritten, and a
+       * crawler that finds changed content behind an unchanged date learns to
+       * stop trusting the field.
+       */
+      select: {
+        slug: true,
+        updatedAt: true,
+        products: { where: { active: true }, select: { updatedAt: true } },
+        careSheets: { where: { published: true }, select: { updatedAt: true } }
+      }
     }),
     // Only the sets that can actually be built: a kit whose last component sold
     // is a page that will not sell anything, and submitting it teaches a crawler
@@ -139,7 +151,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
    */
   const categoryPages: MetadataRoute.Sitemap = categories.map((category) => ({
     url: absoluteUrl(`/categories/${category.slug}`),
-    lastModified: category.updatedAt,
+    lastModified:
+      newest([
+        category.updatedAt,
+        ...category.products.map((product) => product.updatedAt),
+        ...category.careSheets.map((sheet) => sheet.updatedAt)
+      ]) || category.updatedAt,
     changeFrequency: 'weekly',
     priority: 0.85
   }));

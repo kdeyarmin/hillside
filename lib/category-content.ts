@@ -115,9 +115,13 @@ export function parseKeywords(text: string, limit = 20): string[] {
 }
 
 /**
- * The description a category page publishes, in the order of what is most
- * specific to it. Truncated on a word boundary because a meta description cut
- * mid-word reads as broken rather than as abridged.
+ * The description a category or collection page publishes, in the order of what
+ * is most specific to it. Truncated on a word boundary because a meta
+ * description cut mid-word reads as broken rather than as abridged.
+ *
+ * The last-resort sentence names neither noun: it serves both kinds of grouping,
+ * and a category with no copy of its own used to describe itself as a
+ * collection.
  */
 export function categoryDescription(collection: {
   title: string;
@@ -131,7 +135,7 @@ export function categoryDescription(collection: {
     collection.intro?.trim() ||
     collection.description?.trim() ||
     collection.tagline?.trim() ||
-    `Shop the ${collection.title} collection at The Hillside Gardens in Ebensburg, Pennsylvania.`;
+    `Shop ${collection.title} at The Hillside Gardens in Ebensburg, Pennsylvania.`;
 
   const flat = candidate.replace(/\s+/g, ' ');
   if (flat.length <= 160) return flat;

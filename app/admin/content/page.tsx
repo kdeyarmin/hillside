@@ -387,7 +387,11 @@ export default async function ContentManager({
                     <CategoryFields category={category} careSheets={sheets} />
                     <div className="admin-actions">
                       <button className="btn small">Save category</button>
-                      <Link className="btn outline small" href={`/categories/${category.slug}`}>View the page</Link>
+                      {category.active ? (
+                        <Link className="btn outline small" href={`/categories/${category.slug}`}>View the page</Link>
+                      ) : (
+                        <span className="muted">Hidden — its page is not published</span>
+                      )}
                     </div>
                   </form>
                   <div className="admin-actions">

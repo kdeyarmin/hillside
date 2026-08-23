@@ -312,30 +312,31 @@ const categories: CategorySeed[] = [
   },
   {
     slug: 'handmade-soap',
-    metaTitle: 'Handmade Botanical Goods',
+    metaTitle: 'Handmade Soap, Cut by Hand',
     metaDescription:
-      'Small-batch soaps, lotions, salves and botanical goods made by hand at The Hillside Gardens in Ebensburg, Pennsylvania. Giftable, locally made, available for pickup or shipping.',
+      'Small-batch soap made and cured by hand at The Hillside Gardens in Ebensburg, Pennsylvania. Giftable, locally made, available for pickup or shipping.',
     intro:
-      'The botanical side of the bench: soaps cut by hand, lotions and salves blended in small batches, and the seasonal goods that come and go with what is growing.\n\nBecause these are made in batches rather than ordered in, the shelf changes. What is listed is what exists.',
+      'Soap cut by hand and cured on the bench, a few dozen bars at a time.\n\nBecause these are made in batches rather than ordered in, the shelf changes. What is listed is what exists — and a scent you liked may not be back for a season.',
     body:
-      'What "small batch" means here:\n\nIt means a few dozen bars at a time, made and cured on site, with the ingredients printed on the product page. It also means a scent you liked may not be back for a season — if there is one you want kept aside, tell us and we will.\n\n' +
-      'Gifts:\n\nBotanical goods are the easiest thing we sell to give: they ship in any weather, they do not need looking after, and a soap and a small plant together make a housewarming present that is neither a candle nor a bottle of wine. Look for the "giftable" attribute.\n\n' +
-      'Ingredients and skin:\n\nEvery product page lists ingredients, net contents and directions. Handmade does not mean hypoallergenic — if you react to essential oils or a particular botanical, read the list first, and ask us if anything is unclear.',
+      'What "small batch" means here:\n\nA few dozen bars at a time, made and cured on site, with the ingredients printed on the product page. If there is a scent you want kept aside for the next batch, tell us and we will.\n\n' +
+      'Gifts:\n\nSoap is the easiest thing we sell to give: it ships in any weather, it needs no looking after, and a bar with a small plant makes a housewarming present that is neither a candle nor a bottle of wine. Look for the "giftable" attribute.\n\n' +
+      'Ingredients and skin:\n\nEvery product page lists ingredients, net contents and directions. Handmade does not mean hypoallergenic — if you react to essential oils or a particular botanical, read the list first, and ask us if anything is unclear.\n\n' +
+      'Lotions, salves and the rest of the apothecary shelf have their own categories; this page is the soap.',
     faq: [
       {
-        question: 'Are the soaps and lotions handmade?',
+        question: 'Is the soap really handmade?',
         answer:
-          'Yes — made here in small batches. Each product page lists the ingredients, the net contents and how to use it, because "handmade" on its own tells you nothing useful about what is in a bar.'
+          'Yes — made and cured here in small batches. Each product page lists the ingredients, the net contents and how to use it, because "handmade" on its own tells you nothing useful about what is in a bar.'
       },
       {
-        question: 'Can botanical goods be returned?',
+        question: 'Can soap be returned?',
         answer:
           'Unopened, non-perishable items may be returned within 14 days; once a personal-care product has been opened it is final sale, for the same hygiene reasons any shop applies. The shipping and returns page has the full policy.'
       },
       {
         question: 'Do you make gift sets?',
         answer:
-          'We do — often a soap or lotion paired with a small plant or a tea. Look for bundles in the shop, or ask us to put something together for a particular budget.'
+          'We do — often a bar paired with a small plant or a tea. Look for bundles in the shop, or ask us to put something together for a particular budget.'
       }
     ],
     keywords: [
@@ -351,9 +352,9 @@ const categories: CategorySeed[] = [
     slug: 'tea',
     metaTitle: 'Loose-Leaf Teas & Herbal Blends',
     metaDescription:
-      'Loose-leaf teas, herbal blends and the simple brewing tools that go with them, from The Hillside Gardens in Ebensburg, Pennsylvania.',
+      'Loose-leaf teas and herbal blends from The Hillside Gardens in Ebensburg, Pennsylvania, made in small quantities and turning over with the seasons.',
     intro:
-      'Loose-leaf blends and the few tools that make brewing them straightforward — a strainer, a pot, a tin that actually keeps the leaf fresh.\n\nBlends are made in small quantities, so the selection turns over with the seasons.',
+      'Loose-leaf blends, made in small quantities, so the selection turns over with the seasons.\n\nThe strainers, pots and tins that go with them are on the tea accessories shelf.',
     body:
       'Brewing without fuss:\n\nMost of what we keep is forgiving: a heaped teaspoon per cup, water just off the boil for herbals and black tea, cooler for green, and a few minutes of patience. Each blend’s page gives the temperature and time we like for it.\n\n' +
       'Keeping it fresh:\n\nLeaf keeps best airtight, out of the light and away from the stove. A tin in a cupboard is better than a jar on a sunny shelf, and most blends are at their best within a year.\n\n' +
@@ -428,6 +429,103 @@ const categories: CategorySeed[] = [
  * a no-op. The copy needed re-homing, not rewriting.
  */
 
+/**
+ * The collection slugs these subjects used to live under, before the taxonomy
+ * moved them to categories.
+ *
+ * An install seeded under the old scheme still has those collection rows — with
+ * whatever Tammy wrote on them — while the new category starts empty. Left
+ * alone that is two indexable pages saying the same thing, which is the exact
+ * harm the category pages were built to fix, and her edits stranded on the one
+ * nothing links to any more.
+ */
+const LEGACY_COLLECTION_SLUGS: Record<string, string> = {
+  houseplants: 'house-plants',
+  'carnivorous-plants': 'carnivorous-plants',
+  succulents: 'succulents',
+  'air-plants': 'air-plants',
+  'terrarium-supplies': 'terrarium-supplies',
+  moss: 'moss',
+  'handmade-soap': 'botanicals',
+  tea: 'teas-herbals',
+  'live-plant-arrangements': 'live-plant-planters'
+};
+
+/**
+ * Moves a legacy collection's editorial content onto its category, then retires
+ * the collection.
+ *
+ * Runs before the defaults are applied, so anything Tammy wrote wins over
+ * anything this file would have supplied. A field is copied only when the
+ * category's own is still empty — she may already have written the category too,
+ * and that is the more recent answer.
+ *
+ * The collection is deactivated rather than deleted: its products keep their
+ * membership, the row keeps her words, and one checkbox in the dashboard brings
+ * it back if retiring it was wrong.
+ */
+async function migrateLegacyCollection(categorySlug: string) {
+  const legacySlug = LEGACY_COLLECTION_SLUGS[categorySlug];
+  if (!legacySlug) return false;
+
+  const legacy = await db.collection.findUnique({
+    where: { slug: legacySlug },
+    select: {
+      id: true,
+      active: true,
+      intro: true,
+      body: true,
+      faq: true,
+      metaTitle: true,
+      metaDescription: true,
+      keywords: true,
+      careSheets: { select: { id: true } }
+    }
+  });
+  if (!legacy) return false;
+
+  const category = await db.category.findUnique({
+    where: { slug: categorySlug },
+    select: {
+      id: true,
+      intro: true,
+      body: true,
+      faq: true,
+      metaTitle: true,
+      metaDescription: true,
+      keywords: true,
+      _count: { select: { careSheets: true } }
+    }
+  });
+  if (!category) return false;
+
+  const data: Prisma.CategoryUpdateInput = {};
+  if (!category.intro?.trim() && legacy.intro?.trim()) data.intro = legacy.intro;
+  if (!category.body?.trim() && legacy.body?.trim()) data.body = legacy.body;
+  if (
+    (!Array.isArray(category.faq) || category.faq.length === 0) &&
+    Array.isArray(legacy.faq) &&
+    legacy.faq.length > 0
+  ) {
+    data.faq = legacy.faq as Prisma.InputJsonValue;
+  }
+  if (!category.metaTitle?.trim() && legacy.metaTitle?.trim()) data.metaTitle = legacy.metaTitle;
+  if (!category.metaDescription?.trim() && legacy.metaDescription?.trim())
+    data.metaDescription = legacy.metaDescription;
+  if (!category.keywords.length && legacy.keywords.length) data.keywords = legacy.keywords;
+  if (category._count.careSheets === 0 && legacy.careSheets.length) {
+    data.careSheets = { connect: legacy.careSheets.map((sheet) => ({ id: sheet.id })) };
+  }
+
+  if (Object.keys(data).length) {
+    await db.category.update({ where: { id: category.id }, data });
+  }
+  if (legacy.active) {
+    await db.collection.update({ where: { id: legacy.id }, data: { active: false } });
+  }
+  return true;
+}
+
 /** Whether a one-time seed has already had its turn. */
 async function alreadySeeded(key: string) {
   return Boolean(await db.seedMarker.findUnique({ where: { key }, select: { key: true } }));
@@ -441,6 +539,7 @@ async function seedCategoryContent() {
   let updated = 0;
   let careLinked = 0;
   let skipped = 0;
+  let migrated = 0;
 
   const careSheets = await db.careSheet.findMany({
     where: { published: true },
@@ -467,6 +566,10 @@ async function seedCategoryContent() {
       skipped += 1;
       continue;
     }
+
+    // Before the defaults, so an upgrade keeps the owner's words rather than
+    // burying them under this file's starting copy.
+    if (await migrateLegacyCollection(seed.slug)) migrated += 1;
 
     const category = await db.category.findUnique({
       where: { slug: seed.slug },
@@ -521,7 +624,8 @@ async function seedCategoryContent() {
   }
 
   console.log(
-    `Category content ready: ${updated} updated, ${careLinked} care guides linked, ${skipped} left to the owner.`
+    `Category content ready: ${updated} updated, ${careLinked} care guides linked, ` +
+      `${migrated} migrated from a retired collection, ${skipped} left to the owner.`
   );
 }
 

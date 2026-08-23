@@ -1608,7 +1608,10 @@ a.filter-chip {
   font-weight: 900;
 }
 .active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.active-filters .filter-chip { display: inline-flex; align-items: center; gap: 6px; }
+.active-filters .filter-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; }
+/* "Clear all" sits among chips a thumb is aiming at, so it gets the same
+   44px target rather than the 38px the bare text button inherits. */
+.active-filters .text-link { display: inline-flex; align-items: center; min-height: 44px; padding: 0 6px; }
 /* Collapsed by default so the grid stays the first thing a shopper sees; the
    toggle carries a count so a filtered shop never hides that it is filtered. */
 .shop-filter-rail { display: none; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
