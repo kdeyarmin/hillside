@@ -31,7 +31,7 @@
     "images:variants": "node scripts/build-image-variants.mjs",
     "audit:a11y": "node scripts/a11y-audit.mjs",
     "audit:weight": "node scripts/measure-page-weight.mjs",
-    "db:seed:categories": "tsx prisma/seed-category-content.ts"
+    "db:seed:category-content": "tsx prisma/seed-category-content.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.14.0",

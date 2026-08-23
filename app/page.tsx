@@ -62,6 +62,8 @@ function sectionLink(section: { kind: string; collection: { slug: string } | nul
       return { href: '/shop?tags=staff-pick', label: 'Shop all of Tammy’s picks →' };
     case 'SEASONAL':
       return { href: '/shop?tags=seasonal', label: 'Shop everything in season →' };
+    case 'BUNDLES':
+      return { href: '/bundles', label: 'All sets & kits →' };
     case 'COLLECTION':
       return section.collection
         ? { href: `/collections/${section.collection.slug}`, label: 'Shop the collection →' }
@@ -165,6 +167,7 @@ export default async function Home() {
   const rows = resolved.filter(
     (entry) =>
       (entry.section.kind === 'COLLECTION_TILES' && collections.length > 0) ||
+      (entry.section.kind === 'BUNDLES' && featuredSets.length > 0) ||
       entry.products.length > 0
   );
   const classSeats = await seatsRemainingFor(upcomingClasses);
@@ -351,7 +354,27 @@ export default async function Home() {
         )}
 
         {rows.map(({ section, products }) =>
-          section.kind === 'COLLECTION_TILES' ? (
+          section.kind === 'BUNDLES' ? (
+            <section className="section editorial-products home-products-section" key={section.id}>
+              <div className="container">
+                <div className="editorial-heading-row">
+                  <div>
+                    {section.eyebrow && (
+                      <div className="eyebrow">
+                        <Package size={14} aria-hidden="true" /> {section.eyebrow}
+                      </div>
+                    )}
+                    <h2>{section.title}</h2>
+                    {section.subtitle && <p>{section.subtitle}</p>}
+                  </div>
+                  <Link className="editorial-link" href={sectionLink(section).href}>
+                    {sectionLink(section).label}
+                  </Link>
+                </div>
+                <BundleGrid bundles={featuredSets.slice(0, section.maxItems).map(bundleCardData)} />
+              </div>
+            </section>
+          ) : section.kind === 'COLLECTION_TILES' ? (
             <section
               className="section editorial-section home-collections-section"
               key={section.id}
@@ -408,25 +431,6 @@ export default async function Home() {
               </div>
             </section>
           )
-        )}
-
-        {featuredSets.length > 0 && (
-          <section className="section editorial-products home-products-section">
-            <div className="container">
-              <div className="editorial-heading-row">
-                <div>
-                  <div className="eyebrow">
-                    <Package size={14} aria-hidden="true" /> Everything in one box
-                  </div>
-                  <h2>Sets we have made up.</h2>
-                </div>
-                <Link className="editorial-link" href="/bundles">
-                  All sets &amp; kits &rarr;
-                </Link>
-              </div>
-              <BundleGrid bundles={featuredSets.map(bundleCardData)} />
-            </div>
-          </section>
         )}
       </div>
 
