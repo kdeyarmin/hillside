@@ -55,10 +55,11 @@ function windowStart(days: number, now = new Date()) {
 export const salesStats = cache(async (days = BEST_SELLER_WINDOW_DAYS): Promise<SalesStats> => {
   const stats: SalesStats = new Map();
   let lines: Array<{
-    productId: string;
+    productId: string | null;
     orderId: string;
     quantity: number;
     order: { createdAt: Date };
+    components: Array<{ productId: string; quantity: number }>;
   }>;
 
   try {
@@ -70,7 +71,15 @@ export const salesStats = cache(async (days = BEST_SELLER_WINDOW_DAYS): Promise<
         productId: true,
         orderId: true,
         quantity: true,
-        order: { select: { createdAt: true } }
+        order: { select: { createdAt: true } },
+        /**
+         * A set's own line carries no `productId` — it is the set that was
+         * bought — so what actually left the shelf is recorded underneath it.
+         * Counting those is what keeps a tea that sells briskly inside the Tea
+         * Starter Set from looking like a tea nobody buys, which is exactly the
+         * claim the best-seller badge would then be making about it.
+         */
+        components: { select: { productId: true, quantity: true } }
       },
       take: ORDER_LINE_LIMIT
     });
@@ -81,16 +90,29 @@ export const salesStats = cache(async (days = BEST_SELLER_WINDOW_DAYS): Promise<
   }
 
   const ordersSeen = new Map<string, Set<string>>();
-  for (const line of lines) {
-    const existing = stats.get(line.productId) || { units: 0, orders: 0, lastSoldAt: null };
-    existing.units += Math.max(0, line.quantity);
-    const seen = ordersSeen.get(line.productId) || new Set<string>();
+  const record = (productId: string, quantity: number, line: (typeof lines)[number]) => {
+    const existing = stats.get(productId) || { units: 0, orders: 0, lastSoldAt: null };
+    existing.units += Math.max(0, quantity);
+    const seen = ordersSeen.get(productId) || new Set<string>();
     seen.add(line.orderId);
-    ordersSeen.set(line.productId, seen);
+    ordersSeen.set(productId, seen);
     existing.orders = seen.size;
     const last = existing.lastSoldAt ? new Date(existing.lastSoldAt) : null;
     if (!last || line.order.createdAt > last) existing.lastSoldAt = line.order.createdAt;
-    stats.set(line.productId, existing);
+    stats.set(productId, existing);
+  };
+
+  for (const line of lines) {
+    if (line.productId) {
+      record(line.productId, line.quantity, line);
+      continue;
+    }
+    // A set line: credit each piece with what actually left the shelf. The
+    // snapshot already carries the quantity for the whole line, so it is not
+    // multiplied by the line's own quantity a second time.
+    for (const component of line.components) {
+      record(component.productId, component.quantity, line);
+    }
   }
 
   return stats;

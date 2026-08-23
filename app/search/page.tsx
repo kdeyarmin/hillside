@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { CalendarDays, FolderOpen, Leaf, Search, ShoppingBag } from 'lucide-react';
+import { CalendarDays, FolderOpen, Leaf, Package, Search, ShoppingBag } from 'lucide-react';
+import BundleGrid from '@/components/BundleGrid';
 import ProductGrid from '@/components/ProductGrid';
+import { bundleCardData, sellableBundles } from '@/lib/bundle-queries';
 import { db } from '@/lib/db';
 import { withCardFacts } from '@/lib/product-cards';
 import { classFormatLabel } from '@/lib/class-access';
@@ -82,56 +84,64 @@ export default async function SearchPage({
    * zero, and `/search?q=!!!` would tell a shopper the shop was empty while
    * seven products were on the bench.
    */
-  const [productRows, guideRows, collectionRows, classRows, catalogCount] = await Promise.all([
-    searchable
-      ? db.product.findMany({
-          where: { active: true },
-          select: {
-            ...PRODUCT_CARD_SELECT,
-            sku: true,
-            details: true,
-            careNotes: true,
-            collections: {
-              where: { active: true },
-              select: { slug: true, title: true, tagline: true, keywords: true }
-            }
-          },
-          orderBy: [{ featured: 'desc' }, { name: 'asc' }],
-          take: PRODUCT_SCAN_LIMIT
-        })
-      : [],
-    searchable
-      ? db.careSheet.findMany({
-          where: { published: true },
-          orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
-          take: GUIDE_SCAN_LIMIT
-        })
-      : [],
-    searchable
-      ? db.collection.findMany({
-          where: { active: true },
-          orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-          select: {
-            id: true,
-            slug: true,
-            title: true,
-            tagline: true,
-            description: true,
-            intro: true,
-            keywords: true
-          },
-          take: 50
-        })
-      : [],
-    searchable && CLASSES_PUBLICLY_VISIBLE
-      ? db.classEvent.findMany({
-          where: { active: true, startsAt: { gte: new Date() } },
-          orderBy: { startsAt: 'asc' },
-          take: 50
-        })
-      : [],
-    term ? db.product.count({ where: { active: true } }) : 0
-  ]);
+  const [productRows, guideRows, collectionRows, classRows, bundleRows, catalogCount] =
+    await Promise.all([
+      searchable
+        ? db.product.findMany({
+            where: { active: true },
+            select: {
+              ...PRODUCT_CARD_SELECT,
+              sku: true,
+              details: true,
+              careNotes: true,
+              collections: {
+                where: { active: true },
+                select: { slug: true, title: true, tagline: true, keywords: true }
+              }
+            },
+            orderBy: [{ featured: 'desc' }, { name: 'asc' }],
+            take: PRODUCT_SCAN_LIMIT
+          })
+        : [],
+      searchable
+        ? db.careSheet.findMany({
+            where: { published: true },
+            orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
+            take: GUIDE_SCAN_LIMIT
+          })
+        : [],
+      searchable
+        ? db.collection.findMany({
+            where: { active: true },
+            orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+            select: {
+              id: true,
+              slug: true,
+              title: true,
+              tagline: true,
+              description: true,
+              intro: true,
+              keywords: true
+            },
+            take: 50
+          })
+        : [],
+      searchable && CLASSES_PUBLICLY_VISIBLE
+        ? db.classEvent.findMany({
+            where: { active: true, startsAt: { gte: new Date() } },
+            orderBy: { startsAt: 'asc' },
+            take: 50
+          })
+        : [],
+      /**
+       * Sets cannot be filtered in SQL — how many of one can be built is a minimum
+       * over its components, and per-size counts live in a JSON column — so the
+       * whole (small) shelf is loaded and matched in memory like everything else
+       * here. A set the shop cannot build is never in it.
+       */
+      searchable ? sellableBundles() : [],
+      term ? db.product.count({ where: { active: true } }) : 0
+    ]);
 
   // Derived attributes first, so "best seller" and "in stock" are searchable
   // terms rather than things only the filter rail knows about.
@@ -145,10 +155,26 @@ export default async function SearchPage({
   const guides = rankSearchHits(guideRows, careSheetSearchFields, term);
   const collections = rankSearchHits(collectionRows, collectionSearchFields, term, 6);
   const classes = rankSearchHits(classRows, classSearchFields, term, 6);
+  const bundles = rankSearchHits(
+    bundleRows,
+    // Matched on what is in the box too: somebody searching "infuser" should
+    // find the Tea Starter Set that contains one.
+    (bundle) => ({
+      primary: [bundle.title],
+      secondary: [
+        bundle.tagline,
+        bundle.description,
+        ...bundle.items.map((item) => item.product.name)
+      ]
+    }),
+    term,
+    6
+  );
 
   const shopProducts = await withCardFacts(products);
 
-  const total = products.length + guides.length + collections.length + classes.length;
+  const total =
+    products.length + bundles.length + guides.length + collections.length + classes.length;
 
   return (
     <>
@@ -243,6 +269,25 @@ export default async function SearchPage({
                 </Link>
               </div>
               <ProductGrid products={shopProducts} />
+            </div>
+          )}
+
+          {bundles.length > 0 && (
+            <div className="search-group">
+              <div className="editorial-heading-row">
+                <div>
+                  <div className="eyebrow">
+                    <Package size={14} /> Sets &amp; kits
+                  </div>
+                  <h2>
+                    {bundles.length} {bundles.length === 1 ? 'set' : 'sets'}
+                  </h2>
+                </div>
+                <Link className="editorial-link" href="/bundles">
+                  All sets &rarr;
+                </Link>
+              </div>
+              <BundleGrid bundles={bundles.map(bundleCardData)} />
             </div>
           )}
 

@@ -280,6 +280,7 @@ export default async function ContentManager({
         <b>Website Content Manager</b>
         <Link href="/admin">← Business dashboard</Link>
         <a href="#categories">Categories</a>
+        <Link href="/admin/merchandising">Merchandising</Link>
         <a href="#collections">Collections</a>
         <a href="#classes">Classes</a>
         <a href="#gallery">Gallery</a>

@@ -24,7 +24,7 @@ export default async function Success({
 
   const order = await db.order.findUnique({
     where: { stripeSessionId: sessionId },
-    include: { items: true }
+    include: { items: { include: { components: true } } }
   });
 
   let session: Stripe.Checkout.Session | null = null;
@@ -133,6 +133,18 @@ export default async function Success({
             <div className="summary-row" key={item.id}>
               <span>
                 {sizedName(item.name, item.size)} × {item.quantity}
+                {/* A set is one line and one price; this is where it says what
+                    was in the box. */}
+                {item.components.length > 0 && (
+                  <span className="muted" style={{ display: 'block', fontSize: 13 }}>
+                    {item.components
+                      .map(
+                        (component) =>
+                          `${sizedName(component.name, component.size)} × ${component.quantity}`
+                      )
+                      .join(' · ')}
+                  </span>
+                )}
               </span>
               <span>{formatMoney(item.unitCents * item.quantity)}</span>
             </div>

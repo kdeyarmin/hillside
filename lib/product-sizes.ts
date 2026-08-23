@@ -411,6 +411,23 @@ export function returnStoredSizeStock(
   );
 }
 
+/**
+ * How many of one size are on the shelf, or null when this product is not
+ * counted per size.
+ *
+ * A read, unlike `takeStoredSizeStock` — which rewrites the product's total from
+ * the size list whether or not it succeeds, and so cannot be used to *ask*
+ * whether a size can cover a quantity without also committing to the answer.
+ *
+ * A label matching nothing has none: that is the retired-size case, where
+ * answering with the product's total would sell a size nobody stocks.
+ */
+export function storedSizeOnHand(stored: StoredSize[], label: string | null | undefined) {
+  if (!storedSizesTrackStock(stored)) return null;
+  const target = matchStoredLabel(stored, label);
+  return Math.max(0, Math.floor(target?.inventory ?? 0));
+}
+
 /** `findSize` for stored rows, so stock moves match the same way prices do. */
 function matchStoredLabel(stored: StoredSize[], label: string | null | undefined) {
   const wanted = cleanLabel(label);

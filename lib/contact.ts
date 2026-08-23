@@ -12,6 +12,7 @@ export const CONTACT_SUBJECTS = [
   'Product or order question',
   'Availability or restock',
   'Custom planter arrangement',
+  'Custom gift set',
   'Local pickup inquiry',
   'Wholesale or collaboration'
 ] as const;

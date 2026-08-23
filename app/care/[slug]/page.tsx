@@ -18,24 +18,20 @@ import {
   Wind,
   Wrench
 } from 'lucide-react';
+import BundleGrid from '@/components/BundleGrid';
 import ProductGrid from '@/components/ProductGrid';
 import PrintButton from '@/components/PrintButton';
 import ResilientImage from '@/components/ResilientImage';
+import { bundleCardData, sellableBundlesWithAnyProduct } from '@/lib/bundle-queries';
+import { careGuideTypeHeading } from '@/lib/care-guides';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { withCardFacts } from '@/lib/product-cards';
-import { absoluteUrl, resolveImageUrl } from '@/lib/store';
+import { absoluteUrl, formatMoney, resolveImageUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
 import { breadcrumbJsonLd, businessRef, pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
-
-function guideTypeLabel(type: CareGuideType) {
-  if (type === CareGuideType.GENERAL) return 'Plant care basics';
-  if (type === CareGuideType.PROBLEM) return 'Plant problem guide';
-  if (type === CareGuideType.SEASONAL) return 'Seasonal plant care';
-  return 'Plant profile';
-}
 
 function guideTitle(title: string, type: CareGuideType) {
   if (type === CareGuideType.PLANT) return `${title} Care Guide`;
@@ -112,7 +108,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     relatedWhere.guideType = sheet.guideType;
   }
 
-  const [related, linkedProduct, upcomingClass] = await Promise.all([
+  const [related, linkedProduct, featured, upcomingClass] = await Promise.all([
     db.careSheet.findMany({
       where: relatedWhere,
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { plantName: 'asc' }],
@@ -124,6 +120,18 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
           include: { category: { select: { slug: true, title: true } } }
         })
       : null,
+    /**
+     * What Tammy chose to feature on this guide, with her own reason for each.
+     * Sold-out pieces are left out rather than shown as unavailable: on an
+     * educational page a struck-through "sold out" is a dead end, and the guide
+     * reads perfectly without it.
+     */
+    db.careGuideProduct.findMany({
+      where: { careSheetId: sheet.id, product: { active: true, inventory: { gt: 0 } } },
+      orderBy: { sortOrder: 'asc' },
+      include: { product: true },
+      take: 4
+    }),
     CLASSES_PUBLICLY_VISIBLE
       ? db.classEvent.findFirst({
           where: { active: true, startsAt: { gte: new Date() } },
@@ -133,20 +141,29 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
   ]);
 
   /**
+   * A set built around what this guide teaches — the Terrarium Starter Kit under
+   * the terrarium guide. Only sets that can actually be built are returned, so a
+   * guide never sends a reader to a box the shop cannot pack.
+   */
+  const guideProductIds = [linkedProduct?.id, ...featured.map((entry) => entry.productId)].filter(
+    (id): id is string => Boolean(id)
+  );
+  const kits = guideProductIds.length
+    ? await sellableBundlesWithAnyProduct(guideProductIds, 2)
+    : [];
+
+  /**
    * The care library is the reason strangers find this site, and it used to link
    * only to other care guides. A reader here is the most qualified visitor there
-   * is, so the guide now offers the plant itself, a class when classes are
-   * public, and a fallback into the shop when nothing specific is linked.
+   * is, so the guide offers the plant itself, whatever else Tammy has attached
+   * to it, a set when one exists, and a class when classes are public.
+   *
+   * The blanket "here are three plants we have in stock" fallback is gone. It
+   * fired on every guide with nothing attached — including troubleshooting
+   * guides, where somebody arrives worried about a plant they already own and
+   * was shown three more to buy. Nothing is the better answer there.
    */
-  const suggestedProducts = linkedProduct
-    ? []
-    : await db.product.findMany({
-        where: { active: true, inventory: { gt: 0 }, type: 'PLANT' },
-        orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
-        take: 3,
-        include: { category: { select: { slug: true, title: true } } }
-      });
-  const shopProducts = await withCardFacts(linkedProduct ? [linkedProduct] : suggestedProducts);
+  const shopProducts = await withCardFacts(linkedProduct ? [linkedProduct] : []);
 
   const title = guideTitle(sheet.plantName, sheet.guideType);
   const articleJsonLd = {
@@ -164,7 +181,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     publisher: { '@id': businessRef() },
     datePublished: sheet.createdAt.toISOString(),
     dateModified: sheet.updatedAt.toISOString(),
-    articleSection: guideTypeLabel(sheet.guideType)
+    articleSection: careGuideTypeHeading(sheet.guideType)
   };
 
   const details = [
@@ -188,7 +205,9 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
       ? AlertTriangle
       : sheet.guideType === CareGuideType.SEASONAL
         ? CalendarRange
-        : Leaf;
+        : sheet.guideType === CareGuideType.BEGINNER
+          ? Sprout
+          : Leaf;
 
   return (
     <section className="content care-guide-page">
@@ -233,7 +252,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
             />
             <div>
               <div className="care-guide-type">
-                <HeroIcon size={16} /> {guideTypeLabel(sheet.guideType)}
+                <HeroIcon size={16} /> {careGuideTypeHeading(sheet.guideType)}
               </div>
               <h1>{sheet.plantName}</h1>
               {sheet.botanical && <p className="care-botanical-name">{sheet.botanical}</p>}
@@ -368,20 +387,79 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
           )}
         </article>
 
-        {shopProducts.length > 0 && (
+        {shopProducts.length > 0 && linkedProduct && (
           <section className="product-details-section no-print care-shop-cta">
             <div className="sectionhead">
-              <div className="eyebrow">
-                {linkedProduct ? 'From our shop' : 'Ready for a new plant?'}
-              </div>
-              <h2>
-                {linkedProduct
-                  ? `Bring ${linkedProduct.name} home.`
-                  : 'Plants we have on the bench right now.'}
-              </h2>
-              <p>Every plant is potted here and leaves with the same care notes you just read.</p>
+              <div className="eyebrow">The plant this guide is about</div>
+              <h2>Bring {linkedProduct.name} home.</h2>
+              <p>Potted here, and it leaves with the same care notes you have just read.</p>
             </div>
             <ProductGrid products={shopProducts} />
+          </section>
+        )}
+
+        {/*
+          Products Tammy attached to this guide, each with her reason for it.
+          Deliberately not a product grid: a row of buy buttons under an article
+          turns the article into an advert, and the reason is what makes the
+          difference between "here is what we sell" and "here is what we use".
+        */}
+        {featured.length > 0 && (
+          <section className="product-details-section no-print">
+            <div className="sectionhead">
+              <div className="eyebrow">What we use</div>
+              <h2>
+                {sheet.guideType === CareGuideType.PROBLEM
+                  ? 'What we reach for when this happens.'
+                  : 'What we use for this ourselves.'}
+              </h2>
+              <p>
+                Everything below is on our own bench. Nothing here is required to follow the guide.
+              </p>
+            </div>
+            <ul className="care-product-list">
+              {featured.map((entry) => (
+                <li className="care-product-card" key={entry.id}>
+                  <Link href={`/shop/${entry.product.slug}`}>
+                    <ResilientImage
+                      sizeRole="thumb"
+                      src={resolveImageUrl(entry.product.imageUrl)}
+                      fallbackSrc="/images/botanical-placeholder.svg"
+                      alt={entry.product.name}
+                      width={78}
+                      height={78}
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </Link>
+                  <div>
+                    <b>
+                      <Link href={`/shop/${entry.product.slug}`}>{entry.product.name}</Link>
+                    </b>
+                    <p>
+                      {entry.note || entry.product.shortDescription || entry.product.description}
+                    </p>
+                    <span className="care-product-price">
+                      {formatMoney(entry.product.priceCents)}
+                    </span>
+                    <Link className="text-link" href={`/shop/${entry.product.slug}`}>
+                      See it →
+                    </Link>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {kits.length > 0 && (
+          <section className="product-details-section no-print">
+            <div className="sectionhead">
+              <div className="eyebrow">Everything at once</div>
+              <h2>{kits.length === 1 ? 'There is a set for this.' : 'There are sets for this.'}</h2>
+              <p>Made up here from the same pieces, priced below buying them one at a time.</p>
+            </div>
+            <BundleGrid bundles={kits.map(bundleCardData)} />
           </section>
         )}
 
@@ -415,7 +493,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
             <div className="care-related-grid">
               {related.map((item) => (
                 <article className="care-related-card" key={item.id}>
-                  <span>{guideTypeLabel(item.guideType)}</span>
+                  <span>{careGuideTypeHeading(item.guideType)}</span>
                   <h3>
                     <Link href={`/care/${item.slug}`}>{item.plantName}</Link>
                   </h3>

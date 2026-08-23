@@ -20,7 +20,14 @@ type OrderResult = {
   shippingMethod?: string | null;
   giftMessage?: string | null;
   pickupNote?: string | null;
-  items: { name: string; size?: string | null; quantity: number; unitCents: number }[];
+  items: {
+    name: string;
+    size?: string | null;
+    quantity: number;
+    unitCents: number;
+    /** What a set contained, since its line carries one name and one price. */
+    components?: { name: string; size?: string | null; quantity: number }[];
+  }[];
 };
 
 export default function OrderStatusLookup() {
@@ -134,6 +141,16 @@ export default function OrderStatusLookup() {
               <div className="summary-row" key={`${item.name}-${index}`}>
                 <span>
                   {sizedName(item.name, item.size)} × {item.quantity}
+                  {item.components && item.components.length > 0 && (
+                    <span className="muted" style={{ display: 'block', fontSize: 13 }}>
+                      {item.components
+                        .map(
+                          (component) =>
+                            `${sizedName(component.name, component.size)} × ${component.quantity}`
+                        )
+                        .join(' · ')}
+                    </span>
+                  )}
                 </span>
                 <span>{formatMoney(item.unitCents * item.quantity)}</span>
               </div>
