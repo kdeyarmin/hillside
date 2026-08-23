@@ -12,7 +12,8 @@
  * and should not lose the automatic placement of a product she tags once.
  */
 
-import { productSizes, sizePriceRange } from './product-sizes.ts';
+import { productSizes, sizePriceRange, sizesTrackStock } from './product-sizes.ts';
+import { matchesSearchTerm } from './search.ts';
 
 /**
  * The reserved tag that keeps a product out of every guide however well it
@@ -203,6 +204,8 @@ export type GiftMatchable = {
   priceCents: number;
   /** Raw `Product.sizes`; only the cheapest price is read from it. */
   sizes?: unknown;
+  /** The product total, needed to tell a sold-out size from a sellable one. */
+  inventory?: number | null;
   bundle?: boolean | null;
   featured?: boolean | null;
   giftTags?: readonly string[] | null;
@@ -253,13 +256,27 @@ export function excludedFromGifts(product: GiftMatchable) {
 }
 
 /**
- * The lowest price a shopper can actually pay for this product. Price bands are
- * a promise about what the guide costs to buy from, so they are measured
- * against the cheapest size rather than the product's headline figure.
+ * The lowest price a shopper can actually pay for this product.
+ *
+ * A price band is a promise about what the guide costs to buy from, so it is
+ * measured against the cheapest size rather than the product's headline
+ * figure — and, where the owner counts the sizes separately, against the
+ * cheapest size that is still *on the bench*. A plant whose $18 4" pots have
+ * run out and whose $40 8" pots have not is a $40 plant this week, and
+ * quoting the $18 would put it in "Gifts under $25" for a shopper who cannot
+ * buy it for that. The product's own total stays positive in that case,
+ * because the other size is holding it up, so nothing else catches it.
+ *
+ * If every counted size is empty the whole list is used again rather than
+ * nothing: such a product is sold out and is not in a guide at all, and a
+ * price of "the base" beats a price of "undefined".
  */
 export function giftPriceCents(product: GiftMatchable) {
   const sizes = productSizes(product.sizes, product.priceCents);
-  return sizePriceRange(sizes, product.priceCents).minCents;
+  const inStock = sizesTrackStock(sizes)
+    ? sizes.filter((size) => (size.inventory ?? 0) > 0)
+    : sizes;
+  return sizePriceRange(inStock.length ? inStock : sizes, product.priceCents).minCents;
 }
 
 function searchableText(product: GiftMatchable) {
@@ -288,8 +305,16 @@ function matchesGuideRules(product: GiftMatchable, guide: GiftGuide) {
   if (guide.includeFeatured && product.featured) return true;
   if (guide.types?.includes(product.type)) return true;
 
+  /**
+   * Start-of-word, not substring — the same rule, and the same helper, that
+   * site search uses. Plain `includes` put anything whose copy said "steady"
+   * into the tea-lover guide, which is the exact false positive `lib/search.ts`
+   * was written to stop. Stems still work the way they read: "propagat"
+   * matches "propagation", and "tea" matches "teas" and "teapot" but not
+   * "instead".
+   */
   const haystack = searchableText(product);
-  return Boolean(guide.keywords?.some((keyword) => haystack.includes(keyword)));
+  return Boolean(guide.keywords?.some((keyword) => matchesSearchTerm(haystack, keyword)));
 }
 
 export function matchesGiftGuide(product: GiftMatchable, guide: GiftGuide) {

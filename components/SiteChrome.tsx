@@ -51,15 +51,17 @@ const lineName = (line: { name: string; size?: string | null }) => sizedName(lin
  * `lib/collections.ts`) so the header can never point at a deleted collection.
  */
 function primaryNavigation(
-  catalogEmpty: boolean
+  giftsEmpty: boolean
 ): ReadonlyArray<readonly [label: string, href: string]> {
   return [
     ['Plants', '/collections/plants'],
     ['Teas & Herbals', '/collections/teas-herbals'],
     ['Botanicals', '/collections/botanicals'],
-    // Gifts leads to a page built entirely out of the catalog, so it leaves
-    // with the catalog rather than pointing at an apology.
-    ...(catalogEmpty ? [] : ([['Gifts', '/gifts']] as const)),
+    /* Gifts leaves with the *stock*, not merely with the catalog. The gift
+       pages are built from in-stock rows, so a shop whose every listing has
+       sold out has a gift guide with nothing in it — and a header link to it
+       is exactly the apology this condition exists to avoid. */
+    ...(giftsEmpty ? [] : ([['Gifts', '/gifts']] as const)),
     ...(CLASSES_PUBLICLY_VISIBLE ? ([['Classes', '/classes']] as const) : []),
     ['Plant Care', '/care'],
     ['Gallery', '/gallery'],
@@ -442,9 +444,12 @@ function CartDrawer({
 
 export function SiteHeader({
   catalogEmpty = false,
+  giftsEmpty = false,
   freeShippingThreshold
 }: {
   catalogEmpty?: boolean;
+  /** Nothing is in stock, so the gift guide has nothing to show. */
+  giftsEmpty?: boolean;
   freeShippingThreshold: number;
 }) {
   const pathname = usePathname();
@@ -452,7 +457,7 @@ export function SiteHeader({
   const { count, drawerOpen, openCart, lastAdded } = useCart();
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
-  const navigation = primaryNavigation(catalogEmpty);
+  const navigation = primaryNavigation(giftsEmpty);
 
   useEffect(() => setMobileOpen(false), [pathname]);
 
@@ -728,10 +733,12 @@ export function SiteHeader({
  */
 export function SiteFooter({
   contactEmail = DEFAULT_BUSINESS_EMAIL,
-  catalogEmpty = false
+  catalogEmpty = false,
+  giftsEmpty = false
 }: {
   contactEmail?: string;
   catalogEmpty?: boolean;
+  giftsEmpty?: boolean;
 }) {
   const pathname = usePathname();
   const showNewsletter = pathname !== '/';
@@ -787,7 +794,7 @@ export function SiteFooter({
               <Link href="/shop">Shop</Link>
             </p>
           )}
-          {!catalogEmpty && (
+          {!giftsEmpty && (
             <p>
               <Link href="/gifts">Gift guide</Link>
             </p>

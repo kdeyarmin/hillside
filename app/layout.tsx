@@ -19,7 +19,7 @@ import { Cormorant_Garamond, Manrope } from 'next/font/google';
 import Analytics from '@/components/Analytics';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
-import { catalogHasActiveProducts } from '@/lib/catalog';
+import { catalogHasActiveProducts, catalogHasSellableProducts } from '@/lib/catalog';
 import { absoluteUrl, businessEmail, freeShippingThresholdCents, siteBaseUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
 import { websiteJsonLd } from '@/lib/seo';
@@ -149,7 +149,10 @@ function businessJsonLd() {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const catalogEmpty = !(await catalogHasActiveProducts());
+  const [catalogEmpty, giftsEmpty] = await Promise.all([
+    catalogHasActiveProducts().then((hasCatalog) => !hasCatalog),
+    catalogHasSellableProducts().then((hasStock) => !hasStock)
+  ]);
   return (
     <html lang="en" className={`${hillsideSans.variable} ${hillsideDisplay.variable}`}>
       <body>
@@ -167,6 +170,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <CartProvider>
           <SiteHeader
             catalogEmpty={catalogEmpty}
+            giftsEmpty={giftsEmpty}
             freeShippingThreshold={freeShippingThresholdCents()}
           />
           {/* tabIndex={-1} so the skip link actually moves focus. Without it Safari
@@ -174,7 +178,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <main id="main-content" tabIndex={-1}>
             {children}
           </main>
-          <SiteFooter contactEmail={businessEmail()} catalogEmpty={catalogEmpty} />
+          <SiteFooter
+            contactEmail={businessEmail()}
+            catalogEmpty={catalogEmpty}
+            giftsEmpty={giftsEmpty}
+          />
         </CartProvider>
         <Analytics />
       </body>

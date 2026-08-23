@@ -21,9 +21,15 @@ function authorised(request: Request) {
   const secret = process.env.TASKS_SECRET?.trim();
   if (!secret) return false;
 
+  /**
+   * The header, and only the header. A `?token=` fallback was convenient for a
+   * scheduler that cannot set one, but it puts a long-lived credential into a
+   * URL — and URLs are what proxies, load balancers and platform dashboards
+   * write to their access logs. Anyone who later reads one of those logs could
+   * run the shop's customer-email job.
+   */
   const header = request.headers.get('authorization') || '';
-  const bearer = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
-  const presented = bearer || new URL(request.url).searchParams.get('token') || '';
+  const presented = header.toLowerCase().startsWith('bearer ') ? header.slice(7).trim() : '';
   if (!presented) return false;
 
   const left = Buffer.from(presented);

@@ -30,7 +30,7 @@ import { GIFT_EXCLUDE_TAG, GIFT_TAG_CHOICES } from '@/lib/gifts';
 import { newsletterSourceBreakdown, newsletterSourceLabel } from '@/lib/newsletter-source';
 import { AWAITING_SHIPMENT_STATUSES, REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
 import { sizedName, sizeLines, sizeStockSummary } from '@/lib/product-sizes';
-import { REVIEW_REQUEST_DELAY_DAYS } from '@/lib/review-request';
+import { REVIEW_REQUEST_BATCH, REVIEW_REQUEST_DELAY_DAYS } from '@/lib/review-request';
 import { countOrdersAwaitingReviewRequest } from '@/lib/review-request-send';
 import { formatMoney, productTypeLabel } from '@/lib/store';
 import { orderStatusBadge } from '@/lib/tracking';
@@ -493,7 +493,9 @@ export default async function Admin({
     reviewRequestsDue,
     recentlySold,
     newSubscribers,
-    subscriberSources
+    subscriberSources,
+    unreadMessageCount,
+    unreadMessageRows
   ] = await Promise.all([
     db.product.findMany({
       orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
@@ -532,8 +534,17 @@ export default async function Admin({
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
       select: { id: true, title: true }
     }),
+    /**
+     * Shipments only. A pickup awaiting preparation has its own card and its
+     * own job; counted here as well it appeared on the Today board twice and
+     * was added to the day's total twice over.
+     */
     db.order.count({
-      where: { status: { in: [...AWAITING_SHIPMENT_STATUSES] }, fulfilledAt: null }
+      where: {
+        status: { in: [...AWAITING_SHIPMENT_STATUSES] },
+        fulfilledAt: null,
+        fulfillmentMethod: { not: 'PICKUP' }
+      }
     }),
     db.order.count({
       where: {
@@ -574,6 +585,20 @@ export default async function Admin({
     db.newsletterSubscriber.groupBy({
       by: ['source', 'active'],
       _count: { _all: true }
+    }),
+    db.contactMessage.count({ where: { status: MessageStatus.NEW } }),
+    /**
+     * Every unread message, not the fifty the list below renders. Whether one
+     * reads as a custom planter request is a question about its wording, which
+     * SQL cannot ask on its own — so the unread ones are read in full and
+     * matched here. There is no realistic inbox where that is a large set, and
+     * the alternative was a board that under-reports the very work it exists
+     * to surface.
+     */
+    db.contactMessage.findMany({
+      where: { status: MessageStatus.NEW },
+      select: { subject: true, message: true },
+      take: 500
     })
   ]);
 
@@ -605,10 +630,8 @@ export default async function Admin({
   const lowStock = products.filter(productIsLowStock).length;
   const outOfStock = products.filter(productIsOutOfStock).length;
   const incompleteProducts = products.filter(productHasIncompleteInfo).length;
-  const unreadMessages = messages.filter((message) => message.status === MessageStatus.NEW).length;
-  const planterRequests = messages.filter(
-    (message) => message.status === MessageStatus.NEW && isCustomPlanterRequest(message)
-  ).length;
+  const unreadMessages = unreadMessageCount;
+  const planterRequests = unreadMessageRows.filter(isCustomPlanterRequest).length;
   const activeSubscribers = subscribers.filter((subscriber) => subscriber.active).length;
   const missingPhotos = products.filter(
     (product) => product.active && productNeedsPhoto(product.imageUrl)
@@ -895,8 +918,11 @@ export default async function Admin({
                 [
                   'awaiting',
                   'To pack',
-                  orders.filter((order) => isAwaitingShipment(order.status, order.fulfilledAt))
-                    .length
+                  orders.filter(
+                    (order) =>
+                      isAwaitingShipment(order.status, order.fulfilledAt) &&
+                      order.fulfillmentMethod !== 'PICKUP'
+                  ).length
                 ],
                 [
                   'pickup',
@@ -1612,10 +1638,21 @@ export default async function Admin({
                     {reviewRequestsDue} {reviewRequestsDue === 1 ? 'order is' : 'orders are'} ready
                     to ask.
                   </b>
+                  {/* One run sends at most a batch. The button used to offer to
+                      send all of them and then quietly send 25, which is a
+                      promise the shop does not keep. */}
+                  {reviewRequestsDue > REVIEW_REQUEST_BATCH && (
+                    <span className="muted">
+                      {' '}
+                      This sends the {REVIEW_REQUEST_BATCH} oldest. Press it again for the rest.
+                    </span>
+                  )}
                 </p>
                 <form action={sendReviewRequests}>
                   <button className="btn">
-                    Send {reviewRequestsDue === 1 ? 'the request' : `${reviewRequestsDue} requests`}
+                    {reviewRequestsDue === 1
+                      ? 'Send the request'
+                      : `Send ${Math.min(reviewRequestsDue, REVIEW_REQUEST_BATCH)} requests`}
                   </button>
                 </form>
               </>

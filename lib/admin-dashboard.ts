@@ -36,10 +36,23 @@ export function productNeedsPhoto(imageUrl: string | null | undefined) {
 }
 
 /**
+ * A listed product with nothing left to sell. Separated from "low stock"
+ * because they are different jobs: one is a reorder note, the other is a
+ * listing customers can see and cannot buy from.
+ */
+export function productIsOutOfStock(product: { active: boolean; inventory: number }) {
+  return product.active && product.inventory <= 0;
+}
+
+/**
  * What the Low stock chip counts. On a product counted per size that is any one
  * size running down, not the total: a plant with nine on the bench and none of
  * them in 6" pots has a size to pot up, and the total alone would keep it off
  * the list Tammy works from until the 4" ones ran out too.
+ *
+ * A product that is *entirely* sold out is not "running low" — it has run out,
+ * which is a different card, a different chip and a different job. Counting it
+ * as both put one listing on the dashboard twice and inflated the day's work.
  */
 export function productIsLowStock(product: {
   active: boolean;
@@ -47,20 +60,12 @@ export function productIsLowStock(product: {
   sizes?: unknown;
 }) {
   if (!product.active) return false;
+  if (productIsOutOfStock(product)) return false;
   const stored = readStoredSizes(product.sizes);
   if (storedSizesTrackStock(stored)) {
     return stored.some((size) => (size.inventory ?? 0) <= LOW_STOCK_AT);
   }
   return product.inventory <= LOW_STOCK_AT;
-}
-
-/**
- * A listed product with nothing left to sell. Separated from "low stock"
- * because they are different jobs: one is a reorder note, the other is a
- * listing customers can see and cannot buy from.
- */
-export function productIsOutOfStock(product: { active: boolean; inventory: number }) {
-  return product.active && product.inventory <= 0;
 }
 
 /**
@@ -125,15 +130,24 @@ export function parseAdminOrderFilter(value?: string | null): AdminOrderFilter {
 }
 
 /**
- * Which orders the list shows. "Pickup" means a pickup order that still owes
- * the customer something — a collected one is finished, and leaving it in the
- * list would make the dashboard's own count disagree with what it renders.
+ * Which orders the list shows, and — just as importantly — the two views
+ * partition the outstanding work rather than overlapping.
+ *
+ * Packing a parcel and preparing a pickup are different jobs: one is a box, a
+ * label and a carrier, the other is setting something aside and emailing a
+ * window. A pickup counted in both put one order on the Today board twice and
+ * added it to the day's total twice over. "To pack" is therefore what still
+ * has to be *shipped*, and pickups have their own filter and their own card.
+ *
+ * "Pickup" means one that still owes the customer something. A collected
+ * order is finished, and leaving it in the list would make the dashboard's
+ * own count disagree with what it renders.
  */
 export function orderMatchesAdminFilter(
   order: { awaiting: boolean; pickup: boolean },
   filter: AdminOrderFilter
 ) {
-  if (filter === 'awaiting') return order.awaiting;
+  if (filter === 'awaiting') return order.awaiting && !order.pickup;
   if (filter === 'pickup') return order.pickup && order.awaiting;
   return true;
 }
@@ -241,7 +255,8 @@ export const ADMIN_NOTICES: Record<string, string> = {
   'amazon-filled': 'Filled in from Amazon. Anything you had written yourself was kept.',
   'amazon-fill-empty':
     'Amazon sent nothing new, so the pick is unchanged. It is still live — add a photo below if it needs one.',
-  'review-requests-sent': 'Review requests sent. Each of those orders is only ever asked once.',
+  'review-requests-sent':
+    'Review requests sent. Each of those orders is only ever asked once — if more were waiting than one batch holds, press it again for the rest.',
   'review-requests-none': 'Nobody was due a review request, so nothing was sent.',
   'care-saved': 'Care sheet saved.',
   'care-created': 'Care sheet published.',

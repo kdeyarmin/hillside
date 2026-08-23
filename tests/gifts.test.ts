@@ -69,6 +69,47 @@ describe('giftPriceCents', () => {
   });
 });
 
+describe('giftPriceCents and sold-out sizes', () => {
+  it('quotes only a size a shopper can actually buy', () => {
+    /* $18 4" pots have run out; $40 8" pots have not. The product total stays
+       positive because the 8" pots hold it up, so nothing else catches this. */
+    const partlySoldOut = product({
+      priceCents: 4000,
+      inventory: 3,
+      sizes: [
+        { label: '4" pot', priceCents: 1800, inventory: 0 },
+        { label: '8" pot', priceCents: 4000, inventory: 3 }
+      ]
+    });
+    assert.equal(giftPriceCents(partlySoldOut), 4000);
+    assert.equal(matchesGiftGuide(partlySoldOut, guide('under-25')), false);
+    assert.equal(matchesGiftGuide(partlySoldOut, guide('under-50')), true);
+  });
+
+  it('still quotes the cheapest size while it is on the bench', () => {
+    const stocked = product({
+      priceCents: 4000,
+      inventory: 5,
+      sizes: [
+        { label: '4" pot', priceCents: 1800, inventory: 2 },
+        { label: '8" pot', priceCents: 4000, inventory: 3 }
+      ]
+    });
+    assert.equal(giftPriceCents(stocked), 1800);
+    assert.equal(matchesGiftGuide(stocked, guide('under-25')), true);
+  });
+
+  it('leaves a shared-pile size list alone', () => {
+    // No per-size counts: the product's own quantity governs every size.
+    const shared = product({
+      priceCents: 4000,
+      inventory: 0,
+      sizes: [{ label: '4" pot', priceCents: 1800 }, { label: '8" pot' }]
+    });
+    assert.equal(giftPriceCents(shared), 1800);
+  });
+});
+
 describe('price bands', () => {
   it('includes a product whose smallest size clears the ceiling', () => {
     const sized = product({
@@ -102,6 +143,39 @@ describe('occasion guides', () => {
       true
     );
     assert.equal(matchesGiftGuide(product(), guide('tea-lover')), false);
+  });
+
+  it('matches a keyword at the start of a word, not anywhere inside one', () => {
+    /* The exact false positive `lib/search.ts` exists to stop: "tea" sitting
+       inside "steady" used to put a houseplant in the tea-lover guide. */
+    const steady = product({
+      name: 'Cast Iron Plant',
+      slug: 'cast-iron-plant',
+      shortDescription: 'Wants steady watering and little else.',
+      description: 'A steadfast, instead-of-fussing houseplant.',
+      type: 'PLANT'
+    });
+    assert.equal(matchesGiftGuide(steady, guide('tea-lover')), false);
+
+    const realTea = product({
+      name: 'Teapot and infuser set',
+      slug: 'teapot-and-infuser-set',
+      shortDescription: 'For loose leaf.',
+      description: 'A teapot.',
+      type: 'OTHER'
+    });
+    assert.equal(matchesGiftGuide(realTea, guide('tea-lover')), true);
+  });
+
+  it('keeps a stem keyword working as a prefix', () => {
+    const cuttings = product({
+      name: 'Propagation station',
+      slug: 'propagation-station',
+      shortDescription: 'Glass vials for rooting cuttings.',
+      description: 'Rooting vials.',
+      type: 'OTHER'
+    });
+    assert.equal(matchesGiftGuide(cuttings, guide('plant-lover')), true);
   });
 
   it('matches on wording when the type does not say enough', () => {

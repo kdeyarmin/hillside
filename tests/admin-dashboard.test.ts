@@ -161,7 +161,41 @@ describe('productIsOutOfStock', () => {
     // An archived product is not on the shop, so it is not a problem.
     assert.equal(productIsOutOfStock({ active: false, inventory: 0 }), false);
   });
+
+  it('never counts one listing as both sold out and running low', () => {
+    const soldOut = { active: true, inventory: 0 };
+    assert.equal(productIsOutOfStock(soldOut), true);
+    assert.equal(productIsLowStock(soldOut), false);
+    assert.equal(productMatchesAdminFilter({ ...base, inventory: 0 }, '', 'out'), true);
+    assert.equal(productMatchesAdminFilter({ ...base, inventory: 0 }, '', 'low'), false);
+  });
+
+  it('still calls a counted size running down low, while the product has stock', () => {
+    assert.equal(
+      productIsLowStock({
+        active: true,
+        inventory: 9,
+        sizes: [
+          { label: '4\" pot', inventory: 9 },
+          { label: '6\" pot', inventory: 0 }
+        ]
+      }),
+      true
+    );
+  });
 });
+
+const base = {
+  name: 'Monstera',
+  slug: 'monstera',
+  sku: 'PL-01',
+  active: true,
+  inventory: 4,
+  imageUrl: '/media/monstera.jpg',
+  shortDescription: 'A bold tropical.',
+  description: 'A bold, easygoing tropical with iconic split leaves and a lot of presence.',
+  details: 'Nursery grown, potted here.'
+};
 
 describe('incompleteProductFields', () => {
   const complete = {
@@ -233,6 +267,14 @@ describe('order filters', () => {
     assert.equal(orderMatchesAdminFilter(shipping, 'pickup'), false);
     assert.equal(orderMatchesAdminFilter(shipping, 'awaiting'), true);
     assert.equal(orderMatchesAdminFilter(collected, 'all'), true);
+  });
+
+  it('partitions the outstanding work so one order is never two jobs', () => {
+    const waitingPickup = { awaiting: true, pickup: true };
+    // Packing a parcel and preparing a pickup are different jobs, and the
+    // Today board counts them as one each — never the same order as both.
+    assert.equal(orderMatchesAdminFilter(waitingPickup, 'awaiting'), false);
+    assert.equal(orderMatchesAdminFilter(waitingPickup, 'pickup'), true);
   });
 });
 

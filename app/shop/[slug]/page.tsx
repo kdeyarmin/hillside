@@ -83,15 +83,31 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     return <RetiredProduct product={product} catalogEmpty={catalogEmpty} />;
   }
 
-  const [related, reviews, rating, ratingCounts] = await Promise.all([
+  const approvedReviews = { productId: product.id, status: 'APPROVED' } as const;
+
+  const [related, newestReviews, mostHelpfulReviews, rating, ratingCounts] = await Promise.all([
     db.product.findMany({
       where: { active: true, id: { not: product.id }, type: product.type },
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
       take: 3
     }),
     db.review.findMany({
-      where: { productId: product.id, status: 'APPROVED' },
+      where: approvedReviews,
       orderBy: { createdAt: 'desc' },
+      take: REVIEW_PAGE_SIZE
+    }),
+    /**
+     * The page renders a bounded number of reviews, and the shopper can order
+     * them two ways — so it has to hold the top of *both* orderings, not the
+     * top of one sorted twice. Fetching only the newest page and then sorting
+     * it by helpfulness in the browser meant that past the cap the single most
+     * helpful review could never appear, while the summary above it still
+     * counted every approved one. The control would have been advertising an
+     * ordering it did not implement.
+     */
+    db.review.findMany({
+      where: approvedReviews,
+      orderBy: [{ helpfulCount: 'desc' }, { createdAt: 'desc' }],
       take: REVIEW_PAGE_SIZE
     }),
     ratingsByProduct([product.id]).then((map) => map.get(product.id) || { average: 0, count: 0 }),
@@ -102,6 +118,18 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
      */
     ratingCountsForProduct(product.id)
   ]);
+
+  /**
+   * The two pages overlap almost entirely on a product with fewer reviews than
+   * the cap, which is every product this shop has — the dedupe is what makes
+   * the rare case correct without costing the common one anything.
+   */
+  const reviews = [
+    ...newestReviews,
+    ...mostHelpfulReviews.filter(
+      (helpful) => !newestReviews.some((newest) => newest.id === helpful.id)
+    )
+  ];
 
   const relatedRatings = await ratingsByProduct(related.map((item) => item.id));
   const relatedProducts = related.map((item) => ({
