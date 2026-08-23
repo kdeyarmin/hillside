@@ -184,6 +184,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   });
   const specs = specSections(specKindFor(product), product.specs);
   const categoryName = product.category?.title || productTypeLabel(product.type);
+  /**
+   * A category can be hidden without its products being archived, and the
+   * category page only serves active ones — so linking a hidden category from a
+   * live product page sends the shopper, and a crawler following the breadcrumb,
+   * to a 404. The name still reads; only the link is withheld.
+   */
+  const categoryPage = product.category?.active ? `/categories/${product.category.slug}` : null;
   const mixedFulfillment = variantsDifferOnFulfillment(sizes);
   /**
    * How this product actually gets home. Read from the variants where there are
@@ -235,8 +242,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
      * is the crumb. A collection cuts across categories and is not a path down
      * to this page; it is only used where a product has no category yet.
      */
-    ...(product.category
-      ? [{ name: product.category.title, path: `/shop?category=${product.category.slug}` }]
+    ...(product.category && categoryPage
+      ? [{ name: product.category.title, path: categoryPage }]
       : primaryCollection
         ? [{ name: primaryCollection.title, path: `/collections/${primaryCollection.slug}` }]
         : []),
@@ -267,7 +274,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           {product.category && (
             <>
               <span>/</span>
-              <Link href={`/shop?category=${product.category.slug}`}>{product.category.title}</Link>
+              {categoryPage ? (
+                <Link href={categoryPage}>{product.category.title}</Link>
+              ) : (
+                <span>{product.category.title}</span>
+              )}
             </>
           )}
           <span>/</span>
@@ -285,11 +296,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </div>
           <div className="product-detail-copy">
             <div className="eyebrow">
-              {product.category ? (
-                <Link
-                  className="product-category-link"
-                  href={`/shop?category=${product.category.slug}`}
-                >
+              {product.category && categoryPage ? (
+                <Link className="product-category-link" href={categoryPage}>
                   {product.category.title}
                 </Link>
               ) : (

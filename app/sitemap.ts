@@ -44,14 +44,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select: { slug: true, updatedAt: true }
     }),
     /**
-     * A category is a filtered view of /shop rather than a route of its own, but
-     * it is a view with its own title, its own description and its own stock —
-     * which is what a crawler needs before it is worth listing. Only the ones
-     * that hold something are, for the same reason a homepage tile is.
+     * A category has a page of its own now, with its own title, its own
+     * description and its own stock — which is what a crawler needs before it
+     * is worth listing. Only the ones that hold something are, for the same
+     * reason a homepage tile is.
      */
     db.category.findMany({
       where: { active: true, products: { some: { active: true } } },
-      select: { slug: true, updatedAt: true }
+      /**
+       * The page renders the category's copy, its products and its care guides,
+       * so its lastmod is the newest of the three. `category.updatedAt` alone
+       * would sit still while a product was added or a guide rewritten, and a
+       * crawler that finds changed content behind an unchanged date learns to
+       * stop trusting the field.
+       */
+      select: {
+        slug: true,
+        updatedAt: true,
+        products: { where: { active: true }, select: { updatedAt: true } },
+        careSheets: { where: { published: true }, select: { updatedAt: true } }
+      }
     }),
     // Only the sets that can actually be built: a kit whose last component sold
     // is a page that will not sell anything, and submitting it teaches a crawler
@@ -151,9 +163,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8
   }));
 
+  /**
+   * The category's own page, not `/shop?category=`. A filtered shop view
+   * canonicalises to `/shop`, so submitting it here asked crawlers to index a
+   * URL that tells them to look somewhere else — the fastest way to have a
+   * sitemap's entries disregarded.
+   */
   const categoryPages: MetadataRoute.Sitemap = categories.map((category) => ({
-    url: absoluteUrl(`/shop?category=${category.slug}`),
-    lastModified: productsModified,
+    url: absoluteUrl(`/categories/${category.slug}`),
+    lastModified:
+      newest([
+        category.updatedAt,
+        ...category.products.map((product) => product.updatedAt),
+        ...category.careSheets.map((sheet) => sheet.updatedAt)
+      ]) || category.updatedAt,
     changeFrequency: 'weekly',
     priority: 0.85
   }));

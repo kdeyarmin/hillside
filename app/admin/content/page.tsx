@@ -41,7 +41,14 @@ import {
  * and which of the six legacy product types they are recorded as. Both have
  * consequences beyond this page, so both are explained where they are answered.
  */
-function CategoryFields({ category }: { category?: Category }) {
+function CategoryFields({
+  category,
+  careSheets = []
+}: {
+  category?: Category & { careSheets?: Array<{ id: string }> };
+  careSheets?: Array<{ id: string; plantName: string }>;
+}) {
+  const linkedGuides = new Set((category?.careSheets || []).map((sheet) => sheet.id));
   return (
     <>
       {category && <input type="hidden" name="id" value={category.id} />}
@@ -66,7 +73,43 @@ function CategoryFields({ category }: { category?: Category }) {
         </label>
         <label className="admin-label full">Description<textarea className="admin-input" name="description" rows={3} defaultValue={category?.description || ''} /></label>
         <label className="admin-label full">Cover photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={category?.imageUrl || ''} /></label>
+        {/* The category's own page at /categories/<slug>. Without these it is a
+            filter on the shop, which is a grid rather than a page. */}
+        <label className="admin-label full">
+          Introduction (shown above the products)
+          <textarea className="admin-input" name="intro" rows={4} defaultValue={category?.intro || ''} placeholder="One or two short paragraphs about what is in this category and who it suits." />
+          <span className="admin-hint">Leave a blank line between paragraphs.</span>
+        </label>
+        <label className="admin-label full">
+          Longer writing (shown under the products)
+          <textarea className="admin-input" name="body" rows={8} defaultValue={category?.body || ''} placeholder={'Choosing one:\n\nWhat to look for...\n\nLiving with it:\n\nWhat to expect...'} />
+          <span className="admin-hint">Blank line between paragraphs. A short line ending in a colon becomes a heading.</span>
+        </label>
+        <label className="admin-label full">
+          Questions and answers
+          <textarea className="admin-input" name="faq" rows={5} defaultValue={faqLines(category?.faq)} placeholder={'How often should I water this? | Check the soil rather than the calendar.'} />
+          <span className="admin-hint">One per line: <b>question | answer</b>. These show on the page and are the only thing that makes the category eligible for question-and-answer results in Google, so write what people actually ask.</span>
+        </label>
+        <label className="admin-label">Page title for search results<input className="admin-input" name="metaTitle" defaultValue={category?.metaTitle || ''} placeholder="Leave empty to use the category name" /></label>
+        <label className="admin-label">
+          Words people search for
+          <input className="admin-input" name="keywords" defaultValue={(category?.keywords || []).join(', ')} placeholder="carnivorous plants, venus flytrap, pitcher plant" />
+          <span className="admin-hint">Comma separated. Used by the site search, never shown.</span>
+        </label>
+        <label className="admin-label full">Description for search results<textarea className="admin-input" name="metaDescription" rows={2} defaultValue={category?.metaDescription || ''} placeholder="Leave empty to use the introduction above." /></label>
       </div>
+      {careSheets.length > 0 && (
+        <fieldset className="admin-collection-picker">
+          <legend>Care guides to show on this category page</legend>
+          <span className="admin-hint">These appear under the products and link into the care library.</span>
+          {careSheets.map((sheet) => (
+            <label className="admin-checkbox" key={sheet.id}>
+              <input type="checkbox" name="careSheetIds" value={sheet.id} defaultChecked={linkedGuides.has(sheet.id)} />{' '}
+              {sheet.plantName}
+            </label>
+          ))}
+        </fieldset>
+      )}
       <div className="admin-actions">
         <label className="admin-checkbox"><input name="active" type="checkbox" defaultChecked={category?.active ?? true} /> Shown in the shop</label>
         <label className="admin-checkbox"><input name="featured" type="checkbox" defaultChecked={category?.featured ?? true} /> Offer as a shop-by tile and a filter chip</label>
@@ -264,7 +307,10 @@ export default async function ContentManager({
     }),
     db.category.findMany({
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-      include: { _count: { select: { products: true } } }
+      include: {
+        _count: { select: { products: true } },
+        careSheets: { select: { id: true } }
+      }
     })
   ]);
   const telnyxReady = telnyxVideoConfigured();
@@ -338,10 +384,14 @@ export default async function ContentManager({
                 </summary>
                 <div>
                   <form action={saveCategory}>
-                    <CategoryFields category={category} />
+                    <CategoryFields category={category} careSheets={sheets} />
                     <div className="admin-actions">
                       <button className="btn small">Save category</button>
-                      <Link className="btn outline small" href={`/shop?category=${category.slug}`}>View in the shop</Link>
+                      {category.active ? (
+                        <Link className="btn outline small" href={`/categories/${category.slug}`}>View the page</Link>
+                      ) : (
+                        <span className="muted">Hidden — its page is not published</span>
+                      )}
                     </div>
                   </form>
                   <div className="admin-actions">
@@ -372,7 +422,7 @@ export default async function ContentManager({
             <h2 style={{ marginTop: 0 }}>Add a category</h2>
             <p className="muted">Add one whenever the bench starts carrying something the list does not describe.</p>
             <form action={saveCategory}>
-              <CategoryFields />
+              <CategoryFields careSheets={sheets} />
               <button className="btn" style={{ marginTop: 14 }}>Create category</button>
             </form>
           </div>

@@ -498,9 +498,29 @@ model Category {
   /** Whether the category is offered as a filter chip and a shop-by tile. */
   featured    Boolean         @default(true)
   sortOrder   Int             @default(0)
+  /**
+   * The editorial half of a category page, mirroring `Collection`.
+   *
+   * A category is the structural parent — houseplants, carnivorous plants,
+   * terrarium supplies — so it is what people search for and what a stranger
+   * lands on. Without these it had no page of its own: it was reachable only as
+   * `/shop?category=`, a filtered grid sharing the shop's canonical, with
+   * nothing on it but products. Both models carry these because both are
+   * browsable groupings that deserve a page; the rendering is shared rather
+   * than duplicated, in `components/GroupingLanding.tsx`.
+   */
+  intro           String?
+  body            String?
+  /** `[{ question, answer }]`, the only source of this page's FAQPage markup. */
+  faq             Json?
+  metaTitle       String?
+  metaDescription String?
+  keywords        String[]        @default([])
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   products    Product[]
+  /** The care guides worth reading beside this category. */
+  careSheets  CareSheet[]     @relation("CategoryCareGuides")
 
 }
 
@@ -640,6 +660,7 @@ model CareSheet {
   updatedAt   DateTime      @updatedAt
   product     Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
   collections Collection[]  @relation("CollectionCareGuides")
+  categories  Category[]    @relation("CategoryCareGuides")
   /** Anything else the guide recommends, beyond the plant it is about. */
   products    CareGuideProduct[]
 

@@ -1371,6 +1371,11 @@ export async function saveCategory(formData: FormData) {
 
   const rawSpecKind = text(formData, 'specKind');
   const rawLegacyType = text(formData, 'legacyType');
+  const categoryFaq = parseFaqLines(text(formData, 'faq'));
+  const careSheetIds = formData
+    .getAll('careSheetIds')
+    .map((value) => String(value))
+    .filter(Boolean);
   const data = {
     title,
     slug,
@@ -1385,14 +1390,27 @@ export async function saveCategory(formData: FormData) {
       : ProductType.OTHER,
     active: checked(formData, 'active'),
     featured: checked(formData, 'featured'),
-    sortOrder: integer(formData.get('sortOrder'))
+    sortOrder: integer(formData.get('sortOrder')),
+    /**
+     * The editorial half of the category's own page. Stored the same way a
+     * collection stores it: the FAQ as JSON so the page and its FAQPage markup
+     * read one shape, and `DbNull` for an empty one so a category with no
+     * questions publishes no FAQ schema at all.
+     */
+    intro: text(formData, 'intro') || null,
+    body: text(formData, 'body') || null,
+    faq: categoryFaq.length ? (categoryFaq as Prisma.InputJsonValue) : Prisma.DbNull,
+    metaTitle: text(formData, 'metaTitle') || null,
+    metaDescription: text(formData, 'metaDescription') || null,
+    keywords: parseKeywords(text(formData, 'keywords'))
   };
 
+  const careSheets = { set: careSheetIds.map((sheetId) => ({ id: sheetId })) };
   let category;
   try {
     category = id
-      ? await db.category.update({ where: { id }, data })
-      : await db.category.create({ data });
+      ? await db.category.update({ where: { id }, data: { ...data, careSheets } })
+      : await db.category.create({ data: { ...data, careSheets: { connect: careSheets.set } } });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       redirect(
@@ -1416,7 +1434,7 @@ export async function saveCategory(formData: FormData) {
     data: { type: data.legacyType }
   });
 
-  refresh('/shop', '/', '/collections', '/admin/content');
+  refresh('/shop', '/', '/collections', '/admin/content', `/categories/${slug}`);
   redirect(
     adminContentPath({
       notice: id ? 'category-saved' : 'category-created',
