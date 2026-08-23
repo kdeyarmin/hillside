@@ -39,6 +39,8 @@ import { publishBlockReason } from '@/lib/product-completeness';
 import { mergeProductSpecs, productSpecsFromForm } from '@/lib/product-specs';
 import { SPEC_KIND_BY_TYPE } from '@/lib/product-categories';
 import { amazonPickDraft, DEFAULT_PICK_TITLE, extractAsin, isAmazonLink } from '@/lib/amazon-pick';
+import { normalizeTags } from '@/lib/product-tags';
+import { parseFaqLines, parseKeywords } from '@/lib/category-content';
 import { associateTag, lookupAmazonProduct } from '@/lib/amazon-lookup';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
 import { nextFulfilledAt } from '@/lib/orders';
@@ -260,6 +262,23 @@ export async function saveProduct(formData: FormData) {
     dimensions: productDimensions,
     active: checked(formData, 'active'),
     featured: checked(formData, 'featured'),
+    staffPick: checked(formData, 'staffPick'),
+    botanical: text(formData, 'botanical') || null,
+    searchTerms: text(formData, 'searchTerms') || null,
+    /**
+     * Only attributes the tag catalog knows about *and* that apply to this
+     * product's type are stored. A posted value outside the catalog is a stale
+     * form or a hand-crafted request; one that is simply wrong for the type —
+     * "low light" on a bar of soap — is a slip on a form that shows every group
+     * whatever is being edited, and either would put a product behind a filter
+     * that can never describe it.
+     */
+    tags: normalizeTags(
+      formData.getAll('tags').map((value) => String(value)),
+      type
+    ),
+    seasonStartsAt: optionalDate(text(formData, 'seasonStartsAt')),
+    seasonEndsAt: optionalDate(text(formData, 'seasonEndsAt')),
     sortOrder: integer(formData.get('sortOrder')),
     supplier: text(formData, 'supplier') || null,
     supplierItemNumber: text(formData, 'supplierItemNumber') || null,
@@ -333,6 +352,25 @@ export async function saveProduct(formData: FormData) {
     .filter(Boolean);
 
   /**
+   * The hand-picked links, with this product removed from each. A product
+   * offered as its own cross-sell would render a card linking to the page the
+   * shopper is already on.
+   */
+  const linkIds = (field: string) =>
+    Array.from(
+      new Set(
+        formData
+          .getAll(field)
+          .map((value) => String(value))
+          .filter((value) => value && value !== id)
+      )
+    ).slice(0, 12);
+  const relatedIds = linkIds('relatedIds');
+  const crossSellIds = linkIds('crossSellIds');
+  const bundleIds = linkIds('bundleIds');
+  const connectIds = (ids: string[]) => ids.map((entry) => ({ id: entry }));
+
+  /**
    * A restock dates itself. The owner's own date wins when she sets one, and
    * otherwise a quantity that went *up* stamps today — which is the difference
    * between a field that stays current and one field too many to remember.
@@ -363,7 +401,10 @@ export async function saveProduct(formData: FormData) {
         data: {
           ...record,
           inventory: postedInventory,
-          collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) }
+          collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) },
+          relatedProducts: { connect: connectIds(relatedIds) },
+          crossSells: { connect: connectIds(crossSellIds) },
+          bundleItems: { connect: connectIds(bundleIds) }
         }
       });
     } else if (postedInventory === expectedInventory && !tracksSizeStock) {
@@ -383,7 +424,10 @@ export async function saveProduct(formData: FormData) {
         where: { id },
         data: {
           ...record,
-          collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
+          collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) },
+          relatedProducts: { set: connectIds(relatedIds) },
+          crossSells: { set: connectIds(crossSellIds) },
+          bundleItems: { set: connectIds(bundleIds) }
         }
       });
     } else {
@@ -409,7 +453,10 @@ export async function saveProduct(formData: FormData) {
           where: { id },
           data: {
             ...record,
-            collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
+            collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) },
+            relatedProducts: { set: connectIds(relatedIds) },
+            crossSells: { set: connectIds(crossSellIds) },
+            bundleItems: { set: connectIds(bundleIds) }
           }
         });
       });
@@ -561,6 +608,18 @@ export async function saveCollection(formData: FormData) {
    * header navigates by category now, so a collection is purely curatorial and
    * nothing structural breaks when one is retired.
    */
+  /**
+   * The FAQ is stored as JSON rather than as the typed lines, so the page and
+   * the FAQPage markup both read one shape. An empty box clears it with
+   * `DbNull` rather than an empty array — the difference matters to the page,
+   * which publishes no FAQ schema at all when there are no questions.
+   */
+  const faq = parseFaqLines(text(formData, 'faq'));
+  const careSheetIds = formData
+    .getAll('careSheetIds')
+    .map((value) => String(value))
+    .filter(Boolean);
+
   const data = {
     title,
     slug: requestedSlug,
@@ -569,12 +628,19 @@ export async function saveCollection(formData: FormData) {
     imageUrl: text(formData, 'imageUrl') || null,
     featured: checked(formData, 'featured'),
     active: checked(formData, 'active'),
-    sortOrder: integer(formData.get('sortOrder'))
+    sortOrder: integer(formData.get('sortOrder')),
+    intro: text(formData, 'intro') || null,
+    body: text(formData, 'body') || null,
+    faq: faq.length ? (faq as Prisma.InputJsonValue) : Prisma.DbNull,
+    metaTitle: text(formData, 'metaTitle') || null,
+    metaDescription: text(formData, 'metaDescription') || null,
+    keywords: parseKeywords(text(formData, 'keywords'))
   };
 
+  const careSheets = { set: careSheetIds.map((sheetId) => ({ id: sheetId })) };
   const collection = id
-    ? await db.collection.update({ where: { id }, data })
-    : await db.collection.create({ data });
+    ? await db.collection.update({ where: { id }, data: { ...data, careSheets } })
+    : await db.collection.create({ data: { ...data, careSheets: { connect: careSheets.set } } });
   refresh('/', '/collections', `/collections/${requestedSlug}`, '/shop');
   redirect(
     adminContentPath({

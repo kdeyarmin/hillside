@@ -348,6 +348,7 @@ export default async function Admin({
         <a href="#reviews">Reviews</a>
         <a href="#restock">Restock requests</a>
         <Link href="/admin/email">Email</Link>
+        <Link href="/admin/merchandising">Merchandising</Link>
         <Link href="/admin/content">Website content</Link>
         <Link href="/admin/care">Plant care library</Link>
         <Link href="/admin/accounts">Admin accounts</Link>

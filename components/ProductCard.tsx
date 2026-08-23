@@ -12,6 +12,7 @@ import {
   sizeAvailable,
   sizeFieldLabel
 } from '@/lib/product-sizes';
+import { merchandisingBadges } from '@/lib/merchandising';
 import { discountPercent, formatMoney, productTypeLabel } from '@/lib/store';
 
 export type ProductCardProduct = {
@@ -36,20 +37,19 @@ export type ProductCardProduct = {
   sizeLabel?: string | null;
   averageRating?: number | null;
   reviewCount?: number;
-  /** Both decided server-side by `withCardFacts` — see the note there. */
-  bestSeller?: boolean;
-  isNew?: boolean;
+  staffPick?: boolean | null;
+  /**
+   * The automatic labels, worked out on the server from order history and the
+   * product's dates. Optional because plenty of grids (the cart's suggestions,
+   * an archived product's page) have no reason to pay for them.
+   */
+  flags?: {
+    isNew?: boolean;
+    isBestSeller?: boolean;
+    isInSeason?: boolean;
+    isOnSale?: boolean;
+  } | null;
 };
-
-/**
- * How many badges may sit on one photograph.
- *
- * A card carrying "Save 20%", "Our pick", "Best seller", "New" and a low-stock
- * chip at once is a card nobody reads. Three is the most that stays scannable,
- * and the order below is the order they earn their place in: a price change and
- * the owner's own merchandising outrank anything the shop worked out by itself.
- */
-const MAX_CARD_BADGES = 3;
 
 function Stars({ rating, count }: { rating: number; count: number }) {
   const rounded = Math.round(rating * 2) / 2;
@@ -106,15 +106,6 @@ export default function ProductCard({
   const inStockSizes = sizes.filter((size) => sizeAvailable(size, product.inventory) > 0);
   const lowStock = !soldOut && product.inventory <= LOW_STOCK_AT;
 
-  const badges = [
-    saving > 0 && { key: 'sale', tone: 'sale', text: `Save ${saving}%` },
-    product.badge && { key: 'own', tone: '', text: product.badge },
-    product.bestSeller && { key: 'best', tone: 'best', text: 'Best seller' },
-    product.isNew && { key: 'new', tone: 'new', text: 'New' }
-  ]
-    .filter((badge): badge is { key: string; tone: string; text: string } => Boolean(badge))
-    .slice(0, MAX_CARD_BADGES);
-
   /**
    * Local pickup only appears when it is the *only* way home — almost
    * everything here can be picked up, so saying so on every card would say
@@ -127,15 +118,18 @@ export default function ProductCard({
   return (
     <article className="product-card">
       <Link className="product-image-wrap" href={`/shop/${product.slug}`}>
-        {badges.length > 0 && (
-          <span className="product-badges">
-            {badges.map((badge) => (
-              <span className={`product-badge ${badge.tone}`.trim()} key={badge.key}>
-                {badge.text}
-              </span>
-            ))}
-          </span>
-        )}
+        <span className="product-badges">
+          {merchandisingBadges(product, {
+            savingPercent: saving,
+            isBestSeller: product.flags?.isBestSeller,
+            isNew: product.flags?.isNew,
+            isInSeason: product.flags?.isInSeason
+          }).map((badge) => (
+            <span className={`product-badge ${badge.tone}`} key={`${badge.tone}-${badge.label}`}>
+              {badge.label}
+            </span>
+          ))}
+        </span>
         <BrandedProductVisual
           slug={product.slug}
           name={product.name}

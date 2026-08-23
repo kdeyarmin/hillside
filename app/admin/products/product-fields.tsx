@@ -1,5 +1,7 @@
 import { InventoryStatus, type ProductSpecKind, type ProductType } from '@prisma/client';
+import AdminProductPicker from '@/components/AdminProductPicker';
 import ProductPhotoManager from '@/components/ProductPhotoManager';
+import { groupTags, PRODUCT_TAGS } from '@/lib/product-tags';
 import {
   INVENTORY_STATUS_HINTS,
   INVENTORY_STATUS_LABELS,
@@ -64,6 +66,15 @@ export type AdminProductDraft = {
   inventoryStatus: InventoryStatus;
   lastRestockedAt: Date | null;
   badge: string | null;
+  botanical: string | null;
+  searchTerms: string | null;
+  staffPick: boolean;
+  tags: string[];
+  seasonStartsAt: Date | null;
+  seasonEndsAt: Date | null;
+  relatedProducts?: Array<{ id: string }>;
+  crossSells?: Array<{ id: string }>;
+  bundleItems?: Array<{ id: string }>;
   active: boolean;
   featured: boolean;
   sortOrder: number;
@@ -306,13 +317,20 @@ function VariantRow({
 export default function ProductFields({
   product,
   collections,
-  categories
+  categories,
+  catalog = []
 }: {
   collections: Array<{ id: string; title: string }>;
   categories: AdminCategoryOption[];
   product?: AdminProductDraft;
+  /** Every other product, for the "goes with this" pickers. */
+  catalog?: Array<{ id: string; name: string; sku: string | null }>;
 }) {
   const assigned = new Set((product?.collections || []).map((collection) => collection.id));
+  const chosenTags = new Set(product?.tags || []);
+  const otherProducts = catalog.filter((entry) => entry.id !== product?.id);
+  const dateValue = (value: Date | null | undefined) =>
+    value ? value.toISOString().slice(0, 10) : '';
   const stored = readStoredSizes(product?.sizes);
   const counted = storedSizesTrackStock(stored);
   const sizeStock = sizeStockSummary(product?.sizes);
@@ -542,6 +560,123 @@ export default function ProductFields({
           }
         }
       />
+
+      <fieldset className="admin-subsection">
+        <legend>
+          <h3>How it is found and merchandised</h3>
+        </legend>
+        <div className="admin-grid">
+          <label className="admin-label">
+            Botanical (Latin) name
+            <input
+              className="admin-input"
+              name="botanical"
+              defaultValue={product?.botanical || ''}
+              placeholder="Epipremnum aureum"
+            />
+            <span className="admin-hint">
+              Shown under the product name, and searchable — a lot of people type the Latin name.
+            </span>
+          </label>
+          <label className="admin-label">
+            Other words people search for
+            <input
+              className="admin-input"
+              name="searchTerms"
+              defaultValue={product?.searchTerms || ''}
+              placeholder="devil's ivy, money plant"
+            />
+            <span className="admin-hint">
+              Never shown to customers. Nicknames, common misspellings, what it is called elsewhere.
+            </span>
+          </label>
+          <label className="admin-label">
+            In season from
+            <input
+              className="admin-input"
+              name="seasonStartsAt"
+              type="date"
+              defaultValue={dateValue(product?.seasonStartsAt)}
+            />
+            <span className="admin-hint">
+              Only the day and month matter — a season repeats every year. Leave both empty unless
+              this is a seasonal item.
+            </span>
+          </label>
+          <label className="admin-label">
+            In season until
+            <input
+              className="admin-input"
+              name="seasonEndsAt"
+              type="date"
+              defaultValue={dateValue(product?.seasonEndsAt)}
+            />
+            <span className="admin-hint">
+              Out of season it keeps its page and its price — it just stops appearing in seasonal
+              rows.
+            </span>
+          </label>
+          <label className="admin-checkbox">
+            <input name="staffPick" type="checkbox" defaultChecked={product?.staffPick ?? false} />{' '}
+            Tammy&rsquo;s pick
+          </label>
+        </div>
+      </fieldset>
+
+      {/* Attributes are what customers filter the shop by: pet safe, low light,
+          handmade. Grouped the way they are shown to shoppers, and the plant ones
+          are marked so a soap does not get a light requirement. */}
+      <fieldset className="admin-collection-picker">
+        <legend>What is true about this product</legend>
+        <span className="admin-hint">
+          These become the filters in the shop and the “good to know” links on the product page.
+        </span>
+        {groupTags(PRODUCT_TAGS).map((group) => (
+          <div className="admin-tag-group" key={group.key}>
+            <b>
+              {group.label}
+              {group.tags.every((tag) => tag.types?.includes('PLANT')) ? ' (plants)' : ''}
+            </b>
+            {group.tags.map((tag) => (
+              <label className="admin-checkbox" key={tag.slug} title={tag.hint}>
+                <input
+                  type="checkbox"
+                  name="tags"
+                  value={tag.slug}
+                  defaultChecked={chosenTags.has(tag.slug)}
+                />{' '}
+                {tag.label}
+              </label>
+            ))}
+          </div>
+        ))}
+      </fieldset>
+
+      {otherProducts.length > 0 && (
+        <div className="admin-picker-grid">
+          <AdminProductPicker
+            name="relatedIds"
+            legend="Related products"
+            hint="Shown under “You may also like”. Leave empty to let the shop suggest similar items itself."
+            products={otherProducts}
+            selectedIds={(product?.relatedProducts || []).map((entry) => entry.id)}
+          />
+          <AdminProductPicker
+            name="crossSellIds"
+            legend="Goes well with this"
+            hint="Shown as “what people usually add” — the pot, the mix, the soap that goes with it."
+            products={otherProducts}
+            selectedIds={(product?.crossSells || []).map((entry) => entry.id)}
+          />
+          <AdminProductPicker
+            name="bundleIds"
+            legend="What is inside this set"
+            hint="Only for a bundle or gift set. The pieces are listed on its page and still sold on their own."
+            products={otherProducts}
+            selectedIds={(product?.bundleItems || []).map((entry) => entry.id)}
+          />
+        </div>
+      )}
 
       <fieldset className="admin-subsection">
         <legend>

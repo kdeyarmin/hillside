@@ -14,6 +14,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // it that are real, so the classes entry leaves with the page.
     ...(CLASSES_PUBLICLY_VISIBLE ? ['/classes'] : []),
     '/care',
+    '/visit',
     '/gallery',
     '/amazon',
     '/about',
@@ -82,7 +83,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // and there is nothing here that honestly knows when that last happened.
     lastModified: staticModified[path],
     changeFrequency: index === 0 ? 'weekly' : 'monthly',
-    priority: index === 0 ? 1 : path === '/shop' || path === '/care' ? 0.9 : 0.7
+    priority:
+      index === 0
+        ? 1
+        : path === '/shop' || path === '/care'
+          ? 0.9
+          : // The local page is the one static page that answers a search
+            // ("plant shop near Ebensburg") rather than a policy question.
+            path === '/visit' || path === '/collections'
+            ? 0.8
+            : 0.7
   }));
 
   const productPages: MetadataRoute.Sitemap = products.map((product) => ({

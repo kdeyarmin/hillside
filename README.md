@@ -17,9 +17,12 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Professional botanical storefront based on the Hillside green, sage and gold logo system
 - A homepage that says what the shop sells — plants, botanical goods and creative planting — above a row of the categories it sells them in
 - An owner-managed category taxonomy: houseplants, carnivorous plants, succulents, air plants, living arrangements, terrariums and supplies, moss, driftwood, planters, tea and tea accessories, soap, lotion, apothecary, gifts and seasonal
-- Owner-managed collections with their own pages, curated across categories — beginner friendly, low light, pet friendly, gifts under $30
-- Site-wide search across products, categories and care guides
-- Searchable and filterable live product catalog, with sale and new-arrival sorting
+- Owner-managed collections that are real landing pages, curated across categories — an introduction, the products, the care guides that go with them, the questions customers actually ask, and links onward
+- Site-wide search across product names, botanical names, descriptions, attributes, categories, collections, care guides and classes, with typo tolerance
+- Filterable product catalog: category, collection, price, availability, pickup and shipping, plant attributes, handmade, new, best seller and sale — showing only the filters something on screen answers to
+- Owner-assigned product attributes (pet safe, low light, beginner friendly, handmade, giftable and more) used by the filters, the search and the product pages
+- Best-seller badges and rows worked out from paid orders rather than a checkbox
+- A local-shopping page at `/visit` for Ebensburg and Cambria County pickup
 - Individual SEO-ready product pages with live inventory, a named photograph gallery and customer reviews
 - Structured product detail that changes with the category — a plant's light, water, pot size and pet safety; a tea's steep time, caffeine and allergens; a soap's full ingredient list
 - Product cards that carry a price or price range, sale, new, best-seller and low-stock signals, and which sizes are still available
@@ -54,6 +57,9 @@ The dashboard at `/admin` includes:
 - Category assignment, which also decides which structured detail fields the product is asked for
 - Structured detail fields that change with the category, with the common answers offered as you type
 - A variant editor for anything sold in more than one form, each variant carrying its own price, stock, SKU, photograph, weight, dimensions and shipping answer
+- A merchandising page at `/admin/merchandising`: homepage rows, product badges, best-seller and new-arrival overrides, drag-to-reorder product and collection order, and featured collections
+- Per-product attributes, botanical name, extra search terms, season dates, related products, cross-sells and bundle contents
+- Collection page editing — introduction, longer copy, questions and answers, search words and linked care guides
 - A **Needs attention** panel that counts what is actually outstanding and links each number to the products behind it
 - Inventory filters for out of stock, low stock, needs reorder, no reorder point, missing SKU, missing supplier, missing photograph, inactive, incomplete and recently restocked
 - Supplier, their item number, reorder point, reorder quantity, inventory status, private inventory notes and a last-restocked date that fills itself in
@@ -257,6 +263,12 @@ The details are stored as JSON in `Product.specs` and read through
 `lib/product-specs.ts`, which is the single definition of the fields: the admin
 form renders from it, the save reads from it, and the public specification table
 renders from it again.
+
+## Merchandising, categories and search
+
+`docs/merchandising-and-seo.md` covers how the shop decides what to put in front
+of people: where best sellers come from, what the automatic badges mean, how the
+category pages are written, and which filters appear when.
 
 ## Products sold in more than one size
 
@@ -603,6 +615,9 @@ Before accepting live orders or class registrations:
 - Confirm that inventory decrements once and customer emails arrive as expected.
 - Complete the Telnyx two-device test in `docs/telnyx-video-classes.md`.
 - Replace sample gallery images with Tammy’s real work.
+- Assign product attributes (pet safe, low light, beginner friendly, handmade) so the shop filters and site search have something to work with.
+- Read through the seeded category pages at `/collections` and edit anything that is not true of this shop — they are starting copy, and they stop being overwritten the moment they are edited.
+- Arrange the homepage rows at `/admin/merchandising`.
 - Set `AMAZON_ASSOCIATE_TAG` to Tammy’s associate tag, then add one pick from a link and confirm it appears on `/amazon` with the tag on its button.
 - Create Tammy’s admin account, confirm she can sign in with it, and unset the shared `ADMIN_PASSWORD` once every admin has their own.
 - Verify mobile navigation, checkout, online classroom, admin login and label printing on Tammy’s actual devices.

@@ -8,9 +8,9 @@
     "start": "next start -p ${PORT:-3000}",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
-    "db:seed": "tsx prisma/seed.ts && tsx prisma/seed-care.ts && tsx prisma/seed-categories.ts && tsx prisma/seed-collections.ts",
+    "db:seed": "tsx prisma/seed.ts && tsx prisma/seed-care.ts && tsx prisma/seed-categories.ts && tsx prisma/seed-collections.ts && tsx prisma/seed-category-content.ts",
     "db:seed:care": "tsx prisma/seed-care.ts",
-    "db:seed:care:on-deploy": "tsx prisma/seed-care-on-deploy.ts && tsx prisma/seed-categories.ts && tsx prisma/seed-collections.ts",
+    "db:seed:care:on-deploy": "tsx prisma/seed-care-on-deploy.ts && tsx prisma/seed-categories.ts && tsx prisma/seed-collections.ts && tsx prisma/seed-category-content.ts",
     "db:repair:images": "tsx prisma/repair-image-urls.ts",
     "db:repair:copy": "tsx prisma/repair-owner-copy.ts",
     "db:seed:collections": "tsx prisma/seed-collections.ts",
@@ -29,7 +29,8 @@
     "format": "prettier --write \"**/*.{ts,tsx,mjs,css,json,md}\"",
     "images:variants": "node scripts/build-image-variants.mjs",
     "audit:a11y": "node scripts/a11y-audit.mjs",
-    "audit:weight": "node scripts/measure-page-weight.mjs"
+    "audit:weight": "node scripts/measure-page-weight.mjs",
+    "db:seed:categories": "tsx prisma/seed-category-content.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.14.0",

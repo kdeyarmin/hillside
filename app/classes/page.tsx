@@ -16,7 +16,7 @@ import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { absoluteUrl, formatMoney } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
-import { pageMetadata } from '@/lib/seo';
+import { businessRef, pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 export const metadata = pageMetadata({
@@ -72,7 +72,7 @@ export default async function Classes({
             address: event.location || 'The Hillside Gardens'
           }
         }),
-    organizer: { '@type': 'Organization', name: 'The Hillside Gardens', url: absoluteUrl('/') },
+    organizer: { '@id': businessRef() },
     offers: {
       '@type': 'Offer',
       url: absoluteUrl(`/classes#class-${event.id}`),
@@ -122,8 +122,9 @@ export default async function Classes({
             <div className={`grid auto class-list-grid${classes.length === 1 ? ' single' : ''}`}>
               {classes.map((event) => {
                 const seatsLeft = seatsByClass.get(event.id) ?? event.capacity;
-                const registrationClosed =
-                  Boolean(event.registrationDeadline && event.registrationDeadline <= new Date());
+                const registrationClosed = Boolean(
+                  event.registrationDeadline && event.registrationDeadline <= new Date()
+                );
                 const online = isOnlineClass(event.format);
 
                 return (
@@ -151,7 +152,9 @@ export default async function Classes({
                           {online ? <Video size={15} /> : <MapPin size={15} />}{' '}
                           {classLocationLabel(event)}
                         </span>
-                        <span><Users size={15} /> {seatsLeft} of {event.capacity} seats remaining</span>
+                        <span>
+                          <Users size={15} /> {seatsLeft} of {event.capacity} seats remaining
+                        </span>
                       </div>
 
                       {online && (
@@ -167,16 +170,25 @@ export default async function Classes({
                         </div>
                       )}
                       {event.onlineInstructions && online && (
-                        <p><b>Online class notes:</b> {event.onlineInstructions}</p>
+                        <p>
+                          <b>Online class notes:</b> {event.onlineInstructions}
+                        </p>
                       )}
                       {event.telnyxRecordingEnabled && online && (
                         <p className="class-recording-note">
-                          <b>Recording notice:</b> Audio and video may be recorded during this class.
+                          <b>Recording notice:</b> Audio and video may be recorded during this
+                          class.
                         </p>
                       )}
-                      {event.whatToBring && <p><b>What to bring / what is included:</b> {event.whatToBring}</p>}
+                      {event.whatToBring && (
+                        <p>
+                          <b>What to bring / what is included:</b> {event.whatToBring}
+                        </p>
+                      )}
                       <p className="price">
-                        {event.priceCents > 0 ? `${formatMoney(event.priceCents)} per person` : 'Free registration'}
+                        {event.priceCents > 0
+                          ? `${formatMoney(event.priceCents)} per person`
+                          : 'Free registration'}
                       </p>
 
                       {seatsLeft <= 0 ? (
@@ -210,12 +222,16 @@ export default async function Classes({
                   Learn to grow with confidence.
                 </h2>
                 <p>
-                  We offer hands-on planter workshops in person and live online classes you can
-                  join from home. New dates are being planned now.
+                  We offer hands-on planter workshops in person and live online classes you can join
+                  from home. New dates are being planned now.
                 </p>
                 <div className="actions">
-                  <Link className="btn" href="/contact">Ask about the next class</Link>
-                  <Link className="btn outline" href="/care">Browse the care library</Link>
+                  <Link className="btn" href="/contact">
+                    Ask about the next class
+                  </Link>
+                  <Link className="btn outline" href="/care">
+                    Browse the care library
+                  </Link>
                 </div>
               </div>
             </div>
@@ -226,7 +242,9 @@ export default async function Classes({
               <div className="eyebrow">Private groups</div>
               <h3>Plan an in-person or online class for your group.</h3>
             </div>
-            <Link className="btn gold" href="/contact">Ask us about a private class</Link>
+            <Link className="btn gold" href="/contact">
+              Ask us about a private class
+            </Link>
           </div>
         </div>
       </section>

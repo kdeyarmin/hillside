@@ -17,6 +17,7 @@ import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { withCardFacts } from '@/lib/product-cards';
 import { pageMetadata } from '@/lib/seo';
+import { productsForSection, type MerchandisedProduct } from '@/lib/merchandising-data';
 import { formatMoney, formatMoneyCompact, freeShippingThresholdCents } from '@/lib/store';
 
 /**
@@ -38,15 +39,51 @@ export const metadata = {
   title: { absolute: 'The Hillside Gardens | Plants, Botanical Goods & Creative Planting' }
 };
 
+/**
+ * Where a row's "shop all" link goes, and what it should be called.
+ *
+ * A best-sellers row should land on the shop sorted by what is selling, not on
+ * an unsorted grid the shopper then has to re-find the row in. A collection row
+ * goes to that collection's own page: sending it to `/shop` dropped the one
+ * thing the row was curated by, which is the whole reason somebody clicked it.
+ */
+function sectionLink(section: { kind: string; collection: { slug: string } | null }) {
+  switch (section.kind) {
+    case 'BEST_SELLERS':
+    case 'RECENT_BEST_SELLERS':
+      return { href: '/shop?sort=best-selling', label: 'Shop all best sellers →' };
+    case 'NEW_ARRIVALS':
+      return { href: '/shop?sort=new', label: 'Shop all new arrivals →' };
+    case 'ON_SALE':
+      return { href: '/shop?tags=on-sale', label: 'Shop everything on sale →' };
+    case 'STAFF_PICKS':
+      return { href: '/shop?tags=staff-pick', label: 'Shop all of Tammy’s picks →' };
+    case 'SEASONAL':
+      return { href: '/shop?tags=seasonal', label: 'Shop everything in season →' };
+    case 'COLLECTION':
+      return section.collection
+        ? { href: `/collections/${section.collection.slug}`, label: 'Shop the collection →' }
+        : { href: '/shop', label: 'Shop all products →' };
+    default:
+      return { href: '/shop', label: 'Shop all products →' };
+  }
+}
+
 export default async function Home() {
   const freeShippingThreshold = freeShippingThresholdCents();
-  const [featuredProducts, upcomingClasses, categories, collections, careGuideCount, catalogCount] =
+  const [sections, upcomingClasses, categories, collections, careGuideCount, catalogCount] =
     await Promise.all([
-      db.product.findMany({
-        where: { active: true, featured: true },
-        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-        take: 4,
-        include: { category: { select: { slug: true, title: true } } }
+      /**
+       * The rows Tammy arranged, in her order. The homepage used to hardcode one
+       * collection strip and one featured grid, so changing what the front page
+       * led with meant changing the code.
+       */
+      db.homepageSection.findMany({
+        where: { active: true },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        // The slug is what lets a collection row link back to its own page.
+        include: { collection: { select: { slug: true } } },
+        take: 8
       }),
       // Hidden classes are not fetched at all, so the homepage costs one query
       // less rather than rendering nothing from a result it paid for.
@@ -83,7 +120,38 @@ export default async function Home() {
       db.product.count({ where: { active: true } })
     ]);
 
-  const featured = await withCardFacts(featuredProducts);
+  const resolved = await Promise.all(
+    sections.map(async (section) => ({
+      section,
+      products:
+        section.kind === 'COLLECTION_TILES'
+          ? ([] as MerchandisedProduct[])
+          : await productsForSection(section)
+    }))
+  );
+
+  /**
+   * Every row's products enriched in one pass, then looked up by id. A product
+   * that appears in two rows is decorated once, and every grid on the page
+   * badges it identically because there is only one answer.
+   */
+  const allProducts = resolved.flatMap((entry) => entry.products);
+  const decorated = new Map(
+    (await withCardFacts(allProducts)).map((product) => [product.id, product])
+  );
+  const decorate = (product: MerchandisedProduct) => decorated.get(product.id)!;
+
+  /**
+   * A row with nothing in it is dropped rather than rendered as a heading over
+   * empty space — which is what lets a "Best sellers" row stay arranged through
+   * a quiet winter. Collection tiles are the same: no stocked collections, no
+   * row.
+   */
+  const rows = resolved.filter(
+    (entry) =>
+      (entry.section.kind === 'COLLECTION_TILES' && collections.length > 0) ||
+      entry.products.length > 0
+  );
   const classSeats = await seatsRemainingFor(upcomingClasses);
 
   /**
@@ -200,34 +268,31 @@ export default async function Home() {
       </section>
 
       <div className="home-merch">
-        {catalogCount === 0 &&
-          categoryTiles.length === 0 &&
-          collections.length === 0 &&
-          featured.length === 0 && (
-            <section className="section editorial-section home-restock-section">
-              <div className="container">
-                <div className="home-restock">
-                  <div className="eyebrow">On the bench</div>
-                  <h2>New pieces are being potted.</h2>
-                  <p>
-                    The shop lists only what is ready to go home. Ask Tammy about a custom
-                    arrangement or a local pickup, or browse the care library in the meantime.
-                  </p>
-                  <div className="actions" style={{ justifyContent: 'center' }}>
-                    <Link
-                      className="btn editorial-btn"
-                      href={contactHref({ subject: 'Local pickup inquiry' })}
-                    >
-                      Ask about local pickup
-                    </Link>
-                    <Link className="editorial-link" href="/care">
-                      Plant care library →
-                    </Link>
-                  </div>
+        {catalogCount === 0 && rows.length === 0 && categoryTiles.length === 0 && (
+          <section className="section editorial-section home-restock-section">
+            <div className="container">
+              <div className="home-restock">
+                <div className="eyebrow">On the bench</div>
+                <h2>New pieces are being potted.</h2>
+                <p>
+                  The shop lists only what is ready to go home. Ask Tammy about a custom arrangement
+                  or a local pickup, or browse the care library in the meantime.
+                </p>
+                <div className="actions" style={{ justifyContent: 'center' }}>
+                  <Link
+                    className="btn editorial-btn"
+                    href={contactHref({ subject: 'Local pickup inquiry' })}
+                  >
+                    Ask about local pickup
+                  </Link>
+                  <Link className="editorial-link" href="/care">
+                    Plant care library →
+                  </Link>
                 </div>
               </div>
-            </section>
-          )}
+            </div>
+          </section>
+        )}
 
         {categoryTiles.length > 0 && (
           <section className="section editorial-section home-categories-section">
@@ -270,61 +335,64 @@ export default async function Home() {
           </section>
         )}
 
-        {collections.length > 0 && (
-          <section className="section editorial-section home-collections-section">
-            <div className="container">
-              <div className="sectionhead">
-                <div className="eyebrow">Chosen by Tammy</div>
-                <h2>Ways to shop, rather than shelves.</h2>
-                <p>
-                  Beginner friendly, happy in low light, safe around a cat, under thirty dollars —
-                  the groupings that answer a question rather than name a plant.
-                </p>
-              </div>
-              <div className="editorial-collections">
-                {collections.map((collection) => (
-                  <Link
-                    className="editorial-collection"
-                    href={`/collections/${collection.slug}`}
-                    key={collection.id}
-                  >
-                    <BrandMockupScene
-                      variant="plants"
-                      imageSrc={collection.imageUrl}
-                      alt={collection.title}
-                    />
-                    <div>
-                      <span>{collection.tagline || `${collection._count.products} to browse`}</span>
-                      <h3>{collection.title}</h3>
-                      <b>Shop collection →</b>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-              <div className="collections-all">
-                <Link className="editorial-link" href="/collections">
-                  See every collection →
-                </Link>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {featured.length > 0 && (
-          <section className="section editorial-products home-products-section">
-            <div className="container">
-              <div className="editorial-heading-row">
-                <div>
-                  <div className="eyebrow">New &amp; noteworthy</div>
-                  <h2>Our current favorites.</h2>
+        {rows.map(({ section, products }) =>
+          section.kind === 'COLLECTION_TILES' ? (
+            <section
+              className="section editorial-section home-collections-section"
+              key={section.id}
+            >
+              <div className="container">
+                <div className="sectionhead">
+                  {section.eyebrow && <div className="eyebrow">{section.eyebrow}</div>}
+                  <h2>{section.title}</h2>
+                  {section.subtitle && <p>{section.subtitle}</p>}
                 </div>
-                <Link className="editorial-link" href="/shop">
-                  Shop all products →
-                </Link>
+                <div className="editorial-collections">
+                  {collections.slice(0, section.maxItems).map((collection) => (
+                    <Link
+                      className="editorial-collection"
+                      href={`/collections/${collection.slug}`}
+                      key={collection.id}
+                    >
+                      <BrandMockupScene
+                        variant="plants"
+                        imageSrc={collection.imageUrl}
+                        alt={collection.title}
+                      />
+                      <div>
+                        <span>
+                          {collection.tagline || `${collection._count.products} to browse`}
+                        </span>
+                        <h3>{collection.title}</h3>
+                        <b>Shop collection →</b>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+                <div className="collections-all">
+                  <Link className="editorial-link" href="/collections">
+                    See every collection →
+                  </Link>
+                </div>
               </div>
-              <ProductGrid products={featured} />
-            </div>
-          </section>
+            </section>
+          ) : (
+            <section className="section editorial-products home-products-section" key={section.id}>
+              <div className="container">
+                <div className="editorial-heading-row">
+                  <div>
+                    {section.eyebrow && <div className="eyebrow">{section.eyebrow}</div>}
+                    <h2>{section.title}</h2>
+                    {section.subtitle && <p>{section.subtitle}</p>}
+                  </div>
+                  <Link className="editorial-link" href={sectionLink(section).href}>
+                    {sectionLink(section).label}
+                  </Link>
+                </div>
+                <ProductGrid products={products.map(decorate)} />
+              </div>
+            </section>
+          )
         )}
       </div>
 

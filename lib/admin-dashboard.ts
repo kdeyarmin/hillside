@@ -238,6 +238,10 @@ export function adminEmailPath(query: Record<string, string | undefined | null> 
   return adminDashboardPath(query).replace(/^\/admin/, '/admin/email');
 }
 
+export function adminMerchandisingPath(query: Record<string, string | undefined | null> = {}) {
+  return adminDashboardPath(query).replace(/^\/admin/, '/admin/merchandising');
+}
+
 /**
  * Next can hand a repeated query string through as `string[]`. The dashboard
  * used to call `.trim()` on `params.q` directly, so `/admin?q=one&q=two`
@@ -294,6 +298,13 @@ export const ADMIN_NOTICES: Record<string, string> = {
   'care-saved': 'Care sheet saved.',
   'care-created': 'Care sheet published.',
   'content-archived': 'Archived. It is no longer on the public website.',
+  'section-saved': 'Homepage row saved.',
+  'section-created': 'Homepage row added.',
+  'section-deleted': 'Homepage row removed.',
+  'sections-arranged': 'Homepage order saved.',
+  'products-arranged': 'Product order saved.',
+  'collections-arranged': 'Collection order saved.',
+  'merchandising-saved': 'Merchandising updated.',
   'email-sent': 'Email sent.',
   'reply-sent': 'Reply sent. It is saved with the message below.'
 };
@@ -337,6 +348,9 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'category-in-use':
     'That category still holds products, and deleting it would drop them out of every filter that leads to them. Move them to another category first, or hide this one instead.',
   'collection-invalid': 'A collection needs a name.',
+  'section-invalid': 'A homepage row needs a heading, and a collection row needs a collection.',
+  'section-missing': 'That homepage row is no longer here.',
+  'merchandising-missing': 'That product is no longer here.',
   'collection-missing': 'That collection is no longer here.',
   'class-room-failed':
     'The class was saved, but the Telnyx room could not be prepared. Check TELNYX_API_KEY and try Prepare room again.',

@@ -38,14 +38,17 @@ export default async function AdminProductPage({
   const query = await searchParams;
   const creating = id === 'new';
 
-  const [product, collections, categories] = await Promise.all([
+  const [product, collections, categories, catalog] = await Promise.all([
     creating
       ? null
       : db.product.findUnique({
           where: { id },
           include: {
             collections: { select: { id: true } },
-            category: { select: { title: true, slug: true, specKind: true } }
+            category: { select: { title: true, slug: true, specKind: true } },
+            relatedProducts: { select: { id: true } },
+            crossSells: { select: { id: true } },
+            bundleItems: { select: { id: true } }
           }
         }),
     db.collection.findMany({
@@ -55,6 +58,12 @@ export default async function AdminProductPage({
     db.category.findMany({
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
       select: { id: true, title: true, slug: true, specKind: true, active: true }
+    }),
+    // Names and SKUs only: the pickers search on both and render neither page.
+    db.product.findMany({
+      orderBy: [{ name: 'asc' }],
+      select: { id: true, name: true, sku: true },
+      take: 500
     })
   ]);
 
@@ -111,6 +120,7 @@ export default async function AdminProductPage({
               product={product || undefined}
               collections={collections}
               categories={categories}
+              catalog={catalog}
             />
             <div className="admin-actions">
               <button className="btn">{creating ? 'Create product' : 'Save product'}</button>

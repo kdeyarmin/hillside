@@ -26,7 +26,7 @@ import { db } from '@/lib/db';
 import { withCardFacts } from '@/lib/product-cards';
 import { absoluteUrl, resolveImageUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
-import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
+import { breadcrumbJsonLd, businessRef, pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,7 +82,24 @@ export async function generateMetadata({
 
 export default async function CareSheetPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const sheet = await db.careSheet.findFirst({ where: { slug, published: true } });
+  const sheet = await db.careSheet.findFirst({
+    where: { slug, published: true },
+    include: {
+      /**
+       * The categories this guide belongs to. The care library is where most
+       * strangers arrive, and a reader who has just learned how to water a
+       * pitcher plant is the best-qualified visitor the carnivorous-plants page
+       * will ever get — so the guide points at it rather than only at other
+       * guides.
+       */
+      collections: {
+        where: { active: true },
+        orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+        select: { slug: true, title: true },
+        take: 4
+      }
+    }
+  });
   if (!sheet) notFound();
 
   const relatedWhere: Prisma.CareSheetWhereInput = {
@@ -140,11 +157,11 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     image: absoluteUrl(resolveImageUrl(sheet.imageUrl)),
     url: absoluteUrl(`/care/${sheet.slug}`),
     author: { '@type': 'Person', name: 'Tammy Hill' },
-    publisher: {
-      '@type': 'Organization',
-      name: 'The Hillside Gardens',
-      logo: absoluteUrl('/logo.png')
-    },
+    // A reference, not a second description of the shop. Spelling the publisher
+    // out here published an Organization with no `@id` beside the LocalBusiness
+    // in the layout, so the guides read as being published by a different
+    // organisation that happens to share the name.
+    publisher: { '@id': businessRef() },
     datePublished: sheet.createdAt.toISOString(),
     dateModified: sheet.updatedAt.toISOString(),
     articleSection: guideTypeLabel(sheet.guideType)
@@ -412,6 +429,29 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
             </div>
           </section>
         )}
+
+        {/* Into the shop by category, not by product: a reader who has just
+            learned how to keep one of these alive is the best-qualified visitor
+            that category page will get. */}
+        <div className="category-links no-print">
+          <b>Shop what you just read about</b>
+          <ul>
+            {sheet.collections.map((collection) => (
+              <li key={collection.slug}>
+                <Link href={`/collections/${collection.slug}`}>{collection.title}</Link>
+              </li>
+            ))}
+            <li>
+              <Link href="/care">All care guides</Link>
+            </li>
+            <li>
+              <Link href="/shop">Shop everything</Link>
+            </li>
+            <li>
+              <Link href="/visit">Local pickup in Ebensburg</Link>
+            </li>
+          </ul>
+        </div>
       </div>
     </section>
   );

@@ -793,6 +793,14 @@ export function SiteFooter({
             <Link href="/care">Care sheets</Link>
           </p>
           <p>
+            <Link href="/collections">Collections</Link>
+          </p>
+          <p>
+            {/* The local page is where "plant shop near me" lands, so it needs a
+                link from every page rather than only from the sitemap. */}
+            <Link href="/visit">Visit &amp; local pickup</Link>
+          </p>
+          <p>
             <Link href="/gallery">Gallery</Link>
           </p>
         </div>

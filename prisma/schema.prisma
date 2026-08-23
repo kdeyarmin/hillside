@@ -114,6 +114,35 @@ enum CareGuideType {
 }
 
 /**
+ * How a merchandising label is decided. `AUTO` lets the shop work it out from
+ * order history or a listing date; the other two are Tammy overruling it, which
+ * she needs for the cases the data cannot see — a piece she knows is about to be
+ * everywhere, or one that sold well once and is not coming back.
+ */
+enum MerchandisingMode {
+  AUTO
+  ALWAYS
+  NEVER
+}
+
+/**
+ * What a homepage row is a row *of*. The homepage used to hardcode one featured
+ * grid and one collection strip, so changing what the front page led with meant
+ * changing the code.
+ */
+enum HomepageSectionKind {
+  FEATURED
+  NEW_ARRIVALS
+  BEST_SELLERS
+  RECENT_BEST_SELLERS
+  STAFF_PICKS
+  SEASONAL
+  ON_SALE
+  COLLECTION
+  COLLECTION_TILES
+}
+
+/**
  * How a product is being kept in stock, as the owner declares it. Deliberately
  * separate from the counts: "none on the bench" is arithmetic, but *why* there
  * are none — reordered, made when ordered, done for the season, retired — is
@@ -129,10 +158,10 @@ enum InventoryStatus {
 }
 
 model Product {
-  id               String       @id @default(cuid())
+  id               String            @id @default(cuid())
   name             String
-  slug             String       @unique
-  sku              String?      @unique
+  slug             String            @unique
+  sku              String?           @unique
   shortDescription String?
   description      String
   details          String?
@@ -155,7 +184,7 @@ model Product {
   categoryId       String?
   priceCents       Int
   compareAtCents   Int?
-  inventory        Int          @default(0)
+  inventory        Int               @default(0)
   imageUrl         String?
   badge            String?
   /**
@@ -194,7 +223,57 @@ model Product {
   dimensions       String?
   active           Boolean      @default(true)
   featured         Boolean      @default(false)
-  sortOrder        Int          @default(0)
+  /**
+   * Tammy's own pick, kept separate from `featured` because they answer
+   * different questions: featured is "put this in front of people", a staff pick
+   * is "this is the one I'd take home". Both can be true, and the shop labels
+   * them differently.
+   */
+  staffPick        Boolean           @default(false)
+  /**
+   * Where the product sits within a hand-ordered shelf. Lower comes first, and
+   * the merchandising page writes these from a drag-and-drop list rather than
+   * asking anyone to type numbers.
+   */
+  sortOrder        Int               @default(0)
+  /**
+   * The Latin name, when a plant has one people search by. `Epipremnum aureum`
+   * is how half the pothos questions arrive, and matching it only in the body
+   * copy meant a shopper who typed it got whichever product happened to mention
+   * it in passing.
+   */
+  botanical        String?
+  /**
+   * Extra words this product should be findable by — common misspellings, the
+   * name it is sold under elsewhere, a nickname. Never rendered to shoppers, so
+   * it is a search field rather than a place to repeat the description.
+   */
+  searchTerms      String?
+  /**
+   * Filterable attributes ("pet-safe", "low-light", "handmade"), stored as the
+   * slugs defined in `lib/product-tags.ts`. An array rather than a join table:
+   * the whole catalog is a few hundred rows, the vocabulary is fixed, and the
+   * shop filters in the browser from one already-loaded list.
+   */
+  tags             String[]          @default([])
+  /**
+   * Whether the best-seller badge is earned from paid orders (`AUTO`) or set by
+   * hand. See `lib/merchandising.ts` for the thresholds `AUTO` applies.
+   */
+  bestSellerMode   MerchandisingMode @default(AUTO)
+  /**
+   * Same idea for "new": listed recently, or pinned/suppressed by Tammy.
+   */
+  newArrivalMode   MerchandisingMode @default(AUTO)
+  /**
+   * When a seasonal piece is in season. Deliberately *only* merchandising: a
+   * product outside its window keeps its page, its price and its listing, it
+   * simply stops being pulled into seasonal rows and loses the seasonal badge.
+   * Hiding stock automatically on a date is how a shop ends up with an
+   * unexplained empty shelf nobody remembers scheduling.
+   */
+  seasonStartsAt   DateTime?
+  seasonEndsAt     DateTime?
   galleryImages    String[]     @default([])
 
   /**
@@ -237,6 +316,24 @@ model Product {
   reviews          Review[]
   stockAlerts      StockAlert[]
   careSheets       CareSheet[]
+  /**
+   * Hand-picked "you may also like". Both sides of each self-relation are
+   * declared because Prisma requires it; only the first of each pair is ever
+   * written from the dashboard, and the shop reads both so a link Tammy made in
+   * one direction still shows on the other product.
+   */
+  relatedProducts  Product[]         @relation("RelatedProducts")
+  relatedTo        Product[]         @relation("RelatedProducts")
+  /**
+   * "Goes with this" — the potting mix beside the plant, at the cart step.
+   */
+  crossSells       Product[]         @relation("CrossSellProducts")
+  crossSellFor     Product[]         @relation("CrossSellProducts")
+  /**
+   * What is inside this product when it is sold as a bundle or gift set.
+   */
+  bundleItems      Product[]         @relation("ProductBundle")
+  bundledIn        Product[]         @relation("ProductBundle")
 
   @@index([categoryId])
 }
@@ -270,15 +367,16 @@ model Category {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   products    Product[]
+
 }
 
 model Order {
-  id                      String      @id @default(cuid())
-  invoiceNumber           String      @unique
-  stripeSessionId         String?     @unique
-  paymentIntentId         String?     @unique
+  id                      String            @id @default(cuid())
+  invoiceNumber           String            @unique
+  stripeSessionId         String?           @unique
+  paymentIntentId         String?           @unique
   stripeInvoiceId         String?
-  status                  OrderStatus @default(PENDING)
+  status                  OrderStatus       @default(PENDING)
   customerName            String
   email                   String
   phone                   String?
@@ -287,13 +385,13 @@ model Order {
   city                    String
   state                   String
   postalCode              String
-  country                 String      @default("US")
+  country                 String            @default("US")
   subtotalCents           Int
-  shippingCents           Int         @default(0)
-  taxCents                Int         @default(0)
-  discountCents           Int         @default(0)
+  shippingCents           Int               @default(0)
+  taxCents                Int               @default(0)
+  discountCents           Int               @default(0)
   totalCents              Int
-  refundedCents           Int         @default(0)
+  refundedCents           Int               @default(0)
   // Set once when a full refund returns stock, so repeated deliveries of the same
   // Stripe event cannot inflate inventory.
   inventoryRestoredAt     DateTime?
@@ -307,8 +405,8 @@ model Order {
   confirmationEmailSentAt DateTime?
   confirmationEmailError  String?
   fulfilledAt             DateTime?
-  createdAt               DateTime    @default(now())
-  updatedAt               DateTime    @updatedAt
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
   items                   OrderItem[]
 }
 
@@ -357,6 +455,7 @@ model CareSheet {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   product     Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
+  collections Collection[]  @relation("CollectionCareGuides")
 
   @@index([productId])
 }
@@ -453,7 +552,6 @@ model ContactMessage {
 /**
  * Every outbound email the app attempts, kept so the owner can answer "did she
  * ever get her receipt?" from the dashboard instead of from SendGrid's console.
- *
  * Failures are rows too, and that is the point of the table: a confirmation
  * that never left was previously visible only as a line in the server log.
  */
@@ -465,7 +563,9 @@ model EmailLog {
    */
   to               String[]        @default([])
   subject          String
-  /** The exact body that was sent, so the page can show what she actually wrote. */
+  /**
+   * The exact body that was sent, so the page can show what she actually wrote.
+   */
   html             String
   /**
    * The recipients and the message as plain text, built once when the row is
@@ -473,7 +573,6 @@ model EmailLog {
    * properly. Searching the stored HTML in memory meant reading a fixed window
    * of recent rows — anything older than that window was unfindable, in a table
    * whose whole purpose is answering "did she ever get her receipt?".
-   *
    * Owner-authored mail contributes only what Tammy typed, not the greeting,
    * signature and quoted message around it, or a search for "Hillside" would
    * match every email the shop has ever sent through its own sign-off.
@@ -481,9 +580,13 @@ model EmailLog {
   searchText       String          @default("")
   kind             EmailKind       @default(OTHER)
   status           EmailStatus
-  /** Why a failed send failed: not-configured, provider-error, network-error. */
+  /**
+   * Why a failed send failed: not-configured, provider-error, network-error.
+   */
   reason           String?
-  /** SendGrid's x-message-id, for tracing a delivery in their dashboard. */
+  /**
+   * SendGrid's x-message-id, for tracing a delivery in their dashboard.
+   */
   providerId       String?
   /**
    * Set when this email is the owner's reply to a customer message, which is
@@ -497,19 +600,83 @@ model EmailLog {
   @@index([contactMessageId])
 }
 
+/**
+ * A collection is the shop's category landing page, not just a filter. Everything
+ * below `description` exists so a page about houseplants can read like a page
+ * about houseplants — an introduction, the care guides that belong with it, the
+ * questions people actually ask — instead of a heading over a product grid that
+ * is empty half the year.
+ */
 model Collection {
-  id          String    @id @default(cuid())
-  slug        String    @unique
-  title       String
-  tagline     String?
-  description String?
-  imageUrl    String?
-  featured    Boolean   @default(true)
-  active      Boolean   @default(true)
-  sortOrder   Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  products    Product[] @relation("ProductCollections")
+  id              String            @id @default(cuid())
+  slug            String            @unique
+  title           String
+  tagline         String?
+  description     String?
+  imageUrl        String?
+  featured        Boolean           @default(true)
+  active          Boolean           @default(true)
+  sortOrder       Int               @default(0)
+  /**
+   * The short, human introduction above the products. Plain paragraphs.
+   */
+  intro           String?
+  /**
+   * Longer editorial copy below the grid — how to choose one, what to expect
+   * locally, what pairs with it. Blank lines separate paragraphs; a line ending
+   * in a colon is rendered as a subheading.
+   */
+  body            String?
+  /**
+   * Category questions and answers, stored as `[{ question, answer }]`. These
+   * render as the page's FAQ and are the only thing that emits FAQPage markup
+   * for the category, so a category with none simply publishes no FAQ schema.
+   */
+  faq             Json?
+  /**
+   * Overrides for the page title and meta description, when the title is not enough.
+   */
+  metaTitle       String?
+  metaDescription String?
+  /**
+   * Extra words this category should be findable by ("carnivorous", "venus
+   * flytrap", "terrarium"). Search reads them; the page never prints them.
+   */
+  keywords        String[]          @default([])
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  products        Product[]         @relation("ProductCollections")
+  /**
+   * The care guides worth reading beside this category.
+   */
+  careSheets      CareSheet[]       @relation("CollectionCareGuides")
+  sections        HomepageSection[]
+}
+
+/**
+ * One row on the homepage, in the order Tammy arranged them. What a row holds is
+ * decided by `kind`; `COLLECTION` rows point at one collection, and the rest pull
+ * from the merchandising rules in `lib/merchandising.ts`. A row whose query comes
+ * back empty renders nothing at all rather than an empty heading.
+ */
+model HomepageSection {
+  id           String              @id @default(cuid())
+  kind         HomepageSectionKind
+  eyebrow      String?
+  title        String
+  subtitle     String?
+  /**
+   * How many products (or tiles) the row shows.
+   */
+  maxItems     Int                 @default(4)
+  collectionId String?
+  active       Boolean             @default(true)
+  sortOrder    Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  collection   Collection?         @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+
+  @@index([active, sortOrder])
 }
 
 model Review {
@@ -549,6 +716,23 @@ model CartLead {
   recoveredAt   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+}
+
+/**
+ * A record that a one-time seed has already run.
+ * Seeds that write starting content used to decide "has this run?" by looking at
+ * whether the content was empty — which cannot tell an untouched install from an
+ * owner who deliberately cleared it. Emptiness is valid editor output: Tammy
+ * clearing a category's introduction, or deleting every homepage row, is a
+ * choice, and re-running the deploy seed put all of it back. A row here says the
+ * seed has had its turn, so it never takes another.
+ */
+model SeedMarker {
+  /**
+   * e.g. `homepage-sections`, or `category-content:carnivorous-plants`.
+   */
+  key       String   @id
+  createdAt DateTime @default(now())
 }
 
 model AdminUser {

@@ -1,45 +1,45 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { CalendarDays, Leaf, Search, ShoppingBag } from 'lucide-react';
+import { CalendarDays, FolderOpen, Leaf, Search, ShoppingBag } from 'lucide-react';
 import ProductGrid from '@/components/ProductGrid';
-import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
 import { withCardFacts } from '@/lib/product-cards';
 import { classFormatLabel } from '@/lib/class-access';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
 import {
-  SEARCH_CANDIDATE_LIMIT,
-  filterSearchHits,
-  normalizeSearchTerm,
-  searchTokenFilters,
-  tokenizeSearch
-} from '@/lib/search';
+  careSheetSearchFields,
+  classSearchFields,
+  collectionSearchFields,
+  productSearchFields
+} from '@/lib/catalog-search';
+import {
+  merchandisingFlagsFor,
+  PRODUCT_CARD_SELECT,
+  tagsWithFlags
+} from '@/lib/merchandising-data';
+import { normalizeSearchTerm, rankSearchHits, tokenizeSearch } from '@/lib/search';
 import { formatMoney } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
 
-/**
- * The candidate filter for products: `searchTokenFilters` over the product's own
- * columns, with its category title offered as one more place each token may
- * live. A shopper searching "carnivorous" should find the flytraps whether or
- * not the word appears in their own descriptions, and the category is where it
- * does.
- *
- * The relation is spelled out here rather than passed to `searchTokenFilters`,
- * which takes columns on the row it filters. Asking that helper for one token at
- * a time is what keeps the two halves of each filter about the same word without
- * this function having to know how a token filter is shaped.
- */
-function productTokenFilters(term: string): Prisma.ProductWhereInput[] {
-  return tokenizeSearch(term).map((token) => {
-    const [filter] = searchTokenFilters(token, ['name', 'shortDescription', 'description']);
-    return {
-      OR: [...filter.OR, { category: { title: { contains: token, mode: 'insensitive' as const } } }]
-    } as Prisma.ProductWhereInput;
-  });
-}
-
 export const dynamic = 'force-dynamic';
+
+/**
+ * How many rows are read before ranking happens in memory.
+ *
+ * Searching in SQL is what this page used to do, and it could not answer the
+ * questions people actually type. "pet safe", "low light" and "beginner" are
+ * attributes rather than words in the copy; "pothos" is often a botanical name;
+ * "carnivorous" is a category. None of them are a `contains` match on a product
+ * description, so all of them returned nothing.
+ *
+ * With a catalog of a few hundred rows, reading the searchable columns and
+ * ranking them here is both better and cheaper than building an index the shop
+ * is nowhere near large enough to need. These ceilings exist so that stops being
+ * true loudly rather than quietly, if the shop ever grows into it.
+ */
+const PRODUCT_SCAN_LIMIT = 400;
+const GUIDE_SCAN_LIMIT = 300;
 
 export async function generateMetadata({
   searchParams
@@ -51,7 +51,8 @@ export async function generateMetadata({
   return pageMetadata({
     path: '/search',
     title: term ? `Search: ${term}` : 'Search',
-    description: 'Search plants, botanicals and plant care guides at The Hillside Gardens.',
+    description:
+      'Search plants, botanical goods, collections and plant care guides at The Hillside Gardens.',
     noindex: true
   });
 }
@@ -63,16 +64,12 @@ export default async function SearchPage({
 }) {
   const { q } = await searchParams;
   const term = normalizeSearchTerm(q || '');
+
   /**
-   * The candidate query asks for each word separately rather than for the typed
-   * phrase, because the word-aware filter below accepts the words in any order
-   * and spread across different fields. Asked for the phrase, the database never
-   * handed those rows over: "rot root" and "yellow pattern" returned nothing
-   * against guides that plainly matched.
-   *
-   * Gated on the tokens rather than on `term`, so a query that is only
-   * punctuation stops here instead of running three unfiltered table scans whose
-   * every row the filter would then drop.
+   * A term of pure punctuation cannot match anything — `tokenizeSearch` drops
+   * it — so the scans below are gated on there being a token rather than on
+   * there being a term. Otherwise `/search?q=!!!` runs four full scans whose
+   * every row the ranking then discards.
    */
   const searchable = tokenizeSearch(term).length > 0;
 
@@ -81,80 +78,77 @@ export default async function SearchPage({
    * term is searchable. It is not part of the search: it decides which empty
    * state a miss gets — "try a shorter word" against a stocked shop, "we are
    * between batches" against an empty one — and a term of pure punctuation
-   * lands on that same empty state. Gated alongside the candidates it read
-   * zero, and `/search?q=!!!` told a shopper the shop was empty while seven
-   * products were on the bench.
+   * lands on that same empty state. Gated alongside the scans it would read
+   * zero, and `/search?q=!!!` would tell a shopper the shop was empty while
+   * seven products were on the bench.
    */
-  const [productCandidates, guideCandidates, classCandidates, catalogCount] = await Promise.all([
+  const [productRows, guideRows, collectionRows, classRows, catalogCount] = await Promise.all([
     searchable
       ? db.product.findMany({
-          where: { active: true, AND: productTokenFilters(term) },
+          where: { active: true },
+          select: {
+            ...PRODUCT_CARD_SELECT,
+            sku: true,
+            details: true,
+            careNotes: true,
+            collections: {
+              where: { active: true },
+              select: { slug: true, title: true, tagline: true, keywords: true }
+            }
+          },
           orderBy: [{ featured: 'desc' }, { name: 'asc' }],
-          take: SEARCH_CANDIDATE_LIMIT,
-          include: { category: { select: { slug: true, title: true } } }
+          take: PRODUCT_SCAN_LIMIT
         })
       : [],
     searchable
       ? db.careSheet.findMany({
-          where: {
-            published: true,
-            AND: searchTokenFilters(term, [
-              'plantName',
-              'botanical',
-              'summary',
-              'symptoms',
-              'category'
-            ]) as Prisma.CareSheetWhereInput[]
-          },
+          where: { published: true },
           orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
-          take: SEARCH_CANDIDATE_LIMIT
+          take: GUIDE_SCAN_LIMIT
+        })
+      : [],
+    searchable
+      ? db.collection.findMany({
+          where: { active: true },
+          orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            tagline: true,
+            description: true,
+            intro: true,
+            keywords: true
+          },
+          take: 50
         })
       : [],
     searchable && CLASSES_PUBLICLY_VISIBLE
       ? db.classEvent.findMany({
-          where: {
-            active: true,
-            startsAt: { gte: new Date() },
-            AND: searchTokenFilters(term, ['title', 'description']) as Prisma.ClassEventWhereInput[]
-          },
+          where: { active: true, startsAt: { gte: new Date() } },
           orderBy: { startsAt: 'asc' },
-          take: SEARCH_CANDIDATE_LIMIT
+          take: 50
         })
       : [],
     term ? db.product.count({ where: { active: true } }) : 0
   ]);
 
-  /**
-   * Prisma can only do substring `contains`. The word-aware filter is what
-   * stops "tea" from matching a Monstera guide that mentions "steady watering".
-   * Candidates are over-fetched so a page of false positives cannot hide a
-   * real hit sitting just behind them.
-   */
-  const products = filterSearchHits(
-    productCandidates,
-    (product) => [
-      product.name,
-      product.shortDescription,
-      product.description,
-      product.category?.title
-    ],
+  // Derived attributes first, so "best seller" and "in stock" are searchable
+  // terms rather than things only the filter rail knows about.
+  const productFlags = await merchandisingFlagsFor(productRows);
+
+  const products = rankSearchHits(
+    productRows,
+    (product) => productSearchFields(product, tagsWithFlags(product, productFlags.get(product.id))),
     term
   );
-  const guides = filterSearchHits(
-    guideCandidates,
-    (guide) => [guide.plantName, guide.botanical, guide.summary, guide.symptoms, guide.category],
-    term
-  );
-  const classes = filterSearchHits(
-    classCandidates,
-    (event) => [event.title, event.description],
-    term,
-    6
-  );
+  const guides = rankSearchHits(guideRows, careSheetSearchFields, term);
+  const collections = rankSearchHits(collectionRows, collectionSearchFields, term, 6);
+  const classes = rankSearchHits(classRows, classSearchFields, term, 6);
 
   const shopProducts = await withCardFacts(products);
 
-  const total = products.length + guides.length + classes.length;
+  const total = products.length + guides.length + collections.length + classes.length;
 
   return (
     <>
@@ -174,7 +168,7 @@ export default async function SearchPage({
                 type="search"
                 name="q"
                 defaultValue={term}
-                placeholder="Plants, symptoms, care topics"
+                placeholder="pothos, pet safe, low light, carnivorous, terrarium"
                 enterKeyHint="search"
               />
             </div>
@@ -184,7 +178,8 @@ export default async function SearchPage({
           </form>
           {term && (
             <p>
-              {total} {total === 1 ? 'result' : 'results'} across the shop and care library.
+              {total} {total === 1 ? 'result' : 'results'} across the shop, the collections and the
+              care library.
             </p>
           )}
         </div>
@@ -196,7 +191,10 @@ export default async function SearchPage({
             <div className="empty-state">
               <Search size={38} />
               <h3>What are you looking for?</h3>
-              <p>Search a plant name, a symptom such as “yellow leaves”, or a product.</p>
+              <p>
+                Search a plant name, a botanical name, a symptom such as “yellow leaves”, or what
+                you need from a plant — “pet safe”, “low light”, “beginner”.
+              </p>
             </div>
           )}
 
@@ -245,6 +243,38 @@ export default async function SearchPage({
                 </Link>
               </div>
               <ProductGrid products={shopProducts} />
+            </div>
+          )}
+
+          {collections.length > 0 && (
+            <div className="search-group">
+              <div className="editorial-heading-row">
+                <div>
+                  <div className="eyebrow">
+                    <FolderOpen size={14} /> Collections
+                  </div>
+                  <h2>
+                    {collections.length} {collections.length === 1 ? 'collection' : 'collections'}
+                  </h2>
+                </div>
+                <Link className="editorial-link" href="/collections">
+                  All collections →
+                </Link>
+              </div>
+              <div className="care-related-grid">
+                {collections.map((collection) => (
+                  <article className="care-related-card" key={collection.id}>
+                    <span>Collection</span>
+                    <h3>
+                      <Link href={`/collections/${collection.slug}`}>{collection.title}</Link>
+                    </h3>
+                    <p>{collection.tagline || collection.description}</p>
+                    <Link className="text-link" href={`/collections/${collection.slug}`}>
+                      Browse the collection →
+                    </Link>
+                  </article>
+                ))}
+              </div>
             </div>
           )}
 
