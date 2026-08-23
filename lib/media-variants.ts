@@ -22,7 +22,13 @@
 /** The widths generated beside an upload, when the original is bigger. */
 export const MEDIA_VARIANT_WIDTHS = [400, 800, 1200];
 
-/** The longest edge an upload is stored at. Beyond this is invisible detail. */
+/**
+ * The widest an upload is stored. Width rather than the longer edge, because
+ * width is the axis everything downstream works in: the layout constrains images
+ * by width, `srcset` candidates are described by width, and the variant ladder is
+ * a list of widths. Capping the long edge instead would leave a portrait
+ * photograph 1200px wide, under the 2x the product page's main image wants.
+ */
 export const MEDIA_MAX_WIDTH = 1600;
 
 /** Bounds on a width read off a filename or posted by the browser. */

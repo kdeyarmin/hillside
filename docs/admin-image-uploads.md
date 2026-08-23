@@ -15,9 +15,11 @@ straight off a phone is fine:
 
 1. The file is decoded with `imageOrientation: 'from-image'`, so a photograph
    taken sideways stops arriving sideways.
-2. It is drawn onto a canvas at up to 1600px on the long edge and re-encoded as
-   WebP. This also normalises formats the server cannot read on its own, such as
-   iOS HEIC.
+2. It is drawn onto a canvas at up to 1600px **wide** and re-encoded as WebP,
+   keeping its aspect ratio — so a 3024×4032 portrait is stored 1600×2133. Width
+   is the axis the layout, the `srcset` candidates and the variant ladder all
+   work in. This step also normalises formats the server cannot read on its own,
+   such as iOS HEIC.
 3. Smaller copies at 400, 800 and 1200px are produced and uploaded alongside it.
 
 The stored filename carries the widths that exist beside it —

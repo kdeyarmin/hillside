@@ -49,7 +49,8 @@ export const INVENTORY_STATUS_LABELS: Record<InventoryStatusValue, string> = {
 export const INVENTORY_STATUS_HINTS: Record<InventoryStatusValue, string> = {
   STOCKED: 'Counted on the bench and reordered when it runs down.',
   ON_ORDER: 'Already reordered — it stays off the reorder list until it lands.',
-  MADE_TO_ORDER: 'Made when someone buys it, so an empty shelf is not a problem.',
+  MADE_TO_ORDER:
+    'Made after someone orders it, so it is never chased for a restock. The shop still sells from the quantity on hand — keep one there for anything you are ready to make.',
   SEASONAL: 'Comes back in its season rather than being reordered now.',
   DISCONTINUED: 'Not coming back. Sell through what is left, then archive it.'
 };
@@ -159,10 +160,52 @@ function asDate(value: Date | string | null | undefined) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+/**
+ * The shop's calendar day for an instant, as `YYYY-MM-DD`.
+ *
+ * Built from the *local* date parts, not `toISOString()`. `instrumentation.ts`
+ * pins `TZ` to America/New_York, so local is the shop's own clock — and UTC is
+ * not: a delivery counted in at nine on a summer evening is already tomorrow in
+ * UTC, so the date box would show Tammy a restock dated the day after the box
+ * arrived, and "Restocked today" would read "yesterday" all evening.
+ */
+function shopDay(value: Date | null) {
+  if (!value) return null;
+  const year = value.getFullYear();
+  const month = `${value.getMonth() + 1}`.padStart(2, '0');
+  const day = `${value.getDate()}`.padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/** Midnight on the shop's clock, for counting whole days between two dates. */
+function shopMidnight(value: Date) {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate()).getTime();
+}
+
+/**
+ * Whole calendar days, not 24-hour blocks. A box counted in yesterday evening
+ * and looked at this morning is "yesterday", which is what a person means;
+ * dividing the elapsed milliseconds would call it "today" until the same hour
+ * came round again.
+ */
 export function daysSinceRestock(product: InventoryProduct, now = new Date()) {
   const restocked = asDate(product.lastRestockedAt);
   if (!restocked) return null;
-  return Math.floor((now.getTime() - restocked.getTime()) / 86_400_000);
+  return Math.round((shopMidnight(now) - shopMidnight(restocked)) / 86_400_000);
+}
+
+/**
+ * A date typed into a `type="date"` box, read on the shop's clock.
+ *
+ * `new Date('2026-08-22')` is UTC midnight — which in Eastern time is the
+ * evening of the 21st, so a date the owner typed would compare and store as the
+ * day before. Appending a time makes it local midnight, the day she meant.
+ */
+export function parseRestockDate(value: string) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00`) : new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 export function recentlyRestocked(
@@ -212,18 +255,14 @@ export function nextRestockedAt({
   // Compared by calendar day, because the form field is a date and the column is
   // a timestamp. By the millisecond, re-saving an untouched form would always
   // look like an edit and would quietly truncate the stored time to midnight.
-  if (isoDay(typed) !== isoDay(stored)) return typed;
+  if (shopDay(typed) !== shopDay(stored)) return typed;
   if (nextInventory > previousInventory) return now;
   return stored;
 }
 
-function isoDay(value: Date | null) {
-  return value ? value.toISOString().slice(0, 10) : null;
-}
-
 /** `YYYY-MM-DD` for a date input, or '' when there is nothing recorded. */
 export function restockDateValue(value: Date | string | null | undefined) {
-  return isoDay(asDate(value)) || '';
+  return shopDay(asDate(value)) || '';
 }
 
 /**

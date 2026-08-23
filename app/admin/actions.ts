@@ -35,7 +35,7 @@ import {
   storedSizesTrackStock,
   withoutRedundantPrices
 } from '@/lib/product-sizes';
-import { nextRestockedAt } from '@/lib/inventory';
+import { nextRestockedAt, parseRestockDate } from '@/lib/inventory';
 import { publishBlockReason } from '@/lib/product-completeness';
 import { amazonPickDraft, DEFAULT_PICK_TITLE, extractAsin, isAmazonLink } from '@/lib/amazon-pick';
 import { associateTag, lookupAmazonProduct } from '@/lib/amazon-lookup';
@@ -270,13 +270,22 @@ export async function saveProduct(formData: FormData) {
    * A restock dates itself. The owner's own date wins when she sets one, and
    * otherwise a quantity that went *up* stamps today — which is the difference
    * between a field that stays current and one field too many to remember.
+   *
+   * "Went up" is measured against `expectedInventory`, the figure this form was
+   * rendered with, not against the row as it stands now. A checkout hold landing
+   * while the form sat open lowers the row, so comparing against it would read
+   * an *unchanged* form as a rise and stamp a restock that never happened —
+   * on the very save path that deliberately leaves the quantity alone.
+   *
+   * A product being created has no earlier figure to have risen from, and its
+   * opening count is stock arriving, so it stamps.
    */
   const record = {
     ...data,
     lastRestockedAt: nextRestockedAt({
-      typed: optionalDate(text(formData, 'lastRestockedAt')),
+      typed: parseRestockDate(text(formData, 'lastRestockedAt')),
       stored: previous?.lastRestockedAt ?? null,
-      previousInventory: previous?.inventory ?? 0,
+      previousInventory: id ? expectedInventory : 0,
       nextInventory: postedInventory
     })
   };
@@ -401,7 +410,14 @@ export async function receiveStock(formData: FormData) {
 
   const before = await db.product.findUnique({
     where: { id },
-    select: { id: true, name: true, slug: true, inventory: true, sizes: true }
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      inventory: true,
+      sizes: true,
+      inventoryStatus: true
+    }
   });
   if (!before) redirect(adminDashboardPath({ error: 'product-missing', section: 'inventory' }));
 
@@ -434,6 +450,17 @@ export async function receiveStock(formData: FormData) {
     data: {
       inventory: nextInventory,
       lastRestockedAt: new Date(),
+      /**
+       * The delivery landing is what ends "on order". Left set, the status would
+       * keep the product off the reorder list for good — `needsReorder` excludes
+       * ON_ORDER precisely so a placed order stops nagging — and this very stock
+       * could sell back down below the reorder point without it ever reappearing
+       * on the list Tammy works from. Every other status describes the product
+       * rather than an outstanding order, so none of them is touched.
+       */
+      ...(before.inventoryStatus === InventoryStatus.ON_ORDER
+        ? { inventoryStatus: InventoryStatus.STOCKED }
+        : {}),
       ...(perSize ? { sizes: nextSizes as Prisma.InputJsonValue } : {})
     }
   });

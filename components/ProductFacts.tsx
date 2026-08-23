@@ -12,9 +12,16 @@ import { CAFFEINE_LABELS, productTypeLabel } from '@/lib/store';
  * water and whether the cat can be trusted with it.
  *
  * Everything that is *not* being shown is still submitted, as a hidden field
- * holding what is already stored. Otherwise a mis-clicked category followed by a
- * save would silently wipe the ingredient list off a tea — the field would
- * simply not be in the form data, and the action would read that as "cleared".
+ * holding its current value. Otherwise a mis-clicked category followed by a save
+ * would silently wipe the ingredient list off a tea — the field would simply not
+ * be in the form data, and the action would read that as "cleared".
+ *
+ * "Current value" means state, not the prop it started from. These inputs were
+ * uncontrolled, so switching category unmounted the visible box and the hidden
+ * field that replaced it replayed the *stored* value: ingredients typed and then
+ * left by a trip through another category were silently reverted, and saving
+ * from there posted the old text over the new. The values live in state now, so
+ * the visible field and its hidden stand-in are always the same string.
  */
 
 type FactKind = 'text' | 'textarea' | 'petSafe' | 'caffeine';
@@ -102,7 +109,7 @@ export default function ProductFacts({
   values?: ProductFactValues;
 }) {
   const [type, setType] = useState(values?.type || productTypes[0]);
-  const stored: Record<string, string> = {
+  const [facts, setFacts] = useState<Record<string, string>>(() => ({
     potSize: values?.potSize || '',
     lightNeeds: values?.lightNeeds || '',
     waterNeeds: values?.waterNeeds || '',
@@ -111,7 +118,14 @@ export default function ProductFacts({
     ingredients: values?.ingredients || '',
     brewingInstructions: values?.brewingInstructions || '',
     caffeineStatus: values?.caffeineStatus || ''
-  };
+  }));
+
+  const edit =
+    (key: string) =>
+    (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+      const { value } = event.target;
+      setFacts((current) => ({ ...current, [key]: value }));
+    };
 
   return (
     <>
@@ -135,7 +149,7 @@ export default function ProductFacts({
         const applies = fact.types.includes(type);
         if (!applies) {
           return (
-            <input type="hidden" name={fact.key} value={stored[fact.key]} key={fact.key} readOnly />
+            <input type="hidden" name={fact.key} value={facts[fact.key]} key={fact.key} readOnly />
           );
         }
 
@@ -147,7 +161,8 @@ export default function ProductFacts({
                 className="admin-input"
                 name={fact.key}
                 rows={3}
-                defaultValue={stored[fact.key]}
+                value={facts[fact.key]}
+                onChange={edit(fact.key)}
                 placeholder={fact.placeholder}
               />
             )}
@@ -155,19 +170,30 @@ export default function ProductFacts({
               <input
                 className="admin-input"
                 name={fact.key}
-                defaultValue={stored[fact.key]}
+                value={facts[fact.key]}
+                onChange={edit(fact.key)}
                 placeholder={fact.placeholder}
               />
             )}
             {fact.kind === 'petSafe' && (
-              <select className="admin-input" name={fact.key} defaultValue={stored[fact.key]}>
+              <select
+                className="admin-input"
+                name={fact.key}
+                value={facts[fact.key]}
+                onChange={edit(fact.key)}
+              >
                 <option value="">Not answered yet</option>
                 <option value="yes">Safe around cats and dogs</option>
                 <option value="no">Keep out of reach of pets</option>
               </select>
             )}
             {fact.kind === 'caffeine' && (
-              <select className="admin-input" name={fact.key} defaultValue={stored[fact.key]}>
+              <select
+                className="admin-input"
+                name={fact.key}
+                value={facts[fact.key]}
+                onChange={edit(fact.key)}
+              >
                 <option value="">Not answered yet</option>
                 {Object.entries(CAFFEINE_LABELS).map(([value, label]) => (
                   <option value={value} key={value}>

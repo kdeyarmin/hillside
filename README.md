@@ -320,8 +320,7 @@ only choose a `sizeRole` (`hero`, `card`, `tile`, `detail`, `thumb`).
 
 Owner-uploaded photographs cannot be processed at build time, because they arrive
 from Tammy's phone at request time. They are resized in the browser instead — up
-to 1600px on the long edge, re-encoded as WebP, with 400/800/1200 copies uploaded
-alongside — and the stored filename carries the widths that exist beside it
+to 1600px wide, re-encoded as WebP, with 400/800/1200 copies uploaded alongside — and the stored filename carries the widths that exist beside it
 (`<uuid>-v400-800-1200-1600.webp`), so the same `srcSet` builder covers both
 sources with nothing to look up. Uploads from before this existed have unmarked
 names and keep the plain single `src` they always had. See

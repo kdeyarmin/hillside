@@ -119,6 +119,8 @@ export async function prepareImageUpload(file: File): Promise<PreparedUpload> {
   if (!bitmap || !bitmap.width || !bitmap.height) return unchanged(file);
 
   try {
+    // Width, not the longer edge — see MEDIA_MAX_WIDTH. A tall photograph keeps
+    // its aspect ratio, so 3024x4032 is stored 1600x2133 rather than 1200x1600.
     const masterWidth = Math.min(MEDIA_MAX_WIDTH, bitmap.width);
     const master = await render(bitmap, masterWidth, WEBP_QUALITY);
     if (!master) return unchanged(file);
