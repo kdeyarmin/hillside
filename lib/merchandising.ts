@@ -12,6 +12,13 @@
 export type MerchandisingMode = 'AUTO' | 'ALWAYS' | 'NEVER';
 
 /** How long a product counts as new when nobody has said otherwise. */
+/**
+ * The most items any homepage row may show, and the ceiling the row editor's
+ * "How many to show" input enforces. Anything fetching for a row has to reach
+ * this far or the row silently caps below what Tammy set.
+ */
+export const MAX_HOMEPAGE_SECTION_ITEMS = 8;
+
 export const NEW_ARRIVAL_DAYS = 45;
 
 /**
@@ -210,7 +217,8 @@ export type HomepageSectionKind =
   | 'SEASONAL'
   | 'ON_SALE'
   | 'COLLECTION'
-  | 'COLLECTION_TILES';
+  | 'COLLECTION_TILES'
+  | 'BUNDLES';
 
 /**
  * What each homepage row is and what it needs, used by the dashboard dropdown
@@ -264,6 +272,11 @@ export const HOMEPAGE_SECTION_KINDS: ReadonlyArray<{
     kind: 'COLLECTION_TILES',
     label: 'Collection tiles',
     description: 'Picture links to your featured collections.'
+  },
+  {
+    kind: 'BUNDLES',
+    label: 'Sets & kits',
+    description: 'Your featured sets, and only the ones every piece is in stock for today.'
   }
 ];
 
@@ -319,5 +332,14 @@ export const DEFAULT_HOMEPAGE_SECTIONS: ReadonlyArray<{
     title: 'Our current favorites.',
     maxItems: 4,
     sortOrder: 40
+  },
+  {
+    kind: 'BUNDLES',
+    eyebrow: 'Everything in one box',
+    title: 'Sets we have made up.',
+    subtitle:
+      'A plant, its pot and what it needs to stay alive, picked out together so nothing arrives missing a piece.',
+    maxItems: 3,
+    sortOrder: 50
   }
 ];

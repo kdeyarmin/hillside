@@ -158,6 +158,7 @@ enum HomepageSectionKind {
   ON_SALE
   COLLECTION
   COLLECTION_TILES
+  BUNDLES
 }
 
 /**
@@ -286,6 +287,17 @@ model Product {
    * shop filters in the browser from one already-loaded list.
    */
   tags             String[]          @default([])
+  /**
+   * Free-text recommendation traits — `terrarium`, `carnivorous`, `planter`,
+   * `substrate`, `infuser` — matched only against other products.
+   *
+   * Deliberately not `tags`. That field is the closed, shopper-facing filter
+   * vocabulary and `normalizeTags` keeps only slugs it recognises, so a trait
+   * written there is erased the next time the product is saved from the product
+   * form. The two also want opposite things: `tags` is a fixed list a shopper
+   * picks from, traits are open words nobody browses by.
+   */
+  traits           String[]          @default([])
   /**
    * Whether the best-seller badge is earned from paid orders (`AUTO`) or set by
    * hand. See `lib/merchandising.ts` for the thresholds `AUTO` applies.

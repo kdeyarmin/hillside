@@ -1,9 +1,11 @@
 import { PrismaClient, ProductRelationKind } from '@prisma/client';
+import { ALL_TAGS } from '../lib/product-tags.ts';
+import { DEFAULT_HOMEPAGE_SECTIONS } from '../lib/merchandising.ts';
 
 const db = new PrismaClient();
 
 /**
- * Starter merchandising: a couple of sets, the tags the recommendation rules
+ * Starter merchandising: a couple of sets, the traits the recommendation rules
  * match on, and a few worked examples of "show this beside that".
  *
  * Everything here is seeded **once and never re-applied**, the same discipline
@@ -86,16 +88,17 @@ const bundles: BundleSeed[] = [
 ];
 
 /**
- * Tags exist for the recommendation rules. Seeded only onto products that have
- * none at all, so a product Tammy has tagged herself is never overwritten.
+ * Traits exist for the recommendation rules, and are a different field from the
+ * `tags` a shopper filters the shop by. Seeded only onto products that have no
+ * traits at all, so anything Tammy has written herself is never overwritten.
  */
-const tagsByKeyword: Array<{ keyword: string; tags: string[] }> = [
-  { keyword: 'tea', tags: ['tea'] },
-  { keyword: 'infuser', tags: ['infuser', 'teaware'] },
-  { keyword: 'soap', tags: ['soap'] },
-  { keyword: 'lotion', tags: ['lotion'] },
-  { keyword: 'planter', tags: ['planter'] },
-  { keyword: 'moss', tags: ['moss', 'terrarium'] }
+const traitsByKeyword: Array<{ keyword: string; traits: string[] }> = [
+  { keyword: 'tea', traits: ['tea'] },
+  { keyword: 'infuser', traits: ['infuser', 'teaware'] },
+  { keyword: 'soap', traits: ['soap'] },
+  { keyword: 'lotion', traits: ['lotion'] },
+  { keyword: 'planter', traits: ['planter'] },
+  { keyword: 'moss', traits: ['moss', 'terrarium'] }
 ];
 
 /** Worked examples, so the sections on a product page are not empty on day one. */
@@ -142,25 +145,122 @@ function find(products: ProductRow[], match: Match) {
   );
 }
 
+/** Whether a one-time migration has already had its turn. */
+async function alreadyRun(key: string) {
+  return Boolean(await db.seedMarker.findUnique({ where: { key }, select: { key: true } }));
+}
+
+async function markRun(key: string) {
+  await db.seedMarker.upsert({ where: { key }, create: { key }, update: {} });
+}
+
+/**
+ * Rescue recommendation words that were written into `tags` before `traits`
+ * existed.
+ *
+ * They were readable but not safe there: the product form rewrites `tags`
+ * through `normalizeTags`, which keeps only its own fixed vocabulary, so the
+ * next time Tammy saved any of these products the words went. Anything in
+ * `tags` that the filter vocabulary does not recognise is therefore hers, and
+ * moves to `traits` — including suppressions like `-terrarium`, which
+ * `normalizeTags` would also have dropped.
+ *
+ * Runs once. Products that already have traits are left alone, and recognised
+ * filter slugs stay exactly where they are.
+ */
+async function migrateTagsToTraits() {
+  if (await alreadyRun('traits-from-tags')) return 0;
+
+  const known = new Set(ALL_TAGS.map((tag) => tag.slug));
+  const products = await db.product.findMany({ select: { id: true, tags: true, traits: true } });
+
+  let moved = 0;
+  for (const product of products) {
+    if (product.traits.length) continue;
+    const rescued = product.tags.filter((tag) => !known.has(tag.replace(/^-/, '')));
+    if (!rescued.length) continue;
+    await db.product.update({
+      where: { id: product.id },
+      data: {
+        traits: rescued,
+        tags: product.tags.filter((tag) => known.has(tag.replace(/^-/, '')))
+      }
+    });
+    moved += 1;
+  }
+
+  await markRun('traits-from-tags');
+  return moved;
+}
+
+/**
+ * Give an already-arranged homepage its sets row.
+ *
+ * `seedHomepageSections` stops at its marker, by design — it must never
+ * re-create rows Tammy has deleted. But that means a shop seeded before the
+ * BUNDLES row existed would simply never get one, and since the hard-coded
+ * featured-sets strip is gone with it, its featured sets would drop off the
+ * homepage on this deploy with nothing to put them back.
+ *
+ * Added once, at the end of whatever arrangement is already there, and only
+ * when the shop has no BUNDLES row of its own.
+ */
+async function addBundlesHomepageRow() {
+  if (await alreadyRun('homepage-bundles-row')) return false;
+
+  const arranged = await db.homepageSection.count();
+  // A shop with no rows at all has not been seeded yet; the default
+  // arrangement already contains this row, so there is nothing to back-fill.
+  if (arranged === 0) return false;
+
+  if (await db.homepageSection.findFirst({ where: { kind: 'BUNDLES' } })) {
+    await markRun('homepage-bundles-row');
+    return false;
+  }
+
+  const seed = DEFAULT_HOMEPAGE_SECTIONS.find((section) => section.kind === 'BUNDLES');
+  if (!seed) return false;
+
+  const last = await db.homepageSection.findFirst({
+    orderBy: { sortOrder: 'desc' },
+    select: { sortOrder: true }
+  });
+  await db.homepageSection.create({
+    data: {
+      kind: seed.kind,
+      eyebrow: seed.eyebrow,
+      title: seed.title,
+      subtitle: seed.subtitle,
+      maxItems: seed.maxItems,
+      sortOrder: (last?.sortOrder ?? 0) + 10
+    }
+  });
+  await markRun('homepage-bundles-row');
+  return true;
+}
+
 async function main() {
+  const rescued = await migrateTagsToTraits();
+  const addedBundlesRow = await addBundlesHomepageRow();
+
   const products = await db.product.findMany({
     where: { active: true },
-    select: { id: true, name: true, slug: true, tags: true }
+    select: { id: true, name: true, slug: true, traits: true }
   });
 
   let tagged = 0;
   for (const product of products) {
-    if (product.tags.length) continue;
+    if (product.traits.length) continue;
     const haystack = `${product.name} ${product.slug}`.toLowerCase();
-    const tags = [
+    const traits = [
       ...new Set(
-        tagsByKeyword
+        traitsByKeyword
           .filter((entry) => haystack.includes(entry.keyword))
-          .flatMap((entry) => entry.tags)
+          .flatMap((entry) => entry.traits)
       )
     ];
-    if (!tags.length) continue;
-    await db.product.update({ where: { id: product.id }, data: { tags } });
+    if (!traits.length) continue;
+    await db.product.update({ where: { id: product.id }, data: { traits } });
     tagged += 1;
   }
 
@@ -233,6 +333,12 @@ async function main() {
       `${skippedBundles ? ` (${skippedBundles} skipped — their products are not in the catalog)` : ''}` +
       `, ${tagged} products tagged, ${createdRelations} recommendations added.`
   );
+  if (rescued) {
+    console.log(`Recommendation words moved from tags to traits on ${rescued} products.`);
+  }
+  if (addedBundlesRow) {
+    console.log('Sets row added to the existing homepage arrangement.');
+  }
 }
 
 main()
