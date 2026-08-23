@@ -21,6 +21,9 @@ export type ProductCardProduct = {
   shortDescription: string | null;
   description: string;
   type: string;
+  /** The product's category, when it has one — the pill a card leads with. */
+  categorySlug?: string | null;
+  categoryTitle?: string | null;
   priceCents: number;
   compareAtCents: number | null;
   inventory: number;
@@ -33,9 +36,6 @@ export type ProductCardProduct = {
   sizeLabel?: string | null;
   averageRating?: number | null;
   reviewCount?: number;
-  /** Three-state: null is "nobody has said", and makes no claim either way. */
-  petSafe?: boolean | null;
-  beginnerFriendly?: boolean;
   /** Both decided server-side by `withCardFacts` — see the note there. */
   bestSeller?: boolean;
   isNew?: boolean;
@@ -116,14 +116,11 @@ export default function ProductCard({
     .slice(0, MAX_CARD_BADGES);
 
   /**
-   * Quiet claims about the product itself, kept out of the photograph so the
-   * badges above stay about urgency. Local pickup only appears when it is the
-   * *only* way home — almost everything here can be picked up, so saying so on
-   * every card would say nothing at all, while "does not ship" is news.
+   * Local pickup only appears when it is the *only* way home — almost
+   * everything here can be picked up, so saying so on every card would say
+   * nothing at all, while "does not ship" is news.
    */
   const traits = [
-    product.petSafe === true && { key: 'pet', text: 'Pet safe' },
-    product.beginnerFriendly && { key: 'beginner', text: 'Beginner friendly' },
     product.pickup && product.ships === false && { key: 'pickup', text: 'Local pickup only' }
   ].filter((trait): trait is { key: string; text: string } => Boolean(trait));
 
@@ -148,7 +145,10 @@ export default function ProductCard({
         />
       </Link>
       <div className="product-copy">
-        <span className="pill">{productTypeLabel(product.type)}</span>
+        {/* The category is what a shopper recognises — "Carnivorous Plants",
+            not "Plant" — so the broad type is only the fallback for a product
+            that has not been given one. */}
+        <span className="pill">{product.categoryTitle || productTypeLabel(product.type)}</span>
         <h3>
           <Link href={`/shop/${product.slug}`}>{product.name}</Link>
         </h3>

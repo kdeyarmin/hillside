@@ -15,13 +15,15 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 ## Public website
 
 - Professional botanical storefront based on the Hillside green, sage and gold logo system
-- Owner-managed collections with their own pages, assigned from the dashboard
-- Site-wide search across products and care guides
+- A homepage that says what the shop sells — plants, botanical goods and creative planting — above a row of the categories it sells them in
+- An owner-managed category taxonomy: houseplants, carnivorous plants, succulents, air plants, living arrangements, terrariums and supplies, moss, driftwood, planters, tea and tea accessories, soap, lotion, apothecary, gifts and seasonal
+- Owner-managed collections with their own pages, curated across categories — beginner friendly, low light, pet friendly, gifts under $30
+- Site-wide search across products, categories and care guides
 - Searchable and filterable live product catalog, with sale and new-arrival sorting
 - Individual SEO-ready product pages with live inventory, a named photograph gallery and customer reviews
-- Product cards that carry a price or price range, sale, new, best-seller and low-stock signals, pet-safe and beginner-friendly claims, and which sizes are still available
-- A size dropdown on products sold in more than one size, with an optional price and quantity on hand for each size
-- At-a-glance product facts by category — pot size, light, water and pet safety on a plant; net weight, ingredients, brewing and caffeine on a tea
+- Structured product detail that changes with the category — a plant's light, water, pot size and pet safety; a tea's steep time, caffeine and allergens; a soap's full ingredient list
+- Product cards that carry a price or price range, sale, new, best-seller and low-stock signals, and which sizes are still available
+- A variant dropdown on products sold in more than one form, each variant carrying its own price, stock, SKU, photograph, weight, dimensions and shipping answer
 - Back-in-stock email alerts on sold-out products
 - Persistent shopping cart and secure Stripe Checkout
 - Optional gift message at checkout, printed on the packing slip
@@ -48,8 +50,10 @@ The dashboard at `/admin` includes:
 - Automatic customer shipping-update email when an order is marked fulfilled
 - Packing-slip and 4 × 6 shipping-label printing
 - Shipping-address, full-order and newsletter-subscriber CSV exports
-- Product creation and editing, price, sale price, SKU, inventory, badges and featured products
-- Per-product size choices, typed one per line, with a price and a quantity on hand on any size that needs its own
+- A product editor of its own at `/admin/products/<id>` — price, sale price, SKU, inventory, badges, photographs, weight and dimensions
+- Category assignment, which also decides which structured detail fields the product is asked for
+- Structured detail fields that change with the category, with the common answers offered as you type
+- A variant editor for anything sold in more than one form, each variant carrying its own price, stock, SKU, photograph, weight, dimensions and shipping answer
 - A **Needs attention** panel that counts what is actually outstanding and links each number to the products behind it
 - Inventory filters for out of stock, low stock, needs reorder, no reorder point, missing SKU, missing supplier, missing photograph, inactive, incomplete and recently restocked
 - Supplier, their item number, reorder point, reorder quantity, inventory status, private inventory notes and a last-restocked date that fills itself in
@@ -61,7 +65,7 @@ The dashboard at `/admin` includes:
 - Newsletter subscriber management
 - Customer review moderation with optional public replies
 - Restock request list, emailed automatically when stock returns
-- Collection management and per-product collection assignment
+- Category and collection management, and per-product assignment to both
 - A photography editor with drag-and-drop, mobile upload, named photo slots, reordering, primary selection and previews
 - Visibility of products still missing their own photograph, and of products still showing shared category artwork
 - Order confirmation email delivery status
@@ -136,6 +140,12 @@ is the only variable sign-in actually requires. Rotating or clearing
 npm run db:seed
 ```
 
+The pre-deploy step already creates the category taxonomy and files any
+uncategorised product into it on every deploy, so an existing catalog needs
+nothing run by hand for that. `npm run db:seed` additionally adds the demo
+products and the care library, and refuses to touch a catalog that already has
+products in it.
+
 6. Create an admin account for each person who runs the shop, from a Railway shell:
 
 ```bash
@@ -161,77 +171,185 @@ because those resolve to the visitor's own machine rather than the shop, and log
 warning naming the ignored value. Set the variable only to point a build at a genuine
 public origin, such as a Railway preview domain.
 
+## Categories and collections
+
+The shop has two ways of grouping what it sells, and they answer different
+questions on purpose.
+
+A **category** says what a thing _is_. Every product sits in exactly one:
+Houseplants, Carnivorous Plants, Succulents, Air Plants, Live Plant
+Arrangements, Terrariums, Terrarium Supplies, Moss, Driftwood & Natural
+Materials, Planters & Pots, Tea, Tea Accessories, Handmade Soap, Botanical
+Lotion, Apothecary, Gifts, Seasonal, Other. Categories are rows in the database,
+managed at `/admin/content#categories`, so the taxonomy grows with the bench
+rather than with a deploy.
+
+A **collection** says why you might _want_ it — Beginner Friendly, Low Light,
+Pet Friendly, Tammy's Favorites, Gifts Under $30 — and a product joins as many
+as apply, on top of the one category it belongs to. Collections are curated by
+hand and can hold anything in the shop.
+
+Together they give the storefront two levels. The site header navigates three
+broad groups (Plants, Teas & Herbals, Botanicals), the shop narrows each of them
+to a category with a chip, and the collections page cuts across all of them.
+
+Each category carries two settings with consequences beyond its own name:
+
+- **Which details its products are asked for** — the field set on the product
+  form, described below.
+- **Counts as** — which of the six original `ProductType` values its products
+  are recorded as. Live plants and teas are final sale under the published
+  returns policy and everything else is returnable unopened, and that policy is
+  what search results are told; the setting is also what keeps a
+  `?category=BOTANICAL` link somebody bookmarked years ago pointing at the right
+  shelf. A product's type is written from its category on every save, so the two
+  cannot drift apart.
+
+Existing products were never left uncategorised: the deploy seed creates the
+categories once and files every product without one, matching on its name before
+falling back to its type. It never rewrites a category that already exists or a
+product that already has one, so a rename stays renamed and a re-shelving stays
+re-shelved.
+
+Deleting a category that still holds products is refused, because the products
+would survive and silently fall out of every filter that leads to them. Hiding
+one is the reversible answer, and it is what the button offers instead.
+
+## Structured product details
+
+A plant, a tea and a bag of terrarium gravel do not describe themselves the same
+way. Each category chooses a **detail kind**, and the product form asks only that
+kind's questions:
+
+| Detail kind           | What a product is asked for                                                                                                                                                             |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Plant                 | Botanical name, mature size, growth habit, pot size, nursery pot or decorative planter, approximate height and width, light, water, humidity, difficulty, pet safety, indoor or outdoor |
+| Carnivorous plant     | Everything a plant is asked, plus species, dormancy, water type, growing medium and feeding                                                                                             |
+| Tea                   | Net weight, ingredients, allergen information, caffeine, serving size, approximate servings, brewing temperature, steep time, storage                                                   |
+| Soap                  | Net weight, scent, complete ingredient list, skin and use, storage                                                                                                                      |
+| Lotion & apothecary   | Net volume, scent, ingredients, directions, warnings, storage                                                                                                                           |
+| Supplies & hard goods | Dimensions, quantity or package size, material, appropriate uses                                                                                                                        |
+| General               | The same as supplies, for gifts, seasonal pieces and anything else                                                                                                                      |
+
+Every kind is also asked for **shipping restrictions**. Whether a piece ships at
+all and whether local pickup is offered are the product's own two checkboxes, so
+there is only ever one answer to them, and the product page prints both in the
+same table.
+
+Everything is optional, always. A field left empty is not rendered, so a listing
+says what Tammy knows and stays quiet about the rest rather than printing a table
+of blanks. The form shows how much of a listing is filled in — "9 of 14 plant
+details filled in" — as a nudge rather than a gate.
+
+Picking a different category swaps the questions on the spot. The fields for
+every kind are in the page and all but one are disabled, which is what makes
+"only the chosen category's fields are saved" true rather than merely apparent:
+several kinds ask for the same field name, and a hidden-but-enabled input would
+be submitted and could overwrite the one on screen. With scripting off, the
+fields for the category the product is already in are the ones shown.
+
+Re-shelving a product does not lose what was written for it. Values are stored
+by field name and laid over what was already there, so moving a lotion to
+Apothecary and back keeps its ingredient list, and a category chosen by mistake
+is undone by choosing the right one.
+
+The details are stored as JSON in `Product.specs` and read through
+`lib/product-specs.ts`, which is the single definition of the fields: the admin
+form renders from it, the save reads from it, and the public specification table
+renders from it again.
+
 ## Products sold in more than one size
 
-A product that comes in several sizes — a plant in a 4", 6" or 8" pot, a lotion
-in a 2 oz or an 8 oz jar — gets a **Sizes to choose from** box on its dashboard
-form. Type one size per line as `name | price | quantity on hand`:
+A product that comes in several forms — a pothos in a 4" nursery pot, a 6"
+nursery pot, a 6" decorative planter or an 8" one; a lotion in a 2 oz or an 8 oz
+jar — gets a **Sizes and variants** editor on its product page in the dashboard.
+Each variant is a row, and each row can carry:
 
-```
-4" pot | | 9
-6" pot | 24.00 | 4
-8" pot | 32.00 | 0
-```
+| Field            | Left blank means                                               |
+| ---------------- | -------------------------------------------------------------- |
+| Variant name     | (required — a row with no name is an empty row and is ignored) |
+| Price            | The product's own price                                        |
+| Quantity on hand | This product is not counted per variant                        |
+| SKU              | The product's own SKU                                          |
+| Shipping weight  | The product's own weight                                       |
+| Dimensions       | The product's own dimensions                                   |
+| Photo URL        | The product's own photograph                                   |
+| How it gets home | The product's own Ships and Local pickup checkboxes            |
 
-Both numbers are optional, and each one left out means something specific:
+That "left blank means the product's" rule is the whole design. A variant that
+merely repeats one of the product's answers is stored as _following_ it rather
+than pinned to today's value, so raising the product's price moves every variant
+with it and replacing its photograph replaces theirs — and anything a variant
+genuinely needs of its own it can have.
 
-- **No price** — the size is sold at the product's own price, so raising that
-  price moves those sizes with it. A price typed in that merely repeats the
-  product's own is stored as "the base price" rather than pinned to today's
-  figure, so it keeps following along.
-- **No quantity anywhere in the box** — the sizes share the one **Quantity on
-  hand** above, the way two jar sizes filled off one pile do. `6" pot | 24.00`
-  on its own is still a complete line, so a size list written before quantities
-  existed keeps working untouched.
-- **A quantity on any line** — the product is counted per size from then on, and
-  a size left blank has none left rather than borrowing another size's. The
-  Quantity on hand box becomes the sum of the sizes and stops being something to
-  type: change a size's number to change it.
+Two of those fields have consequences worth spelling out:
 
-**What the size dropdown is called** renames the field on the storefront — "Pot
-size", "Jar size" — and defaults to "Size". Leave the box empty for anything sold
-one way, and the storefront behaves exactly as it did before.
+- **No quantity anywhere in the editor** — the variants share the one **Quantity
+  on hand** above, the way two jar sizes filled off one pile do.
+- **A quantity on any row** — the product is counted per variant from then on,
+  and a row left blank has none left rather than borrowing another's. The
+  Quantity on hand box becomes the sum of the variants and stops being something
+  to type: change a variant's number to change it.
+
+**What the dropdown is called** renames the field on the storefront — "Pot
+size", "Jar size" — and defaults to "Size". Leave every row blank for anything
+sold one way, and the storefront behaves exactly as it did before.
 
 What the shop then does:
 
 - The product page shows the price span (`$18.00 – $32.00`) and a dropdown with
-  each size and its price. Nothing is preselected and Add to cart stays disabled
-  until the customer chooses, so a wrong size cannot be added by accident.
-- A shop card cannot take that choice, so on a sized product its button reads
+  each variant and its price. Nothing is preselected and Add to cart stays
+  disabled until the customer chooses, so a wrong one cannot be added by
+  accident. Choosing shows that variant's dimensions and, when the variants
+  disagree about it, how that one gets home.
+- A shop card cannot take that choice, so on such a product its button reads
   **Choose pot size** and leads to the product page. A cart-drawer suggestion
   does the same, in the shorter words its narrow strip has room for.
-- Each size is its own basket line, so one order can hold a 4" and a 6" pot of
-  the same plant. The size travels with the line into Stripe Checkout, the
+- Each variant is its own basket line, so one order can hold a 4" and a 6" pot of
+  the same plant. The name travels with the line into Stripe Checkout, the
   emailed receipt, the confirmation email, the packing slip, the order CSV and
-  the order-status lookup — everywhere the shop has to know which one to pack.
-- **A counted size is its own shelf.** The dropdown marks a sold-out size and
-  will not let it be chosen, the quantity stepper stops at what that size has,
-  and checkout, a restored saved cart, a released hold and a refund all spend and
-  return stock against the size that was ordered. A basket taking the last 4" pot
-  and the last 6" pot is two lines and both are honoured; asking for two of a
-  size with one left is corrected with a note naming that size.
-- **Uncounted sizes share one shelf**, the way they always did: three jars is
-  three jars however they are split between sizes, and checkout says so if a
-  basket asks for more. Anything that needs its own SKU or photograph is still a
-  separate product.
+  the order-status lookup — everywhere the shop has to know which one to pack,
+  and the variant's own photograph is the one Stripe shows.
+- **A variant may get home differently from its product.** A 30" specimen that
+  cannot post safely can be pickup only while the 4" pots ship, and it is the
+  variant's answer that decides what the cart can do: the basket line carries it,
+  and checkout refuses a cart that mixes a pickup-only variant with a
+  ships-only one exactly as it refuses the equivalent mix of products.
+- **A counted variant is its own shelf.** The dropdown marks a sold-out one and
+  will not let it be chosen, the quantity stepper stops at what it has, and
+  checkout, a restored saved cart, a released hold and a refund all spend and
+  return stock against the variant that was ordered. A basket taking the last 4"
+  pot and the last 6" pot is two lines and both are honoured; asking for two of a
+  variant with one left is corrected with a note naming it.
+- **Uncounted variants share one shelf**, the way they always did: three jars is
+  three jars however they are split.
 - The dashboard's product list prints the split beside the total — `9 in stock
 (4" pot 9 · 6" pot 0)` — and the **Low stock** chip counts a product whose
-  _any_ counted size is down to three or fewer, so a plant that is full of 4"
+  _any_ counted variant is down to three or fewer, so a plant that is full of 4"
   pots and out of 6" ones is on the list Tammy works from.
 - **`Product.inventory` stays the product's total** either way — the sum of the
-  sizes when they are counted, and rewritten from them after every sale, hold,
+  variants when they are counted, and rewritten from them after every sale, hold,
   release and refund. So the shop card, the low-stock filter, the gallery, the
   care pages and the back-in-stock alerts all go on reading the one column, and a
-  product whose sizes are all empty reads as sold out everywhere.
-- A **compare-at price stands down** on a product whose sizes are priced
+  product whose variants are all empty reads as sold out everywhere.
+- **Structured data names each variant.** A product sold in several is published
+  as an `AggregateOffer` whose members carry the variant's own name, price, SKU
+  and availability, which is what lets a shopping result match one variant to one
+  listing rather than quoting a span with nothing behind it.
+- A **compare-at price stands down** on a product whose variants are priced
   differently. "Was $24, save 25%" is a claim about _the_ price, and such a
-  product does not have one — the range says what each size costs instead.
-- A size the owner later removes cannot be ordered. A basket or a saved cart
-  still holding it is corrected at checkout with a note asking for the size to be
-  chosen again, rather than being quietly filled with a different one. Stock
-  refunded onto a size that has since been removed is dropped rather than added
-  to the product's total, because a total larger than the sizes add up to would
-  advertise stock no option on the page can sell.
+  product does not have one — the range says what each one costs instead.
+- A variant the owner later removes cannot be ordered. A basket or a saved cart
+  still holding it is corrected at checkout with a note asking for the choice to
+  be made again, rather than being quietly filled with a different one. Stock
+  refunded onto a variant that has since been removed is dropped rather than
+  added to the product's total, because a total larger than the variants add up
+  to would advertise stock no option on the page can sell.
+
+The variants are stored as JSON in `Product.sizes`. The column keeps its original
+name because live rows, saved carts and in-flight Stripe sessions hold data under
+it; only the shape has grown, and every older row — including one written as a
+bare list of names — still validates against it untouched.
 
 ## Inventory, completeness and photography
 
@@ -477,7 +595,8 @@ The page reads what the site itself collected and sent. It is not a mailbox clie
 
 Before accepting live orders or class registrations:
 
-- Replace starter product descriptions, photos, ingredient lists, net contents and allergy information with Tammy’s real product data.
+- Replace starter product descriptions, photos, ingredient lists, net contents and allergy information with Tammy’s real product data. The seeded products deliberately leave every ingredient list, allergen statement and net weight empty — those are claims about what is in a jar she made, and a fresh install must not publish an invented one.
+- Check that every product is in the right category. The deploy seed files the existing catalog by matching product names, which is a guess and is meant to be; move anything it put in the wrong place from `/admin/products/<id>`.
 - Review the starter shipping/returns, privacy and terms pages with the business’s final policies and professional advisers as appropriate.
 - Enter a real business return address.
 - Test one Stripe product order, one paid class registration, one free class registration, a refund event and a shipping update in test mode.
@@ -504,7 +623,7 @@ audits run against a server you have started yourself:
 npm install --no-save --package-lock=false playwright@1.55.0 axe-core
 npm run audit:a11y                       # axe-core over the public routes
 npm run audit:weight / /shop /care       # transferred bytes on an iPhone viewport
-node scripts/responsive-audit.mjs        # 9 viewports x 19 routes
+node scripts/responsive-audit.mjs        # 9 viewports x 21 routes
 ```
 
 The browser tooling is installed on demand rather than kept in `package.json`,

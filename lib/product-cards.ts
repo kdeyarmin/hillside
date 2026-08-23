@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { cache } from 'react';
 import { db } from '@/lib/db';
 import { REVENUE_STATUSES } from '@/lib/orders';
+import { withCategory } from '@/lib/product-categories';
 import { ratingsByProduct } from '@/lib/reviews';
 
 /**
@@ -29,9 +30,10 @@ export const PRODUCT_CARD_SELECT = {
   sizeLabel: true,
   ships: true,
   pickup: true,
-  petSafe: true,
-  beginnerFriendly: true,
-  createdAt: true
+  createdAt: true,
+  // Two strings, not the joined row: a card renders one pill from it and the
+  // whole catalog is serialized into the browser twice over.
+  category: { select: { slug: true, title: true } }
 } satisfies Prisma.ProductSelect;
 
 /** How long a product wears the "New" badge. */
@@ -82,6 +84,8 @@ export type CardFacts = {
   reviewCount: number;
   bestSeller: boolean;
   isNew: boolean;
+  categorySlug: string | null;
+  categoryTitle: string | null;
 };
 
 /**
@@ -98,16 +102,22 @@ function isNewProduct(createdAt: Date | string | null | undefined, now: number) 
 }
 
 /**
- * Adds the two things a card knows that its own row does not: how it has been
- * reviewed, and whether it is one of the shop's best sellers.
+ * Adds the things a card knows that its own row does not: how it has been
+ * reviewed, whether it is one of the shop's best sellers, and its category
+ * flattened to the two strings the pill renders.
  *
  * Every page that renders a grid was repeating the ratings half of this inline,
  * four lines at a time, which is why the badge could not simply be added to the
- * card component and be done with.
+ * card component and be done with. The category flattening joined it here for
+ * the same reason: it was the same block, copied to the same eight callers.
  */
-export async function withCardFacts<T extends { id: string; createdAt?: Date | string | null }>(
-  products: T[]
-): Promise<Array<T & CardFacts>> {
+export async function withCardFacts<
+  T extends {
+    id: string;
+    createdAt?: Date | string | null;
+    category?: { slug: string; title: string } | null;
+  }
+>(products: T[]): Promise<Array<Omit<T, 'category'> & CardFacts>> {
   if (!products.length) return [];
   const [ratings, bestSellers] = await Promise.all([
     ratingsByProduct(products.map((product) => product.id)),
@@ -116,7 +126,7 @@ export async function withCardFacts<T extends { id: string; createdAt?: Date | s
   const now = Date.now();
 
   return products.map((product) => ({
-    ...product,
+    ...withCategory(product),
     averageRating: ratings.get(product.id)?.average ?? null,
     reviewCount: ratings.get(product.id)?.count ?? 0,
     bestSeller: bestSellers.has(product.id),

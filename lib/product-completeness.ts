@@ -22,7 +22,9 @@
  */
 
 import { inventoryStatusValue, type InventoryStatusValue } from './inventory.ts';
+import { specKindFor } from './product-categories.ts';
 import { photoStatus } from './product-photos.ts';
+import { readProductSpecs, specValue } from './product-specs.ts';
 
 export type CompletenessProduct = {
   name?: string | null;
@@ -38,14 +40,14 @@ export type CompletenessProduct = {
   ships?: boolean | null;
   pickup?: boolean | null;
   active?: boolean | null;
-  netWeight?: string | null;
-  ingredients?: string | null;
-  brewingInstructions?: string | null;
-  caffeineStatus?: string | null;
-  potSize?: string | null;
-  lightNeeds?: string | null;
-  waterNeeds?: string | null;
-  petSafe?: boolean | null;
+  /**
+   * The structured facts, read through the same registry the form writes and the
+   * product page renders. Checking a separate set of columns here is how the
+   * checklist and the form drift into disagreeing about whether a tea has its
+   * ingredients on it.
+   */
+  specs?: unknown;
+  category?: { specKind?: string | null } | null;
 };
 
 export type CompletenessCheck = {
@@ -79,17 +81,28 @@ export type Completeness = {
 };
 
 /**
- * Product types sold as consumables or as things people put on their skin.
+ * Kinds of product sold as consumables or as things people put on their skin.
  *
  * These are the ones where the missing information is not a marketing gap but a
  * disclosure a buyer needs before deciding: what is in it, and how much of it is
  * there. Plants and tea infusers are not in this set — an unfinished plant
  * listing is merely unfinished.
+ *
+ * Keyed on the spec kind rather than the legacy `ProductType`, so a category the
+ * owner adds later is regulated because of the questions it asks, not because of
+ * which of six broad types it happens to count as.
  */
-export const REGULATED_TYPES = ['TEA', 'LOTION', 'SOAP'];
+export const REGULATED_SPEC_KINDS = ['TEA', 'LOTION', 'SOAP'];
 
-export function isRegulatedType(type: string | null | undefined) {
-  return REGULATED_TYPES.includes(String(type || '').toUpperCase());
+export function isRegulatedProduct(product: CompletenessProduct) {
+  return REGULATED_SPEC_KINDS.includes(resolveSpecKind(product));
+}
+
+function resolveSpecKind(product: CompletenessProduct) {
+  return specKindFor({
+    type: String(product.type || 'OTHER'),
+    category: product.category?.specKind ? { specKind: product.category.specKind as never } : null
+  });
 }
 
 const filled = (value: string | null | undefined) => Boolean(value?.trim());
@@ -112,7 +125,9 @@ function check(
 }
 
 function checksFor(product: CompletenessProduct): CompletenessCheck[] {
-  const type = String(product.type || '').toUpperCase();
+  const kind = resolveSpecKind(product);
+  const specs = readProductSpecs(product.specs);
+  const spec = (key: string) => specValue(specs, key);
   const status = inventoryStatusValue(product.inventoryStatus);
 
   const common = [
@@ -159,51 +174,55 @@ function checksFor(product: CompletenessProduct): CompletenessCheck[] {
     )
   ];
 
-  if (type === 'PLANT') {
+  if (kind === 'PLANT' || kind === 'CARNIVOROUS_PLANT') {
     return [
       ...common,
-      check('potSize', 'Pot size', filled(product.potSize), 'Pot size', { required: true }),
-      check('light', 'Light', filled(product.lightNeeds), 'Light', { required: true }),
-      check('water', 'Water', filled(product.waterNeeds), 'Water', { required: true }),
+      check('potSize', 'Pot size', filled(spec('potSize')), 'Pot size', { required: true }),
+      check('light', 'Light', filled(spec('light')), 'Light', { required: true }),
+      check('water', 'Water', filled(spec('water')), 'Water', { required: true }),
       check(
         'petSafety',
         'Pet safety',
-        product.petSafe === true || product.petSafe === false,
+        filled(spec('petSafety')),
         'Pet safety — answer it either way; "unanswered" is what customers ask about',
         { required: true }
       )
     ];
   }
 
-  if (type === 'TEA') {
+  if (kind === 'TEA') {
     return [
       ...common,
-      check('netWeight', 'Net weight', filled(product.netWeight), 'Net weight or contents', {
+      check('netWeight', 'Net weight', filled(spec('netWeight')), 'Net weight or contents', {
         blocking: true
       }),
-      check('ingredients', 'Ingredients', filled(product.ingredients), 'Ingredients', {
+      check('ingredients', 'Ingredients', filled(spec('ingredients')), 'Ingredients', {
         blocking: true
       }),
-      check(
-        'brewing',
-        'Brewing instructions',
-        filled(product.brewingInstructions),
-        'Brewing instructions',
-        { required: true }
-      ),
-      check('caffeine', 'Caffeine status', filled(product.caffeineStatus), 'Caffeine status', {
+      check('brewing', 'Brewing instructions', filled(spec('steepTime')), 'Steep time', {
+        required: true
+      }),
+      check('caffeine', 'Caffeine status', filled(spec('caffeine')), 'Caffeine', {
         required: true
       })
     ];
   }
 
-  if (type === 'LOTION' || type === 'SOAP') {
+  // A bar is weighed and a jar is measured, so the net-contents field each one
+  // is asked for differs — but the disclosure is the same one, and so is the
+  // refusal to publish without it.
+  if (kind === 'SOAP' || kind === 'LOTION') {
+    const netKey = kind === 'LOTION' ? 'netVolume' : 'netWeight';
     return [
       ...common,
-      check('netWeight', 'Net weight', filled(product.netWeight), 'Net weight or contents', {
-        blocking: true
-      }),
-      check('ingredients', 'Ingredients', filled(product.ingredients), 'Ingredients', {
+      check(
+        'netWeight',
+        kind === 'LOTION' ? 'Net volume' : 'Net weight',
+        filled(spec(netKey)),
+        'Net weight or contents',
+        { blocking: true }
+      ),
+      check('ingredients', 'Ingredients', filled(spec('ingredients')), 'Ingredients', {
         blocking: true
       })
     ];
@@ -214,8 +233,8 @@ function checksFor(product: CompletenessProduct): CompletenessCheck[] {
     check(
       'details',
       'Details or contents',
-      filled(product.details) || filled(product.ingredients),
-      'Product details, ingredients or contents'
+      filled(product.details) || filled(spec('uses')) || filled(spec('material')),
+      'Product details, materials or what it is for'
     )
   ];
 }
@@ -259,7 +278,7 @@ export function publishedIncomplete(completeness: Completeness) {
  * on, or null when nothing stands in the way.
  */
 export function publishBlockReason(product: CompletenessProduct) {
-  if (!isRegulatedType(product.type)) return null;
+  if (!isRegulatedProduct(product)) return null;
   const { blockers } = productCompleteness(product);
   if (!blockers.length) return null;
   const names = blockers.map((entry) => entry.label.toLowerCase());

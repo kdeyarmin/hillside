@@ -20,13 +20,20 @@ const complete = {
   active: true
 };
 
+/**
+ * The kind-specific facts live in `specs`, read through the same registry the
+ * admin form writes and the product page renders — so a checklist that passes
+ * here is a checklist about the fields Tammy actually filled in.
+ */
 const plant = {
   ...complete,
   type: 'PLANT',
-  potSize: '6" nursery pot',
-  lightNeeds: 'Bright indirect',
-  waterNeeds: 'When the top inch is dry',
-  petSafe: false
+  specs: {
+    potSize: '6" nursery pot',
+    light: 'Bright indirect',
+    water: 'When the top inch is dry',
+    petSafety: 'Keep away from cats and dogs'
+  }
 };
 
 const tea = {
@@ -34,10 +41,19 @@ const tea = {
   type: 'TEA',
   name: 'Garden Mint',
   sku: 'TEA-04',
-  netWeight: '2 oz (56 g)',
-  ingredients: 'Peppermint, spearmint, lemon balm.',
-  brewingInstructions: '1 tsp per cup, 4 minutes.',
-  caffeineStatus: 'CAFFEINE_FREE'
+  specs: {
+    netWeight: '2 oz (56 g)',
+    ingredients: 'Peppermint, spearmint, lemon balm.',
+    steepTime: '4 minutes',
+    caffeine: 'Caffeine free'
+  }
+};
+
+/** The same product with one spec field cleared. */
+const without = <T extends { specs: Record<string, string> }>(product: T, ...keys: string[]) => {
+  const specs = { ...product.specs };
+  for (const key of keys) delete specs[key];
+  return { ...product, specs };
 };
 
 describe('productCompleteness', () => {
@@ -53,7 +69,7 @@ describe('productCompleteness', () => {
 
   it('scores what is filled in over what this kind of product needs', () => {
     assert.equal(productCompleteness(plant).score, 100);
-    const missingLight = productCompleteness({ ...plant, lightNeeds: null });
+    const missingLight = productCompleteness(without(plant, 'light'));
     assert.equal(missingLight.score, 92);
     assert.deepEqual(
       missingLight.missing.map((check) => check.key),
@@ -62,10 +78,10 @@ describe('productCompleteness', () => {
   });
 
   it('treats an unanswered pet-safety question as unanswered', () => {
-    // `false` is an answer — "keep it away from the cat" — and must not read as
-    // a blank the way a missing string would.
-    assert.equal(productCompleteness({ ...plant, petSafe: false }).score, 100);
-    assert.equal(productCompleteness({ ...plant, petSafe: null }).score, 92);
+    // "Keep away from cats and dogs" is an answer as much as "safe around
+    // them" is; only a blank counts as unanswered.
+    assert.equal(productCompleteness(plant).score, 100);
+    assert.equal(productCompleteness(without(plant, 'petSafety')).score, 92);
   });
 
   it('accepts an empty shelf when the status explains it', () => {
@@ -77,7 +93,10 @@ describe('productCompleteness', () => {
   });
 
   it('calls generic category artwork what it is', () => {
-    const generic = productCompleteness({ ...plant, imageUrl: '/images/catalog/house-plants.webp' });
+    const generic = productCompleteness({
+      ...plant,
+      imageUrl: '/images/catalog/house-plants.webp'
+    });
     assert.deepEqual(
       generic.missing.map((check) => check.key),
       ['mainPhoto']
@@ -106,17 +125,20 @@ describe('publish states', () => {
 
 describe('publishBlockReason', () => {
   it('does not stand in the way of an unfinished plant', () => {
-    assert.equal(publishBlockReason({ ...plant, potSize: null, sku: null, imageUrl: null }), null);
+    assert.equal(
+      publishBlockReason({ ...without(plant, 'potSize'), sku: null, imageUrl: null }),
+      null
+    );
   });
 
   it('refuses a consumable with no contents or ingredients on it', () => {
     assert.equal(publishBlockReason(tea), null);
     assert.match(
-      publishBlockReason({ ...tea, ingredients: null }) || '',
+      publishBlockReason(without(tea, 'ingredients')) || '',
       /Add the ingredients before listing this for sale/
     );
     assert.match(
-      publishBlockReason({ ...tea, netWeight: null, ingredients: null }) || '',
+      publishBlockReason(without(tea, 'netWeight', 'ingredients')) || '',
       /Add the net weight and ingredients before listing this for sale/
     );
   });

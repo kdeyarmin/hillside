@@ -24,7 +24,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '/terms'
   ];
 
-  const [products, careGuides, collections] = await Promise.all([
+  const [products, careGuides, collections, categories] = await Promise.all([
     db.product.findMany({
       where: { active: true },
       select: { slug: true, updatedAt: true }
@@ -34,6 +34,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select: { slug: true, updatedAt: true, featured: true }
     }),
     db.collection.findMany({
+      where: { active: true, products: { some: { active: true } } },
+      select: { slug: true, updatedAt: true }
+    }),
+    /**
+     * A category is a filtered view of /shop rather than a route of its own, but
+     * it is a view with its own title, its own description and its own stock —
+     * which is what a crawler needs before it is worth listing. Only the ones
+     * that hold something are, for the same reason a homepage tile is.
+     */
+    db.category.findMany({
       where: { active: true, products: { some: { active: true } } },
       select: { slug: true, updatedAt: true }
     })
@@ -54,8 +64,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const guidesModified = newest(careGuides.map((guide) => guide.updatedAt));
   const collectionsModified = newest(collections.map((collection) => collection.updatedAt));
   const anyModified = newest(
-    [productsModified, guidesModified, collectionsModified].filter(
-      (date): date is Date => Boolean(date)
+    [productsModified, guidesModified, collectionsModified].filter((date): date is Date =>
+      Boolean(date)
     )
   );
 
@@ -96,5 +106,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.85
   }));
 
-  return [...staticPages, ...collectionPages, ...productPages, ...guidePages];
+  const categoryPages: MetadataRoute.Sitemap = categories.map((category) => ({
+    url: absoluteUrl(`/shop?category=${category.slug}`),
+    lastModified: productsModified,
+    changeFrequency: 'weekly',
+    priority: 0.85
+  }));
+
+  return [...staticPages, ...categoryPages, ...collectionPages, ...productPages, ...guidePages];
 }

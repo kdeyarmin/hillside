@@ -3,7 +3,7 @@ import Link from 'next/link';
 import ShopClient from '@/components/ShopClient';
 import { db } from '@/lib/db';
 import { PRODUCT_CARD_SELECT, withCardFacts } from '@/lib/product-cards';
-import { categoryLabel } from '@/lib/store';
+import { categoryLabel, isLegacyCategoryFilter } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
@@ -29,23 +29,37 @@ export async function generateMetadata({
   // A filtered view is the shop with a narrower selection, not a page of its own,
   // so it keeps the shop's canonical while carrying its own title and card.
   if (category && category.toUpperCase() !== 'ALL') {
+    /**
+     * The category's own row supplies the title and the sentence under it, so a
+     * shared `/shop?category=carnivorous-plants` link previews as what Tammy
+     * called the shelf rather than as a slug. A legacy `?category=BOTANICAL`
+     * link has no row, and `categoryLabel` is what answers for it.
+     */
+    const row = isLegacyCategoryFilter(category)
+      ? null
+      : await db.category.findUnique({
+          where: { slug: category },
+          select: { title: true, description: true, tagline: true }
+        });
+    const title = row?.title || categoryLabel(category);
     return pageMetadata({
       path: '/shop',
-      title: `${categoryLabel(category)} — Shop`,
-      description: `Shop ${categoryLabel(category).toLowerCase()} from The Hillside Gardens.`
+      title: `${title} — Shop`,
+      description:
+        row?.description || row?.tagline || `Shop ${title.toLowerCase()} from The Hillside Gardens.`
     });
   }
   return pageMetadata({
     path: '/shop',
-    title: 'Shop Plants, Teas & Botanicals',
+    title: 'Shop Plants, Botanical Goods & Creative Planting',
     description:
-      'Shop potted plants, loose-leaf tea, tea supplies, handmade soap and botanical lotion from The Hillside Gardens.'
+      'Shop houseplants, carnivorous plants, succulents, air plants, living arrangements, terrarium supplies, moss, driftwood, handmade soap, botanical lotion and tea from The Hillside Gardens.'
   });
 }
 
 export default async function Shop({ searchParams }: { searchParams: Promise<ShopParams> }) {
   const params = await searchParams;
-  const [products, collections] = await Promise.all([
+  const [products, collections, categories] = await Promise.all([
     /**
      * Only the fields a card renders, and a ceiling on the row count.
      *
@@ -71,6 +85,19 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
       select: { slug: true, title: true },
       take: 8
+    }),
+    /**
+     * The categories offered as chips, in the owner's order. `featured` is what
+     * the category form calls "offer as a shop-by tile and a filter chip", so
+     * the shop has to honour it too — reading `active` alone meant unticking it
+     * took the homepage tile away and left the chip behind, which is not what
+     * the checkbox says it does. The chips are narrowed further to the ones that
+     * hold something in the browser, where the catalog being filtered already is.
+     */
+    db.category.findMany({
+      where: { active: true, featured: true },
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      select: { slug: true, title: true }
     })
   ]);
 
@@ -82,7 +109,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
     <>
       <section className="pagehero">
         <div className="container">
-          <div className="eyebrow">Plants • Teas • Botanicals</div>
+          <div className="eyebrow">Plants • Botanical goods • Creative planting</div>
           {catalogEmpty ? (
             <>
               <h1>The bench is between batches.</h1>
@@ -94,7 +121,11 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
           ) : (
             <>
               <h1>Shop The Hillside.</h1>
-              <p>Hand-selected plants and small-batch goods from our garden-inspired collection.</p>
+              <p>
+                Houseplants, carnivorous plants, succulents and air plants; living arrangements and
+                terrarium supplies; moss, driftwood, handmade soap, botanical lotion and tea.
+                Shipped across the US, or collected here in Ebensburg.
+              </p>
             </>
           )}
           {collections.length > 0 && (
@@ -115,6 +146,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
           <ShopClient
             key={`${params.category || 'ALL'}|${params.q || ''}|${params.sort || 'featured'}|${params.sale === 'true'}`}
             products={withRatings}
+            categories={categories}
             initialCategory={params.category || 'ALL'}
             initialSearch={params.q || ''}
             initialSort={params.sort || 'featured'}

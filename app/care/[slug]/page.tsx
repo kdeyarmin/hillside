@@ -101,7 +101,12 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { plantName: 'asc' }],
       take: 3
     }),
-    sheet.productId ? db.product.findFirst({ where: { id: sheet.productId, active: true } }) : null,
+    sheet.productId
+      ? db.product.findFirst({
+          where: { id: sheet.productId, active: true },
+          include: { category: { select: { slug: true, title: true } } }
+        })
+      : null,
     CLASSES_PUBLICLY_VISIBLE
       ? db.classEvent.findFirst({
           where: { active: true, startsAt: { gte: new Date() } },
@@ -121,7 +126,8 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     : await db.product.findMany({
         where: { active: true, inventory: { gt: 0 }, type: 'PLANT' },
         orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
-        take: 3
+        take: 3,
+        include: { category: { select: { slug: true, title: true } } }
       });
   const shopProducts = await withCardFacts(linkedProduct ? [linkedProduct] : suggestedProducts);
 

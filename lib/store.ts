@@ -60,10 +60,19 @@ export function formatMoneyCompact(cents: number) {
 }
 
 /**
- * Navigation categories are merchandising groups, not database enums. A shopper
- * looking for "Botanicals" expects soaps, lotions and anything else handmade —
- * mapping each nav link to a single ProductType hid part of the catalog from the
- * only navigation that pointed at it.
+ * The three broad groups the site header navigates by. The shop's own chips
+ * narrow each of them to a category — Plants down to Carnivorous Plants,
+ * Botanicals down to Handmade Soap — so the two levels live in the two places
+ * that suit them: a header cannot hold eighteen categories, and a shopper who
+ * wants "something green" should not have to pick which kind of green first.
+ *
+ * A shopper looking for "Botanicals" expects soaps, lotions and anything else
+ * handmade, which is why each group covers several `ProductType` values rather
+ * than one: mapping a nav link to a single type hid part of the catalog from
+ * the only navigation that pointed at it.
+ *
+ * Keeping them is also what makes a `?category=BOTANICAL` already in somebody's
+ * bookmarks go on working now that new links use a category slug.
  */
 export const CATEGORY_GROUPS: Record<string, { label: string; types: string[] }> = {
   PLANT: { label: 'Plants', types: ['PLANT'] },
@@ -71,21 +80,65 @@ export const CATEGORY_GROUPS: Record<string, { label: string; types: string[] }>
   BOTANICAL: { label: 'Botanicals', types: ['SOAP', 'LOTION', 'OTHER'] }
 };
 
-/** Accepts a group key, a bare ProductType, or a comma separated list of either. */
+const PRODUCT_TYPES = ['PLANT', 'TEA', 'TEA_SUPPLY', 'LOTION', 'SOAP', 'OTHER'];
+
+/**
+ * Accepts a legacy group key, a bare `ProductType`, or a comma separated list of
+ * either, and answers with the types it covers. A value that is neither — a
+ * category slug, which is what the shop filters by now — answers with nothing,
+ * and that empty answer is exactly how the shop tells the two apart.
+ *
+ * **Case is the discriminator, and it has to be.** This used to uppercase the
+ * value first, which was harmless while `?category=` only ever held one of these
+ * keys and is not harmless now: `tea` and `other` are both seeded category
+ * slugs, so `/shop?category=tea` — the link the homepage chip, the shop-by tile
+ * and the sitemap all emit — came back as the legacy TEA group and showed tea
+ * accessories alongside the tea. The shop's chip row built two chips on the key
+ * `tea` and marked both of them current.
+ *
+ * Every legacy link in the wild is uppercase, because the only thing that ever
+ * wrote one was the shop's own filter state, and every slug is lowercase,
+ * because `slugify` cannot produce anything else. So a value is legacy only if
+ * it already reads as one.
+ */
 export function categoryTypes(value?: string | null): string[] {
-  const raw = (value || '').trim().toUpperCase();
-  if (!raw || raw === 'ALL') return [];
+  const raw = (value || '').trim();
+  if (!raw || raw.toUpperCase() === 'ALL') return [];
   return raw.split(',').flatMap((entry) => {
     const key = entry.trim();
-    if (!key) return [];
-    return CATEGORY_GROUPS[key]?.types || [key];
+    // A lowercase value is a slug, whatever it happens to spell.
+    if (!key || key !== key.toUpperCase()) return [];
+    const group = CATEGORY_GROUPS[key];
+    if (group) return group.types;
+    return PRODUCT_TYPES.includes(key) ? [key] : [];
   });
 }
 
+/** Whether a `?category=` value is one of the pre-taxonomy links. */
+export function isLegacyCategoryFilter(value?: string | null) {
+  return categoryTypes(value).length > 0;
+}
+
+/**
+ * What a `?category=` value is called, for a legacy link. A category slug has a
+ * real title on its row, so the shop reads that instead and only falls back
+ * here when the row has gone.
+ */
 export function categoryLabel(value?: string | null) {
-  const key = (value || '').trim().toUpperCase();
+  const slug = (value || '').trim();
+  // Uppercase-only, for the same reason `categoryTypes` is: `tea` is a category
+  // slug and naming it "Teas & Herbals" would label the chip for a shelf it is
+  // not filtering to.
+  const key = slug === slug.toUpperCase() ? slug : '';
   if (CATEGORY_GROUPS[key]) return CATEGORY_GROUPS[key].label;
-  return key ? productTypeLabel(key) : 'Everything';
+  if (PRODUCT_TYPES.includes(key)) return productTypeLabel(key);
+  if (!slug || slug.toUpperCase() === 'ALL') return 'Everything';
+  // A slug whose row is gone still has to read as words rather than as a slug.
+  return slug
+    .split('-')
+    .filter(Boolean)
+    .map((word, index) => (index === 0 ? word.charAt(0).toUpperCase() + word.slice(1) : word))
+    .join(' ');
 }
 
 export function discountPercent(priceCents: number, compareAtCents?: number | null) {
@@ -245,35 +298,6 @@ export function productTypeLabel(type: string) {
     OTHER: 'Botanical good'
   };
   return labels[type] || type.replaceAll('_', ' ').toLowerCase();
-}
-
-/**
- * What a tea does to you at ten at night, spelled out for the product page.
- * "Naturally caffeine free" rather than "caffeine free" because that is the
- * honest claim for a herbal blend that never had any, as opposed to one it has
- * had taken out.
- */
-export const CAFFEINE_LABELS: Record<string, string> = {
-  CAFFEINATED: 'Caffeinated',
-  DECAFFEINATED: 'Decaffeinated',
-  CAFFEINE_FREE: 'Naturally caffeine free'
-};
-
-export function caffeineLabel(value?: string | null) {
-  return CAFFEINE_LABELS[String(value || '').toUpperCase()] || null;
-}
-
-/**
- * Pet safety as a sentence rather than a tick.
- *
- * `null` returns null on purpose: an unanswered question is not a "no", and a
- * page that quietly rendered "keep away from pets" for everything nobody had got
- * to yet would be making a claim about plants that are perfectly fine.
- */
-export function petSafetyLabel(petSafe?: boolean | null) {
-  if (petSafe === true) return 'Safe around cats and dogs';
-  if (petSafe === false) return 'Keep out of reach of pets';
-  return null;
 }
 
 /**

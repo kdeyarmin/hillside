@@ -21,7 +21,8 @@ export default async function Gallery() {
     db.product.findMany({
       where: { active: true, inventory: { gt: 0 } },
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
-      take: 3
+      take: 3,
+      include: { category: { select: { slug: true, title: true } } }
     })
   ]);
 

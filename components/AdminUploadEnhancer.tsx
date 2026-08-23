@@ -151,8 +151,13 @@ function acceptDrops(zone: HTMLElement, onFiles: (files: File[]) => void) {
 export default function AdminUploadEnhancer() {
   useEffect(() => {
     const enhanceAll = () => {
+      /* `variantImageUrl` too: a variant may carry its own photograph — the 6"
+         decorative planter does not look like the 4" nursery pot — and Tammy
+         takes those on her phone like every other one. */
       document
-        .querySelectorAll<HTMLInputElement>('input[name="imageUrl"]:not([data-upload-managed])')
+        .querySelectorAll<HTMLInputElement>(
+          'input[name="imageUrl"]:not([data-upload-managed]), input[name="variantImageUrl"]:not([data-upload-managed])'
+        )
         .forEach(enhanceImageInput);
     };
 
