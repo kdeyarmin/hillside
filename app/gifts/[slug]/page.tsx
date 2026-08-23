@@ -34,7 +34,6 @@ export default async function GiftGuidePage({ params }: { params: Promise<{ slug
 
   const catalog = await loadGiftCatalog();
   const products = giftGuideProducts(catalog, guide);
-  const bundleCount = products.filter((product) => product.bundle).length;
   /** The other guides worth offering: ones that actually hold something. */
   const siblings = GIFT_GUIDES.filter(
     (other) => other.slug !== guide.slug && giftGuideProducts(catalog, other).length > 0
@@ -98,12 +97,6 @@ export default async function GiftGuidePage({ params }: { params: Promise<{ slug
               <div className="toolbar gift-toolbar">
                 <b>
                   {products.length} {products.length === 1 ? 'gift' : 'gifts'}
-                  {bundleCount > 0 && guide.kind !== 'bundle' && (
-                    <span className="muted">
-                      {' '}
-                      · {bundleCount} ready-made {bundleCount === 1 ? 'bundle' : 'bundles'} first
-                    </span>
-                  )}
                 </b>
                 <Link className="text-link" href="/gifts">
                   All gift guides →

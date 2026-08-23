@@ -4,10 +4,10 @@
  * action.
  */
 
+import { isCareGuideType, type CareGuideTypeName } from './care-guides.ts';
 import { formInteger } from './form-values.ts';
 
-export const CARE_GUIDE_TYPES = ['PLANT', 'GENERAL', 'PROBLEM', 'SEASONAL'] as const;
-export type CareGuideTypeName = (typeof CARE_GUIDE_TYPES)[number];
+export { CARE_GUIDE_TYPES, type CareGuideTypeName } from './care-guides.ts';
 
 export type CareGuideFields = {
   plantName: string;
@@ -61,9 +61,7 @@ export function slugifyCare(value: string) {
 }
 
 function parseGuideType(value: string): CareGuideTypeName {
-  return CARE_GUIDE_TYPES.includes(value as CareGuideTypeName)
-    ? (value as CareGuideTypeName)
-    : 'PLANT';
+  return isCareGuideType(value) ? value : 'PLANT';
 }
 
 export function adminCarePath(query: Record<string, string | undefined | null> = {}) {

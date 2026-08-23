@@ -2,10 +2,12 @@ import Link from 'next/link';
 import { Gift, MessageSquareHeart, PackageCheck, Truck } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import InlineNewsletter from '@/components/InlineNewsletter';
+import BundleGrid from '@/components/BundleGrid';
 import ProductGrid from '@/components/ProductGrid';
+import { bundleCardData, sellableBundles } from '@/lib/bundle-queries';
 import { contactHref } from '@/lib/contact';
 import { giftGuideProducts, loadGiftCatalog, toGiftCard } from '@/lib/gift-catalog';
-import { findGiftGuide, GIFT_GUIDES, giftGuidePath } from '@/lib/gifts';
+import { GIFT_GUIDES, giftGuidePath } from '@/lib/gifts';
 import { jsonLd } from '@/lib/json-ld';
 import { absoluteUrl, formatMoneyCompact, freeShippingThresholdCents } from '@/lib/store';
 import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
@@ -23,9 +25,15 @@ const HUB_ROWS = 4;
 const ROW_SIZE = 4;
 
 export default async function GiftsHub() {
-  const catalog = await loadGiftCatalog();
-  const bundlesGuide = findGiftGuide('bundles');
-  const bundles = bundlesGuide ? giftGuideProducts(catalog, bundlesGuide) : [];
+  /**
+   * A set is a `Bundle` — a recipe of real stock — not a product wearing a
+   * flag, so the hub leads with the ones that can actually be built right now.
+   * A kit whose last component sold this morning leaves the page on its own.
+   */
+  const [catalog, sets] = await Promise.all([
+    loadGiftCatalog(),
+    sellableBundles({ take: ROW_SIZE })
+  ]);
   const freeShippingThreshold = freeShippingThresholdCents();
 
   /** Only guides with something in them, so no tile leads to an empty shelf. */
@@ -98,19 +106,22 @@ export default async function GiftsHub() {
         <div className="container">
           {/* Bundles lead. They are the easiest thing to give and the hardest
               thing to find on a shop page organised by plant type. */}
-          {bundles.length > 0 && bundlesGuide && (
+          {sets.length > 0 && (
             <section className="gift-bundles" aria-labelledby="gift-bundles-heading">
               <div className="gift-bundles-head">
                 <div>
-                  <div className="eyebrow">{bundlesGuide.eyebrow}</div>
-                  <h2 id="gift-bundles-heading">Gift bundles, ready to give.</h2>
-                  <p>{bundlesGuide.blurb}</p>
+                  <div className="eyebrow">Ready to give</div>
+                  <h2 id="gift-bundles-heading">Sets, ready to give.</h2>
+                  <p>
+                    Put together out of things we already sell — one price, one parcel, nothing left
+                    to choose.
+                  </p>
                 </div>
-                <Link className="btn" href={giftGuidePath(bundlesGuide.slug)}>
-                  See every bundle
+                <Link className="btn" href="/bundles">
+                  See every set
                 </Link>
               </div>
-              <ProductGrid products={bundles.slice(0, ROW_SIZE).map(toGiftCard)} eagerCount={2} />
+              <BundleGrid bundles={sets.map(bundleCardData)} />
             </section>
           )}
 

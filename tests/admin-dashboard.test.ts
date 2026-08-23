@@ -4,15 +4,14 @@ import {
   adminContentPath,
   adminDashboardPath,
   firstSearchParam,
-  incompleteProductFields,
+  inventoryAttention,
   isCustomPlanterRequest,
   orderMatchesAdminFilter,
   parseAdminOrderFilter,
   parseAdminStockFilter,
-  productHasIncompleteInfo,
   productIsLowStock,
-  productIsOutOfStock,
   productMatchesAdminFilter,
+  productMatchesStockFilter,
   productNeedsPhoto,
   uniqueConstraintField
 } from '../lib/admin-dashboard.ts';
@@ -52,12 +51,87 @@ describe('productMatchesAdminFilter', () => {
   });
 
   it('separates archived stock from what the shop is actually selling', () => {
-    assert.equal(productMatchesAdminFilter(monstera, '', 'archived'), true);
+    assert.equal(productMatchesAdminFilter(monstera, '', 'inactive'), true);
     assert.equal(productMatchesAdminFilter(monstera, '', 'active'), false);
     assert.equal(productMatchesAdminFilter(tea, '', 'active'), true);
     assert.equal(productMatchesAdminFilter(tea, '', 'low'), true);
     assert.equal(productMatchesAdminFilter(tea, '', 'photo'), false);
     assert.equal(productMatchesAdminFilter(monstera, '', 'photo'), false);
+  });
+
+  it('finds a product by its supplier and their item number', () => {
+    const sourced = { ...tea, supplier: 'Ebensburg Growers', supplierItemNumber: 'EG-9912' };
+    assert.equal(productMatchesAdminFilter(sourced, 'ebensburg', 'all'), true);
+    assert.equal(productMatchesAdminFilter(sourced, 'EG-9912', 'all'), true);
+    assert.equal(productMatchesAdminFilter(tea, 'ebensburg', 'all'), false);
+  });
+
+  it('counts the jobs that actually need doing', () => {
+    const restocked = new Date('2026-08-20T09:00:00Z');
+    const now = new Date('2026-08-22T09:00:00Z');
+    const catalog = [
+      { ...monstera, active: true, inventory: 0, sku: null },
+      { ...tea, reorderPoint: 4, lastRestockedAt: restocked }
+    ];
+
+    assert.equal(productMatchesStockFilter(catalog[0], 'out', now), true);
+    assert.equal(productMatchesStockFilter(catalog[1], 'out', now), false);
+    // Two on the bench against a reorder point of four.
+    assert.equal(productMatchesStockFilter(catalog[1], 'reorder', now), true);
+    assert.equal(productMatchesStockFilter(catalog[0], 'no-reorder', now), true);
+    assert.equal(productMatchesStockFilter(catalog[0], 'sku', now), true);
+    assert.equal(productMatchesStockFilter(catalog[1], 'sku', now), false);
+    assert.equal(productMatchesStockFilter(catalog[0], 'supplier', now), true);
+    assert.equal(productMatchesStockFilter(catalog[1], 'restocked', now), true);
+    assert.equal(productMatchesStockFilter(catalog[0], 'restocked', now), false);
+  });
+});
+
+describe('inventoryAttention', () => {
+  const now = new Date('2026-08-22T09:00:00Z');
+  const base = {
+    name: 'Monstera',
+    slug: 'monstera',
+    sku: 'PL-01',
+    supplier: 'Ebensburg Growers',
+    active: true,
+    inventory: 6,
+    reorderPoint: 2,
+    imageUrl: '/media/monstera.jpg',
+    description: 'A big green thing.',
+    shortDescription: 'Big and green.',
+    priceCents: 4200,
+    type: 'OTHER',
+    details: 'Grown here.',
+    ships: true,
+    pickup: true
+  };
+
+  it('says nothing at all when nothing needs doing', () => {
+    assert.deepEqual(inventoryAttention([base], now), []);
+  });
+
+  it('reads as a sentence, and links to the chip that shows those products', () => {
+    const items = inventoryAttention(
+      [
+        { ...base, inventory: 0 },
+        { ...base, inventory: 0 }
+      ],
+      now
+    );
+    const outOfStock = items.find((item) => item.key === 'out');
+    assert.equal(outOfStock?.message, '2 products are out of stock');
+    assert.equal(outOfStock?.detail, 'products are out of stock');
+    assert.equal(outOfStock?.href, '/admin?stock=out&section=inventory');
+  });
+
+  it('keeps the singular singular', () => {
+    const items = inventoryAttention([{ ...base, inventory: 0 }], now);
+    assert.equal(items.find((item) => item.key === 'out')?.message, '1 product is out of stock');
+    assert.equal(
+      items.find((item) => item.key === 'reorder')?.message,
+      '1 product has reached its reorder point'
+    );
   });
 });
 
@@ -97,11 +171,44 @@ describe('productIsLowStock', () => {
   });
 });
 
+describe('sold out and running low', () => {
+  /**
+   * The two chips, and the two cards on the Today board behind them, have to
+   * partition the work rather than overlap: a listing that has run out is not
+   * "running low", and counting it as both put one product on the board twice.
+   */
+  it('never counts one listing as both', () => {
+    const soldOut = { ...base, inventory: 0 };
+    assert.equal(productIsLowStock(soldOut), false);
+    assert.equal(productMatchesAdminFilter(soldOut, '', 'out'), true);
+    assert.equal(productMatchesAdminFilter(soldOut, '', 'low'), false);
+  });
+
+  it('still calls a counted size running low while the shelf holds others', () => {
+    // Nine on the bench, none in 6" pots: a size to pot up, not a sold-out
+    // listing, so it belongs under Low stock and not under Out of stock.
+    const perSize = {
+      ...base,
+      inventory: 9,
+      sizes: [
+        { label: '4" pot', inventory: 9 },
+        { label: '6" pot', inventory: 0 }
+      ]
+    };
+    assert.equal(productIsLowStock(perSize), true);
+    assert.equal(productMatchesAdminFilter(perSize, '', 'out'), false);
+  });
+});
+
 describe('parseAdminStockFilter', () => {
   it('falls back to all for an unknown chip', () => {
-    assert.equal(parseAdminStockFilter('archived'), 'archived');
+    assert.equal(parseAdminStockFilter('reorder'), 'reorder');
     assert.equal(parseAdminStockFilter('nope'), 'all');
     assert.equal(parseAdminStockFilter(undefined), 'all');
+  });
+
+  it('still understands the old archived links the dashboard has issued', () => {
+    assert.equal(parseAdminStockFilter('archived'), 'inactive');
   });
 });
 
@@ -154,37 +261,6 @@ describe('adminContentPath', () => {
   });
 });
 
-describe('productIsOutOfStock', () => {
-  it('separates a listing with nothing to sell from one running low', () => {
-    assert.equal(productIsOutOfStock({ active: true, inventory: 0 }), true);
-    assert.equal(productIsOutOfStock({ active: true, inventory: 1 }), false);
-    // An archived product is not on the shop, so it is not a problem.
-    assert.equal(productIsOutOfStock({ active: false, inventory: 0 }), false);
-  });
-
-  it('never counts one listing as both sold out and running low', () => {
-    const soldOut = { active: true, inventory: 0 };
-    assert.equal(productIsOutOfStock(soldOut), true);
-    assert.equal(productIsLowStock(soldOut), false);
-    assert.equal(productMatchesAdminFilter({ ...base, inventory: 0 }, '', 'out'), true);
-    assert.equal(productMatchesAdminFilter({ ...base, inventory: 0 }, '', 'low'), false);
-  });
-
-  it('still calls a counted size running down low, while the product has stock', () => {
-    assert.equal(
-      productIsLowStock({
-        active: true,
-        inventory: 9,
-        sizes: [
-          { label: '4\" pot', inventory: 9 },
-          { label: '6\" pot', inventory: 0 }
-        ]
-      }),
-      true
-    );
-  });
-});
-
 const base = {
   name: 'Monstera',
   slug: 'monstera',
@@ -197,54 +273,43 @@ const base = {
   details: 'Nursery grown, potted here.'
 };
 
-describe('incompleteProductFields', () => {
-  const complete = {
-    name: 'Monstera',
-    slug: 'monstera',
-    sku: 'PL-01',
-    active: true,
-    inventory: 4,
-    imageUrl: '/media/monstera.jpg',
-    shortDescription: 'A bold tropical.',
-    description: 'A bold, easygoing tropical with iconic split leaves and a lot of presence.',
-    details: 'Nursery grown, potted here.'
-  };
-
-  it('says nothing about a finished listing', () => {
-    assert.deepEqual(incompleteProductFields(complete), []);
-    assert.equal(productHasIncompleteInfo(complete), false);
+describe('sold out and running low', () => {
+  /**
+   * The two chips, and the two cards on the Today board behind them, have to
+   * partition the work rather than overlap: a listing that has run out is not
+   * "running low", and counting it as both put one product on the board twice.
+   */
+  it('never counts one listing as both', () => {
+    const soldOut = { ...base, inventory: 0 };
+    assert.equal(productIsLowStock(soldOut), false);
+    assert.equal(productMatchesAdminFilter(soldOut, '', 'out'), true);
+    assert.equal(productMatchesAdminFilter(soldOut, '', 'low'), false);
   });
 
-  it('names each gap rather than counting them', () => {
-    assert.deepEqual(incompleteProductFields({ ...complete, shortDescription: '  ' }), [
-      'card blurb'
-    ]);
-    assert.deepEqual(incompleteProductFields({ ...complete, sku: null, details: null }), [
-      'details',
-      'SKU'
-    ]);
-    assert.deepEqual(incompleteProductFields({ ...complete, description: 'Short.' }), [
-      'description'
-    ]);
-  });
-
-  it('leaves an archived product alone', () => {
-    assert.equal(productHasIncompleteInfo({ ...complete, sku: null, active: false }), false);
-  });
-
-  it('is a filter of its own on the inventory list', () => {
-    const thin = { ...complete, details: null };
-    assert.equal(productMatchesAdminFilter(thin, '', 'incomplete'), true);
-    assert.equal(productMatchesAdminFilter(complete, '', 'incomplete'), false);
-    assert.equal(productMatchesAdminFilter({ ...complete, inventory: 0 }, '', 'out'), true);
+  it('still calls a counted size running low while the shelf holds others', () => {
+    // Nine on the bench, none in 6" pots: a size to pot up, not a sold-out
+    // listing, so it belongs under Low stock and not under Out of stock.
+    const perSize = {
+      ...base,
+      inventory: 9,
+      sizes: [
+        { label: '4" pot', inventory: 9 },
+        { label: '6" pot', inventory: 0 }
+      ]
+    };
+    assert.equal(productIsLowStock(perSize), true);
+    assert.equal(productMatchesAdminFilter(perSize, '', 'out'), false);
   });
 });
 
 describe('parseAdminStockFilter', () => {
   it('accepts the filters the dashboard links at and nothing else', () => {
-    for (const value of ['active', 'archived', 'photo', 'low', 'out', 'incomplete']) {
+    for (const value of ['active', 'inactive', 'photo', 'low', 'out', 'incomplete']) {
       assert.equal(parseAdminStockFilter(value), value);
     }
+    // The old spelling still resolves, because every "Archive from shop"
+    // redirect the dashboard has ever issued links to it.
+    assert.equal(parseAdminStockFilter('archived'), 'inactive');
     assert.equal(parseAdminStockFilter('everything'), 'all');
     assert.equal(parseAdminStockFilter(null), 'all');
   });

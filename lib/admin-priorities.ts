@@ -40,6 +40,10 @@ export type PriorityCounts = {
   customPlanterRequests: number;
   outOfStock: number;
   needsReorder: number;
+  reachedReorderPoint: number;
+  noReorderPoint: number;
+  missingSku: number;
+  missingSupplier: number;
   backInStockDemand: number;
   reviewsToApprove: number;
   reviewRequestsDue: number;
@@ -55,6 +59,10 @@ export const EMPTY_PRIORITY_COUNTS: PriorityCounts = {
   customPlanterRequests: 0,
   outOfStock: 0,
   needsReorder: 0,
+  reachedReorderPoint: 0,
+  noReorderPoint: 0,
+  missingSku: 0,
+  missingSupplier: 0,
   backInStockDemand: 0,
   reviewsToApprove: 0,
   reviewRequestsDue: 0,
@@ -140,6 +148,19 @@ const DEFINITIONS: Array<{
     href: adminDashboardPath({ section: 'inventory', stock: 'low' })
   },
   {
+    /**
+     * The owner's own reorder point, which is a different question from
+     * "running low": a shelf can be down to two of something she restocks by
+     * the flat of eighteen, and full of something she orders one at a time.
+     */
+    key: 'reachedReorderPoint',
+    label: 'Ready to reorder',
+    unit: 'products',
+    tone: 'attention',
+    detail: () => 'Down to the point you said to order more at.',
+    href: adminDashboardPath({ section: 'inventory', stock: 'reorder' })
+  },
+  {
     key: 'reviewsToApprove',
     label: 'Reviews to approve',
     unit: 'reviews',
@@ -170,6 +191,30 @@ const DEFINITIONS: Array<{
     tone: 'calm',
     detail: () => 'No blurb, no details or no item number. Thin listings sell badly.',
     href: adminDashboardPath({ section: 'inventory', stock: 'incomplete' })
+  },
+  {
+    key: 'missingSku',
+    label: 'Missing an item number',
+    unit: 'products',
+    tone: 'calm',
+    detail: () => 'Nothing to match against a packing slip or a stocktake.',
+    href: adminDashboardPath({ section: 'inventory', stock: 'sku' })
+  },
+  {
+    key: 'missingSupplier',
+    label: 'No supplier recorded',
+    unit: 'products',
+    tone: 'calm',
+    detail: () => 'Nowhere to reorder from when it runs down.',
+    href: adminDashboardPath({ section: 'inventory', stock: 'supplier' })
+  },
+  {
+    key: 'noReorderPoint',
+    label: 'No reorder point',
+    unit: 'products',
+    tone: 'calm',
+    detail: () => 'Nothing will put these on the reorder list on their own.',
+    href: adminDashboardPath({ section: 'inventory', stock: 'no-reorder' })
   }
 ];
 

@@ -2,41 +2,74 @@ import Link from 'next/link';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
-import { pageMetadata } from '@/lib/seo';
+import { bestSellingCategory } from '@/lib/merchandising-data';
+import { jsonLd } from '@/lib/json-ld';
+import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 export const metadata = pageMetadata({
   path: '/collections',
-  title: 'Shop by Collection',
+  title: 'Plant & Botanical Collections',
   description:
-    'Browse The Hillside Gardens by collection — plants, teas and botanicals grouped the way we keep them.'
+    'Browse The Hillside Gardens by collection — beginner friendly, low light, pet friendly and other hand-picked groupings across the whole shop.'
 });
 
 export default async function CollectionsIndex() {
-  const collections = await db.collection.findMany({
-    where: { active: true },
-    orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-    include: { _count: { select: { products: { where: { active: true } } } } }
-  });
+  const [collections, bestSelling] = await Promise.all([
+    db.collection.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      include: { _count: { select: { products: { where: { active: true } } } } }
+    }),
+    /**
+     * Worked out from paid orders, and null until enough of them have been
+     * placed — so this line appears when it is true and simply is not there when
+     * the shop has nothing to say.
+     */
+    bestSellingCategory()
+  ]);
 
   const stocked = collections.filter((collection) => collection._count.products > 0);
   const restocking = collections.filter((collection) => collection._count.products === 0);
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: jsonLd(
+            breadcrumbJsonLd([
+              { name: 'Home', path: '/' },
+              { name: 'Collections', path: '/collections' }
+            ])
+          )
+        }}
+      />
       <section className="pagehero">
         <div className="container">
-          <div className="eyebrow">Shop the garden</div>
+          <div className="eyebrow">Chosen by Tammy</div>
           <h1>Every collection.</h1>
           <p>
             {stocked.length > 0
-              ? 'Each collection is curated by hand. If a collection is on the bench, you will see it here.'
+              ? 'A collection answers a question rather than naming a shelf — forgiving for a beginner, happy in low light, safe around a cat. Each one is picked by hand and can hold anything in the shop.'
               : 'These are the collections we keep. Nothing is listed for sale right now — ask us what is coming next.'}
+          </p>
+          <p className="pagehero-links">
+            <span>Looking for a particular kind of thing?</span>
+            <Link href="/shop">Browse the shop by category</Link>
           </p>
         </div>
       </section>
       <section className="content">
         <div className="container">
+          {bestSelling && stocked.length > 0 && (
+            <div className="toolbar">
+              <b>Most shopped right now: {bestSelling.label}</b>
+              <Link className="text-link" href={`/shop?category=${bestSelling.key}`}>
+                Shop {bestSelling.label.toLowerCase()} →
+              </Link>
+            </div>
+          )}
           {stocked.length > 0 && (
             <>
               <h2 className="sr-only">Collections on the bench</h2>
@@ -93,6 +126,30 @@ export default async function CollectionsIndex() {
               </ul>
             </div>
           )}
+
+          <div className="category-links">
+            <b>Also worth a look</b>
+            <ul>
+              <li>
+                <Link href="/shop">Shop everything</Link>
+              </li>
+              <li>
+                <Link href="/care">Plant care library</Link>
+              </li>
+              <li>
+                <Link href="/visit">Local pickup in Ebensburg</Link>
+              </li>
+              <li>
+                <Link href="/shop?tags=pet-safe">Pet safe plants</Link>
+              </li>
+              <li>
+                <Link href="/shop?tags=beginner-friendly">Beginner friendly plants</Link>
+              </li>
+              <li>
+                <Link href="/shop?tags=low-light">Low light plants</Link>
+              </li>
+            </ul>
+          </div>
 
           {collections.length === 0 && (
             <div className="empty-state">

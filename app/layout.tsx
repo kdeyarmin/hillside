@@ -14,15 +14,18 @@ import './homepage.css';
 import './brand-mockups.css';
 import './responsive-hardening.css';
 import './commerce.css';
+import './catalog.css';
+import './merchandising.css';
 import type { Metadata, Viewport } from 'next';
 import { Cormorant_Garamond, Manrope } from 'next/font/google';
 import Analytics from '@/components/Analytics';
 import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
+import { hasSellableBundles } from '@/lib/bundle-queries';
 import { catalogHasActiveProducts, catalogHasSellableProducts } from '@/lib/catalog';
-import { absoluteUrl, businessEmail, freeShippingThresholdCents, siteBaseUrl } from '@/lib/store';
+import { businessEmail, freeShippingThresholdCents, siteBaseUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
-import { websiteJsonLd } from '@/lib/seo';
+import { businessJsonLd, websiteJsonLd } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -58,14 +61,16 @@ export const metadata: Metadata = {
     template: '%s | The Hillside Gardens'
   },
   description:
-    'Shop potted plants, loose-leaf teas, handmade soaps and lotions, and explore practical plant-care sheets from The Hillside Gardens.',
+    'Houseplants, carnivorous plants, succulents, air plants, terrarium supplies and handmade botanical goods from The Hillside Gardens in Ebensburg, Pennsylvania — with free plant care guides.',
   keywords: [
     'houseplants',
-    'potted plants',
-    'loose leaf tea',
-    'handmade soap',
-    'botanical lotion',
-    'plant care'
+    'carnivorous plants',
+    'succulents',
+    'air plants',
+    'terrarium supplies',
+    'botanical goods',
+    'plant care',
+    'plant shop Ebensburg PA'
   ],
   applicationName: 'The Hillside Gardens',
   // Purpose-sized icons. This pointed at the 296 KB full-resolution logo, which
@@ -89,70 +94,14 @@ export const metadata: Metadata = {
    */
 };
 
-/**
- * LocalBusiness rather than a bare Store: this is a business people visit and
- * collect from, so address, telephone and opening hours are what make it
- * eligible for local search results and Google's business panel. Every field is
- * environment driven so nothing is published until it is real.
- */
-function businessJsonLd() {
-  const streetAddress = process.env.BUSINESS_STREET_ADDRESS?.trim();
-  const locality = process.env.BUSINESS_CITY?.trim();
-  const region = process.env.BUSINESS_STATE?.trim();
-  const postalCode = process.env.BUSINESS_POSTAL_CODE?.trim();
-  const telephone = process.env.BUSINESS_PHONE?.trim();
-  const openingHours = process.env.BUSINESS_OPENING_HOURS?.trim();
-  const hasAddress = Boolean(streetAddress && locality && region && postalCode);
-
-  return {
-    '@context': 'https://schema.org',
-    '@type': hasAddress ? 'LocalBusiness' : 'Store',
-    '@id': absoluteUrl('/#business'),
-    name: 'The Hillside Gardens',
-    url: absoluteUrl('/'),
-    logo: absoluteUrl('/logo.png'),
-    image: absoluteUrl('/og-image.jpg'),
-    description: 'Plants, teas, botanicals and plant education.',
-    founder: { '@type': 'Person', name: 'Tammy Hill' },
-    email: businessEmail(),
-    priceRange: '$$',
-    ...(telephone ? { telephone } : {}),
-    ...(hasAddress
-      ? {
-          address: {
-            '@type': 'PostalAddress',
-            streetAddress,
-            addressLocality: locality,
-            addressRegion: region,
-            postalCode,
-            addressCountry: 'US'
-          }
-        }
-      : {}),
-    ...(openingHours
-      ? {
-          openingHours: openingHours
-            .split('|')
-            .map((entry) => entry.trim())
-            .filter(Boolean)
-        }
-      : {}),
-    ...(process.env.NEXT_PUBLIC_INSTAGRAM_URL || process.env.NEXT_PUBLIC_FACEBOOK_URL
-      ? {
-          sameAs: [
-            process.env.NEXT_PUBLIC_INSTAGRAM_URL,
-            process.env.NEXT_PUBLIC_FACEBOOK_URL
-          ].filter(Boolean)
-        }
-      : {})
-  };
-}
-
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [catalogEmpty, giftsEmpty] = await Promise.all([
-    catalogHasActiveProducts().then((hasCatalog) => !hasCatalog),
-    catalogHasSellableProducts().then((hasStock) => !hasStock)
+  const [catalogHasProducts, hasStock, bundlesAvailable] = await Promise.all([
+    catalogHasActiveProducts(),
+    catalogHasSellableProducts(),
+    hasSellableBundles()
   ]);
+  const catalogEmpty = !catalogHasProducts;
+  const giftsEmpty = !hasStock;
   return (
     <html lang="en" className={`${hillsideSans.variable} ${hillsideDisplay.variable}`}>
       <body>
@@ -170,6 +119,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <CartProvider>
           <SiteHeader
             catalogEmpty={catalogEmpty}
+            bundlesAvailable={bundlesAvailable}
             giftsEmpty={giftsEmpty}
             freeShippingThreshold={freeShippingThresholdCents()}
           />
@@ -181,6 +131,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <SiteFooter
             contactEmail={businessEmail()}
             catalogEmpty={catalogEmpty}
+            bundlesAvailable={bundlesAvailable}
             giftsEmpty={giftsEmpty}
           />
         </CartProvider>

@@ -9,13 +9,16 @@ import {
   Leaf,
   Search,
   Sparkles,
+  Sprout,
   SunMedium
 } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
 import { matchesAnySearchField } from '@/lib/search';
 import { FALLBACK_PRODUCT_IMAGE } from '@/lib/store';
 
-type GuideType = 'PLANT' | 'GENERAL' | 'PROBLEM' | 'SEASONAL';
+import { careGuideTypeLabel, type CareGuideTypeName } from '@/lib/care-guides';
+
+type GuideType = CareGuideTypeName;
 type FilterType = 'ALL' | GuideType;
 
 export type CareLibraryGuide = {
@@ -34,25 +37,23 @@ export type CareLibraryGuide = {
   featured: boolean;
 };
 
+/* Beginner guides sit second, straight after the plant profiles: someone
+   arriving on the library with no plants yet is the reader most in need of a
+   shelf they can start from. */
 const filters: Array<{ value: FilterType; label: string }> = [
   { value: 'ALL', label: 'All guides' },
   { value: 'PLANT', label: 'Plant profiles' },
+  { value: 'BEGINNER', label: 'Start here' },
   { value: 'GENERAL', label: 'Care basics' },
   { value: 'PROBLEM', label: 'Common issues' },
   { value: 'SEASONAL', label: 'Seasonal care' }
 ];
 
-function guideLabel(type: GuideType) {
-  if (type === 'GENERAL') return 'Care basics';
-  if (type === 'PROBLEM') return 'Plant problem';
-  if (type === 'SEASONAL') return 'Seasonal care';
-  return 'Plant profile';
-}
-
 function GuideIcon({ type }: { type: GuideType }) {
   if (type === 'PROBLEM') return <AlertTriangle size={16} />;
   if (type === 'SEASONAL') return <CalendarRange size={16} />;
   if (type === 'GENERAL') return <Sparkles size={16} />;
+  if (type === 'BEGINNER') return <Sprout size={16} />;
   return <Leaf size={16} />;
 }
 
@@ -68,11 +69,17 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
     const count: Record<FilterType, number> = {
       ALL: guides.length,
       PLANT: 0,
+      BEGINNER: 0,
       GENERAL: 0,
       PROBLEM: 0,
       SEASONAL: 0
     };
-    for (const guide of guides) count[guide.guideType] += 1;
+    // Guarded because `guideType` arrives from the database: a kind added to the
+    // schema but not to this list would otherwise crash the whole library on
+    // `undefined + 1` rather than merely go uncounted.
+    for (const guide of guides) {
+      if (guide.guideType in count) count[guide.guideType] += 1;
+    }
     return count;
   }, [guides]);
 
@@ -164,7 +171,7 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
                   sizeRole="card"
                   src={guide.imageUrl || FALLBACK_PRODUCT_IMAGE}
                   fallbackSrc="/images/botanical-placeholder.svg"
-                  alt={`${guide.plantName} — ${guideLabel(guide.guideType).toLowerCase()}`}
+                  alt={`${guide.plantName} — ${careGuideTypeLabel(guide.guideType).toLowerCase()}`}
                   width={900}
                   height={675}
                   loading={index < 2 ? 'eager' : 'lazy'}
@@ -175,7 +182,7 @@ export default function CareLibrary({ guides }: { guides: CareLibraryGuide[] }) 
               <div className="care-guide-copy">
                 <div className="care-card-meta">
                   <span>
-                    <GuideIcon type={guide.guideType} /> {guideLabel(guide.guideType)}
+                    <GuideIcon type={guide.guideType} /> {careGuideTypeLabel(guide.guideType)}
                   </span>
                   {guide.category && <span>{guide.category}</span>}
                 </div>

@@ -5,11 +5,12 @@ import BrandMockupScene from '@/components/BrandMockupScene';
 import ProductGrid from '@/components/ProductGrid';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
+import { categoryDescription, proseBlocks, readFaq } from '@/lib/category-content';
 import { db } from '@/lib/db';
-import { ratingsByProduct } from '@/lib/reviews';
-import { absoluteUrl, resolveImageUrl } from '@/lib/store';
+import { PRODUCT_CARD_SELECT, withCardFacts } from '@/lib/product-cards';
+import { resolveImageUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
-import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
+import { breadcrumbJsonLd, collectionPageJsonLd, faqJsonLd, pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,26 +21,21 @@ async function loadCollection(slug: string) {
       // Card fields only — the long-form product copy is never rendered here.
       products: {
         where: { active: true },
-        select: {
-          id: true,
-          slug: true,
-          name: true,
-          shortDescription: true,
-          description: true,
-          type: true,
-          priceCents: true,
-          compareAtCents: true,
-          inventory: true,
-          imageUrl: true,
-          badge: true,
-          sizes: true,
-          sizeLabel: true,
-          bundle: true,
-          ships: true,
-          pickup: true
-        },
+        select: PRODUCT_CARD_SELECT,
         orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
         take: 200
+      },
+      /**
+       * The care guides that belong with this category. A page about carnivorous
+       * plants that cannot point at how to water one is half a page — and these
+       * links are also the only route from a category into the library, which is
+       * the part of this site strangers actually arrive at.
+       */
+      careSheets: {
+        where: { published: true },
+        orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { plantName: 'asc' }],
+        select: { id: true, slug: true, plantName: true, summary: true, category: true },
+        take: 6
       }
     }
   });
@@ -54,17 +50,13 @@ export async function generateMetadata({
   const collection = await loadCollection(slug);
   if (!collection) return { title: 'Collection not found' };
 
-  const description =
-    collection.description ||
-    collection.tagline ||
-    `Shop the ${collection.title} collection at The Hillside Gardens.`;
-
   return pageMetadata({
     path: `/collections/${collection.slug}`,
-    title: collection.title,
-    description,
+    title: collection.metaTitle?.trim() || collection.title,
+    description: categoryDescription(collection),
     image: resolveImageUrl(collection.imageUrl),
-    imageAlt: collection.title
+    imageAlt: collection.title,
+    keywords: collection.keywords
   });
 }
 
@@ -73,37 +65,41 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
   const collection = await loadCollection(slug);
   if (!collection) notFound();
 
-  const ratings = await ratingsByProduct(collection.products.map((product) => product.id));
-  const products = collection.products.map((product) => ({
-    ...product,
-    averageRating: ratings.get(product.id)?.average ?? null,
-    reviewCount: ratings.get(product.id)?.count ?? 0
-  }));
+  const products = await withCardFacts(collection.products);
 
-  const catalogCount =
-    products.length > 0 ? products.length : await db.product.count({ where: { active: true } });
+  const [catalogCount, siblings] = await Promise.all([
+    products.length > 0
+      ? Promise.resolve(products.length)
+      : db.product.count({ where: { active: true } }),
+    /**
+     * The other categories, for the internal links at the foot of the page.
+     * Every one of them is a real page with its own copy, so this is a route
+     * between them rather than a footer of keywords.
+     */
+    db.collection.findMany({
+      where: { active: true, slug: { not: collection.slug } },
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      select: { slug: true, title: true },
+      take: 8
+    })
+  ]);
 
-  const listJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
+  const intro = proseBlocks(collection.intro);
+  const body = proseBlocks(collection.body);
+  const faq = readFaq(collection.faq);
+  const path = `/collections/${collection.slug}`;
+
+  const pageSchema = collectionPageJsonLd({
+    path,
     name: collection.title,
-    url: absoluteUrl(`/collections/${collection.slug}`),
-    description: collection.description || collection.tagline || undefined,
-    mainEntity: {
-      '@type': 'ItemList',
-      numberOfItems: products.length,
-      itemListElement: products.map((product, index) => ({
-        '@type': 'ListItem',
-        position: index + 1,
-        url: absoluteUrl(`/shop/${product.slug}`),
-        name: product.name
-      }))
-    }
-  };
+    description: categoryDescription(collection),
+    products
+  });
+  const faqSchema = faqJsonLd(path, faq);
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(listJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(pageSchema) }} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -111,11 +107,20 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
             breadcrumbJsonLd([
               { name: 'Home', path: '/' },
               { name: 'Collections', path: '/collections' },
-              { name: collection.title, path: `/collections/${collection.slug}` }
+              { name: collection.title, path }
             ])
           )
         }}
       />
+      {/* Only published when the category actually answers questions on the
+          page, so the markup can never describe an FAQ a reader cannot see. */}
+      {faqSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: jsonLd(faqSchema) }}
+        />
+      )}
+
       <section className="pagehero collection-hero">
         <div className="container">
           <div className="breadcrumbs centered">
@@ -133,14 +138,26 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
 
       <section className="content">
         <div className="container">
+          {intro.length > 0 && (
+            <div className="category-intro prose">
+              {intro.map((block, index) =>
+                block.kind === 'heading' ? (
+                  <h2 key={index}>{block.text}</h2>
+                ) : (
+                  <p key={index}>{block.text}</p>
+                )
+              )}
+            </div>
+          )}
+
           {products.length ? (
             <>
               <div className="toolbar">
                 <b>
                   {products.length} {products.length === 1 ? 'item' : 'items'}
                 </b>
-                <Link className="text-link" href="/shop">
-                  Browse everything →
+                <Link className="text-link" href={`/shop?collection=${collection.slug}`}>
+                  Filter these in the shop →
                 </Link>
               </div>
               <ProductGrid products={products} />
@@ -148,7 +165,10 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
           ) : (
             <div className="empty-state wide">
               <h3>This collection is being restocked.</h3>
-              <p>New pieces are potted and photographed as they are ready.</p>
+              <p>
+                New pieces are potted and photographed as they are ready. Everything below still
+                applies when they land.
+              </p>
               <div className="actions" style={{ justifyContent: 'center' }}>
                 {catalogCount > 0 ? (
                   <Link className="btn" href="/shop">
@@ -169,6 +189,77 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
                   Ask what&rsquo;s coming
                 </Link>
               </div>
+            </div>
+          )}
+
+          {body.length > 0 && (
+            <div className="category-body prose">
+              {body.map((block, index) =>
+                block.kind === 'heading' ? (
+                  <h3 key={index}>{block.text}</h3>
+                ) : (
+                  <p key={index}>{block.text}</p>
+                )
+              )}
+            </div>
+          )}
+
+          {collection.careSheets.length > 0 && (
+            <div className="product-details-section">
+              <div className="sectionhead">
+                <div className="eyebrow">Before you buy</div>
+                <h2>Care guides for this collection.</h2>
+              </div>
+              <div className="care-related-grid">
+                {collection.careSheets.map((sheet) => (
+                  <article className="care-related-card" key={sheet.id}>
+                    <span>{sheet.category || 'Care guide'}</span>
+                    <h3>
+                      <Link href={`/care/${sheet.slug}`}>{sheet.plantName}</Link>
+                    </h3>
+                    <p>{sheet.summary}</p>
+                    <Link className="text-link" href={`/care/${sheet.slug}`}>
+                      Read the guide →
+                    </Link>
+                  </article>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {faq.length > 0 && (
+            <div className="category-faq narrow">
+              <div className="sectionhead">
+                <div className="eyebrow">Questions we get</div>
+                <h2>About {collection.title.toLowerCase()}.</h2>
+              </div>
+              <div className="faq-list">
+                {faq.map((entry) => (
+                  <details key={entry.question}>
+                    <summary>{entry.question}</summary>
+                    <p className="muted">{entry.answer}</p>
+                  </details>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {siblings.length > 0 && (
+            <div className="category-links">
+              <b>Browse another collection</b>
+              <ul>
+                {siblings.map((sibling) => (
+                  <li key={sibling.slug}>
+                    <Link href={`/collections/${sibling.slug}`}>{sibling.title}</Link>
+                  </li>
+                ))}
+                <li>
+                  <Link href="/care">Plant care library</Link>
+                </li>
+                <li>
+                  <Link href="/visit">Local pickup in Ebensburg</Link>
+                </li>
+              </ul>
             </div>
           )}
 

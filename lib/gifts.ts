@@ -21,7 +21,7 @@ import { matchesSearchTerm } from './search.ts';
  */
 export const GIFT_EXCLUDE_TAG = 'none';
 
-export type GiftGuideKind = 'bundle' | 'price' | 'occasion';
+export type GiftGuideKind = 'price' | 'occasion';
 
 export type GiftGuide = {
   slug: string;
@@ -45,23 +45,17 @@ export type GiftGuide = {
   types?: readonly string[];
   /** Words in the name or copy that put a product here. */
   keywords?: readonly string[];
-  /** Whether bundles are automatically part of this guide. */
+  /**
+   * Whether ready-made sets are shown above this guide's products. A set is a
+   * `Bundle` — a recipe of real stock with its own availability — so it is
+   * rendered as its own shelf rather than mixed into a product grid.
+   */
   includeBundles?: boolean;
   /** Whether the owner's featured picks are automatically part of this guide. */
   includeFeatured?: boolean;
 };
 
 export const GIFT_GUIDES: readonly GiftGuide[] = [
-  {
-    slug: 'bundles',
-    title: 'Gift bundles',
-    shortTitle: 'Bundles',
-    eyebrow: 'Ready to give',
-    blurb: 'Sets we put together ourselves — one price, one parcel, nothing left to choose.',
-    description:
-      'Ready-to-give gift bundles from The Hillside Gardens: plants, teas and handmade botanicals put together as one set.',
-    kind: 'bundle'
-  },
   {
     slug: 'under-25',
     title: 'Gifts under $25',
@@ -206,7 +200,6 @@ export type GiftMatchable = {
   sizes?: unknown;
   /** The product total, needed to tell a sold-out size from a sellable one. */
   inventory?: number | null;
-  bundle?: boolean | null;
   featured?: boolean | null;
   giftTags?: readonly string[] | null;
 };
@@ -293,15 +286,12 @@ function searchableText(product: GiftMatchable) {
 }
 
 function matchesGuideRules(product: GiftMatchable, guide: GiftGuide) {
-  if (guide.kind === 'bundle') return Boolean(product.bundle);
-
   if (guide.maxPriceCents !== undefined && giftPriceCents(product) > guide.maxPriceCents) {
     return false;
   }
   // A price band asks one question and has now asked it.
   if (guide.kind === 'price') return true;
 
-  if (guide.includeBundles && product.bundle) return true;
   if (guide.includeFeatured && product.featured) return true;
   if (guide.types?.includes(product.type)) return true;
 
@@ -339,32 +329,6 @@ export function productsForGiftGuide<T extends GiftMatchable>(
   return products.filter((product) => matchesGiftGuide(product, guide));
 }
 
-/**
- * Bundles first, then everything else in the order it arrived. The gift pages
- * are the one place bundles are meant to lead with, and a bundle stranded on
- * the third row of a long guide is not leading with anything.
- */
-export function bundlesFirst<T extends { bundle?: boolean | null }>(products: readonly T[]) {
-  return [...products].sort(
-    (left, right) => Number(Boolean(right.bundle)) - Number(Boolean(left.bundle))
-  );
-}
-
-/** What is in a bundle, cleaned for display. */
-export function bundleContents(values: readonly string[] | null | undefined) {
-  return (values || [])
-    .map((entry) => String(entry || '').trim())
-    .filter(Boolean)
-    .slice(0, 12);
-}
-
 export const BUNDLE_ITEM_MAX = 12;
 
 /** Parses the admin form's one-item-per-line box into stored bundle contents. */
-export function parseBundleItems(value: string) {
-  return value
-    .split('\n')
-    .map((line) => line.trim().replace(/\s+/g, ' ').slice(0, 120))
-    .filter(Boolean)
-    .slice(0, BUNDLE_ITEM_MAX);
-}

@@ -1,6 +1,6 @@
 import { cache } from 'react';
 import { db } from './db.ts';
-import { bundlesFirst, matchesGiftGuide, type GiftGuide } from './gifts.ts';
+import { matchesGiftGuide, type GiftGuide } from './gifts.ts';
 import { ratingsByProduct } from './reviews.ts';
 
 /**
@@ -32,8 +32,6 @@ const giftProductSelect = {
   ships: true,
   pickup: true,
   featured: true,
-  bundle: true,
-  bundleItems: true,
   giftTags: true
 } as const;
 
@@ -55,8 +53,6 @@ export type GiftCatalogProduct = {
   ships: boolean;
   pickup: boolean;
   featured: boolean;
-  bundle: boolean;
-  bundleItems: string[];
   giftTags: string[];
   averageRating: number | null;
   reviewCount: number;
@@ -79,7 +75,7 @@ export const loadGiftCatalog = cache(async (): Promise<GiftCatalogProduct[]> => 
 });
 
 export function giftGuideProducts(catalog: GiftCatalogProduct[], guide: GiftGuide) {
-  return bundlesFirst(catalog.filter((product) => matchesGiftGuide(product, guide)));
+  return catalog.filter((product) => matchesGiftGuide(product, guide));
 }
 
 /**
@@ -104,7 +100,6 @@ export function toGiftCard(product: GiftCatalogProduct) {
     sizeLabel: product.sizeLabel,
     ships: product.ships,
     pickup: product.pickup,
-    bundle: product.bundle,
     averageRating: product.averageRating,
     reviewCount: product.reviewCount
   };

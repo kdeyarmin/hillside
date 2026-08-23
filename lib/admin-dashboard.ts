@@ -3,27 +3,44 @@
  * `npm test` can cover the filter and error mapping Tammy hits every day.
  */
 
-import { readStoredSizes, storedSizesTrackStock } from './product-sizes.ts';
+import {
+  LOW_STOCK_AT,
+  inventorySignals,
+  productIsLowStock,
+  type InventoryProduct
+} from './inventory.ts';
+import { needsRealPhoto } from './product-photos.ts';
+import { productCompleteness, type CompletenessProduct } from './product-completeness.ts';
 
+/**
+ * The chips above the inventory list. Each one is a job: everything on this list
+ * is something Tammy might sit down and clear in an afternoon.
+ *
+ * `archived` is the old spelling of `inactive` and is still accepted, because
+ * every "Archive from shop" redirect the dashboard has ever issued links to it.
+ */
 export type AdminStockFilter =
-  'all' | 'active' | 'archived' | 'photo' | 'low' | 'out' | 'incomplete';
+  | 'all'
+  | 'active'
+  | 'inactive'
+  | 'out'
+  | 'low'
+  | 'reorder'
+  | 'no-reorder'
+  | 'sku'
+  | 'supplier'
+  | 'photo'
+  | 'restocked'
+  | 'incomplete';
 
-export type AdminProductFilterable = {
-  name: string;
-  slug: string;
-  sku: string | null;
-  active: boolean;
-  inventory: number;
-  imageUrl: string | null;
-  /** Raw `Product.sizes`; only the per-size counts are read from it. */
-  sizes?: unknown;
-  shortDescription?: string | null;
-  description?: string | null;
-  details?: string | null;
-};
+export type AdminProductFilterable = InventoryProduct &
+  CompletenessProduct & {
+    name: string;
+    slug: string;
+    supplierItemNumber?: string | null;
+  };
 
-/** Where "Only 3 left" starts, on the shop card and on the dashboard chip. */
-export const LOW_STOCK_AT = 3;
+export { LOW_STOCK_AT, productIsLowStock };
 
 /**
  * A product with no photograph of its own falls back to shared catalog artwork,
@@ -31,95 +48,162 @@ export const LOW_STOCK_AT = 3;
  * the gap visible to Tammy instead of to customers.
  */
 export function productNeedsPhoto(imageUrl: string | null | undefined) {
-  if (!imageUrl?.trim()) return true;
-  return imageUrl.includes('/images/catalog/') || imageUrl.includes('/images/scenes/');
+  return needsRealPhoto(imageUrl);
 }
 
-/**
- * A listed product with nothing left to sell. Separated from "low stock"
- * because they are different jobs: one is a reorder note, the other is a
- * listing customers can see and cannot buy from.
- */
-export function productIsOutOfStock(product: { active: boolean; inventory: number }) {
-  return product.active && product.inventory <= 0;
-}
-
-/**
- * What the Low stock chip counts. On a product counted per size that is any one
- * size running down, not the total: a plant with nine on the bench and none of
- * them in 6" pots has a size to pot up, and the total alone would keep it off
- * the list Tammy works from until the 4" ones ran out too.
- *
- * A product that is *entirely* sold out is not "running low" — it has run out,
- * which is a different card, a different chip and a different job. Counting it
- * as both put one listing on the dashboard twice and inflated the day's work.
- */
-export function productIsLowStock(product: {
-  active: boolean;
-  inventory: number;
-  sizes?: unknown;
-}) {
-  if (!product.active) return false;
-  if (productIsOutOfStock(product)) return false;
-  const stored = readStoredSizes(product.sizes);
-  if (storedSizesTrackStock(stored)) {
-    return stored.some((size) => (size.inventory ?? 0) <= LOW_STOCK_AT);
-  }
-  return product.inventory <= LOW_STOCK_AT;
-}
-
-/**
- * What a listing is still missing before it can sell on its own.
- *
- * Only fields a shopper actually feels the absence of: the card blurb that
- * appears in every grid, the long copy on the page, the contents or
- * ingredients panel, and the item number the owner needs to find it again. A
- * missing photograph is deliberately not here — it has its own count, its own
- * chip and its own dashboard card already.
- */
-export function incompleteProductFields(product: AdminProductFilterable) {
-  const missing: string[] = [];
-  if (!product.shortDescription?.trim()) missing.push('card blurb');
-  if ((product.description || '').trim().length < 40) missing.push('description');
-  if (!product.details?.trim()) missing.push('details');
-  if (!product.sku?.trim()) missing.push('SKU');
-  return missing;
-}
-
-export function productHasIncompleteInfo(product: AdminProductFilterable) {
-  return product.active && incompleteProductFields(product).length > 0;
-}
+const FILTERS: AdminStockFilter[] = [
+  'all',
+  'active',
+  'inactive',
+  'out',
+  'low',
+  'reorder',
+  'no-reorder',
+  'sku',
+  'supplier',
+  'photo',
+  'restocked',
+  'incomplete'
+];
 
 export function parseAdminStockFilter(value?: string | null): AdminStockFilter {
-  if (
-    value === 'active' ||
-    value === 'archived' ||
-    value === 'photo' ||
-    value === 'low' ||
-    value === 'out' ||
-    value === 'incomplete'
-  )
-    return value;
-  return 'all';
+  if (value === 'archived') return 'inactive';
+  return FILTERS.includes(value as AdminStockFilter) ? (value as AdminStockFilter) : 'all';
+}
+
+/**
+ * Whether a product belongs under one chip. Split out from the search so the
+ * dashboard can count each chip over the whole catalog while showing only what
+ * matches the search box — a count that moved every time she typed a letter
+ * would be useless for deciding what to do next.
+ */
+export function productMatchesStockFilter(
+  product: AdminProductFilterable,
+  stock: AdminStockFilter,
+  now = new Date()
+) {
+  if (stock === 'all') return true;
+  if (stock === 'active') return product.active;
+  if (stock === 'inactive') return !product.active;
+
+  const signals = inventorySignals(product, now);
+  if (stock === 'out') return signals.outOfStock;
+  if (stock === 'low') return signals.lowStock;
+  if (stock === 'reorder') return signals.needsReorder;
+  if (stock === 'no-reorder') return signals.missingReorderPoint;
+  if (stock === 'sku') return signals.missingSku;
+  if (stock === 'supplier') return signals.missingSupplier;
+  if (stock === 'restocked') return signals.recentlyRestocked;
+  if (stock === 'photo') return product.active && productNeedsPhoto(product.imageUrl);
+  if (stock === 'incomplete') {
+    return product.active && productCompleteness(product).missingRequired.length > 0;
+  }
+  return true;
 }
 
 export function productMatchesAdminFilter(
   product: AdminProductFilterable,
   query: string,
-  stock: AdminStockFilter
+  stock: AdminStockFilter,
+  now = new Date()
 ) {
   const needle = query.trim().toLowerCase();
   if (needle) {
-    const haystack = `${product.name} ${product.slug} ${product.sku || ''}`.toLowerCase();
+    // Supplier and their item number are in here because a restock starts from a
+    // packing slip: she has the vendor's number in front of her, not ours.
+    const haystack =
+      `${product.name} ${product.slug} ${product.sku || ''} ${product.supplier || ''} ${product.supplierItemNumber || ''}`.toLowerCase();
     if (!haystack.includes(needle)) return false;
   }
-  if (stock === 'active') return product.active;
-  if (stock === 'archived') return !product.active;
-  if (stock === 'photo') return product.active && productNeedsPhoto(product.imageUrl);
-  if (stock === 'low') return productIsLowStock(product);
-  if (stock === 'out') return productIsOutOfStock(product);
-  if (stock === 'incomplete') return productHasIncompleteInfo(product);
-  return true;
+  return productMatchesStockFilter(product, stock, now);
+}
+
+/** The chips, in the order they read across the top of the inventory list. */
+export const ADMIN_STOCK_FILTERS: Array<{ key: AdminStockFilter; label: string }> = [
+  { key: 'all', label: 'Everything' },
+  { key: 'active', label: 'In the shop' },
+  { key: 'inactive', label: 'Inactive' },
+  { key: 'out', label: 'Out of stock' },
+  { key: 'low', label: 'Low stock' },
+  { key: 'reorder', label: 'Needs reorder' },
+  { key: 'no-reorder', label: 'No reorder point' },
+  { key: 'sku', label: 'Missing SKU' },
+  { key: 'supplier', label: 'Missing supplier' },
+  { key: 'photo', label: 'Missing photograph' },
+  { key: 'incomplete', label: 'Incomplete' },
+  { key: 'restocked', label: 'Recently restocked' }
+];
+
+export function adminStockFilterCounts(products: AdminProductFilterable[], now = new Date()) {
+  const counts = new Map<AdminStockFilter, number>();
+  for (const { key } of ADMIN_STOCK_FILTERS) {
+    counts.set(
+      key,
+      products.filter((product) => productMatchesStockFilter(product, key, now)).length
+    );
+  }
+  return counts;
+}
+
+/**
+ * One line of the Needs attention panel: a count, the sentence it reads as, and
+ * the chip that shows exactly those products.
+ */
+export type AttentionItem = {
+  key: AdminStockFilter;
+  count: number;
+  /** The sentence without its leading number, so a UI can style the two apart. */
+  detail: string;
+  /** The whole sentence: "3 products are out of stock". */
+  message: string;
+  href: string;
+};
+
+const many = (count: number) => (count === 1 ? 'product' : 'products');
+const verb = (count: number) => (count === 1 ? 'is' : 'are');
+const has = (count: number) => (count === 1 ? 'has' : 'have');
+const its = (count: number) => (count === 1 ? 'its' : 'their');
+
+/**
+ * What is actually worth doing something about, most urgent first.
+ *
+ * Deliberately shorter than the chip row above it. Every filter is a view Tammy
+ * may want; only some of them are a problem, and a panel that lists twelve
+ * numbers every morning is one she stops reading. Anything at zero is left out
+ * entirely rather than shown as a reassuring nought.
+ */
+export function inventoryAttention(
+  catalog: AdminProductFilterable[],
+  now = new Date()
+): AttentionItem[] {
+  const counts = adminStockFilterCounts(catalog, now);
+  const at = (key: AdminStockFilter) => counts.get(key) || 0;
+
+  const lines: Array<{ key: AdminStockFilter; detail: (count: number) => string }> = [
+    { key: 'out', detail: (n) => `${many(n)} ${verb(n)} out of stock` },
+    { key: 'reorder', detail: (n) => `${many(n)} ${has(n)} reached ${its(n)} reorder point` },
+    { key: 'low', detail: (n) => `${many(n)} ${verb(n)} running low` },
+    { key: 'photo', detail: (n) => `${many(n)} ${verb(n)} missing product photographs` },
+    { key: 'incomplete', detail: (n) => `${many(n)} ${has(n)} incomplete required information` },
+    { key: 'sku', detail: (n) => `${many(n)} ${verb(n)} missing a SKU` },
+    { key: 'supplier', detail: (n) => `${many(n)} ${verb(n)} missing a supplier` },
+    { key: 'no-reorder', detail: (n) => `${many(n)} ${has(n)} no reorder point set` }
+  ];
+
+  return lines.flatMap(({ key, detail }) => {
+    const count = at(key);
+    if (count === 0) return [];
+    const text = detail(count);
+    return [
+      {
+        key,
+        count,
+        detail: text,
+        message: `${count} ${text}`,
+        href: adminDashboardPath({ stock: key, section: 'inventory' })
+      }
+    ];
+  });
 }
 
 export type AdminOrderFilter = 'all' | 'awaiting' | 'pickup';
@@ -210,6 +294,10 @@ export function adminEmailPath(query: Record<string, string | undefined | null> 
   return adminDashboardPath(query).replace(/^\/admin/, '/admin/email');
 }
 
+export function adminMerchandisingPath(query: Record<string, string | undefined | null> = {}) {
+  return adminDashboardPath(query).replace(/^\/admin/, '/admin/merchandising');
+}
+
 /**
  * Next can hand a repeated query string through as `string[]`. The dashboard
  * used to call `.trim()` on `params.q` directly, so `/admin?q=one&q=two`
@@ -230,6 +318,9 @@ export const ADMIN_NOTICES: Record<string, string> = {
   'product-archived': 'Product archived. It is no longer listed in the shop.',
   'product-live': 'Product is live in the shop.',
   'stock-saved': 'Quantity updated.',
+  'stock-received': 'Delivery recorded. The quantity and the restock date are updated.',
+  'product-saved-draft':
+    'Saved as a draft. It is not listed in the shop until the information below is filled in.',
   'order-saved': 'Order updated.',
   'order-emailed': 'Confirmation email sent.',
   'message-saved': 'Message updated.',
@@ -237,6 +328,11 @@ export const ADMIN_NOTICES: Record<string, string> = {
   'subscriber-saved': 'Subscriber updated.',
   'registration-saved': 'Registration updated.',
   'registration-emailed': 'Class confirmation emailed.',
+  'category-saved': 'Category saved.',
+  'category-created': 'Category created.',
+  'category-deleted': 'Category deleted.',
+  'category-hidden': 'Category hidden. It no longer appears in the shop filters.',
+  'category-shown': 'Category is showing in the shop again.',
   'collection-saved': 'Collection saved.',
   'collection-created': 'Collection created.',
   'collection-deleted': 'Collection deleted.',
@@ -260,7 +356,23 @@ export const ADMIN_NOTICES: Record<string, string> = {
   'review-requests-none': 'Nobody was due a review request, so nothing was sent.',
   'care-saved': 'Care sheet saved.',
   'care-created': 'Care sheet published.',
+  'bundle-saved': 'Set saved.',
+  'bundle-created': 'Set created.',
+  'bundle-archived': 'Set archived. It is no longer offered on the website.',
+  'bundle-live':
+    'Set is live — it will appear on the website whenever every piece in it is in stock.',
+  'bundle-deleted': 'Set deleted. Past orders that contained it are unchanged.',
+  'relations-saved': 'Recommendations saved.',
+  'tags-saved': 'Tags saved. They are what the automatic suggestions match on.',
+  'guide-products-saved': 'Products on that guide saved.',
   'content-archived': 'Archived. It is no longer on the public website.',
+  'section-saved': 'Homepage row saved.',
+  'section-created': 'Homepage row added.',
+  'section-deleted': 'Homepage row removed.',
+  'sections-arranged': 'Homepage order saved.',
+  'products-arranged': 'Product order saved.',
+  'collections-arranged': 'Collection order saved.',
+  'merchandising-saved': 'Merchandising updated.',
   'email-sent': 'Email sent.',
   'reply-sent': 'Reply sent. It is saved with the message below.'
 };
@@ -271,6 +383,16 @@ export const ADMIN_ERRORS: Record<string, string> = {
   inventory:
     'Stock changed while you were editing. Refresh the page and save again so you do not overwrite a live checkout hold.',
   'product-invalid': 'A product needs a name, a description and a price of zero or more.',
+  /**
+   * The one place completeness refuses rather than advises. Everything else on
+   * the checklist is a nudge; net contents and an ingredient list on something
+   * people drink or put on their skin are not ours to skip.
+   */
+  'publish-blocked':
+    'A tea, soap or lotion needs its net weight and ingredient list before it can be listed for sale. Everything else was saved as a draft — fill those two in, then tick “Active in shop”.',
+  'restock-invalid':
+    'Enter how many arrived — a whole number of one or more, against a size this product is sold in.',
+  'product-missing': 'That product is no longer here. Refresh the page and look again.',
   'order-missing': 'That order is no longer here.',
   'order-email-failed':
     'The confirmation email could not be sent. Check that SENDGRID_API_KEY is set.',
@@ -286,14 +408,31 @@ export const ADMIN_ERRORS: Record<string, string> = {
     'The pickup-ready email could not be sent. The window is saved on the order — use Resend pickup email after checking SENDGRID_API_KEY.',
   'registration-email-failed':
     'The class confirmation could not be sent. The guest’s previous classroom link is still valid. Check that SENDGRID_API_KEY is set.',
+  'category-invalid': 'A category needs a name.',
+  'category-required':
+    'Choose a category for this product. It decides which details the product is asked for and which shop filter it appears under.',
+  'category-slug': 'That category address is already in use. Choose a different name or slug.',
+  'category-missing': 'That category is no longer here.',
+  'category-in-use':
+    'That category still holds products, and deleting it would drop them out of every filter that leads to them. Move them to another category first, or hide this one instead.',
   'collection-invalid': 'A collection needs a name.',
+  'section-invalid': 'A homepage row needs a heading, and a collection row needs a collection.',
+  'section-missing': 'That homepage row is no longer here.',
+  'merchandising-missing': 'That product is no longer here.',
   'collection-missing': 'That collection is no longer here.',
-  'collection-locked':
-    'That collection is part of the site header and cannot be renamed away, hidden or deleted.',
   'class-room-failed':
     'The class was saved, but the Telnyx room could not be prepared. Check TELNYX_API_KEY and try Prepare room again.',
   'content-invalid': 'That form was missing a required field.',
   'content-missing': 'That item is no longer here.',
+  'bundle-invalid': 'A set needs a name, a description and a price.',
+  'bundle-empty':
+    'A set needs at least one required item in it. An "extra" on its own is not something we can pack.',
+  'bundle-slug': 'That set URL is already in use. Choose a different one.',
+  'bundle-missing': 'That set is no longer here.',
+  'bundle-product-missing':
+    'One of the products in that set is no longer available to add. Refresh the page and choose again.',
+  'relation-invalid': 'Choose a product before saving its recommendations.',
+  'guide-missing': 'That care guide is no longer here.',
   'amazon-url':
     'That does not look like an Amazon link. Paste the item’s own address — an amazon.com one (or any other Amazon country address), or a shortened a.co or amzn.to link.',
   throttled: 'Too many sign-in attempts. Please wait a few minutes and try again.',

@@ -50,7 +50,11 @@ export type ReviewRequestCandidate = {
   email: string | null;
   fulfilledAt: Date | null;
   reviewRequestSentAt: Date | null;
-  items: ReadonlyArray<{ productId: string }>;
+  items: ReadonlyArray<{
+    productId: string | null;
+    /** A set's line names no product; what came off the shelf is underneath. */
+    components?: ReadonlyArray<{ productId: string }>;
+  }>;
 };
 
 /**
@@ -77,7 +81,18 @@ export type ReviewRequestOrder = {
   items: ReadonlyArray<{
     name: string;
     size?: string | null;
-    product: { slug: string; name: string };
+    product: { slug: string; name: string } | null;
+    /**
+     * The pieces inside a set. Its own line has no product page to send anyone
+     * to, but every piece does — and a customer who was sent the Tea Starter Set
+     * has an opinion about the tea and the infuser, which is the whole point of
+     * asking.
+     */
+    components?: ReadonlyArray<{
+      productId?: string | null;
+      product: { slug: string; name: string } | null;
+      name: string;
+    }>;
   }>;
 };
 
@@ -88,10 +103,17 @@ export type ReviewRequestOrder = {
 export function reviewRequestProducts(order: ReviewRequestOrder) {
   const seen = new Set<string>();
   const products: Array<{ slug: string; name: string }> = [];
+  const add = (product: { slug: string; name: string } | null | undefined, fallback: string) => {
+    if (!product?.slug || seen.has(product.slug)) return;
+    seen.add(product.slug);
+    products.push({ slug: product.slug, name: product.name || fallback });
+  };
   for (const item of order.items) {
-    if (!item.product?.slug || seen.has(item.product.slug)) continue;
-    seen.add(item.product.slug);
-    products.push({ slug: item.product.slug, name: item.product.name || item.name });
+    if (item.product?.slug) {
+      add(item.product, item.name);
+      continue;
+    }
+    for (const component of item.components || []) add(component.product, component.name);
   }
   return products;
 }

@@ -1,45 +1,53 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Gift, Truck } from 'lucide-react';
+import { BookOpen, Gift, Package, Truck } from 'lucide-react';
 import AddToCartButton from '@/components/AddToCartButton';
+import BundleGrid from '@/components/BundleGrid';
 import InlineNewsletter from '@/components/InlineNewsletter';
 import ProductGallery from '@/components/ProductGallery';
 import ProductGrid from '@/components/ProductGrid';
 import ProductViewTracker from '@/components/ProductViewTracker';
 import ProductReviews from '@/components/ProductReviews';
 import StockAlertForm from '@/components/StockAlertForm';
+import { bundleCardData, sellableBundlesContaining } from '@/lib/bundle-queries';
+import { careGuideTypeLabel } from '@/lib/care-guides';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
-import { bundleContents, giftGuidePath, giftGuidesForProduct } from '@/lib/gifts';
+import { recommendationsForProduct } from '@/lib/recommendation-queries';
+import { specKindFor } from '@/lib/product-categories';
+import { productPhotos } from '@/lib/product-photos';
+import { specSections } from '@/lib/product-specs';
+import { giftGuidePath, giftGuidesForProduct } from '@/lib/gifts';
 import { REVIEW_PAGE_SIZE } from '@/lib/review-display';
-import { ratingCountsForProduct, ratingsByProduct } from '@/lib/reviews';
+import { ratingCountsForProduct, ratingForProduct } from '@/lib/reviews';
 import { jsonLd } from '@/lib/json-ld';
 import {
   comparableAtCents,
   formatSizePriceRange,
+  fulfillmentAcrossVariants,
   productSizes,
-  sizePriceRange
+  sizeFieldLabel,
+  sizePriceRange,
+  variantsDifferOnFulfillment
 } from '@/lib/product-sizes';
-import { pageMetadata } from '@/lib/seo';
+import { breadcrumbJsonLd, pageMetadata, productJsonLd, productOffers } from '@/lib/seo';
+import { merchandisingBadges } from '@/lib/merchandising';
+import { merchandisingFlagsFor } from '@/lib/merchandising-data';
+import { normalizeTags, tagLabel } from '@/lib/product-tags';
 import {
-  absoluteUrl,
   discountPercent,
-  flatShippingCents,
   formatMoney,
   freeShippingThresholdCents,
-  HANDLING_MAX_DAYS,
-  HANDLING_MIN_DAYS,
-  priceValidUntil,
   productTypeLabel,
-  productTypePlural,
-  returnPolicyForType,
   resolveImageUrl
 } from '@/lib/store';
-import { fulfillmentBlurb, offersPickup, offersShipping } from '@/lib/fulfillment';
+import { fulfillmentBlurb } from '@/lib/fulfillment';
 
 export const dynamic = 'force-dynamic';
+
+/** Card fields for the hand-picked products shown beside this one. */
 
 export async function generateMetadata({
   params
@@ -73,8 +81,20 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const product = await db.product.findFirst({
     where: { slug },
     include: {
+      category: true,
       collections: { where: { active: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
-      careSheets: { where: { published: true }, take: 2 }
+      /**
+       * Both the guide this product is the subject of and any guide that
+       * features it, so a venus flytrap reaches its own profile *and* the
+       * watering guide that keeps it alive.
+       */
+      careSheets: { where: { published: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
+      careGuides: {
+        where: { careSheet: { published: true } },
+        orderBy: { sortOrder: 'asc' },
+        include: { careSheet: true },
+        take: 4
+      }
     }
   });
   if (!product) notFound();
@@ -85,39 +105,37 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
 
   const approvedReviews = { productId: product.id, status: 'APPROVED' } as const;
 
-  const [related, newestReviews, mostHelpfulReviews, rating, ratingCounts] = await Promise.all([
-    db.product.findMany({
-      where: { active: true, id: { not: product.id }, type: product.type },
-      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
-      take: 3
-    }),
-    db.review.findMany({
-      where: approvedReviews,
-      orderBy: { createdAt: 'desc' },
-      take: REVIEW_PAGE_SIZE
-    }),
-    /**
-     * The page renders a bounded number of reviews, and the shopper can order
-     * them two ways — so it has to hold the top of *both* orderings, not the
-     * top of one sorted twice. Fetching only the newest page and then sorting
-     * it by helpfulness in the browser meant that past the cap the single most
-     * helpful review could never appear, while the summary above it still
-     * counted every approved one. The control would have been advertising an
-     * ordering it did not implement.
-     */
-    db.review.findMany({
-      where: approvedReviews,
-      orderBy: [{ helpfulCount: 'desc' }, { createdAt: 'desc' }],
-      take: REVIEW_PAGE_SIZE
-    }),
-    ratingsByProduct([product.id]).then((map) => map.get(product.id) || { average: 0, count: 0 }),
-    /**
-     * Counted over every approved review, not over the page fetched above, so
-     * the breakdown and the review count beside it cannot disagree once a
-     * product has more reviews than one page holds.
-     */
-    ratingCountsForProduct(product.id)
-  ]);
+  const [newestReviews, mostHelpfulReviews, rating, ratingCounts, rails, inSets] =
+    await Promise.all([
+      db.review.findMany({
+        where: approvedReviews,
+        orderBy: { createdAt: 'desc' },
+        take: REVIEW_PAGE_SIZE
+      }),
+      /**
+       * The page renders a bounded number of reviews, and the shopper can order
+       * them two ways — so it has to hold the top of *both* orderings, not the
+       * top of one sorted twice. Fetching only the newest page and then sorting
+       * it by helpfulness in the browser meant that past the cap the single most
+       * helpful review could never appear, while the summary above it still
+       * counted every approved one. The control would have been advertising an
+       * ordering it did not implement.
+       */
+      db.review.findMany({
+        where: approvedReviews,
+        orderBy: [{ helpfulCount: 'desc' }, { createdAt: 'desc' }],
+        take: REVIEW_PAGE_SIZE
+      }),
+      ratingForProduct(product.id),
+      /**
+       * Counted over every approved review, not over the page fetched above, so
+       * the breakdown and the review count beside it cannot disagree once a
+       * product has more reviews than one page holds.
+       */
+      ratingCountsForProduct(product.id),
+      recommendationsForProduct(product),
+      sellableBundlesContaining(product.id)
+    ]);
 
   /**
    * The two pages overlap almost entirely on a product with fewer reviews than
@@ -131,16 +149,52 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     )
   ];
 
-  const relatedRatings = await ratingsByProduct(related.map((item) => item.id));
-  const relatedProducts = related.map((item) => ({
-    ...item,
-    averageRating: relatedRatings.get(item.id)?.average ?? null,
-    reviewCount: relatedRatings.get(item.id)?.count ?? 0
-  }));
+  /**
+   * Every guide that touches this product, the subject one first, with
+   * duplicates folded out — a guide can be both the product's own profile and a
+   * featured link, and listing it twice looks like a mistake.
+   */
+  const guides = [
+    ...product.careSheets,
+    ...product.careGuides.map((link) => link.careSheet)
+  ].filter((sheet, index, all) => all.findIndex((other) => other.id === sheet.id) === index);
+  const primaryGuide = guides[0] || null;
+  const flags = (await merchandisingFlagsFor([product])).get(product.id);
+  const primaryCollection = product.collections[0] || null;
+  /**
+   * Only the attributes Tammy assigned. The derived ones — in stock, ships, on
+   * sale — are already stated plainly further up the page, and repeating them as
+   * chips would pad the page with things the shopper just read.
+   */
+  const attributes = normalizeTags(product.tags);
 
   const threshold = freeShippingThresholdCents();
   const soldOut = product.inventory <= 0;
-  const sizes = productSizes(product.sizes, product.priceCents);
+  /**
+   * Resolved against the product, so a variant that says nothing about its
+   * photograph, its SKU or how it gets home answers with the product's.
+   */
+  const sizes = productSizes(product.sizes, product.priceCents, {
+    sku: product.sku,
+    imageUrl: product.imageUrl,
+    weightOunces: product.weightOunces,
+    dimensions: product.dimensions,
+    ships: product.ships,
+    pickup: product.pickup
+  });
+  const specs = specSections(specKindFor(product), product.specs);
+  const categoryName = product.category?.title || productTypeLabel(product.type);
+  const mixedFulfillment = variantsDifferOnFulfillment(sizes);
+  /**
+   * How this product actually gets home. Read from the variants where there are
+   * any, because they may override the product's own two checkboxes: a plant
+   * ticked as shipping whose every variant is pickup-only ships in no sense a
+   * customer can act on, and checkout — which resolves the variant — would
+   * refuse the order this page had just offered.
+   */
+  const fulfillment = fulfillmentAcrossVariants(sizes, product);
+  /** Whether the section below has anything to say at all. */
+  const hasSpecifics = specs.length > 0 || Boolean(product.dimensions);
   const compareAt = comparableAtCents(sizes, product.priceCents, product.compareAtCents);
   const saving = discountPercent(product.priceCents, compareAt);
   /**
@@ -148,7 +202,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
    * exact price arrives with the choice, in the dropdown and beneath it.
    */
   const priceSpan = sizePriceRange(sizes, product.priceCents);
-  const insideTheBundle = product.bundle ? bundleContents(product.bundleItems) : [];
   /**
    * The gift guides this product is actually in. Rendered as links so the
    * product page joins the gift experience rather than sitting outside it —
@@ -157,120 +210,48 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
    */
   const giftGuides = soldOut ? [] : giftGuidesForProduct(product);
 
-  const productJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: product.name,
-    description: product.shortDescription || product.description,
-    image: [product.imageUrl, ...product.galleryImages]
-      .filter(Boolean)
-      .map((source) => absoluteUrl(resolveImageUrl(source)))
-      .slice(0, 6),
-    sku: product.sku || undefined,
-    brand: { '@type': 'Brand', name: 'The Hillside Gardens' },
-    ...(rating.count > 0
-      ? {
-          aggregateRating: {
-            '@type': 'AggregateRating',
-            ratingValue: rating.average,
-            reviewCount: rating.count
-          }
-        }
-      : {}),
-    ...(reviews.length
-      ? {
-          review: reviews.slice(0, 5).map((review) => ({
-            '@type': 'Review',
-            author: { '@type': 'Person', name: review.authorName },
-            datePublished: review.createdAt.toISOString().slice(0, 10),
-            name: review.title || undefined,
-            reviewBody: review.body,
-            reviewRating: { '@type': 'Rating', ratingValue: review.rating, bestRating: 5 }
-          }))
-        }
-      : {}),
-    /**
-     * `itemCondition`, `priceValidUntil` and the shipping and returns details are
-     * all fields Search Console warns about when they are absent from an Offer.
-     * The shipping figures come from the same configuration the cart charges by,
-     * so the rich result cannot advertise a rate the checkout does not honour.
-     */
-    offers: {
-      ...(priceSpan.minCents === priceSpan.maxCents
-        ? { '@type': 'Offer', price: (priceSpan.minCents / 100).toFixed(2) }
-        : {
-            '@type': 'AggregateOffer',
-            lowPrice: (priceSpan.minCents / 100).toFixed(2),
-            highPrice: (priceSpan.maxCents / 100).toFixed(2),
-            offerCount: sizes.length
-          }),
-      url: absoluteUrl(`/shop/${product.slug}`),
-      priceCurrency: 'USD',
-      priceValidUntil: priceValidUntil(),
-      itemCondition: 'https://schema.org/NewCondition',
-      availability: soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
-      seller: { '@id': absoluteUrl('/#business') },
-      ...(offersShipping(product)
-        ? {
-            shippingDetails: {
-              '@type': 'OfferShippingDetails',
-              shippingRate: {
-                '@type': 'MonetaryAmount',
-                value: (
-                  (threshold > 0 && priceSpan.minCents >= threshold ? 0 : flatShippingCents()) / 100
-                ).toFixed(2),
-                currency: 'USD'
-              },
-              shippingDestination: {
-                '@type': 'DefinedRegion',
-                addressCountry: 'US'
-              },
-              deliveryTime: {
-                '@type': 'ShippingDeliveryTime',
-                handlingTime: {
-                  '@type': 'QuantitativeValue',
-                  minValue: HANDLING_MIN_DAYS,
-                  maxValue: HANDLING_MAX_DAYS,
-                  unitCode: 'DAY'
-                },
-                transitTime: {
-                  '@type': 'QuantitativeValue',
-                  minValue: 3,
-                  maxValue: 7,
-                  unitCode: 'DAY'
-                }
-              }
-            }
-          }
-        : {}),
-      hasMerchantReturnPolicy: returnPolicyForType(product.type)
-    }
-  };
+  const offers = productOffers({
+    slug: product.slug,
+    type: product.type,
+    sku: product.sku,
+    ships: product.ships,
+    inventory: product.inventory,
+    priceCents: product.priceCents,
+    sizes
+  });
 
-  const breadcrumbJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: absoluteUrl('/') },
-      { '@type': 'ListItem', position: 2, name: 'Shop', item: absoluteUrl('/shop') },
-      {
-        '@type': 'ListItem',
-        position: 3,
-        name: product.name,
-        item: absoluteUrl(`/shop/${product.slug}`)
-      }
-    ]
-  };
+  const productSchema = productJsonLd({
+    product,
+    offers,
+    rating,
+    reviews
+  });
+
+  const breadcrumbSchema = breadcrumbJsonLd([
+    { name: 'Home', path: '/' },
+    { name: 'Shop', path: '/shop' },
+    /**
+     * The category is the structural parent — a product has exactly one — so it
+     * is the crumb. A collection cuts across categories and is not a path down
+     * to this page; it is only used where a product has no category yet.
+     */
+    ...(product.category
+      ? [{ name: product.category.title, path: `/shop?category=${product.category.slug}` }]
+      : primaryCollection
+        ? [{ name: primaryCollection.title, path: `/collections/${primaryCollection.slug}` }]
+        : []),
+    { name: product.name, path: `/shop/${product.slug}` }
+  ]);
 
   return (
     <section className="content">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: jsonLd(productJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(productSchema) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbSchema) }}
       />
       <ProductViewTracker
         slug={product.slug}
@@ -283,6 +264,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <Link href="/">Home</Link>
           <span>/</span>
           <Link href="/shop">Shop</Link>
+          {product.category && (
+            <>
+              <span>/</span>
+              <Link href={`/shop?category=${product.category.slug}`}>{product.category.title}</Link>
+            </>
+          )}
           <span>/</span>
           <span>{product.name}</span>
         </div>
@@ -293,17 +280,44 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               name={product.name}
               type={product.type}
               imageUrl={product.imageUrl}
-              images={product.galleryImages}
+              photos={productPhotos(product)}
             />
           </div>
           <div className="product-detail-copy">
-            <div className="eyebrow">{productTypeLabel(product.type)}</div>
+            <div className="eyebrow">
+              {product.category ? (
+                <Link
+                  className="product-category-link"
+                  href={`/shop?category=${product.category.slug}`}
+                >
+                  {product.category.title}
+                </Link>
+              ) : (
+                categoryName
+              )}
+            </div>
             <div className="product-detail-badges">
-              {product.bundle && <span className="pill bundle">Gift bundle</span>}
-              {saving > 0 && <span className="pill sale">Save {saving}%</span>}
-              {product.badge && <span className="pill">{product.badge}</span>}
+              {merchandisingBadges(
+                product,
+                {
+                  savingPercent: saving,
+                  isBestSeller: flags?.isBestSeller,
+                  isNew: flags?.isNew,
+                  isInSeason: flags?.isInSeason
+                },
+                3
+              ).map((badge) => (
+                <span className={`pill ${badge.tone}`} key={`${badge.tone}-${badge.label}`}>
+                  {badge.label}
+                </span>
+              ))}
             </div>
             <h1>{product.name}</h1>
+            {product.botanical && (
+              <p className="product-botanical">
+                <i>{product.botanical}</i>
+              </p>
+            )}
             {rating.count > 0 && (
               <p className="rating-inline">
                 <span className="rating-stars" aria-hidden="true">
@@ -338,7 +352,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   : `${product.inventory} available`}
             </p>
 
-            {threshold > 0 && offersShipping(product) && (
+            {threshold > 0 && fulfillment.ships && (
               <p className="shipping-nudge">
                 <Truck size={17} aria-hidden="true" />
                 {/* Quoted against the cheapest size, so the promise holds
@@ -348,23 +362,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   : `Free standard shipping on orders over ${formatMoney(threshold)}.`}
               </p>
             )}
-            {!offersShipping(product) && offersPickup(product) && (
+            {!fulfillment.ships && fulfillment.pickup && (
               <p className="shipping-nudge">
                 <Truck size={17} aria-hidden="true" />
                 Local pickup only — this piece does not ship.
               </p>
-            )}
-
-            {insideTheBundle.length > 0 && (
-              <div className="bundle-contents">
-                <b>What is in this bundle</b>
-                <ul>
-                  {insideTheBundle.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-                <span className="muted">One price, one parcel, packed together by hand.</span>
-              </div>
             )}
 
             <div className="product-detail-notes">
@@ -382,13 +384,37 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               )}
               <div className="note-box">
                 <b>How it gets home</b>
-                {fulfillmentBlurb(product)}
+                {mixedFulfillment
+                  ? `This is not sold the same way in every ${sizeFieldLabel(
+                      product.sizeLabel
+                    ).toLowerCase()} — choose one above and the panel says whether it ships, is collected here, or both.`
+                  : fulfillmentBlurb(fulfillment)}
               </div>
               <div className="note-box">
                 <b>Secure checkout</b>Payment is processed by Stripe. A receipt and invoice are
                 emailed after purchase.
               </div>
             </div>
+
+            {/* Above the Add button, not buried at the foot of the page: the
+                care guide is what tells a nervous first-time buyer this plant is
+                survivable, and that decision is made here. */}
+            {primaryGuide && (
+              <div className="care-guide-link">
+                <BookOpen size={22} aria-hidden="true" />
+                <div>
+                  <b>
+                    {primaryGuide.guideType === 'PLANT'
+                      ? `How to keep ${product.name} alive`
+                      : primaryGuide.plantName}
+                  </b>
+                  <span>{primaryGuide.summary}</span>
+                </div>
+                <Link className="btn outline small" href={`/care/${primaryGuide.slug}`}>
+                  Read the care guide
+                </Link>
+              </div>
+            )}
 
             {soldOut ? (
               <StockAlertForm slug={product.slug} name={product.name} />
@@ -409,6 +435,43 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               />
             )}
 
+            {attributes.length > 0 && (
+              <div className="product-attributes">
+                <b>Good to know</b>
+                <ul>
+                  {attributes.map((tag) => (
+                    <li key={tag}>
+                      {/* Each attribute links to the shop already filtered by it,
+                          so "Pet safe" on one plant is a route to every other
+                          one rather than a decorative label. */}
+                      <Link href={`/shop?tags=${tag}`}>{tagLabel(tag)}</Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {/* Sets that contain this exact product, and only while every other
+                piece in them is on the bench too — so the nudge can never point
+                at a box the shop cannot pack. */}
+            {inSets.map((set) => {
+              const card = bundleCardData(set);
+              return (
+                <div className="bundle-nudge" key={set.slug}>
+                  <div>
+                    <b>
+                      <Package size={15} aria-hidden="true" /> Also in the {set.title}
+                    </b>
+                    <span>
+                      {card.contents}
+                      {card.savingsCents > 0 ? ` — ${card.savingsNote?.toLowerCase()}` : ''}
+                    </span>
+                  </div>
+                  <Link className="btn outline small" href={`/bundles/${set.slug}`}>
+                    See the set
+                  </Link>
+                </div>
+              );
+            })}
             {giftGuides.length > 0 && (
               <div className="product-gift-guides">
                 <b>
@@ -450,6 +513,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </div>
         </div>
 
+        {/* Ingredients and brewing are not repeated here: they are structured
+            fields, and the specifics section below renders them from the same
+            registry the form writes, rather than from a second copy that can
+            disagree with it. */}
         {product.details && (
           <div className="product-details-section narrow prose">
             <div className="eyebrow">Product details</div>
@@ -458,7 +525,74 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </div>
         )}
 
-        {product.careSheets.length > 0 && (
+        {/* The structured detail Tammy filled in for this kind of product — a
+            plant's light and water, a tea's steep time and allergens, a bag of
+            gravel's dimensions. Anything she left blank is not rendered, so a
+            listing says what is known and stays quiet about the rest. */}
+        {hasSpecifics && (
+          <div className="product-details-section">
+            <div className="sectionhead">
+              <div className="eyebrow">The specifics</div>
+              <h2>{categoryName} details.</h2>
+            </div>
+            <div className="spec-groups">
+              {specs.map((section) => (
+                <section className="spec-group" key={section.title}>
+                  <h3>{section.title}</h3>
+                  <dl>
+                    {section.rows.map((row) => (
+                      <div className={row.long ? 'spec-row long' : 'spec-row'} key={row.key}>
+                        <dt>{row.label}</dt>
+                        <dd style={row.long ? { whiteSpace: 'pre-line' } : undefined}>
+                          {row.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </section>
+              ))}
+              {/* Whether a piece can be collected is the product's own answer,
+                  not a field somebody has to remember to fill in twice. */}
+              <section className="spec-group">
+                <h3>Getting it home</h3>
+                <dl>
+                  <div className="spec-row">
+                    <dt>Shipping</dt>
+                    <dd>
+                      {fulfillment.ships
+                        ? mixedFulfillment
+                          ? 'Ships to US addresses, depending on the size chosen'
+                          : 'Ships to US addresses'
+                        : 'Does not ship'}
+                    </dd>
+                  </div>
+                  <div className="spec-row">
+                    <dt>Local pickup</dt>
+                    <dd>
+                      {fulfillment.pickup
+                        ? 'Available in Ebensburg, once a time is arranged'
+                        : 'Not available'}
+                    </dd>
+                  </div>
+                  {product.dimensions && (
+                    <div className="spec-row">
+                      <dt>Dimensions</dt>
+                      <dd>{product.dimensions}</dd>
+                    </div>
+                  )}
+                  {product.sku && (
+                    <div className="spec-row">
+                      <dt>Item number</dt>
+                      <dd>{product.sku}</dd>
+                    </div>
+                  )}
+                </dl>
+              </section>
+            </div>
+          </div>
+        )}
+
+        {guides.length > 0 && (
           <div className="product-details-section">
             <div className="sectionhead">
               <div className="eyebrow">Keep it thriving</div>
@@ -467,11 +601,12 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   ? 'Care guides for this plant.'
                   : 'Care guides for this item.'}
               </h2>
+              <p>Written here, free to read before you buy, and printable once it is home.</p>
             </div>
             <div className="care-related-grid">
-              {product.careSheets.map((sheet) => (
+              {guides.map((sheet) => (
                 <article className="care-related-card" key={sheet.id}>
-                  <span>Plant care</span>
+                  <span>{careGuideTypeLabel(sheet.guideType)}</span>
                   <h3>
                     <Link href={`/care/${sheet.slug}`}>{sheet.plantName}</Link>
                   </h3>
@@ -502,16 +637,42 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           }))}
         />
 
-        {relatedProducts.length > 0 && (
+        {/*
+          Four separate questions, each with its own heading, rather than one
+          "More in plants" shelf. A rail only renders when something genuinely
+          answers it — an empty "Complete the setup" is a better answer than a
+          full one that is wrong, because a shopper shown a bar of soap under a
+          fly trap stops reading the section entirely.
+        */}
+        {rails.length > 0 && (
+          <div className="product-details-section">
+            {rails.map((rail) => (
+              <section className="recommendation-rail" key={rail.key}>
+                <div className="recommendation-rail-head">
+                  <div>
+                    <div className="eyebrow">
+                      {rail.key === 'complete' ? 'Goes with it' : 'Our suggestion'}
+                    </div>
+                    <h2>{rail.title}</h2>
+                  </div>
+                  <p>{rail.blurb}</p>
+                </div>
+                <ProductGrid products={rail.products} eagerCount={0} />
+              </section>
+            ))}
+          </div>
+        )}
+
+        {inSets.length > 0 && (
           <div className="product-details-section">
             <div className="sectionhead">
-              {/* The query behind this list matches on product type, not on the
-                  collections above, so the heading says type — as a plural,
-                  because it introduces a shelf of them, not one. */}
-              <div className="eyebrow">You may also like</div>
-              <h2>More in {productTypePlural(product.type).toLowerCase()}.</h2>
+              <div className="eyebrow">Buy it as a set</div>
+              <h2>
+                {product.name} is part of {inSets.length === 1 ? 'a kit' : 'these kits'}.
+              </h2>
+              <p>Priced below what the pieces cost on their own.</p>
             </div>
-            <ProductGrid products={relatedProducts} />
+            <BundleGrid bundles={inSets.map(bundleCardData)} />
           </div>
         )}
 
@@ -537,6 +698,10 @@ function RetiredProduct({
     shortDescription: string | null;
     description: string;
     imageUrl: string | null;
+    lifestyleImageUrl: string | null;
+    detailImageUrl: string | null;
+    scaleImageUrl: string | null;
+    packagingImageUrl: string | null;
     galleryImages: string[];
     careSheets: Array<{ id: string; slug: string; plantName: string; summary: string }>;
   };
@@ -556,7 +721,7 @@ function RetiredProduct({
               name={product.name}
               type={product.type}
               imageUrl={product.imageUrl}
-              images={product.galleryImages}
+              photos={productPhotos(product)}
             />
           </div>
           <div className="product-detail-copy">

@@ -16,7 +16,10 @@ const candidateInclude = {
       name: true,
       size: true,
       productId: true,
-      product: { select: { slug: true, name: true } }
+      product: { select: { slug: true, name: true } },
+      components: {
+        select: { productId: true, name: true, product: { select: { slug: true, name: true } } }
+      }
     }
   }
 } as const;

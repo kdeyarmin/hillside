@@ -1,8 +1,15 @@
 'use client';
 
 import { useEffect } from 'react';
+import { formatBytes, uploadImageFile } from '@/lib/image-compress';
 
-type UploadResponse = { url?: string; error?: string };
+/**
+ * Adds a file picker and a drop target to the plain photo-URL fields on the
+ * dashboard's other forms — collections, classes, the gallery, Amazon picks,
+ * care sheets. The product form has its own richer editor
+ * (`ProductPhotoManager`) and opts out with `data-upload-managed`, so these two
+ * never both attach to the same field.
+ */
 
 function updateInput(input: HTMLInputElement, value: string) {
   const nativeSetter = Object.getOwnPropertyDescriptor(
@@ -13,24 +20,6 @@ function updateInput(input: HTMLInputElement, value: string) {
   else input.value = value;
   input.dispatchEvent(new Event('input', { bubbles: true }));
   input.dispatchEvent(new Event('change', { bubbles: true }));
-}
-
-function updateTextarea(textarea: HTMLTextAreaElement, value: string) {
-  const nativeSetter = Object.getOwnPropertyDescriptor(
-    window.HTMLTextAreaElement.prototype,
-    'value'
-  )?.set;
-  if (nativeSetter) nativeSetter.call(textarea, value);
-  else textarea.value = value;
-  textarea.dispatchEvent(new Event('input', { bubbles: true }));
-  textarea.dispatchEvent(new Event('change', { bubbles: true }));
-}
-
-function galleryUrls(value: string) {
-  return value
-    .split(/[\n,]+/)
-    .map((entry) => entry.trim())
-    .filter(Boolean);
 }
 
 function enhanceImageInput(input: HTMLInputElement) {
@@ -46,16 +35,17 @@ function enhanceImageInput(input: HTMLInputElement) {
 
   const help = document.createElement('p');
   help.textContent =
-    'JPEG, PNG, WebP or GIF — up to 8 MB. The photo URL field above fills in automatically.';
+    'Choose a photo or drop one here. It is resized on this device before it uploads, so a picture straight off your phone is fine.';
 
   const fileInput = document.createElement('input');
   fileInput.type = 'file';
-  fileInput.accept = 'image/jpeg,image/png,image/webp,image/gif';
+  fileInput.accept = 'image/*';
   fileInput.className = 'admin-upload-file';
   fileInput.tabIndex = -1;
-  /* Off-screen and driven by the button below, but still a form control in the
-     accessibility tree — one with no name at all until this. */
-  fileInput.setAttribute('aria-label', 'Choose a product photo to upload');
+  // The visible button is not this input's accessible name, and hiding a
+  // programmatically focusable control from assistive technology is its own
+  // problem, so it gets a name of its own.
+  fileInput.setAttribute('aria-label', 'Choose a photo to upload');
 
   const chooseButton = document.createElement('button');
   chooseButton.type = 'button';
@@ -97,8 +87,7 @@ function enhanceImageInput(input: HTMLInputElement) {
   });
   input.addEventListener('input', refreshPreview);
 
-  fileInput.addEventListener('change', async () => {
-    const file = fileInput.files?.[0];
+  const send = async (file: File | undefined) => {
     if (!file) return;
 
     chooseButton.disabled = true;
@@ -107,15 +96,13 @@ function enhanceImageInput(input: HTMLInputElement) {
     status.dataset.state = '';
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await fetch('/api/admin/upload', { method: 'POST', body: formData });
-      const result = (await response.json()) as UploadResponse;
-      if (!response.ok || !result.url) {
-        throw new Error(result.error || 'The image could not be uploaded.');
-      }
-      updateInput(input, result.url);
-      status.textContent = 'Upload complete. Save the form to publish this photo.';
+      const { url, prepared } = await uploadImageFile(file);
+      const saved = prepared.originalBytes - prepared.uploadedBytes;
+      updateInput(input, url);
+      status.textContent =
+        saved > 0
+          ? `Upload complete — ${formatBytes(saved)} smaller. Save the form to publish this photo.`
+          : 'Upload complete. Save the form to publish this photo.';
       status.dataset.state = 'success';
       refreshPreview();
     } catch (error) {
@@ -127,7 +114,10 @@ function enhanceImageInput(input: HTMLInputElement) {
       chooseButton.textContent = 'Choose and upload photo';
       fileInput.value = '';
     }
-  });
+  };
+
+  fileInput.addEventListener('change', () => void send(fileInput.files?.[0]));
+  acceptDrops(wrapper, (files) => void send(files[0]));
 
   wrapper.append(heading, help, fileInput, controls, preview);
   const anchor = input.closest('label') || input;
@@ -135,133 +125,40 @@ function enhanceImageInput(input: HTMLInputElement) {
   refreshPreview();
 }
 
-const GALLERY_LIMIT = 8;
-
-function enhanceGalleryInput(textarea: HTMLTextAreaElement) {
-  if (textarea.dataset.uploadEnhanced === 'true') return;
-  textarea.dataset.uploadEnhanced = 'true';
-
-  const wrapper = document.createElement('div');
-  wrapper.className = 'admin-upload-tools';
-
-  const heading = document.createElement('div');
-  heading.className = 'admin-upload-heading';
-  heading.textContent = 'Upload extra photos from this device';
-
-  const help = document.createElement('p');
-  help.textContent = `JPEG, PNG, WebP or GIF — up to 8 MB each. Each upload is added as another line above (up to ${GALLERY_LIMIT}).`;
-
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.accept = 'image/jpeg,image/png,image/webp,image/gif';
-  fileInput.className = 'admin-upload-file';
-  fileInput.tabIndex = -1;
-  fileInput.setAttribute('aria-label', 'Choose an extra photo to upload');
-
-  const chooseButton = document.createElement('button');
-  chooseButton.type = 'button';
-  chooseButton.className = 'btn outline small';
-  chooseButton.textContent = 'Upload extra photo';
-
-  const removeButton = document.createElement('button');
-  removeButton.type = 'button';
-  removeButton.className = 'text-button danger';
-  removeButton.textContent = 'Remove last extra photo';
-
-  const status = document.createElement('span');
-  status.className = 'admin-upload-status';
-  status.setAttribute('role', 'status');
-  status.setAttribute('aria-live', 'polite');
-
-  const controls = document.createElement('div');
-  controls.className = 'admin-upload-controls';
-  controls.append(chooseButton, removeButton, status);
-
-  const preview = document.createElement('div');
-  preview.className = 'admin-upload-gallery';
-
-  const refreshPreview = () => {
-    const urls = galleryUrls(textarea.value);
-    removeButton.hidden = urls.length === 0;
-    chooseButton.disabled = urls.length >= GALLERY_LIMIT;
-    preview.replaceChildren();
-    for (const url of urls.slice(0, GALLERY_LIMIT)) {
-      const image = document.createElement('img');
-      image.src = url;
-      image.alt = '';
-      preview.append(image);
-    }
-    preview.hidden = urls.length === 0;
+/**
+ * Turns a panel into a drop target. Both `dragover` and `dragenter` have to be
+ * cancelled or the browser navigates to the dropped file instead, which loses
+ * whatever was typed into the form.
+ */
+function acceptDrops(zone: HTMLElement, onFiles: (files: File[]) => void) {
+  const stop = (event: DragEvent) => {
+    event.preventDefault();
+    zone.dataset.dropping = 'true';
   };
-
-  chooseButton.addEventListener('click', () => fileInput.click());
-  removeButton.addEventListener('click', () => {
-    const urls = galleryUrls(textarea.value);
-    urls.pop();
-    updateTextarea(textarea, urls.join('\n'));
-    status.textContent =
-      'Last extra photo removed from this form. Save the form to apply the change.';
-    status.dataset.state = 'success';
-    refreshPreview();
+  zone.addEventListener('dragenter', stop);
+  zone.addEventListener('dragover', stop);
+  zone.addEventListener('dragleave', () => delete zone.dataset.dropping);
+  zone.addEventListener('drop', (event) => {
+    event.preventDefault();
+    delete zone.dataset.dropping;
+    const files = Array.from(event.dataTransfer?.files || []).filter((file) =>
+      file.type.startsWith('image/')
+    );
+    if (files.length) onFiles(files);
   });
-  textarea.addEventListener('input', refreshPreview);
-
-  fileInput.addEventListener('change', async () => {
-    const file = fileInput.files?.[0];
-    if (!file) return;
-
-    const current = galleryUrls(textarea.value);
-    if (current.length >= GALLERY_LIMIT) {
-      status.textContent = `This product already has ${GALLERY_LIMIT} extra photos.`;
-      status.dataset.state = 'error';
-      fileInput.value = '';
-      return;
-    }
-
-    chooseButton.disabled = true;
-    chooseButton.textContent = 'Uploading…';
-    status.textContent = '';
-    status.dataset.state = '';
-
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await fetch('/api/admin/upload', { method: 'POST', body: formData });
-      const result = (await response.json()) as UploadResponse;
-      if (!response.ok || !result.url) {
-        throw new Error(result.error || 'The image could not be uploaded.');
-      }
-      if (!current.includes(result.url)) current.push(result.url);
-      updateTextarea(textarea, current.slice(0, GALLERY_LIMIT).join('\n'));
-      status.textContent = 'Upload complete. Save the form to publish this extra photo.';
-      status.dataset.state = 'success';
-      refreshPreview();
-    } catch (error) {
-      status.textContent =
-        error instanceof Error ? error.message : 'The image could not be uploaded.';
-      status.dataset.state = 'error';
-    } finally {
-      chooseButton.disabled = galleryUrls(textarea.value).length >= GALLERY_LIMIT;
-      chooseButton.textContent = 'Upload extra photo';
-      fileInput.value = '';
-    }
-  });
-
-  wrapper.append(heading, help, fileInput, controls, preview);
-  const anchor = textarea.closest('label') || textarea;
-  anchor.insertAdjacentElement('afterend', wrapper);
-  refreshPreview();
 }
 
 export default function AdminUploadEnhancer() {
   useEffect(() => {
     const enhanceAll = () => {
+      /* `variantImageUrl` too: a variant may carry its own photograph — the 6"
+         decorative planter does not look like the 4" nursery pot — and Tammy
+         takes those on her phone like every other one. */
       document
-        .querySelectorAll<HTMLInputElement>('input[name="imageUrl"]')
+        .querySelectorAll<HTMLInputElement>(
+          'input[name="imageUrl"]:not([data-upload-managed]), input[name="variantImageUrl"]:not([data-upload-managed])'
+        )
         .forEach(enhanceImageInput);
-      document
-        .querySelectorAll<HTMLTextAreaElement>('textarea[name="galleryImages"]')
-        .forEach(enhanceGalleryInput);
     };
 
     enhanceAll();
@@ -320,18 +217,9 @@ export default function AdminUploadEnhancer() {
         border: 1px solid var(--line);
         background: var(--white);
       }
-      .admin-upload-gallery {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-      }
-      .admin-upload-gallery img {
-        width: 72px;
-        height: 72px;
-        object-fit: cover;
-        border-radius: 10px;
-        border: 1px solid var(--line);
-        background: var(--white);
+      .admin-upload-tools[data-dropping='true'] {
+        border-color: var(--forest);
+        background: var(--cream);
       }
     `}</style>
   );

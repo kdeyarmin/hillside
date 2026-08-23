@@ -33,9 +33,22 @@ const profiles = [
 const routes = [
   { name: 'home', path: '/' },
   { name: 'shop', path: '/shop' },
+  /* The shop narrowed to one category: the chip row is at its longest here, and
+     it is the layout every header link and every homepage tile leads to. */
+  { name: 'shop-category', path: '/shop?category=houseplants' },
   { name: 'product', path: '/shop/monstera-deliciosa' },
+  /* A product sold in four pots, with a specification table under it. The pinned
+     column carries the variant dropdown and its detail line, and the table below
+     is the widest two-column block on the storefront. */
+  { name: 'product-variants', path: '/shop/golden-pothos' },
   { name: 'collections', path: '/collections' },
-  { name: 'collection', path: '/collections/plants' },
+  { name: 'collection', path: '/collections/tammys-favorites' },
+  /* The sets pages carry two layouts nothing else on the site has: a card whose
+     body holds a contents list of arbitrary length, and a manifest of two-column
+     rows on the detail page. Both are driven by product names Tammy types, so
+     they are exactly the kind of thing that widens a 320px phone. */
+  { name: 'bundles', path: '/bundles' },
+  { name: 'bundle', path: '/bundles/tea-starter-set' },
   { name: 'gifts', path: '/gifts' },
   /* The busiest gift guide: a full product grid, the price-band tiles above it
      and the gift-note panel below, all on one page. */
@@ -68,7 +81,10 @@ const routes = [
 const reducedRoutes = new Set([
   'home',
   'shop',
+  'shop-category',
   'product',
+  'product-variants',
+  'bundle',
   'gifts',
   'classes',
   'care',

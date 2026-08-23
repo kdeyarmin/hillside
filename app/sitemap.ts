@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { sellableBundles } from '@/lib/bundle-queries';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { giftGuideProducts, loadGiftCatalog } from '@/lib/gift-catalog';
@@ -13,10 +14,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '/shop',
     '/gifts',
     '/collections',
+    '/bundles',
     // Submitting a 404 is how a sitemap loses a crawler's trust for the URLs in
     // it that are real, so the classes entry leaves with the page.
     ...(CLASSES_PUBLICLY_VISIBLE ? ['/classes'] : []),
     '/care',
+    '/visit',
     '/gallery',
     '/amazon',
     '/about',
@@ -27,7 +30,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '/terms'
   ];
 
-  const [products, careGuides, collections, giftCatalog] = await Promise.all([
+  const [products, careGuides, collections, categories, bundles, giftCatalog] = await Promise.all([
     db.product.findMany({
       where: { active: true },
       select: { slug: true, updatedAt: true }
@@ -40,6 +43,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       where: { active: true, products: { some: { active: true } } },
       select: { slug: true, updatedAt: true }
     }),
+    /**
+     * A category is a filtered view of /shop rather than a route of its own, but
+     * it is a view with its own title, its own description and its own stock —
+     * which is what a crawler needs before it is worth listing. Only the ones
+     * that hold something are, for the same reason a homepage tile is.
+     */
+    db.category.findMany({
+      where: { active: true, products: { some: { active: true } } },
+      select: { slug: true, updatedAt: true }
+    }),
+    // Only the sets that can actually be built: a kit whose last component sold
+    // is a page that will not sell anything, and submitting it teaches a crawler
+    // to trust the rest of this file less.
+    sellableBundles(),
     loadGiftCatalog()
   ]);
 
@@ -57,8 +74,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const productsModified = newest(products.map((product) => product.updatedAt));
   const guidesModified = newest(careGuides.map((guide) => guide.updatedAt));
   const collectionsModified = newest(collections.map((collection) => collection.updatedAt));
+  const bundlesModified = newest(bundles.map((bundle) => bundle.updatedAt));
   const anyModified = newest(
-    [productsModified, guidesModified, collectionsModified].filter(
+    [productsModified, guidesModified, collectionsModified, bundlesModified].filter(
       (date): date is Date => Boolean(date)
     )
   );
@@ -68,6 +86,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '/shop': productsModified,
     '/gifts': productsModified,
     '/collections': collectionsModified,
+    '/bundles': bundlesModified,
     '/care': guidesModified
   };
 
@@ -77,7 +96,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // and there is nothing here that honestly knows when that last happened.
     lastModified: staticModified[path],
     changeFrequency: index === 0 ? 'weekly' : 'monthly',
-    priority: index === 0 ? 1 : path === '/shop' || path === '/care' ? 0.9 : 0.7
+    priority:
+      index === 0
+        ? 1
+        : path === '/shop' || path === '/care'
+          ? 0.9
+          : // The local page is the one static page that answers a search
+            // ("plant shop near Ebensburg") rather than a policy question.
+            path === '/visit' || path === '/collections'
+            ? 0.8
+            : 0.7
+  }));
+
+  const bundlePages: MetadataRoute.Sitemap = bundles.map((bundle) => ({
+    url: absoluteUrl(`/bundles/${bundle.slug}`),
+    lastModified: bundle.updatedAt,
+    changeFrequency: 'weekly',
+    priority: 0.85
   }));
 
   const productPages: MetadataRoute.Sitemap = products.map((product) => ({
@@ -116,5 +151,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8
   }));
 
-  return [...staticPages, ...collectionPages, ...giftPages, ...productPages, ...guidePages];
+  const categoryPages: MetadataRoute.Sitemap = categories.map((category) => ({
+    url: absoluteUrl(`/shop?category=${category.slug}`),
+    lastModified: productsModified,
+    changeFrequency: 'weekly',
+    priority: 0.85
+  }));
+
+  return [
+    ...staticPages,
+    ...categoryPages,
+    ...collectionPages,
+    ...bundlePages,
+    ...giftPages,
+    ...productPages,
+    ...guidePages
+  ];
 }

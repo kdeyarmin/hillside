@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  bundleContents,
-  bundlesFirst,
   excludedFromGifts,
   findGiftGuide,
   giftGuidePath,
@@ -12,7 +10,6 @@ import {
   GIFT_GUIDES,
   GIFT_TAG_CHOICES,
   matchesGiftGuide,
-  parseBundleItems,
   productsForGiftGuide,
   readGiftTags,
   type GiftMatchable
@@ -208,22 +205,9 @@ describe('occasion guides', () => {
     assert.equal(matchesGiftGuide(tagged, guide('plant-lover')), true);
   });
 
-  it('puts bundles and featured picks in the holiday guide', () => {
-    const set = product({ name: 'Evening set', type: 'OTHER', bundle: true, priceCents: 6500 });
-    assert.equal(matchesGiftGuide(set, guide('holiday')), true);
+  it("puts the owner's featured picks in the holiday guide", () => {
     assert.equal(matchesGiftGuide(product({ featured: true }), guide('holiday')), true);
     assert.equal(matchesGiftGuide(product(), guide('holiday')), false);
-  });
-});
-
-describe('the bundles guide', () => {
-  it('holds bundles and nothing else', () => {
-    assert.equal(matchesGiftGuide(product({ bundle: true }), guide('bundles')), true);
-    assert.equal(matchesGiftGuide(product(), guide('bundles')), false);
-  });
-
-  it('is not opened up by a tag', () => {
-    assert.equal(matchesGiftGuide(product({ giftTags: ['bundles'] }), guide('bundles')), false);
   });
 });
 
@@ -276,35 +260,5 @@ describe('giftGuidesForProduct and productsForGiftGuide', () => {
       productsForGiftGuide(catalog, guide('tea-lover')).map((entry) => entry.name),
       ['Calm tea']
     );
-  });
-});
-
-describe('bundlesFirst', () => {
-  it('lifts bundles to the front and leaves the rest in order', () => {
-    const rows = [
-      { slug: 'a', bundle: false },
-      { slug: 'b', bundle: true },
-      { slug: 'c' },
-      { slug: 'd', bundle: true }
-    ];
-    assert.deepEqual(
-      bundlesFirst(rows).map((row) => row.slug),
-      ['b', 'd', 'a', 'c']
-    );
-  });
-});
-
-describe('bundle contents', () => {
-  it('parses the owner form one item per line, trimmed and capped', () => {
-    assert.deepEqual(parseBundleItems('  One tin of tea \n\n Infuser  \n'), [
-      'One tin of tea',
-      'Infuser'
-    ]);
-    assert.equal(parseBundleItems(Array.from({ length: 30 }, () => 'item').join('\n')).length, 12);
-  });
-
-  it('cleans stored contents for display', () => {
-    assert.deepEqual(bundleContents([' Tea ', '', null as unknown as string]), ['Tea']);
-    assert.deepEqual(bundleContents(undefined), []);
   });
 });

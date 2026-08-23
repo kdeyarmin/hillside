@@ -2,6 +2,16 @@ import { PrismaClient, ProductType } from '@prisma/client';
 
 const db = new PrismaClient();
 
+/**
+ * The structured detail these demo rows ship with is deliberately partial.
+ *
+ * Light, water, pet safety and the like are facts about the species and are
+ * safe to seed. Ingredient lists, allergen statements and net weights are
+ * claims about what is in a jar Tammy made, and a fresh install must not
+ * publish an invented one — so those fields are left empty and the product's
+ * own note goes on saying they have to be entered before it is sold.
+ */
+
 async function main() {
   /**
    * Demo data must never land on top of a real catalog. `npm run db:seed` is a
@@ -23,10 +33,13 @@ async function main() {
       slug: 'monstera-deliciosa',
       sku: 'HG-PLANT-MONSTERA',
       shortDescription: 'A bold tropical statement plant with iconic split leaves.',
-      description: 'A bold, easygoing tropical with iconic split leaves. Each plant is selected and potted with care so it is ready to settle into its new home.',
-      details: 'Nursery-grown houseplant in a decorative planter. Plant size and leaf pattern naturally vary.',
+      description:
+        'A bold, easygoing tropical with iconic split leaves. Each plant is selected and potted with care so it is ready to settle into its new home.',
+      details:
+        'Nursery-grown houseplant in a decorative planter. Plant size and leaf pattern naturally vary.',
       careNotes: 'Bright, indirect light. Water when the top two inches of soil feel dry.',
-      shippingNote: 'Plants are carefully secured for transit. Local pickup may be recommended during extreme temperatures.',
+      shippingNote:
+        'Plants are carefully secured for transit. Local pickup may be recommended during extreme temperatures.',
       type: ProductType.PLANT,
       priceCents: 3800,
       compareAtCents: null,
@@ -43,33 +56,107 @@ async function main() {
       ],
       badge: 'Our pick',
       featured: true,
-      sortOrder: 1
+      sortOrder: 1,
+      weightOunces: 96,
+      dimensions: '10" pot, 30" tall overall',
+      specs: {
+        botanicalName: 'Monstera deliciosa',
+        matureSize: '6–8 ft tall indoors with support',
+        growthHabit: 'Climbing',
+        potSize: '10" decorative planter',
+        potStyle: 'Decorative planter with drainage',
+        plantHeight: '26–32 in including the pot',
+        plantWidth: '20–24 in across',
+        light: 'Bright indirect light',
+        water: 'Water when the top half is dry',
+        humidity: 'Prefers higher humidity',
+        difficulty: 'Easy',
+        petSafety: 'Toxic to cats and dogs if eaten',
+        placement: 'Indoors year round',
+        shippingRestrictions:
+          'Held back when overnight lows along the route are below 40°F. We email before rescheduling.'
+      }
     },
     {
       name: 'Golden Pothos',
       slug: 'golden-pothos',
       sku: 'HG-PLANT-POTHOS',
       shortDescription: 'A forgiving trailing plant for shelves and hanging planters.',
-      description: 'Golden pothos is a dependable favorite for new and experienced plant keepers alike. Its trailing vines bring easy color and texture to almost any room.',
-      details: 'Healthy rooted plant in a decorative nursery planter. Every plant has its own natural shape.',
-      careNotes: 'Low to bright indirect light. Let the top one to two inches of soil dry before watering.',
+      description:
+        'Golden pothos is a dependable favorite for new and experienced plant keepers alike. Its trailing vines bring easy color and texture to almost any room.',
+      details:
+        'Healthy rooted plant in a decorative nursery planter. Every plant has its own natural shape.',
+      careNotes:
+        'Low to bright indirect light. Let the top one to two inches of soil dry before watering.',
       shippingNote: 'Packed to protect foliage and soil during transit.',
       type: ProductType.PLANT,
       priceCents: 2400,
       compareAtCents: null,
-      inventory: 12,
+      // 6 + 4 + 3 + 2, the rule `productInventoryForSizes` keeps on every save.
+      inventory: 15,
       imageUrl: '/images/catalog/house-plants.webp',
       badge: 'Beginner friendly',
       featured: true,
-      sortOrder: 2
+      sortOrder: 2,
+      weightOunces: 24,
+      dimensions: '6" pot, 14" tall overall',
+      /**
+       * The one seeded product sold in more than one form, so a fresh install
+       * shows what a variant list does: four pots, each with its own price,
+       * stock and item number, and the largest one too heavy to post safely.
+       * `inventory` is the sum of them, which is the rule the whole variant
+       * system keeps.
+       */
+      sizeLabel: 'Pot size',
+      sizes: [
+        {
+          label: '4" nursery pot',
+          priceCents: 1800,
+          inventory: 6,
+          sku: 'HG-POTH-4',
+          weightOunces: 16
+        },
+        { label: '6" nursery pot', inventory: 4, sku: 'HG-POTH-6', weightOunces: 24 },
+        {
+          label: '6" decorative planter',
+          priceCents: 3200,
+          inventory: 3,
+          sku: 'HG-POTH-6D',
+          weightOunces: 52
+        },
+        {
+          label: '8" decorative planter',
+          priceCents: 4800,
+          inventory: 2,
+          sku: 'HG-POTH-8D',
+          weightOunces: 96,
+          ships: false,
+          pickup: true
+        }
+      ],
+      specs: {
+        botanicalName: 'Epipremnum aureum',
+        matureSize: 'Trails to 6 ft indoors',
+        growthHabit: 'Trailing',
+        light: 'Low to medium light',
+        water: 'Water when the top inch is dry',
+        humidity: 'Average room humidity is fine',
+        difficulty: 'Beginner friendly',
+        petSafety: 'Toxic to cats and dogs if eaten',
+        placement: 'Indoors year round',
+        shippingRestrictions:
+          'The 8" planter is collected here rather than shipped — it does not travel safely.'
+      }
     },
     {
       name: 'Hillside Calm Tea',
       slug: 'hillside-calm-tea',
       sku: 'HG-TEA-CALM',
       shortDescription: 'A soothing loose-leaf botanical blend for slow evenings.',
-      description: 'A comforting small-batch tea blend created for an unrushed evening ritual. Steep, settle in and enjoy a quieter moment.',
-      details: 'Loose-leaf botanical tea. Store sealed in a cool, dry place. Ingredient and allergen information should be added before public sale.',
+      description:
+        'A comforting small-batch tea blend created for an unrushed evening ritual. Steep, settle in and enjoy a quieter moment.',
+      details:
+        'Loose-leaf botanical tea. Store sealed in a cool, dry place. Ingredient and allergen information should be added before public sale.',
       careNotes: null,
       shippingNote: 'Ships in protective, food-safe packaging.',
       type: ProductType.TEA,
@@ -79,14 +166,23 @@ async function main() {
       imageUrl: '/images/catalog/apothecary.webp',
       badge: 'Small batch',
       featured: true,
-      sortOrder: 3
+      sortOrder: 3,
+      weightOunces: 4,
+      specs: {
+        caffeine: 'Naturally caffeine free',
+        servingSize: '1 heaping tsp per 8 oz',
+        brewTemperature: '208°F / 98°C',
+        steepTime: '5–7 minutes',
+        storage: 'Keep sealed, away from light and heat. Best within a year of opening.'
+      }
     },
     {
       name: 'Stainless Tea Infuser',
       slug: 'stainless-tea-infuser',
       sku: 'HG-TEA-INFUSER',
       shortDescription: 'A reusable infuser sized for an everyday mug.',
-      description: 'A simple, durable infuser that gives loose tea room to open while keeping leaves out of your cup.',
+      description:
+        'A simple, durable infuser that gives loose tea room to open while keeping leaves out of your cup.',
       details: 'Reusable stainless-steel basket infuser with resting lid.',
       careNotes: null,
       shippingNote: 'Ships with tea and botanical orders.',
@@ -97,7 +193,15 @@ async function main() {
       imageUrl: '/images/catalog/apothecary.webp',
       badge: null,
       featured: false,
-      sortOrder: 4
+      sortOrder: 4,
+      weightOunces: 3,
+      dimensions: '2.5 in across, 2 in deep',
+      specs: {
+        dimensions: '2.5 in across, 2 in deep',
+        material: 'Stainless steel with a fine mesh basket',
+        packageSize: 'One infuser with a resting lid',
+        uses: 'Sized for an everyday mug. Rinse and air-dry; dishwasher safe on the top rack.'
+      }
     },
     {
       name: 'Garden Herb Soap',
@@ -105,7 +209,8 @@ async function main() {
       sku: 'HG-SOAP-HERB',
       shortDescription: 'Small-batch handmade soap with a fresh garden-inspired scent.',
       description: 'A handcrafted bar inspired by the clean, green scent of a garden after rain.',
-      details: 'Handmade in small batches. Final ingredient list and net weight should be entered before public sale.',
+      details:
+        'Handmade in small batches. Final ingredient list and net weight should be entered before public sale.',
       careNotes: null,
       shippingNote: 'Keep dry between uses to extend the life of the bar.',
       type: ProductType.SOAP,
@@ -115,15 +220,23 @@ async function main() {
       imageUrl: '/images/catalog/homemade-soaps.webp',
       badge: 'Handmade',
       featured: false,
-      sortOrder: 5
+      sortOrder: 5,
+      weightOunces: 5,
+      specs: {
+        scent: 'Fresh green herbs',
+        skinUse: 'An everyday bar for hands and body.',
+        storage: 'Keep on a draining dish between uses so the bar dries out and lasts longer.'
+      }
     },
     {
       name: 'Botanical Hand Lotion',
       slug: 'botanical-hand-lotion',
       sku: 'HG-LOTION-BOTANICAL',
       shortDescription: 'Rich everyday moisture with a light botanical finish.',
-      description: 'A small-batch hand lotion designed to feel comforting and absorb cleanly into dry hands.',
-      details: 'Handmade body-care product. Final ingredient list, net contents and use directions should be entered before public sale.',
+      description:
+        'A small-batch hand lotion designed to feel comforting and absorb cleanly into dry hands.',
+      details:
+        'Handmade body-care product. Final ingredient list, net contents and use directions should be entered before public sale.',
       careNotes: null,
       shippingNote: 'Protect from excessive heat and freezing.',
       type: ProductType.LOTION,
@@ -133,37 +246,14 @@ async function main() {
       imageUrl: '/images/catalog/apothecary.webp',
       badge: 'Handmade',
       featured: false,
-      sortOrder: 6
-    },
-    {
-      /* A bundle is an ordinary product with a flag, which is the whole point:
-         one price, one quantity on hand, one line at checkout, and nothing in
-         the inventory, hold or refund paths that has to know about it. Seeded so
-         a fresh install shows what the gift pages look like with one. */
-      name: 'Slow Evening Gift Set',
-      slug: 'slow-evening-gift-set',
-      sku: 'HG-BUNDLE-EVENING',
-      shortDescription: 'Our calm tea, an infuser and a herb soap, boxed together.',
-      description:
-        'The three things we reach for at the end of a long day, put together as one gift. Boxed by hand and ready to give, with room for a note.',
-      details:
-        'Contents may vary slightly with what is in the batch. Final ingredient and allergen information should be entered before public sale.',
-      careNotes: null,
-      shippingNote: 'Packed together in one box. Ships as a single parcel.',
-      type: ProductType.OTHER,
-      priceCents: 3400,
-      compareAtCents: 3700,
-      inventory: 6,
-      imageUrl: '/images/catalog/apothecary.webp',
-      badge: null,
-      featured: false,
-      sortOrder: 7,
-      bundle: true,
-      bundleItems: [
-        'One tin of Hillside Calm loose-leaf tea',
-        'Stainless steel tea infuser',
-        'One bar of garden herb soap'
-      ]
+      sortOrder: 6,
+      weightOunces: 6,
+      specs: {
+        scent: 'Light botanical',
+        directions: 'Warm a small amount between the hands and massage in. Reapply as needed.',
+        warnings: 'For external use only. Discontinue if irritation occurs. Keep out of eyes.',
+        storage: 'Store away from direct heat and freezing.'
+      }
     }
   ];
 
@@ -180,7 +270,8 @@ async function main() {
       plantName: 'Monstera Deliciosa',
       slug: 'monstera-deliciosa',
       botanical: 'Monstera deliciosa',
-      summary: 'Iconic tropical foliage that rewards bright filtered light and a little room to climb.',
+      summary:
+        'Iconic tropical foliage that rewards bright filtered light and a little room to climb.',
       light: 'Bright, indirect light',
       water: 'Water when the top 2 inches are dry',
       humidity: 'Average to high',
@@ -284,7 +375,8 @@ async function main() {
     where: { slug: 'build-a-beautiful-planter' },
     update: {
       title: 'Build a Beautiful Planter',
-      description: 'We guide you through choosing compatible plants, balancing color and texture, potting correctly and caring for your finished arrangement.',
+      description:
+        'We guide you through choosing compatible plants, balancing color and texture, potting correctly and caring for your finished arrangement.',
       startsAt: classDate,
       location: 'The Hillside Gardens',
       priceCents: 4500,
@@ -297,7 +389,8 @@ async function main() {
     create: {
       slug: 'build-a-beautiful-planter',
       title: 'Build a Beautiful Planter',
-      description: 'We guide you through choosing compatible plants, balancing color and texture, potting correctly and caring for your finished arrangement.',
+      description:
+        'We guide you through choosing compatible plants, balancing color and texture, potting correctly and caring for your finished arrangement.',
       startsAt: classDate,
       location: 'The Hillside Gardens',
       priceCents: 4500,

@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
+  editDistanceWithin,
   filterSearchHits,
   matchesAnySearchField,
   matchesSearchTerm,
+  matchesSearchTermFuzzy,
+  rankSearchHits,
+  searchScore,
   searchTokenFilters,
   tokenizeSearch
 } from '../lib/search.ts';
@@ -88,6 +92,82 @@ describe('matchesAnySearchField and filterSearchHits', () => {
       hits.map((item) => item.name),
       ['Garden tea tin', 'Teapot brush']
     );
+  });
+});
+
+describe('editDistanceWithin', () => {
+  it('answers whether two words are within an edit budget, not how far apart they are', () => {
+    assert.equal(editDistanceWithin('monstera', 'monstara', 1), true);
+    assert.equal(editDistanceWithin('succulent', 'succulant', 1), true);
+    assert.equal(editDistanceWithin('pothos', 'photos', 1), false);
+    assert.equal(editDistanceWithin('pothos', 'photos', 2), true);
+    assert.equal(editDistanceWithin('tea', 'tea', 0), true);
+  });
+
+  it('rejects on length alone before doing any work', () => {
+    assert.equal(editDistanceWithin('moss', 'mossiness', 1), false);
+  });
+});
+
+describe('matchesSearchTermFuzzy', () => {
+  it('forgives a typo in a word long enough to be sure about', () => {
+    assert.equal(matchesSearchTermFuzzy('Monstera Deliciosa', 'monstara'), true);
+    assert.equal(matchesSearchTermFuzzy('Assorted succulents', 'succulant'), true);
+    assert.equal(matchesSearchTermFuzzy('Carnivorous plants', 'carnivorus'), true);
+  });
+
+  /**
+   * The three-letter floor is what keeps the original regression fixed: at that
+   * length nearly everything is one edit from something else.
+   */
+  it('never fuzzy-matches a short word, so tea still does not reach sea or steady', () => {
+    assert.equal(matchesSearchTermFuzzy('Sea salt soap', 'tea'), false);
+    assert.equal(matchesSearchTermFuzzy('Bright light and steady watering.', 'tea'), false);
+    assert.equal(matchesSearchTermFuzzy('A monstera that prefers moisture.', 'tea'), false);
+    // "team" is still a hit, but through the start-of-word prefix rule that
+    // makes "tea" find "teapot" — not through any typo tolerance.
+    assert.equal(matchesSearchTerm('A team of gardeners', 'tea'), true);
+  });
+
+  it('still prefers a real match and requires every token', () => {
+    assert.equal(matchesSearchTermFuzzy('Chamomile tea', 'tea'), true);
+    assert.equal(matchesSearchTermFuzzy('Pet safe pothos', 'pet safe'), true);
+    assert.equal(matchesSearchTermFuzzy('Pet safe pothos', 'pet carnivorous'), false);
+  });
+});
+
+describe('searchScore and rankSearchHits', () => {
+  const items = [
+    { name: 'Golden Pothos', body: 'A trailing plant for low light.' },
+    { name: 'Potting mix', body: 'Blended for pothos and philodendron.' },
+    { name: 'Ceramic planter', body: 'Fits a six inch pot.' }
+  ];
+  const fieldsFor = (item: (typeof items)[number]) => ({
+    primary: [item.name],
+    secondary: [item.body]
+  });
+
+  it('scores a name match above a mention in the body copy', () => {
+    assert.ok(
+      searchScore(['Golden Pothos'], ['A trailing plant.'], 'pothos') >
+        searchScore(['Potting mix'], ['Blended for pothos.'], 'pothos')
+    );
+  });
+
+  it('returns nothing at all for a term that matches neither', () => {
+    assert.equal(searchScore(['Golden Pothos'], ['Trailing.'], 'carnivorous'), 0);
+    assert.equal(searchScore(['Golden Pothos'], ['Trailing.'], '   '), 0);
+  });
+
+  it('ranks hits best first and drops the misses', () => {
+    assert.deepEqual(
+      rankSearchHits(items, fieldsFor, 'pothos').map((item) => item.name),
+      ['Golden Pothos', 'Potting mix']
+    );
+  });
+
+  it('honours the limit', () => {
+    assert.equal(rankSearchHits(items, fieldsFor, 'pothos', 1).length, 1);
   });
 });
 
