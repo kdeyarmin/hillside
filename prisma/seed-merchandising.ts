@@ -253,11 +253,16 @@ async function main() {
    * The products that exist but are not live, kept apart so a skipped set can
    * say which of the two things went wrong. A recipe naming a product nobody
    * has entered is a different problem from one naming a product that is
-   * entered but not on sale — the tea, the soap and the lotion all seed as
-   * drafts until their net contents and ingredients are filled in, and every
-   * set in this file contains one of them. Told only "not in the catalog",
-   * whoever ran the seed would go looking for a missing product that is sitting
-   * right there.
+   * entered but not on sale: the tea, the soap and the lotion seed as drafts
+   * until their net contents and ingredients are filled in, so the tea starter
+   * and the gift box are held back by products that are sitting right there.
+   * Told only "not in the catalog", whoever ran the seed would go looking for
+   * something that is not missing.
+   *
+   * Both reasons are real and they can appear in the same run. The plant parent
+   * kit asks for a planter, which no seeded product answers to — that one *is*
+   * a gap in the catalog, and it is why the skipped count can exceed the number
+   * of sets named below.
    *
    * And not-live is itself two things. A product the rule is holding back is
    * fixed by filling in what it is missing; one the owner archived on purpose

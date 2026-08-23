@@ -277,7 +277,20 @@ try {
   ]) {
     const product = await db.product.findFirst({ where: { slug } });
     if (!product) { check(`product form: ${slug} exists`, false); continue; }
-    const original = { tags: product.tags, traits: product.traits, giftTags: product.giftTags };
+    /**
+     * `active` is in the snapshot because the save under test can change it.
+     * A regulated product missing its net contents or ingredients is forced
+     * back to draft by `saveProduct` — correctly — so driving this form against
+     * a catalog where the tea is live archives it, and a cleanup that restored
+     * only the columns it set would leave the shop one product short and blame
+     * nothing. This script found that the hard way.
+     */
+    const original = {
+      tags: product.tags,
+      traits: product.traits,
+      giftTags: product.giftTags,
+      active: product.active
+    };
     undo.push(() => db.product.update({ where: { id: product.id }, data: original }));
     await db.product.update({ where: { id: product.id }, data: { tags, traits, giftTags } });
 

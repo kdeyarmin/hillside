@@ -679,7 +679,7 @@ export default function ProductFields({
           <b>Or keep it out altogether</b>
           <label
             className="admin-checkbox"
-            title="Potting substrate is a fine product and a poor present."
+            title="For the things that sell perfectly well and give badly."
           >
             <input
               type="checkbox"

@@ -126,10 +126,13 @@ try {
    * without one.
    *
    * And it should hold fewer than 20, because a line's quantity is capped at 20
-   * on the way in: a deeper shelf cannot be oversold through one line, and the
-   * oversell check below can only report itself skipped. That last one is a
-   * preference rather than a requirement — a catalog with nothing shallow still
-   * runs everything else.
+   * on the way in, so a deeper shelf cannot be oversold through one line at all.
+   * Unlike the two above this is a preference — every other check runs against a
+   * deeply stocked product perfectly well — but it is not free: the oversell
+   * check below deliberately records a *failure* rather than a quiet pass when
+   * it cannot be exercised, so a catalog with nothing shallow ends the run
+   * non-zero. Preferring a shallow shelf is what keeps that from being the
+   * ordinary outcome.
    */
   const candidates = await db.product.findMany({
     where: { active: true, ships: true, inventory: { gte: 5 } },
