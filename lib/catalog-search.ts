@@ -30,7 +30,7 @@ export type SearchableCollection = {
 
 export type SearchableProduct = {
   categoryTitle?: string | null;
-  category?: { title: string } | null;
+  category?: { title: string; keywords?: readonly string[] | null } | null;
   name: string;
   slug?: string;
   sku?: string | null;
@@ -71,6 +71,13 @@ export function productSearchFields(
       // The category is searchable, so "carnivorous" finds the flytraps whether
       // or not the word appears anywhere in their own copy.
       product.categoryTitle ?? product.category?.title ?? null,
+      /**
+       * And the words the owner gave that category. The category editor
+       * promises these reach the site search; without this they reached
+       * nothing, so a synonym she stored on "carnivorous plants" found neither
+       * the category nor a single sundew.
+       */
+      (product.category?.keywords || []).join(' ') || null,
       type ? `${productTypeLabel(type)} ${productTypePlural(type)}` : null,
       tagSearchText(tags),
       collections

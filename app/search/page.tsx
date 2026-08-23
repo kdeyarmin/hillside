@@ -84,64 +84,98 @@ export default async function SearchPage({
    * zero, and `/search?q=!!!` would tell a shopper the shop was empty while
    * seven products were on the bench.
    */
-  const [productRows, guideRows, collectionRows, classRows, bundleRows, catalogCount] =
-    await Promise.all([
-      searchable
-        ? db.product.findMany({
-            where: { active: true },
-            select: {
-              ...PRODUCT_CARD_SELECT,
-              sku: true,
-              details: true,
-              careNotes: true,
-              collections: {
-                where: { active: true },
-                select: { slug: true, title: true, tagline: true, keywords: true }
-              }
+  const [
+    productRows,
+    guideRows,
+    collectionRows,
+    categoryRows,
+    classRows,
+    bundleRows,
+    catalogCount
+  ] = await Promise.all([
+    searchable
+      ? db.product.findMany({
+          where: { active: true },
+          select: {
+            ...PRODUCT_CARD_SELECT,
+            sku: true,
+            details: true,
+            careNotes: true,
+            collections: {
+              where: { active: true },
+              select: { slug: true, title: true, tagline: true, keywords: true }
             },
-            orderBy: [{ featured: 'desc' }, { name: 'asc' }],
-            take: PRODUCT_SCAN_LIMIT
-          })
-        : [],
-      searchable
-        ? db.careSheet.findMany({
-            where: { published: true },
-            orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
-            take: GUIDE_SCAN_LIMIT
-          })
-        : [],
-      searchable
-        ? db.collection.findMany({
-            where: { active: true },
-            orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-            select: {
-              id: true,
-              slug: true,
-              title: true,
-              tagline: true,
-              description: true,
-              intro: true,
-              keywords: true
-            },
-            take: 50
-          })
-        : [],
-      searchable && CLASSES_PUBLICLY_VISIBLE
-        ? db.classEvent.findMany({
-            where: { active: true, startsAt: { gte: new Date() } },
-            orderBy: { startsAt: 'asc' },
-            take: 50
-          })
-        : [],
-      /**
-       * Sets cannot be filtered in SQL — how many of one can be built is a minimum
-       * over its components, and per-size counts live in a JSON column — so the
-       * whole (small) shelf is loaded and matched in memory like everything else
-       * here. A set the shop cannot build is never in it.
-       */
-      searchable ? sellableBundles() : [],
-      term ? db.product.count({ where: { active: true } }) : 0
-    ]);
+            /**
+             * `slug` as well as the card needs, plus the category's own search
+             * words — so a synonym the owner stored there finds the products in
+             * it and not only the page.
+             */
+            category: { select: { slug: true, title: true, keywords: true } }
+          },
+          orderBy: [{ featured: 'desc' }, { name: 'asc' }],
+          take: PRODUCT_SCAN_LIMIT
+        })
+      : [],
+    searchable
+      ? db.careSheet.findMany({
+          where: { published: true },
+          orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
+          take: GUIDE_SCAN_LIMIT
+        })
+      : [],
+    searchable
+      ? db.collection.findMany({
+          where: { active: true },
+          orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            tagline: true,
+            description: true,
+            intro: true,
+            keywords: true
+          },
+          take: 50
+        })
+      : [],
+    /**
+     * Categories rank as results in their own right. They are landing pages
+     * with their own copy now, and an empty one could otherwise never be
+     * found at all — the products were the only route to it.
+     */
+    searchable
+      ? db.category.findMany({
+          where: { active: true },
+          orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            tagline: true,
+            description: true,
+            intro: true,
+            keywords: true
+          },
+          take: 50
+        })
+      : [],
+    searchable && CLASSES_PUBLICLY_VISIBLE
+      ? db.classEvent.findMany({
+          where: { active: true, startsAt: { gte: new Date() } },
+          orderBy: { startsAt: 'asc' },
+          take: 50
+        })
+      : [],
+    /**
+     * Sets cannot be filtered in SQL — how many of one can be built is a minimum
+     * over its components, and per-size counts live in a JSON column — so the
+     * whole (small) shelf is loaded and matched in memory like everything else
+     * here. A set the shop cannot build is never in it.
+     */
+    searchable ? sellableBundles() : [],
+    term ? db.product.count({ where: { active: true } }) : 0
+  ]);
 
   // Derived attributes first, so "best seller" and "in stock" are searchable
   // terms rather than things only the filter rail knows about.
@@ -154,6 +188,7 @@ export default async function SearchPage({
   );
   const guides = rankSearchHits(guideRows, careSheetSearchFields, term);
   const collections = rankSearchHits(collectionRows, collectionSearchFields, term, 6);
+  const categories = rankSearchHits(categoryRows, collectionSearchFields, term, 6);
   const classes = rankSearchHits(classRows, classSearchFields, term, 6);
   const bundles = rankSearchHits(
     bundleRows,
@@ -174,7 +209,12 @@ export default async function SearchPage({
   const shopProducts = await withCardFacts(products);
 
   const total =
-    products.length + bundles.length + guides.length + collections.length + classes.length;
+    products.length +
+    bundles.length +
+    guides.length +
+    categories.length +
+    collections.length +
+    classes.length;
 
   return (
     <>
@@ -204,8 +244,8 @@ export default async function SearchPage({
           </form>
           {term && (
             <p>
-              {total} {total === 1 ? 'result' : 'results'} across the shop, the collections and the
-              care library.
+              {total} {total === 1 ? 'result' : 'results'} across the shop, the categories, the
+              collections and the care library.
             </p>
           )}
         </div>
@@ -288,6 +328,38 @@ export default async function SearchPage({
                 </Link>
               </div>
               <BundleGrid bundles={bundles.map(bundleCardData)} />
+            </div>
+          )}
+
+          {categories.length > 0 && (
+            <div className="search-group">
+              <div className="editorial-heading-row">
+                <div>
+                  <div className="eyebrow">
+                    <FolderOpen size={14} /> Categories
+                  </div>
+                  <h2>
+                    {categories.length} {categories.length === 1 ? 'category' : 'categories'}
+                  </h2>
+                </div>
+                <Link className="editorial-link" href="/shop">
+                  Shop everything →
+                </Link>
+              </div>
+              <div className="care-related-grid">
+                {categories.map((category) => (
+                  <article className="care-related-card" key={category.id}>
+                    <span>Category</span>
+                    <h3>
+                      <Link href={`/categories/${category.slug}`}>{category.title}</Link>
+                    </h3>
+                    <p>{category.tagline || category.description}</p>
+                    <Link className="text-link" href={`/categories/${category.slug}`}>
+                      Browse the category →
+                    </Link>
+                  </article>
+                ))}
+              </div>
             </div>
           )}
 
