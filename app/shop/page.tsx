@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import ShopClient from '@/components/ShopClient';
 import { db } from '@/lib/db';
-import { withCategory } from '@/lib/product-categories';
-import { ratingsByProduct } from '@/lib/reviews';
+import { PRODUCT_CARD_SELECT, withCardFacts } from '@/lib/product-cards';
 import { categoryLabel, isLegacyCategoryFilter } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
 
@@ -74,29 +73,8 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
      */
     db.product.findMany({
       where: { active: true },
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        shortDescription: true,
-        description: true,
-        type: true,
-        priceCents: true,
-        compareAtCents: true,
-        inventory: true,
-        imageUrl: true,
-        badge: true,
-        sizes: true,
-        sizeLabel: true,
-        featured: true,
-        sortOrder: true,
-        createdAt: true,
-        ships: true,
-        pickup: true,
-        // Two strings, not the joined row: a card renders one pill from it and
-        // the whole catalog is serialized into the browser twice over.
-        category: { select: { slug: true, title: true } }
-      },
+      // The shared card columns, plus the two the client-side sort needs.
+      select: { ...PRODUCT_CARD_SELECT, featured: true, sortOrder: true },
       orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
       // A ceiling, not a page size. The client-side filter needs the full catalog;
       // this only stops one runaway import from producing an unbounded response.
@@ -123,12 +101,7 @@ export default async function Shop({ searchParams }: { searchParams: Promise<Sho
     })
   ]);
 
-  const ratings = await ratingsByProduct(products.map((product) => product.id));
-  const withRatings = products.map((product) => ({
-    ...withCategory(product),
-    averageRating: ratings.get(product.id)?.average ?? null,
-    reviewCount: ratings.get(product.id)?.count ?? 0
-  }));
+  const withRatings = await withCardFacts(products);
 
   const catalogEmpty = products.length === 0;
 

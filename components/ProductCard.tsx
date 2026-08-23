@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { ShoppingBag } from 'lucide-react';
 import BrandedProductVisual from '@/components/BrandedProductVisual';
 import { useCart } from '@/components/CartProvider';
+import { LOW_STOCK_AT } from '@/lib/inventory';
 import {
   comparableAtCents,
   formatSizePriceRange,
   productSizes,
+  sizeAvailable,
   sizeFieldLabel
 } from '@/lib/product-sizes';
 import { discountPercent, formatMoney, productTypeLabel } from '@/lib/store';
@@ -29,12 +31,25 @@ export type ProductCardProduct = {
   badge: string | null;
   ships?: boolean;
   pickup?: boolean;
-  /** Raw `Product.sizes`; a card only needs to know whether a choice is due. */
+  /** Raw `Product.sizes`; a card needs the labels and whether each has stock. */
   sizes?: unknown;
   sizeLabel?: string | null;
   averageRating?: number | null;
   reviewCount?: number;
+  /** Both decided server-side by `withCardFacts` — see the note there. */
+  bestSeller?: boolean;
+  isNew?: boolean;
 };
+
+/**
+ * How many badges may sit on one photograph.
+ *
+ * A card carrying "Save 20%", "Our pick", "Best seller", "New" and a low-stock
+ * chip at once is a card nobody reads. Three is the most that stays scannable,
+ * and the order below is the order they earn their place in: a price change and
+ * the owner's own merchandising outrank anything the shop worked out by itself.
+ */
+const MAX_CARD_BADGES = 3;
 
 function Stars({ rating, count }: { rating: number; count: number }) {
   const rounded = Math.round(rating * 2) / 2;
@@ -83,14 +98,44 @@ export default function ProductCard({
    */
   const needsSize = sizes.length > 0;
   const sizeWord = sizeFieldLabel(product.sizeLabel).toLowerCase();
+  /**
+   * Which sizes can actually be bought right now. A card that lists three pot
+   * sizes on a plant where only the 4" is left sends the shopper to a page that
+   * disagrees with it.
+   */
+  const inStockSizes = sizes.filter((size) => sizeAvailable(size, product.inventory) > 0);
+  const lowStock = !soldOut && product.inventory <= LOW_STOCK_AT;
+
+  const badges = [
+    saving > 0 && { key: 'sale', tone: 'sale', text: `Save ${saving}%` },
+    product.badge && { key: 'own', tone: '', text: product.badge },
+    product.bestSeller && { key: 'best', tone: 'best', text: 'Best seller' },
+    product.isNew && { key: 'new', tone: 'new', text: 'New' }
+  ]
+    .filter((badge): badge is { key: string; tone: string; text: string } => Boolean(badge))
+    .slice(0, MAX_CARD_BADGES);
+
+  /**
+   * Local pickup only appears when it is the *only* way home — almost
+   * everything here can be picked up, so saying so on every card would say
+   * nothing at all, while "does not ship" is news.
+   */
+  const traits = [
+    product.pickup && product.ships === false && { key: 'pickup', text: 'Local pickup only' }
+  ].filter((trait): trait is { key: string; text: string } => Boolean(trait));
 
   return (
     <article className="product-card">
       <Link className="product-image-wrap" href={`/shop/${product.slug}`}>
-        <span className="product-badges">
-          {saving > 0 && <span className="product-badge sale">Save {saving}%</span>}
-          {product.badge && <span className="product-badge">{product.badge}</span>}
-        </span>
+        {badges.length > 0 && (
+          <span className="product-badges">
+            {badges.map((badge) => (
+              <span className={`product-badge ${badge.tone}`.trim()} key={badge.key}>
+                {badge.text}
+              </span>
+            ))}
+          </span>
+        )}
         <BrandedProductVisual
           slug={product.slug}
           name={product.name}
@@ -120,13 +165,30 @@ export default function ProductCard({
             </span>
           )}
         </p>
-        <span className={`stock ${soldOut ? 'out' : product.inventory <= 3 ? 'low' : ''}`}>
-          {soldOut
-            ? 'Sold out'
-            : product.inventory <= 3
-              ? `Only ${product.inventory} left`
-              : 'In stock'}
+        <span className={`stock ${soldOut ? 'out' : lowStock ? 'low' : ''}`}>
+          {soldOut ? 'Sold out' : lowStock ? `Only ${product.inventory} left` : 'In stock'}
         </span>
+        {needsSize && inStockSizes.length > 0 && (
+          <span className="product-variants">
+            {inStockSizes.length === sizes.length
+              ? `${sizes.length} ${sizeWord}s: `
+              : `${inStockSizes.length} of ${sizes.length} ${sizeWord}s left: `}
+            {inStockSizes
+              .slice(0, 3)
+              .map((size) => size.label)
+              .join(' · ')}
+            {inStockSizes.length > 3 && ` +${inStockSizes.length - 3}`}
+          </span>
+        )}
+        {traits.length > 0 && (
+          <span className="product-traits">
+            {traits.map((trait) => (
+              <span className="product-trait" key={trait.key}>
+                {trait.text}
+              </span>
+            ))}
+          </span>
+        )}
         <div className="product-actions">
           <Link className="text-link" href={`/shop/${product.slug}`}>
             {soldOut ? 'Get notified' : 'Details'}

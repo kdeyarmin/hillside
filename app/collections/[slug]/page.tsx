@@ -6,8 +6,7 @@ import ProductGrid from '@/components/ProductGrid';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
-import { withCategory } from '@/lib/product-categories';
-import { ratingsByProduct } from '@/lib/reviews';
+import { PRODUCT_CARD_SELECT, withCardFacts } from '@/lib/product-cards';
 import { absoluteUrl, resolveImageUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
 import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
@@ -21,24 +20,7 @@ async function loadCollection(slug: string) {
       // Card fields only — the long-form product copy is never rendered here.
       products: {
         where: { active: true },
-        select: {
-          id: true,
-          slug: true,
-          name: true,
-          shortDescription: true,
-          description: true,
-          type: true,
-          priceCents: true,
-          compareAtCents: true,
-          inventory: true,
-          imageUrl: true,
-          badge: true,
-          sizes: true,
-          sizeLabel: true,
-          ships: true,
-          pickup: true,
-          category: { select: { slug: true, title: true } }
-        },
+        select: PRODUCT_CARD_SELECT,
         orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
         take: 200
       }
@@ -74,12 +56,7 @@ export default async function CollectionPage({ params }: { params: Promise<{ slu
   const collection = await loadCollection(slug);
   if (!collection) notFound();
 
-  const ratings = await ratingsByProduct(collection.products.map((product) => product.id));
-  const products = collection.products.map((product) => ({
-    ...withCategory(product),
-    averageRating: ratings.get(product.id)?.average ?? null,
-    reviewCount: ratings.get(product.id)?.count ?? 0
-  }));
+  const products = await withCardFacts(collection.products);
 
   const catalogCount =
     products.length > 0 ? products.length : await db.product.count({ where: { active: true } });

@@ -11,9 +11,11 @@ import StockAlertForm from '@/components/StockAlertForm';
 import { catalogHasActiveProducts } from '@/lib/catalog';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
-import { specKindFor, withCategory } from '@/lib/product-categories';
+import { specKindFor } from '@/lib/product-categories';
+import { withCardFacts } from '@/lib/product-cards';
+import { productPhotos } from '@/lib/product-photos';
 import { specSections } from '@/lib/product-specs';
-import { ratingsByProduct } from '@/lib/reviews';
+import { ratingForProduct } from '@/lib/reviews';
 import { jsonLd } from '@/lib/json-ld';
 import {
   comparableAtCents,
@@ -109,15 +111,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
       orderBy: { createdAt: 'desc' },
       take: 20
     }),
-    ratingsByProduct([product.id]).then((map) => map.get(product.id) || { average: 0, count: 0 })
+    ratingForProduct(product.id)
   ]);
 
-  const relatedRatings = await ratingsByProduct(related.map((item) => item.id));
-  const relatedProducts = related.map((item) => ({
-    ...withCategory(item),
-    averageRating: relatedRatings.get(item.id)?.average ?? null,
-    reviewCount: relatedRatings.get(item.id)?.count ?? 0
-  }));
+  const relatedProducts = await withCardFacts(related);
 
   const threshold = freeShippingThresholdCents();
   const soldOut = product.inventory <= 0;
@@ -159,9 +156,8 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     '@type': 'Product',
     name: product.name,
     description: product.shortDescription || product.description,
-    image: [product.imageUrl, ...product.galleryImages]
-      .filter(Boolean)
-      .map((source) => absoluteUrl(resolveImageUrl(source)))
+    image: productPhotos(product)
+      .map((photo) => absoluteUrl(resolveImageUrl(photo.src)))
       .slice(0, 6),
     sku: product.sku || undefined,
     brand: { '@type': 'Brand', name: 'The Hillside Gardens' },
@@ -353,7 +349,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               name={product.name}
               type={product.type}
               imageUrl={product.imageUrl}
-              images={product.galleryImages}
+              photos={productPhotos(product)}
             />
           </div>
           <div className="product-detail-copy">
@@ -492,6 +488,10 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </div>
         </div>
 
+        {/* Ingredients and brewing are not repeated here: they are structured
+            fields, and the specifics section below renders them from the same
+            registry the form writes, rather than from a second copy that can
+            disagree with it. */}
         {product.details && (
           <div className="product-details-section narrow prose">
             <div className="eyebrow">Product details</div>
@@ -647,6 +647,10 @@ function RetiredProduct({
     shortDescription: string | null;
     description: string;
     imageUrl: string | null;
+    lifestyleImageUrl: string | null;
+    detailImageUrl: string | null;
+    scaleImageUrl: string | null;
+    packagingImageUrl: string | null;
     galleryImages: string[];
     careSheets: Array<{ id: string; slug: string; plantName: string; summary: string }>;
   };
@@ -666,7 +670,7 @@ function RetiredProduct({
               name={product.name}
               type={product.type}
               imageUrl={product.imageUrl}
-              images={product.galleryImages}
+              photos={productPhotos(product)}
             />
           </div>
           <div className="product-detail-copy">

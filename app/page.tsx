@@ -15,8 +15,7 @@ import { seatsRemainingFor } from '@/lib/class-seats';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
-import { withCategory } from '@/lib/product-categories';
-import { ratingsByProduct } from '@/lib/reviews';
+import { withCardFacts } from '@/lib/product-cards';
 import { pageMetadata } from '@/lib/seo';
 import { formatMoney, formatMoneyCompact, freeShippingThresholdCents } from '@/lib/store';
 
@@ -84,12 +83,7 @@ export default async function Home() {
       db.product.count({ where: { active: true } })
     ]);
 
-  const ratings = await ratingsByProduct(featuredProducts.map((product) => product.id));
-  const featured = featuredProducts.map((product) => ({
-    ...withCategory(product),
-    averageRating: ratings.get(product.id)?.average ?? null,
-    reviewCount: ratings.get(product.id)?.count ?? 0
-  }));
+  const featured = await withCardFacts(featuredProducts);
   const classSeats = await seatsRemainingFor(upcomingClasses);
 
   /**

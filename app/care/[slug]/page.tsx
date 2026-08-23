@@ -23,8 +23,7 @@ import PrintButton from '@/components/PrintButton';
 import ResilientImage from '@/components/ResilientImage';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
-import { withCategory } from '@/lib/product-categories';
-import { ratingsByProduct } from '@/lib/reviews';
+import { withCardFacts } from '@/lib/product-cards';
 import { absoluteUrl, resolveImageUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
 import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
@@ -130,16 +129,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
         take: 3,
         include: { category: { select: { slug: true, title: true } } }
       });
-  const suggestedRatings = await ratingsByProduct(
-    [linkedProduct?.id, ...suggestedProducts.map((product) => product.id)].filter(
-      (id): id is string => Boolean(id)
-    )
-  );
-  const shopProducts = (linkedProduct ? [linkedProduct] : suggestedProducts).map((product) => ({
-    ...withCategory(product),
-    averageRating: suggestedRatings.get(product.id)?.average ?? null,
-    reviewCount: suggestedRatings.get(product.id)?.count ?? 0
-  }));
+  const shopProducts = await withCardFacts(linkedProduct ? [linkedProduct] : suggestedProducts);
 
   const title = guideTitle(sheet.plantName, sheet.guideType);
   const articleJsonLd = {

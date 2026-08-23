@@ -5,7 +5,8 @@ import BrandMockupScene, {
   type HillsideCatalogImage
 } from '@/components/BrandMockupScene';
 import ResilientImage from '@/components/ResilientImage';
-import { FALLBACK_PRODUCT_IMAGE, pickForKey } from '@/lib/store';
+import { needsRealPhoto } from '@/lib/product-photos';
+import { pickForKey } from '@/lib/store';
 
 type BrandedProductVisualProps = {
   slug: string;
@@ -71,17 +72,6 @@ function catalogImageForProduct(slug: string, name: string, type: string): Hills
   return pickForKey(artworkForType[type] || artworkForType.OTHER, slug);
 }
 
-function isStarterOrPlaceholderImage(imageUrl?: string | null) {
-  if (!imageUrl) return true;
-  return (
-    imageUrl.includes('images.unsplash.com') ||
-    imageUrl.includes('/images/botanical-placeholder') ||
-    imageUrl.includes('/images/catalog/') ||
-    imageUrl.includes('/images/scenes/') ||
-    imageUrl === FALLBACK_PRODUCT_IMAGE
-  );
-}
-
 export default function BrandedProductVisual({
   slug,
   name,
@@ -91,7 +81,13 @@ export default function BrandedProductVisual({
   detail = false,
   loading = 'lazy'
 }: BrandedProductVisualProps) {
-  if (isStarterOrPlaceholderImage(imageUrl)) {
+  /**
+   * Stand-in artwork gets the brand mockup treatment rather than being shown
+   * plain. What counts as stand-in artwork is decided in one place — the same
+   * answer the dashboard's "needs a photograph" chip gives — because this list
+   * and that one had already drifted apart over a legacy Unsplash URL.
+   */
+  if (needsRealPhoto(imageUrl)) {
     return (
       <BrandMockupScene
         variant={variantForType(type)}

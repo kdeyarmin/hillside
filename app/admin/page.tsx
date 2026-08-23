@@ -4,22 +4,44 @@ import AdminDeepLink from '@/components/AdminDeepLink';
 import {
   ADMIN_ERRORS,
   ADMIN_NOTICES,
+  ADMIN_STOCK_FILTERS,
   adminDashboardPath,
+  adminStockFilterCounts,
   firstSearchParam,
+  inventoryAttention,
   parseAdminStockFilter,
-  productIsLowStock,
   productMatchesAdminFilter,
   productNeedsPhoto
 } from '@/lib/admin-dashboard';
 import { db } from '@/lib/db';
 import { currentAdmin } from '@/lib/admin';
+import {
+  inventorySignals,
+  inventoryStatusLabel,
+  inventoryStatusValue,
+  reorderSuggestion,
+  restockedLabel
+} from '@/lib/inventory';
 import { REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
-import { sizedName, sizeStockSummary } from '@/lib/product-sizes';
+import {
+  productCompleteness,
+  publishedIncomplete,
+  PUBLISH_STATE_LABELS,
+  type Completeness
+} from '@/lib/product-completeness';
+import { realPhotoCount } from '@/lib/product-photos';
+import {
+  readStoredSizes,
+  sizedName,
+  sizeStockSummary,
+  storedSizesTrackStock
+} from '@/lib/product-sizes';
 import { formatMoney } from '@/lib/store';
 import { orderStatusBadge } from '@/lib/tracking';
 import {
   loginAdmin,
   logoutAdmin,
+  receiveStock,
   resendClassConfirmation,
   resendOrderConfirmation,
   resendPickupReady,
@@ -52,6 +74,71 @@ const input: React.CSSProperties = {
 function SizeStockNote({ sizes }: { sizes: unknown }) {
   const summary = sizeStockSummary(sizes);
   return summary ? <> ({summary})</> : null;
+}
+
+/**
+ * How finished this listing is, and what is still missing. Lives here rather
+ * than in the product editor because it is what makes the dashboard's inventory
+ * list scannable: the gap is visible without opening the product.
+ */
+function CompletenessPanel({
+  completeness,
+  active
+}: {
+  completeness: Completeness;
+  active: boolean;
+}) {
+  const { score, missing, blockers, state } = completeness;
+  const tone = score === 100 ? 'good' : score >= 70 ? 'fair' : 'poor';
+
+  return (
+    <div className="completeness">
+      <div className="completeness-head">
+        <b>Product completeness: {score}%</b>
+        <span
+          className={`status-badge ${state === 'published' ? 'PAID' : state === 'ready' ? 'NEW' : 'CANCELLED'}`}
+        >
+          {PUBLISH_STATE_LABELS[state]}
+        </span>
+      </div>
+      <div
+        className={`completeness-bar ${tone}`}
+        role="img"
+        aria-label={`${score}% of the information this product needs has been filled in`}
+      >
+        <span style={{ width: `${score}%` }} />
+      </div>
+      {missing.length === 0 ? (
+        <p className="admin-hint">Everything this kind of product needs is filled in.</p>
+      ) : (
+        <>
+          <p className="admin-hint">
+            {active
+              ? 'This is live in the shop and still missing:'
+              : 'Still to fill in before this is ready to publish:'}
+          </p>
+          <ul className="completeness-missing">
+            {missing.map((entry) => (
+              <li
+                key={entry.key}
+                className={entry.blocking ? 'blocking' : entry.required ? '' : 'optional'}
+              >
+                {entry.hint}
+                {entry.blocking && <b> — required before it can be sold</b>}
+                {!entry.required && <span className="muted"> — optional</span>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {blockers.length > 0 && (
+        <p className="admin-hint">
+          A tea, soap or lotion cannot be listed for sale until its net weight and ingredients are
+          filled in. Everything else saves normally and stays a draft.
+        </p>
+      )}
+    </div>
+  );
 }
 
 export default async function Admin({
@@ -138,7 +225,7 @@ export default async function Admin({
     await Promise.all([
       db.product.findMany({
         orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
-        include: { category: { select: { title: true } } }
+        include: { category: { select: { title: true, specKind: true } } }
       }),
       db.order.findMany({ orderBy: { createdAt: 'desc' }, take: 75, include: { items: true } }),
       /**
@@ -196,23 +283,35 @@ export default async function Admin({
     ).map((item) => `${item.productId}:${item.order.email.toLowerCase()}`)
   );
 
-  const lowStock = products.filter(productIsLowStock).length;
+  /**
+   * One clock for the whole render. `recentlyRestocked` and the chip counts are
+   * asked hundreds of times below, and a `new Date()` inside each of them would
+   * let a row and the chip that put it there disagree across a midnight tick.
+   */
+  const now = new Date();
+  /**
+   * Counted over the whole catalog rather than the filtered view, because these
+   * are counts of work outstanding. A number that shrank as she typed into the
+   * search box would be answering a different question.
+   */
+  const filterCounts = adminStockFilterCounts(products, now);
+  const attention = inventoryAttention(products, now);
+  const lowStock = filterCounts.get('low') || 0;
   const openOrders = orders.filter((order) =>
     isAwaitingShipment(order.status, order.fulfilledAt)
   ).length;
   const unreadMessages = messages.filter((message) => message.status === MessageStatus.NEW).length;
   const activeSubscribers = subscribers.filter((subscriber) => subscriber.active).length;
   const pendingReviews = reviews.filter((review) => review.status === ReviewStatus.PENDING).length;
-  const missingPhotos = products.filter(
-    (product) => product.active && productNeedsPhoto(product.imageUrl)
-  ).length;
+  const missingPhotos = filterCounts.get('photo') || 0;
+  const needsReorder = filterCounts.get('reorder') || 0;
   const undeliveredEmails = orders.filter((order) => Boolean(order.confirmationEmailError)).length;
   const activeCount = products.filter((product) => product.active).length;
   const archivedCount = products.length - activeCount;
   const stockFilter = parseAdminStockFilter(firstSearchParam(params.stock));
   const productQuery = firstSearchParam(params.q);
   const visibleProducts = products.filter((product) =>
-    productMatchesAdminFilter(product, productQuery, stockFilter)
+    productMatchesAdminFilter(product, productQuery, stockFilter, now)
   );
   const archivedProducts = products.filter((product) => !product.active);
   const notice = ADMIN_NOTICES[firstSearchParam(params.notice)];
@@ -239,6 +338,7 @@ export default async function Admin({
         <img src="/logo.webp" alt="The Hillside Gardens" />
         <b>Owner Business Center</b>
         <a href="#overview">Overview</a>
+        <a href="#attention">Needs attention</a>
         <a href="#orders">Orders & shipping</a>
         <a href="#inventory">Inventory & products</a>
         <Link href="/admin/products/new">Add a product</Link>
@@ -316,6 +416,10 @@ export default async function Admin({
             <strong>{lowStock}</strong>
           </div>
           <div className="stat">
+            <span>Needs reorder</span>
+            <strong>{needsReorder}</strong>
+          </div>
+          <div className="stat">
             <span>New messages</span>
             <strong>{unreadMessages}</strong>
           </div>
@@ -336,6 +440,31 @@ export default async function Admin({
             <strong>{stockAlerts.length}</strong>
           </div>
         </div>
+
+        {/* The morning list. Everything here is a job with a chip behind it, so
+            a number is one click from the products it counts. Nothing at zero is
+            shown — a panel of reassuring noughts is a panel nobody reads. */}
+        <section className="admin-card attention" id="attention">
+          <h2>Needs attention</h2>
+          {attention.length ? (
+            <ul className="attention-list">
+              {attention.map((item) => (
+                <li key={item.key}>
+                  <Link href={item.href}>
+                    <b>{item.count}</b>
+                    <span>{item.detail}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">
+              {products.length
+                ? 'Nothing needs attention. Every listed product has stock, a photograph and the information its category needs.'
+                : 'No products yet. Add the first one below and this list will keep track of what each one still needs.'}
+            </p>
+          )}
+        </section>
 
         {notice && (
           <div className="admin-card admin-notice" role="status">
@@ -360,17 +489,17 @@ export default async function Admin({
                     Put one back in the shop
                   </a>
                   {' or '}
-                  <a className="text-link" href="#add-product">
+                  <Link className="text-link" href="/admin/products/new">
                     add a new product
-                  </a>
+                  </Link>
                   .
                 </>
               ) : (
                 <>
-                  Add a product below. Nothing is listed for sale until you do.{' '}
-                  <a className="text-link" href="#add-product">
+                  Nothing is listed for sale until you add one.{' '}
+                  <Link className="text-link" href="/admin/products/new">
                     Add a product
-                  </a>
+                  </Link>
                   .
                 </>
               )}
@@ -660,15 +789,7 @@ export default async function Admin({
           </form>
 
           <div className="filter-row" aria-label="Inventory filters">
-            {(
-              [
-                ['all', 'Everything', products.length],
-                ['active', 'In the shop', activeCount],
-                ['archived', 'Archived', archivedCount],
-                ['low', 'Low stock', lowStock],
-                ['photo', 'Needs a photo', missingPhotos]
-              ] as const
-            ).map(([key, label, count]) => (
+            {ADMIN_STOCK_FILTERS.map(({ key, label }) => (
               <Link
                 key={key}
                 className={`filter-chip${stockFilter === key ? ' active' : ''}`}
@@ -677,8 +798,9 @@ export default async function Admin({
                   stock: key === 'all' ? undefined : key,
                   section: 'inventory'
                 })}
+                aria-current={stockFilter === key ? 'true' : undefined}
               >
-                {label} ({count})
+                {label} ({filterCounts.get(key) || 0})
               </Link>
             ))}
           </div>
@@ -711,51 +833,125 @@ export default async function Admin({
             </div>
           )}
 
-          <div className="admin-product-rows">
+          <div className="admin-list inventory-list" style={{ marginTop: 24 }}>
             {visibleProducts.length ? (
-              visibleProducts.map((product) => (
-                <div
-                  className={`admin-product-row${product.slug === focusProduct ? ' focused' : ''}`}
-                  id={`product-${product.slug}`}
-                  key={product.id}
-                >
-                  <div className="admin-product-row-main">
-                    <Link className="admin-product-name" href={`/admin/products/${product.id}`}>
-                      {product.name}
-                    </Link>
-                    <span className="muted">
-                      {product.category?.title || 'Not categorised'} •{' '}
-                      {formatMoney(product.priceCents)} • {product.inventory} in stock
-                      <SizeStockNote sizes={product.sizes} />
-                      {productNeedsPhoto(product.imageUrl) && (
-                        <>
-                          {' '}
-                          • <b className="needs-photo">needs a photo</b>
-                        </>
-                      )}
-                    </span>
-                  </div>
-                  <div className="admin-product-row-actions">
-                    <span className={`status-badge ${product.active ? 'PAID' : 'CANCELLED'}`}>
-                      {product.active ? 'Active' : 'Archived'}
-                    </span>
-                    <Link className="btn small" href={`/admin/products/${product.id}`}>
-                      Edit
-                    </Link>
-                    <form action={setProductActive}>
-                      <input type="hidden" name="id" value={product.id} />
-                      <input
-                        type="hidden"
-                        name="active"
-                        value={product.active ? 'false' : 'true'}
-                      />
-                      <button className={`text-button${product.active ? ' danger' : ''}`}>
-                        {product.active ? 'Archive' : 'Put back'}
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              ))
+              visibleProducts.map((product) => {
+                const signals = inventorySignals(product, now);
+                const completeness = productCompleteness(product);
+                const sizeStocked = storedSizesTrackStock(readStoredSizes(product.sizes));
+                return (
+                  <details
+                    open={product.slug === focusProduct}
+                    id={`product-${product.slug}`}
+                    key={product.id}
+                  >
+                    <summary>
+                      <span className="inventory-summary">
+                        <b>{product.name}</b>
+                        <span className="inventory-line">
+                          {formatMoney(product.priceCents)} · {product.inventory} in stock
+                          <SizeStockNote sizes={product.sizes} /> ·{' '}
+                          {realPhotoCount(product) === 1
+                            ? '1 photo'
+                            : `${realPhotoCount(product)} photos`}{' '}
+                          · {completeness.score}% complete
+                        </span>
+                        <span className="inventory-flags">
+                          {signals.outOfStock && <span className="flag out">Out of stock</span>}
+                          {!signals.outOfStock && signals.lowStock && (
+                            <span className="flag low">Low stock</span>
+                          )}
+                          {signals.needsReorder && <span className="flag reorder">Reorder</span>}
+                          {productNeedsPhoto(product.imageUrl) && (
+                            <span className="flag photo">Needs a photo</span>
+                          )}
+                          {signals.missingSku && <span className="flag">No SKU</span>}
+                          {signals.missingSupplier && <span className="flag">No supplier</span>}
+                          {publishedIncomplete(completeness) && (
+                            <span className="flag incomplete">Incomplete</span>
+                          )}
+                          {signals.recentlyRestocked && (
+                            <span className="flag fresh">{restockedLabel(product, now)}</span>
+                          )}
+                          {inventoryStatusValue(product.inventoryStatus) !== 'STOCKED' && (
+                            <span className="flag">
+                              {inventoryStatusLabel(product.inventoryStatus)}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                      <span className={`status-badge ${product.active ? 'PAID' : 'CANCELLED'}`}>
+                        {product.active ? 'Active' : 'Archived'}
+                      </span>
+                    </summary>
+                    <div>
+                      <CompletenessPanel completeness={completeness} active={product.active} />
+
+                      {/* The single most repeated thing on this page: a box
+                          arrived, add it to the shelf. Typing what turned up
+                          beats reading the current number and typing the sum. */}
+                      <form className="restock-form" action={receiveStock}>
+                        <input type="hidden" name="id" value={product.id} />
+                        <label className="admin-label">
+                          Received a delivery
+                          <input
+                            className="admin-input"
+                            name="quantity"
+                            type="number"
+                            min="1"
+                            placeholder="How many arrived"
+                          />
+                        </label>
+                        {sizeStocked && (
+                          <label className="admin-label">
+                            Which size
+                            <select className="admin-input" name="size">
+                              {readStoredSizes(product.sizes).map((size) => (
+                                <option value={size.label} key={size.label}>
+                                  {size.label}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                        <button className="btn small">Add to stock</button>
+                        {signals.needsReorder && (
+                          <span className="admin-hint">
+                            At or below the reorder point of {product.reorderPoint}.{' '}
+                            {reorderSuggestion(product)
+                              ? `Suggested order: ${reorderSuggestion(product)}.`
+                              : ''}
+                            {product.supplier ? ` From ${product.supplier}.` : ''}
+                            {product.supplierItemNumber
+                              ? ` Their #${product.supplierItemNumber}.`
+                              : ''}
+                          </span>
+                        )}
+                      </form>
+
+                      <div className="admin-actions">
+                        <Link className="btn small" href={`/admin/products/${product.id}`}>
+                          Edit product
+                        </Link>
+                        <Link className="btn outline small" href={`/shop/${product.slug}`}>
+                          View product
+                        </Link>
+                      </div>
+                      <form action={setProductActive} style={{ marginTop: 10 }}>
+                        <input type="hidden" name="id" value={product.id} />
+                        <input
+                          type="hidden"
+                          name="active"
+                          value={product.active ? 'false' : 'true'}
+                        />
+                        <button className={`text-button${product.active ? ' danger' : ''}`}>
+                          {product.active ? 'Archive from shop' : 'Put back in shop'}
+                        </button>
+                      </form>
+                    </div>
+                  </details>
+                );
+              })
             ) : (
               <div className="admin-card">
                 <p>
