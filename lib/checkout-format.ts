@@ -86,6 +86,15 @@ export type CheckoutProductLine = {
   size?: string | null;
   /** What this line is charged, which for a sized line is the size's price. */
   unitCents: number;
+  /**
+   * How this line gets home. A variant may answer differently from its product
+   * — a specimen too large to post safely beside pots that ship fine — so the
+   * line carries the resolved answer rather than the caller re-deriving it.
+   */
+  ships?: boolean;
+  pickup?: boolean;
+  /** The photograph for this line, which a variant may override. */
+  imageUrl?: string | null;
 };
 
 /**
@@ -122,11 +131,24 @@ export function checkoutLineName(line: CheckoutLine) {
   return line.kind === 'bundle' ? line.bundle.title : sizedName(line.product.name, line.size);
 }
 
-/** Whether a line may ship or be picked up, whichever kind of line it is. */
+/**
+ * Whether a line may ship or be picked up, whichever kind of line it is.
+ *
+ * A product line answers with its own resolved figures rather than its
+ * product's: a variant may be pickup-only where the product ships, and it is
+ * the variant the customer is buying. Reading the product here would let a
+ * cart mixing a pickup-only variant with a ships-only line past the conflict
+ * check and into an order the shop cannot fulfil either way.
+ *
+ * A set answers for its whole recipe — it can only ship if every piece can —
+ * which `sellableBundle` has already worked out.
+ */
 export function checkoutLineFulfillment(line: CheckoutLine) {
-  return line.kind === 'bundle'
-    ? { ships: line.ships, pickup: line.pickup }
-    : { ships: line.product.ships, pickup: line.product.pickup };
+  if (line.kind === 'bundle') return { ships: line.ships, pickup: line.pickup };
+  return {
+    ships: line.ships ?? line.product.ships,
+    pickup: line.pickup ?? line.product.pickup
+  };
 }
 
 export function holdExpiry(now = new Date()) {

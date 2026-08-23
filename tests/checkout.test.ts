@@ -13,7 +13,8 @@ const {
   stripeProductDescription,
   stripeProductImages,
   stripeCheckoutItemsMetadata,
-  STRIPE_METADATA_VALUE_MAX
+  STRIPE_METADATA_VALUE_MAX,
+  checkoutLineFulfillment
 } = await import('../lib/checkout-format.ts');
 
 describe('readCheckoutItems', () => {
@@ -519,5 +520,57 @@ describe('encode/parse checkout items', () => {
         }))
       ).length > STRIPE_METADATA_VALUE_MAX
     );
+  });
+});
+
+describe('checkoutLineFulfillment', () => {
+  const product = {
+    id: 'p1',
+    slug: 'golden-pothos',
+    name: 'Golden Pothos',
+    shortDescription: null,
+    description: 'A trailing plant.',
+    priceCents: 2400,
+    inventory: 8,
+    imageUrl: null,
+    ships: true,
+    pickup: true
+  };
+
+  it("answers with the variant's resolved figures, not the product's", () => {
+    /**
+     * The 8" decorative planter does not post safely, so its variant is pickup
+     * only even though the product ships. Reading the product here would let a
+     * cart mixing it with a ships-only line past the conflict check and into an
+     * order the shop cannot fulfil either way.
+     */
+    const line = {
+      kind: 'product' as const,
+      product,
+      quantity: 1,
+      size: '8" decorative planter',
+      unitCents: 5200,
+      ships: false,
+      pickup: true
+    };
+    assert.deepEqual(checkoutLineFulfillment(line), { ships: false, pickup: true });
+  });
+
+  it('falls back to the product when a line carries no answer of its own', () => {
+    const line = { kind: 'product' as const, product, quantity: 1, unitCents: 2400 };
+    assert.deepEqual(checkoutLineFulfillment(line), { ships: true, pickup: true });
+  });
+
+  it('answers for a set from the recipe, which sellableBundle resolved', () => {
+    const line = {
+      kind: 'bundle' as const,
+      bundle: { id: 'b1', slug: 'tea-starter-set', title: 'Tea Starter Set' },
+      quantity: 1,
+      unitCents: 4200,
+      ships: false,
+      pickup: true,
+      contents: 'one 2 oz tin and one infuser'
+    } as never;
+    assert.deepEqual(checkoutLineFulfillment(line), { ships: false, pickup: true });
   });
 });

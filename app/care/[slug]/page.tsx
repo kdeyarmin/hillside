@@ -26,10 +26,10 @@ import { bundleCardData, sellableBundlesWithAnyProduct } from '@/lib/bundle-quer
 import { careGuideTypeHeading } from '@/lib/care-guides';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
-import { ratingsByProduct } from '@/lib/reviews';
+import { withCardFacts } from '@/lib/product-cards';
 import { absoluteUrl, formatMoney, resolveImageUrl } from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
-import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
+import { breadcrumbJsonLd, businessRef, pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
@@ -78,7 +78,24 @@ export async function generateMetadata({
 
 export default async function CareSheetPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const sheet = await db.careSheet.findFirst({ where: { slug, published: true } });
+  const sheet = await db.careSheet.findFirst({
+    where: { slug, published: true },
+    include: {
+      /**
+       * The categories this guide belongs to. The care library is where most
+       * strangers arrive, and a reader who has just learned how to water a
+       * pitcher plant is the best-qualified visitor the carnivorous-plants page
+       * will ever get — so the guide points at it rather than only at other
+       * guides.
+       */
+      collections: {
+        where: { active: true },
+        orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+        select: { slug: true, title: true },
+        take: 4
+      }
+    }
+  });
   if (!sheet) notFound();
 
   const relatedWhere: Prisma.CareSheetWhereInput = {
@@ -98,7 +115,10 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
       take: 3
     }),
     sheet.productId
-      ? db.product.findFirst({ where: { id: sheet.productId, active: true, inventory: { gt: 0 } } })
+      ? db.product.findFirst({
+          where: { id: sheet.productId, active: true },
+          include: { category: { select: { slug: true, title: true } } }
+        })
       : null,
     /**
      * What Tammy chose to feature on this guide, with her own reason for each.
@@ -143,18 +163,7 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
    * guides, where somebody arrives worried about a plant they already own and
    * was shown three more to buy. Nothing is the better answer there.
    */
-  const linkedRating = linkedProduct
-    ? (await ratingsByProduct([linkedProduct.id])).get(linkedProduct.id)
-    : null;
-  const shopProducts = linkedProduct
-    ? [
-        {
-          ...linkedProduct,
-          averageRating: linkedRating?.average ?? null,
-          reviewCount: linkedRating?.count ?? 0
-        }
-      ]
-    : [];
+  const shopProducts = await withCardFacts(linkedProduct ? [linkedProduct] : []);
 
   const title = guideTitle(sheet.plantName, sheet.guideType);
   const articleJsonLd = {
@@ -165,11 +174,11 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
     image: absoluteUrl(resolveImageUrl(sheet.imageUrl)),
     url: absoluteUrl(`/care/${sheet.slug}`),
     author: { '@type': 'Person', name: 'Tammy Hill' },
-    publisher: {
-      '@type': 'Organization',
-      name: 'The Hillside Gardens',
-      logo: absoluteUrl('/logo.png')
-    },
+    // A reference, not a second description of the shop. Spelling the publisher
+    // out here published an Organization with no `@id` beside the LocalBusiness
+    // in the layout, so the guides read as being published by a different
+    // organisation that happens to share the name.
+    publisher: { '@id': businessRef() },
     datePublished: sheet.createdAt.toISOString(),
     dateModified: sheet.updatedAt.toISOString(),
     articleSection: careGuideTypeHeading(sheet.guideType)
@@ -498,6 +507,29 @@ export default async function CareSheetPage({ params }: { params: Promise<{ slug
             </div>
           </section>
         )}
+
+        {/* Into the shop by category, not by product: a reader who has just
+            learned how to keep one of these alive is the best-qualified visitor
+            that category page will get. */}
+        <div className="category-links no-print">
+          <b>Shop what you just read about</b>
+          <ul>
+            {sheet.collections.map((collection) => (
+              <li key={collection.slug}>
+                <Link href={`/collections/${collection.slug}`}>{collection.title}</Link>
+              </li>
+            ))}
+            <li>
+              <Link href="/care">All care guides</Link>
+            </li>
+            <li>
+              <Link href="/shop">Shop everything</Link>
+            </li>
+            <li>
+              <Link href="/visit">Local pickup in Ebensburg</Link>
+            </li>
+          </ul>
+        </div>
       </div>
     </section>
   );

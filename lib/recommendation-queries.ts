@@ -8,8 +8,7 @@
 
 import { OrderStatus, Prisma, ProductRelationKind } from '@prisma/client';
 import { db } from '@/lib/db';
-import type { ProductCardProduct } from '@/components/ProductCard';
-import { ratingsByProduct } from '@/lib/reviews';
+import { withCardFacts, type CardFacts } from '@/lib/product-cards';
 import {
   automaticMatches,
   frequentlyBoughtTogether,
@@ -57,12 +56,35 @@ const cardSelect = {
   pickup: true,
   sizes: true,
   sizeLabel: true,
-  collections: { select: { id: true } }
+  createdAt: true,
+  staffPick: true,
+  bestSellerMode: true,
+  newArrivalMode: true,
+  seasonStartsAt: true,
+  seasonEndsAt: true,
+  collections: { select: { id: true } },
+  category: { select: { slug: true, title: true } }
 } satisfies Prisma.ProductSelect;
 
 type CandidateRow = Prisma.ProductGetPayload<{ select: typeof cardSelect }>;
 
-export type RecommendationCard = ProductCardProduct & { reason?: string | null };
+/**
+ * A row the rules picked, carrying why it was picked. Kept whole rather than
+ * narrowed here: the badges are worked out downstream by `withCardFacts`, and
+ * narrowing first is what would quietly leave a recommended card unbadged where
+ * the same product is badged in the shop grid.
+ */
+type RecommendationSeed = CandidateRow & { reason: string | null };
+
+type RailSeed = {
+  key: RecommendationSectionKey;
+  title: string;
+  blurb: string;
+  products: RecommendationSeed[];
+};
+
+export type RecommendationCard = Omit<CandidateRow, 'category' | 'collections'> &
+  CardFacts & { reason?: string | null };
 
 export type RecommendationRail = {
   key: RecommendationSectionKey;
@@ -86,25 +108,8 @@ function toRecommendable(row: CandidateRow): RecommendableProduct & { collection
   };
 }
 
-function toCard(row: CandidateRow, reason?: string | null): RecommendationCard {
-  return {
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    shortDescription: row.shortDescription,
-    description: row.description,
-    type: row.type,
-    priceCents: row.priceCents,
-    compareAtCents: row.compareAtCents,
-    inventory: row.inventory,
-    imageUrl: row.imageUrl,
-    badge: row.badge,
-    ships: row.ships,
-    pickup: row.pickup,
-    sizes: row.sizes,
-    sizeLabel: row.sizeLabel,
-    reason: reason || null
-  };
+function toCard(row: CandidateRow, reason?: string | null): RecommendationSeed {
+  return { ...row, reason: reason || null };
 }
 
 /**
@@ -211,7 +216,7 @@ export async function recommendationsForProduct(anchor: {
    * first is what makes that true rather than true-most-of-the-time.
    */
   const configured = (kind: ProductRelationKind) => {
-    const cards: RecommendationCard[] = [];
+    const cards: RecommendationSeed[] = [];
     for (const relation of relations) {
       if (relation.kind !== kind) continue;
       if (used.has(relation.relatedProductId)) continue;
@@ -227,7 +232,7 @@ export async function recommendationsForProduct(anchor: {
   const similar = configured(ProductRelationKind.SIMILAR);
 
   /** Rule matches, filling whatever the owner left room for. */
-  const topUp = (cards: RecommendationCard[], section: 'pairs' | 'complete') => {
+  const topUp = (cards: RecommendationSeed[], section: 'pairs' | 'complete') => {
     for (const match of matches) {
       if (cards.length >= RECOMMENDATIONS_PER_SECTION) break;
       if (match.section !== section) continue;
@@ -241,7 +246,7 @@ export async function recommendationsForProduct(anchor: {
   topUp(pairs, 'pairs');
   topUp(complete, 'complete');
 
-  const together: RecommendationCard[] = [];
+  const together: RecommendationSeed[] = [];
   for (const { productId, count } of frequentlyBoughtTogether(counts)) {
     const row = byId.get(productId);
     if (!row || used.has(row.id)) continue;
@@ -264,7 +269,7 @@ export async function recommendationsForProduct(anchor: {
     }
   }
 
-  const rails: RecommendationRail[] = (
+  const rails: RailSeed[] = (
     [
       {
         key: 'pairs',
@@ -290,18 +295,20 @@ export async function recommendationsForProduct(anchor: {
         blurb: 'Other pieces in the same spirit.',
         products: similar
       }
-    ] satisfies RecommendationRail[]
+    ] satisfies RailSeed[]
   ).filter((rail) => rail.products.length > 0);
 
-  const ratings = await ratingsByProduct(
-    rails.flatMap((rail) => rail.products.map((product) => product.id))
+  const decorated = new Map(
+    (await withCardFacts(rails.flatMap((rail) => rail.products))).map((product) => [
+      product.id,
+      product
+    ])
   );
   return rails.map((rail) => ({
     ...rail,
     products: rail.products.map((product) => ({
-      ...product,
-      averageRating: ratings.get(product.id)?.average ?? null,
-      reviewCount: ratings.get(product.id)?.count ?? 0
+      ...decorated.get(product.id)!,
+      reason: product.reason
     }))
   }));
 }

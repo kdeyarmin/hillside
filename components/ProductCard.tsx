@@ -4,12 +4,15 @@ import Link from 'next/link';
 import { ShoppingBag } from 'lucide-react';
 import BrandedProductVisual from '@/components/BrandedProductVisual';
 import { useCart } from '@/components/CartProvider';
+import { LOW_STOCK_AT } from '@/lib/inventory';
 import {
   comparableAtCents,
   formatSizePriceRange,
   productSizes,
+  sizeAvailable,
   sizeFieldLabel
 } from '@/lib/product-sizes';
+import { merchandisingBadges } from '@/lib/merchandising';
 import { discountPercent, formatMoney, productTypeLabel } from '@/lib/store';
 
 export type ProductCardProduct = {
@@ -19,6 +22,9 @@ export type ProductCardProduct = {
   shortDescription: string | null;
   description: string;
   type: string;
+  /** The product's category, when it has one — the pill a card leads with. */
+  categorySlug?: string | null;
+  categoryTitle?: string | null;
   priceCents: number;
   compareAtCents: number | null;
   inventory: number;
@@ -26,11 +32,23 @@ export type ProductCardProduct = {
   badge: string | null;
   ships?: boolean;
   pickup?: boolean;
-  /** Raw `Product.sizes`; a card only needs to know whether a choice is due. */
+  /** Raw `Product.sizes`; a card needs the labels and whether each has stock. */
   sizes?: unknown;
   sizeLabel?: string | null;
   averageRating?: number | null;
   reviewCount?: number;
+  staffPick?: boolean | null;
+  /**
+   * The automatic labels, worked out on the server from order history and the
+   * product's dates. Optional because plenty of grids (the cart's suggestions,
+   * an archived product's page) have no reason to pay for them.
+   */
+  flags?: {
+    isNew?: boolean;
+    isBestSeller?: boolean;
+    isInSeason?: boolean;
+    isOnSale?: boolean;
+  } | null;
   /**
    * Why this card is being shown here — Tammy's own note on a recommendation
    * she configured, or the rule that matched. A recommendation without a reason
@@ -87,13 +105,37 @@ export default function ProductCard({
    */
   const needsSize = sizes.length > 0;
   const sizeWord = sizeFieldLabel(product.sizeLabel).toLowerCase();
+  /**
+   * Which sizes can actually be bought right now. A card that lists three pot
+   * sizes on a plant where only the 4" is left sends the shopper to a page that
+   * disagrees with it.
+   */
+  const inStockSizes = sizes.filter((size) => sizeAvailable(size, product.inventory) > 0);
+  const lowStock = !soldOut && product.inventory <= LOW_STOCK_AT;
+
+  /**
+   * Local pickup only appears when it is the *only* way home — almost
+   * everything here can be picked up, so saying so on every card would say
+   * nothing at all, while "does not ship" is news.
+   */
+  const traits = [
+    product.pickup && product.ships === false && { key: 'pickup', text: 'Local pickup only' }
+  ].filter((trait): trait is { key: string; text: string } => Boolean(trait));
 
   return (
     <article className="product-card">
       <Link className="product-image-wrap" href={`/shop/${product.slug}`}>
         <span className="product-badges">
-          {saving > 0 && <span className="product-badge sale">Save {saving}%</span>}
-          {product.badge && <span className="product-badge">{product.badge}</span>}
+          {merchandisingBadges(product, {
+            savingPercent: saving,
+            isBestSeller: product.flags?.isBestSeller,
+            isNew: product.flags?.isNew,
+            isInSeason: product.flags?.isInSeason
+          }).map((badge) => (
+            <span className={`product-badge ${badge.tone}`} key={`${badge.tone}-${badge.label}`}>
+              {badge.label}
+            </span>
+          ))}
         </span>
         <BrandedProductVisual
           slug={product.slug}
@@ -104,7 +146,10 @@ export default function ProductCard({
         />
       </Link>
       <div className="product-copy">
-        <span className="pill">{productTypeLabel(product.type)}</span>
+        {/* The category is what a shopper recognises — "Carnivorous Plants",
+            not "Plant" — so the broad type is only the fallback for a product
+            that has not been given one. */}
+        <span className="pill">{product.categoryTitle || productTypeLabel(product.type)}</span>
         <h3>
           <Link href={`/shop/${product.slug}`}>{product.name}</Link>
         </h3>
@@ -122,13 +167,30 @@ export default function ProductCard({
             </span>
           )}
         </p>
-        <span className={`stock ${soldOut ? 'out' : product.inventory <= 3 ? 'low' : ''}`}>
-          {soldOut
-            ? 'Sold out'
-            : product.inventory <= 3
-              ? `Only ${product.inventory} left`
-              : 'In stock'}
+        <span className={`stock ${soldOut ? 'out' : lowStock ? 'low' : ''}`}>
+          {soldOut ? 'Sold out' : lowStock ? `Only ${product.inventory} left` : 'In stock'}
         </span>
+        {needsSize && inStockSizes.length > 0 && (
+          <span className="product-variants">
+            {inStockSizes.length === sizes.length
+              ? `${sizes.length} ${sizeWord}s: `
+              : `${inStockSizes.length} of ${sizes.length} ${sizeWord}s left: `}
+            {inStockSizes
+              .slice(0, 3)
+              .map((size) => size.label)
+              .join(' · ')}
+            {inStockSizes.length > 3 && ` +${inStockSizes.length - 3}`}
+          </span>
+        )}
+        {traits.length > 0 && (
+          <span className="product-traits">
+            {traits.map((trait) => (
+              <span className="product-trait" key={trait.key}>
+                {trait.text}
+              </span>
+            ))}
+          </span>
+        )}
         <div className="product-actions">
           <Link className="text-link" href={`/shop/${product.slug}`}>
             {soldOut ? 'Get notified' : 'Details'}

@@ -4,9 +4,11 @@ import {
   adminContentPath,
   adminDashboardPath,
   firstSearchParam,
+  inventoryAttention,
   parseAdminStockFilter,
   productIsLowStock,
   productMatchesAdminFilter,
+  productMatchesStockFilter,
   productNeedsPhoto,
   uniqueConstraintField
 } from '../lib/admin-dashboard.ts';
@@ -46,12 +48,87 @@ describe('productMatchesAdminFilter', () => {
   });
 
   it('separates archived stock from what the shop is actually selling', () => {
-    assert.equal(productMatchesAdminFilter(monstera, '', 'archived'), true);
+    assert.equal(productMatchesAdminFilter(monstera, '', 'inactive'), true);
     assert.equal(productMatchesAdminFilter(monstera, '', 'active'), false);
     assert.equal(productMatchesAdminFilter(tea, '', 'active'), true);
     assert.equal(productMatchesAdminFilter(tea, '', 'low'), true);
     assert.equal(productMatchesAdminFilter(tea, '', 'photo'), false);
     assert.equal(productMatchesAdminFilter(monstera, '', 'photo'), false);
+  });
+
+  it('finds a product by its supplier and their item number', () => {
+    const sourced = { ...tea, supplier: 'Ebensburg Growers', supplierItemNumber: 'EG-9912' };
+    assert.equal(productMatchesAdminFilter(sourced, 'ebensburg', 'all'), true);
+    assert.equal(productMatchesAdminFilter(sourced, 'EG-9912', 'all'), true);
+    assert.equal(productMatchesAdminFilter(tea, 'ebensburg', 'all'), false);
+  });
+
+  it('counts the jobs that actually need doing', () => {
+    const restocked = new Date('2026-08-20T09:00:00Z');
+    const now = new Date('2026-08-22T09:00:00Z');
+    const catalog = [
+      { ...monstera, active: true, inventory: 0, sku: null },
+      { ...tea, reorderPoint: 4, lastRestockedAt: restocked }
+    ];
+
+    assert.equal(productMatchesStockFilter(catalog[0], 'out', now), true);
+    assert.equal(productMatchesStockFilter(catalog[1], 'out', now), false);
+    // Two on the bench against a reorder point of four.
+    assert.equal(productMatchesStockFilter(catalog[1], 'reorder', now), true);
+    assert.equal(productMatchesStockFilter(catalog[0], 'no-reorder', now), true);
+    assert.equal(productMatchesStockFilter(catalog[0], 'sku', now), true);
+    assert.equal(productMatchesStockFilter(catalog[1], 'sku', now), false);
+    assert.equal(productMatchesStockFilter(catalog[0], 'supplier', now), true);
+    assert.equal(productMatchesStockFilter(catalog[1], 'restocked', now), true);
+    assert.equal(productMatchesStockFilter(catalog[0], 'restocked', now), false);
+  });
+});
+
+describe('inventoryAttention', () => {
+  const now = new Date('2026-08-22T09:00:00Z');
+  const base = {
+    name: 'Monstera',
+    slug: 'monstera',
+    sku: 'PL-01',
+    supplier: 'Ebensburg Growers',
+    active: true,
+    inventory: 6,
+    reorderPoint: 2,
+    imageUrl: '/media/monstera.jpg',
+    description: 'A big green thing.',
+    shortDescription: 'Big and green.',
+    priceCents: 4200,
+    type: 'OTHER',
+    details: 'Grown here.',
+    ships: true,
+    pickup: true
+  };
+
+  it('says nothing at all when nothing needs doing', () => {
+    assert.deepEqual(inventoryAttention([base], now), []);
+  });
+
+  it('reads as a sentence, and links to the chip that shows those products', () => {
+    const items = inventoryAttention(
+      [
+        { ...base, inventory: 0 },
+        { ...base, inventory: 0 }
+      ],
+      now
+    );
+    const outOfStock = items.find((item) => item.key === 'out');
+    assert.equal(outOfStock?.message, '2 products are out of stock');
+    assert.equal(outOfStock?.detail, 'products are out of stock');
+    assert.equal(outOfStock?.href, '/admin?stock=out&section=inventory');
+  });
+
+  it('keeps the singular singular', () => {
+    const items = inventoryAttention([{ ...base, inventory: 0 }], now);
+    assert.equal(items.find((item) => item.key === 'out')?.message, '1 product is out of stock');
+    assert.equal(
+      items.find((item) => item.key === 'reorder')?.message,
+      '1 product has reached its reorder point'
+    );
   });
 });
 
@@ -93,9 +170,13 @@ describe('productIsLowStock', () => {
 
 describe('parseAdminStockFilter', () => {
   it('falls back to all for an unknown chip', () => {
-    assert.equal(parseAdminStockFilter('archived'), 'archived');
+    assert.equal(parseAdminStockFilter('reorder'), 'reorder');
     assert.equal(parseAdminStockFilter('nope'), 'all');
     assert.equal(parseAdminStockFilter(undefined), 'all');
+  });
+
+  it('still understands the old archived links the dashboard has issued', () => {
+    assert.equal(parseAdminStockFilter('archived'), 'inactive');
   });
 });
 

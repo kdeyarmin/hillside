@@ -232,7 +232,11 @@ export async function GET(request: Request) {
      * is gone, so the line is dropped and counted as dropped rather than
      * silently coming back as a size the customer never chose.
      */
-    const sizes = productSizes(product.sizes, product.priceCents);
+    const sizes = productSizes(product.sizes, product.priceCents, {
+      imageUrl: product.imageUrl,
+      ships: product.ships,
+      pickup: product.pickup
+    });
     if (sizeChoiceRejected(sizes, requested.size)) return [];
     const chosen = findSize(sizes, requested.size);
     // A size that has since sold out comes back as dropped rather than as a
@@ -245,11 +249,13 @@ export async function GET(request: Request) {
         slug: product.slug,
         name: product.name,
         priceCents: chosen?.priceCents ?? product.priceCents,
-        imageUrl: product.imageUrl,
+        imageUrl: chosen?.imageUrl ?? product.imageUrl,
         inventory: available,
         type: product.type,
-        ships: product.ships,
-        pickup: product.pickup,
+        // The variant's answer, not the product's: a restored line for a
+        // pickup-only specimen must not come back as one that ships.
+        ships: chosen ? chosen.ships : product.ships,
+        pickup: chosen ? chosen.pickup : product.pickup,
         size: chosen?.label || null,
         quantity: clampQuantity(requested.quantity, available)
       }

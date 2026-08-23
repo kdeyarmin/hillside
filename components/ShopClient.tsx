@@ -2,40 +2,59 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Search } from 'lucide-react';
+import { Search, SlidersHorizontal, X } from 'lucide-react';
 import ProductCard, { type ProductCardProduct } from '@/components/ProductCard';
 import { trackSearch } from '@/lib/analytics';
 import { contactHref } from '@/lib/contact';
-import { matchesAnySearchField } from '@/lib/search';
+import { productSearchFields } from '@/lib/catalog-search';
+import { matchesAnySearchFieldFuzzy } from '@/lib/search';
 import { comparableAtCents, productSizes, sizePriceRange } from '@/lib/product-sizes';
-import { CATEGORY_GROUPS, categoryTypes, discountPercent, productTypeLabel } from '@/lib/store';
+import {
+  activeFilterChips,
+  buildFacets,
+  hasActiveFilters,
+  isShopSort,
+  matchesFilters,
+  shopFilterQuery,
+  type FilterableProduct,
+  type ShopFilterState
+} from '@/lib/shop-filters';
 
-type Product = ProductCardProduct & {
+export type ShopProduct = ProductCardProduct & {
   featured: boolean;
   sortOrder: number;
   createdAt: string | Date;
+  botanical?: string | null;
+  searchTerms?: string | null;
+  /** Every attribute, assigned and derived, resolved on the server. */
+  tags: string[];
+  collections?: Array<{
+    slug: string;
+    title: string;
+    tagline?: string | null;
+    keywords?: string[];
+  }>;
+  unitsSold?: number;
 };
 
-type SortOption = 'featured' | 'new' | 'name' | 'price-low' | 'price-high';
+type SortOption = 'featured' | 'new' | 'best-selling' | 'name' | 'price-low' | 'price-high';
 
 const SORT_LABELS: Array<[SortOption, string]> = [
   ['featured', 'Featured first'],
+  ['best-selling', 'Best selling'],
   ['new', 'Just arrived'],
   ['name', 'Name A–Z'],
   ['price-low', 'Price: low to high'],
   ['price-high', 'Price: high to low']
 ];
 
-function isSortOption(value: string): value is SortOption {
-  return SORT_LABELS.some(([option]) => option === value);
-}
-
 /**
- * A card leads with what its sizes cost, so the sale chip and the price sorts
- * have to read the same figures. Resolved once per product rather than inside
- * a comparator, which would re-parse the size list on every comparison.
+ * A card leads with what its sizes cost, so the sale chip, the price sorts and
+ * the price filter have to read the same figures. Resolved once per product
+ * rather than inside a comparator, which would re-parse the size list on every
+ * comparison.
  */
-function pricingFor(product: Product) {
+function pricingFor(product: ShopProduct) {
   const sizes = productSizes(product.sizes, product.priceCents);
   return {
     ...sizePriceRange(sizes, product.priceCents),
@@ -45,41 +64,29 @@ function pricingFor(product: Product) {
 
 export default function ShopClient({
   products,
-  initialCategory = 'ALL',
-  initialSearch = '',
-  initialSort = 'featured',
-  initialOnSaleOnly = false
+  collections = [],
+  categories = [],
+  initial
 }: {
-  products: Product[];
-  initialCategory?: string;
-  initialSearch?: string;
-  initialSort?: string;
-  initialOnSaleOnly?: boolean;
+  products: ShopProduct[];
+  collections?: Array<{ slug: string; title: string }>;
+  /** Only for naming the category chip; which chips are offered is the rail's. */
+  categories?: Array<{ slug: string; title: string }>;
+  initial: ShopFilterState;
 }) {
-  const [search, setSearch] = useState(initialSearch);
-  const [onSaleOnly, setOnSaleOnly] = useState(initialOnSaleOnly);
-  const [category, setCategory] = useState(() => {
-    const requested = initialCategory.toUpperCase();
-    if (requested === 'ALL') return 'ALL';
-    const types = categoryTypes(requested);
-    return types.some((type) => products.some((product) => product.type === type))
-      ? requested
-      : 'ALL';
-  });
-  const [sort, setSort] = useState<SortOption>(
-    isSortOption(initialSort) ? initialSort : 'featured'
-  );
+  const [state, setState] = useState<ShopFilterState>(initial);
+  const [railOpen, setRailOpen] = useState(false);
 
   useEffect(() => {
-    const term = initialSearch.trim();
+    const term = initial.search.trim();
     if (term) trackSearch(term);
-  }, [initialSearch]);
+  }, [initial.search]);
 
   /**
    * Filtering happens entirely in this component, so a shopper who narrowed the
-   * shop down to "Teas & Herbals, on sale, price low to high" had nothing to
-   * send anyone, nothing to bookmark, and a Back button that left the page.
-   * Mirroring the state into the query string fixes all three.
+   * shop down to "pet safe, low light, under $30" had nothing to send anyone,
+   * nothing to bookmark, and a Back button that left the page. Mirroring the
+   * state into the query string fixes all three.
    *
    * `replaceState` rather than a router push: every keystroke would otherwise
    * become a history entry, and Back would walk back through the search letter
@@ -87,97 +94,120 @@ export default function ShopClient({
    */
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const params = new URLSearchParams(window.location.search);
-      const apply = (key: string, value: string, isDefault: boolean) => {
-        if (isDefault) params.delete(key);
-        else params.set(key, value);
-      };
-
-      apply('q', search.trim(), !search.trim());
-      apply('category', category, category === 'ALL');
-      apply('sort', sort, sort === 'featured');
-      apply('sale', 'true', !onSaleOnly);
-
-      const query = params.toString();
+      const query = shopFilterQuery(state);
       const next = `${window.location.pathname}${query ? `?${query}` : ''}`;
       if (next !== `${window.location.pathname}${window.location.search}`) {
         window.history.replaceState(null, '', next);
       }
     }, 250);
-
     return () => window.clearTimeout(timer);
-  }, [category, onSaleOnly, search, sort]);
+  }, [state]);
 
-  /**
-   * Category chips are merchandising groups rather than raw enum values, so
-   * "Botanicals" covers soaps, lotions and anything else handmade instead of
-   * hiding two thirds of the shelf behind a single ProductType.
-   */
-  const categories = useMemo(() => {
-    const present = new Set(products.map((product) => product.type));
-    const groups = Object.entries(CATEGORY_GROUPS)
-      .filter(([, group]) => group.types.some((type) => present.has(type)))
-      .map(([key, group]) => ({ key, label: group.label }));
-    const grouped = new Set(Object.values(CATEGORY_GROUPS).flatMap((group) => group.types));
-    const ungrouped = Array.from(present)
-      .filter((type) => !grouped.has(type))
-      .map((type) => ({ key: type, label: productTypeLabel(type) }));
-    return [{ key: 'ALL', label: 'Everything' }, ...groups, ...ungrouped];
+  /** The filterable shape, computed once — facets and the grid both read it. */
+  const filterable = useMemo(() => {
+    const map = new Map<string, FilterableProduct>();
+    for (const product of products) {
+      const sizes = productSizes(product.sizes, product.priceCents);
+      map.set(product.id, {
+        id: product.id,
+        type: product.type,
+        // The prices a shopper can actually pay, so a price band never offers
+        // a product nothing about which can be bought at that price.
+        prices: sizes.length ? sizes.map((size) => size.priceCents) : [product.priceCents],
+        tags: product.tags,
+        collectionSlugs: (product.collections || []).map((collection) => collection.slug),
+        categorySlug: product.categorySlug ?? null,
+        categoryTitle: product.categoryTitle ?? null
+      });
+    }
+    return map;
   }, [products]);
 
-  const saleCount = useMemo(
-    () =>
-      products.filter(
-        (product) => discountPercent(product.priceCents, pricingFor(product).compareAtCents) > 0
-      ).length,
-    [products]
-  );
+  /** Which products answer the search box, before any filter is applied. */
+  const searchMatched = useMemo(() => {
+    const term = state.search.trim();
+    if (!term) return null;
+    const matched = new Set<string>();
+    for (const product of products) {
+      const { primary, secondary } = productSearchFields(product, product.tags);
+      if (matchesAnySearchFieldFuzzy([...primary, ...secondary], term)) matched.add(product.id);
+    }
+    return matched;
+  }, [products, state.search]);
+
+  /**
+   * Facets describe what is findable *within the current search*, not within
+   * the whole catalog. A shopper who typed "soap" was still offered "Low light"
+   * — a chip that could only ever empty the grid.
+   */
+  const facets = useMemo(() => {
+    const scope = [...filterable.values()].filter(
+      (product) => !searchMatched || searchMatched.has(product.id)
+    );
+    return buildFacets(scope, state, collections);
+  }, [collections, filterable, searchMatched, state]);
 
   const visibleProducts = useMemo(() => {
-    const term = search.trim();
-    const allowedTypes = categoryTypes(category);
-    const filtered = products
-      .map((product) => ({ product, pricing: pricingFor(product) }))
-      .filter(({ product, pricing }) => {
-        const inCategory = !allowedTypes.length || allowedTypes.includes(product.type);
-        const onSale =
-          !onSaleOnly || discountPercent(product.priceCents, pricing.compareAtCents) > 0;
-        const matchesSearch =
-          !term ||
-          matchesAnySearchField(
-            [product.name, product.description, product.shortDescription],
-            term
-          );
-        return inCategory && onSale && matchesSearch;
-      });
+    const matched = products.filter((product) => {
+      const shape = filterable.get(product.id);
+      if (!shape || !matchesFilters(shape, state)) return false;
+      return !searchMatched || searchMatched.has(product.id);
+    });
 
-    return [...filtered]
-      .sort((a, b) => {
-        if (sort === 'name') return a.product.name.localeCompare(b.product.name);
-        /**
-         * Each direction reads the end of the range it is about. Sorting both by
-         * the cheapest size would put a $20–$30 product above a $10–$50 one
-         * under "high to low", with the more expensive piece second.
-         */
-        if (sort === 'price-low') return a.pricing.minCents - b.pricing.minCents;
-        if (sort === 'price-high') return b.pricing.maxCents - a.pricing.maxCents;
-        if (sort === 'new')
-          return new Date(b.product.createdAt).getTime() - new Date(a.product.createdAt).getTime();
-        return (
-          Number(b.product.featured) - Number(a.product.featured) ||
-          a.product.sortOrder - b.product.sortOrder ||
-          a.product.name.localeCompare(b.product.name)
-        );
-      })
-      .map(({ product }) => product);
-  }, [category, onSaleOnly, products, search, sort]);
+    return [...matched].sort((a, b) => {
+      const priceA = pricingFor(a);
+      const priceB = pricingFor(b);
+      if (state.sort === 'name') return a.name.localeCompare(b.name);
+      /**
+       * Each direction reads the end of the range it is about. Sorting both by
+       * the cheapest size would put a $20–$30 product above a $10–$50 one under
+       * "high to low", with the more expensive piece second.
+       */
+      if (state.sort === 'price-low') return priceA.minCents - priceB.minCents;
+      if (state.sort === 'price-high') return priceB.maxCents - priceA.maxCents;
+      if (state.sort === 'new')
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      if (state.sort === 'best-selling')
+        return (b.unitsSold || 0) - (a.unitsSold || 0) || a.name.localeCompare(b.name);
+      return (
+        Number(b.featured) - Number(a.featured) ||
+        a.sortOrder - b.sortOrder ||
+        a.name.localeCompare(b.name)
+      );
+    });
+  }, [filterable, products, searchMatched, state]);
 
-  const clearAll = () => {
-    setSearch('');
-    setCategory('ALL');
-    setOnSaleOnly(false);
-    setSort(isSortOption(initialSort) ? initialSort : 'featured');
-  };
+  const chips = activeFilterChips(state, collections, categories);
+  const filtered = hasActiveFilters(state);
+
+  const setValue = (key: keyof ShopFilterState, value: string) =>
+    setState((current) => ({ ...current, [key]: value }));
+
+  const toggleTag = (tag: string) =>
+    setState((current) => ({
+      ...current,
+      tags: current.tags.includes(tag)
+        ? current.tags.filter((entry) => entry !== tag)
+        : [...current.tags, tag]
+    }));
+
+  const removeChip = (key: string, value: string) =>
+    setState((current) => {
+      if (key === 'category') return { ...current, category: 'ALL' };
+      if (key === 'collection') return { ...current, collection: '' };
+      if (key === 'price') return { ...current, price: '' };
+      return { ...current, tags: current.tags.filter((entry) => entry !== value) };
+    });
+
+  const clearAll = () =>
+    setState((current) => ({
+      category: 'ALL',
+      collection: '',
+      price: '',
+      tags: [],
+      search: '',
+      sort: current.sort
+    }));
 
   if (products.length === 0) {
     return (
@@ -209,18 +239,31 @@ export default function ShopClient({
             <input
               className="search-input"
               type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search plants, teas and botanical goods"
+              value={state.search}
+              onChange={(event) => setValue('search', event.target.value)}
+              placeholder="Try pothos, pet safe, low light, terrarium"
               aria-label="Search products"
             />
           </div>
+          <button
+            className={`btn outline small shop-filter-toggle${railOpen ? ' active' : ''}`}
+            type="button"
+            onClick={() => setRailOpen((open) => !open)}
+            aria-expanded={railOpen}
+            aria-controls="shop-filter-rail"
+          >
+            <SlidersHorizontal size={16} aria-hidden="true" />
+            {railOpen ? 'Hide filters' : 'Filters'}
+            {chips.length > 0 && <span className="filter-count">{chips.length}</span>}
+          </button>
           <label className="sort-field">
             <span className="sr-only">Sort products</span>
             <select
               className="sort-select"
-              value={sort}
-              onChange={(event) => setSort(event.target.value as SortOption)}
+              value={state.sort}
+              onChange={(event) =>
+                setValue('sort', isShopSort(event.target.value) ? event.target.value : 'featured')
+              }
             >
               {SORT_LABELS.map(([option, label]) => (
                 <option value={option} key={option}>
@@ -230,28 +273,85 @@ export default function ShopClient({
             </select>
           </label>
         </div>
-        <div className="filter-row" role="group" aria-label="Product categories">
-          {categories.map(({ key, label }) => (
-            <button
-              className={`filter-chip${category === key ? ' active' : ''}`}
-              type="button"
-              onClick={() => setCategory(key)}
-              aria-pressed={category === key}
-              key={key}
-            >
-              {label}
+
+        {chips.length > 0 && (
+          <div className="active-filters" aria-label="Filters you have applied">
+            {chips.map((chip) => (
+              <button
+                className="filter-chip active"
+                type="button"
+                key={`${chip.key}-${chip.value}`}
+                onClick={() => removeChip(chip.key, chip.value)}
+              >
+                {chip.label}
+                <X size={13} aria-hidden="true" />
+                <span className="sr-only">Remove this filter</span>
+              </button>
+            ))}
+            <button className="text-link" type="button" onClick={clearAll}>
+              Clear all
             </button>
+          </div>
+        )}
+
+        {/* Every facet here is one something on the shelf answers to. A shop
+            showing only soap never renders a light filter, because the tag
+            catalog says light does not apply to soap and the counts would be
+            zero either way. */}
+        <div className={`shop-filter-rail${railOpen ? ' open' : ''}`} id="shop-filter-rail">
+          {facets.map((facet) => (
+            <div className="filter-group" key={facet.key}>
+              {facet.choice === 'one' ? (
+                <label className="filter-select-field">
+                  <span>{facet.label}</span>
+                  <select
+                    className="sort-select"
+                    value={
+                      facet.key === 'category'
+                        ? state.category === 'ALL'
+                          ? ''
+                          : state.category
+                        : facet.key === 'collection'
+                          ? state.collection
+                          : state.price
+                    }
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      if (facet.key === 'category') setValue('category', value || 'ALL');
+                      else if (facet.key === 'collection') setValue('collection', value);
+                      else setValue('price', value);
+                    }}
+                  >
+                    <option value="">
+                      {facet.key === 'category' ? 'Everything' : `Any ${facet.label.toLowerCase()}`}
+                    </option>
+                    {facet.options.map((option) => (
+                      <option value={option.value} key={option.value}>
+                        {option.label} ({option.count})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <fieldset className="filter-fieldset">
+                  <legend>{facet.label}</legend>
+                  <div className="filter-row">
+                    {facet.options.map((option) => (
+                      <button
+                        className={`filter-chip${option.selected ? ' active' : ''}`}
+                        type="button"
+                        key={option.value}
+                        aria-pressed={option.selected}
+                        onClick={() => toggleTag(option.value)}
+                      >
+                        {option.label} <span className="filter-chip-count">{option.count}</span>
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+            </div>
           ))}
-          {saleCount > 0 && (
-            <button
-              className={`filter-chip sale${onSaleOnly ? ' active' : ''}`}
-              type="button"
-              onClick={() => setOnSaleOnly((value) => !value)}
-              aria-pressed={onSaleOnly}
-            >
-              On sale ({saleCount})
-            </button>
-          )}
         </div>
       </div>
 
@@ -265,8 +365,10 @@ export default function ShopClient({
       {visibleProducts.length === 0 ? (
         <div className="empty-state">
           <Search size={38} aria-hidden="true" />
-          <h3>No products matched that search.</h3>
-          <p>Try another word, or ask whether something similar is coming back onto the bench.</p>
+          <h3>{filtered ? 'Nothing matched those filters.' : 'No products matched.'}</h3>
+          <p>
+            Try removing a filter, or ask whether something similar is coming back on the bench.
+          </p>
           <div className="actions" style={{ justifyContent: 'center' }}>
             <button className="btn" type="button" onClick={clearAll}>
               Show everything

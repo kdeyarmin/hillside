@@ -150,7 +150,10 @@ export default async function BundlePage({ params }: { params: Promise<{ slug: s
               name={bundle.title}
               type="OTHER"
               imageUrl={bundle.imageUrl}
-              images={bundle.galleryImages}
+              photos={[
+                ...(bundle.imageUrl ? [{ src: bundle.imageUrl, caption: 'Main' }] : []),
+                ...bundle.galleryImages.map((src) => ({ src, caption: 'Detail' }))
+              ]}
             />
           </div>
           <div className="product-detail-copy">

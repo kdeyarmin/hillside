@@ -19,7 +19,16 @@ export const metadata = pageMetadata({
   path: '/care',
   title: 'Plant Care Library & Plant Problem Guide',
   description:
-    'Practical plant profiles, watering and light guidance, seasonal checklists, pest help and troubleshooting for common houseplant problems from The Hillside Gardens.'
+    'Free plant care guides from The Hillside Gardens in Ebensburg, PA — watering, light and humidity for houseplants, carnivorous plants, succulents and air plants, plus troubleshooting for what goes wrong.',
+  keywords: [
+    'plant care',
+    'houseplant care',
+    'carnivorous plant care',
+    'succulent care',
+    'air plant care',
+    'yellow leaves',
+    'watering houseplants'
+  ]
 });
 
 const quickStarts = [

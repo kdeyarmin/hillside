@@ -5,8 +5,10 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import {
   ClassFormat,
+  InventoryStatus,
   MessageStatus,
   OrderStatus,
+  ProductSpecKind,
   ProductType,
   RegistrationStatus,
   ReviewStatus
@@ -14,7 +16,6 @@ import {
 import { authenticateAdmin, clearAdminSession, isAdmin, setAdminSession } from '@/lib/admin';
 import { Prisma } from '@prisma/client';
 import { clientKeyFromHeaders, rateLimitedByKey } from '@/lib/rate-limit';
-import { isNavigationCollection } from '@/lib/collections';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { db } from '@/lib/db';
@@ -25,13 +26,21 @@ import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { releaseProductHold, restoreUnshippedOrderInventory } from '@/lib/checkout';
 import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
 import {
-  parseSizeLines,
   productInventoryForSizes,
+  readStoredSizes,
+  readVariantRows,
+  returnStoredSizeStock,
   sizeFieldLabel,
   storedSizesTrackStock,
   withoutRedundantPrices
 } from '@/lib/product-sizes';
+import { nextRestockedAt, parseRestockDate } from '@/lib/inventory';
+import { publishBlockReason } from '@/lib/product-completeness';
+import { mergeProductSpecs, productSpecsFromForm } from '@/lib/product-specs';
+import { SPEC_KIND_BY_TYPE } from '@/lib/product-categories';
 import { amazonPickDraft, DEFAULT_PICK_TITLE, extractAsin, isAmazonLink } from '@/lib/amazon-pick';
+import { normalizeTags } from '@/lib/product-tags';
+import { parseFaqLines, parseKeywords } from '@/lib/category-content';
 import { associateTag, lookupAmazonProduct } from '@/lib/amazon-lookup';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
 import { nextFulfilledAt } from '@/lib/orders';
@@ -59,6 +68,26 @@ const money = (value: FormDataEntryValue | null) => {
  * call below used to be unreachable. See lib/form-values.ts.
  */
 const integer = formInteger;
+/**
+ * A whole number, or nothing at all — which is why this cannot simply be
+ * `formInteger`: that always answers with a number, and a reorder point has to
+ * be able to be unset. "0" is a legitimate reorder point, meaning reorder when
+ * the last one goes, so a blank box cannot be allowed to fall through to zero
+ * and quietly enrol the product in a reorder list nobody asked for.
+ */
+const optionalInteger = (value: FormDataEntryValue | null, max = 1_000_000) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const number = Number(raw);
+  if (!Number.isFinite(number) || number < 0) return null;
+  return Math.min(max, Math.floor(number));
+};
+/** A posted select value, checked against the enum it claims to be. */
+const enumValue = <T extends string, F extends T | null>(
+  raw: string,
+  values: Record<string, T>,
+  fallback: F
+) => ((Object.values(values) as string[]).includes(raw) ? (raw as T) : fallback) as T | F;
 const optionalDate = (value: string) => {
   if (!value) return null;
   const date = new Date(value);
@@ -108,49 +137,159 @@ export async function logoutAdmin() {
   redirect('/admin');
 }
 
+/** The owner's editor for one product, or for a product that does not exist yet. */
+function adminProductPath(id: string, query: Record<string, string | undefined> = {}) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value) params.set(key, value);
+  }
+  const encoded = params.toString();
+  return `/admin/products/${id}${encoded ? `?${encoded}` : ''}`;
+}
+
+/**
+ * The category a product was filed under, or null. Every structural decision on
+ * the form hangs off this one answer: which detail fields are asked for, and
+ * which legacy `ProductType` the row is recorded as.
+ */
+async function chosenCategory(categoryId: string) {
+  if (!categoryId) return null;
+  return db.category.findUnique({
+    where: { id: categoryId },
+    select: { id: true, specKind: true, legacyType: true }
+  });
+}
+
 export async function saveProduct(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
   const name = text(formData, 'name');
   const slug = slugFrom(text(formData, 'slug'), name);
+  const category = await chosenCategory(text(formData, 'categoryId'));
   const rawType = text(formData, 'type');
-  const type = Object.values(ProductType).includes(rawType as ProductType)
-    ? (rawType as ProductType)
-    : ProductType.OTHER;
+  /**
+   * `type` is no longer typed in: the category says which of the six legacy
+   * values a product is recorded as, so the two cannot drift apart and start
+   * disagreeing about whether a flytrap is a plant. The posted value is only a
+   * fallback for the moment before the category table has been seeded, and for
+   * a product deliberately left uncategorised.
+   */
+  const type = category
+    ? category.legacyType
+    : Object.values(ProductType).includes(rawType as ProductType)
+      ? (rawType as ProductType)
+      : ProductType.OTHER;
+  const specKind: ProductSpecKind = category?.specKind ?? SPEC_KIND_BY_TYPE[type] ?? 'GENERAL';
   const priceCents = money(formData.get('price'));
   const compareAtText = text(formData, 'compareAt');
+  const ships = checked(formData, 'ships');
+  const pickup = checked(formData, 'pickup');
   /**
-   * Sizes are stored only when the owner listed some. An empty box means the
-   * product is sold one way, and `DbNull` says that plainly — an empty array
-   * would read as "there is a size list, and it is empty".
-   *
-   * A price that matches the product's own is dropped rather than stored, so the
-   * size keeps following the base price the way the form promises it will.
+   * Neither box ticked would list something nobody can receive, so an empty
+   * answer is read as "both" — the same reading the shop has always had, moved
+   * up here because the variants below resolve against these two flags.
    */
-  const sizes = withoutRedundantPrices(parseSizeLines(text(formData, 'sizes')), priceCents);
+  const productShips = !ships && !pickup ? true : ships;
+  const productPickup = !ships && !pickup ? true : pickup;
+  const productSku = text(formData, 'sku') || null;
+  const productImageUrl = text(formData, 'imageUrl') || null;
+  const weightOunces = Math.max(0, integer(formData.get('weightOunces')));
+  const productDimensions = text(formData, 'dimensions').slice(0, 80) || null;
+
+  /**
+   * Variants are stored only when the owner listed some. No rows filled in
+   * means the product is sold one way, and `DbNull` says that plainly — an
+   * empty array would read as "there is a variant list, and it is empty".
+   *
+   * Anything a variant merely repeats from the product — its price, its
+   * photograph, its shipping answer — is dropped rather than stored, so the
+   * variant goes on following the product the way the form promises it will.
+   */
+  const sizes = withoutRedundantPrices(readVariantRows(formData), priceCents, {
+    sku: productSku,
+    imageUrl: productImageUrl,
+    weightOunces: weightOunces || null,
+    dimensions: productDimensions,
+    ships: productShips,
+    pickup: productPickup
+  });
   const sizeLabelText = text(formData, 'sizeLabel');
+
+  /**
+   * Only the fields this category actually asks for are read, and they are laid
+   * over whatever the product already had rather than replacing it. Re-shelving
+   * a lotion as apothecary and back should not quietly erase its ingredient
+   * list.
+   */
+  const previous = id
+    ? await db.product.findUnique({
+        where: { id },
+        select: { inventory: true, slug: true, specs: true, lastRestockedAt: true }
+      })
+    : null;
+  const specs = mergeProductSpecs(
+    previous?.specs,
+    productSpecsFromForm(formData, specKind),
+    specKind
+  );
+
   const data = {
     name,
     slug,
-    sku: text(formData, 'sku') || null,
+    sku: productSku,
     shortDescription: text(formData, 'shortDescription') || null,
     description: text(formData, 'description'),
     details: text(formData, 'details') || null,
     careNotes: text(formData, 'careNotes') || null,
     shippingNote: text(formData, 'shippingNote') || null,
-    ships: checked(formData, 'ships'),
-    pickup: checked(formData, 'pickup'),
+    ships: productShips,
+    pickup: productPickup,
     type,
+    categoryId: category?.id ?? null,
     priceCents,
     compareAtCents: compareAtText ? money(formData.get('compareAt')) : null,
-    imageUrl: text(formData, 'imageUrl') || null,
+    imageUrl: productImageUrl,
+    lifestyleImageUrl: text(formData, 'lifestyleImageUrl') || null,
+    detailImageUrl: text(formData, 'detailImageUrl') || null,
+    scaleImageUrl: text(formData, 'scaleImageUrl') || null,
+    packagingImageUrl: text(formData, 'packagingImageUrl') || null,
     badge: text(formData, 'badge') || null,
     sizes: sizes.length ? (sizes as Prisma.InputJsonValue) : Prisma.DbNull,
-    // Only meaningful alongside a size list, and only when the owner renamed it.
+    // Only meaningful alongside a variant list, and only when the owner renamed it.
     sizeLabel: sizes.length && sizeLabelText ? sizeFieldLabel(sizeLabelText) : null,
+    specs: Object.keys(specs).length ? (specs as Prisma.InputJsonValue) : Prisma.DbNull,
+    weightOunces: weightOunces > 0 ? weightOunces : null,
+    dimensions: productDimensions,
     active: checked(formData, 'active'),
     featured: checked(formData, 'featured'),
+    staffPick: checked(formData, 'staffPick'),
+    botanical: text(formData, 'botanical') || null,
+    searchTerms: text(formData, 'searchTerms') || null,
+    /**
+     * Only attributes the tag catalog knows about *and* that apply to this
+     * product's type are stored. A posted value outside the catalog is a stale
+     * form or a hand-crafted request; one that is simply wrong for the type —
+     * "low light" on a bar of soap — is a slip on a form that shows every group
+     * whatever is being edited, and either would put a product behind a filter
+     * that can never describe it.
+     */
+    tags: normalizeTags(
+      formData.getAll('tags').map((value) => String(value)),
+      type
+    ),
+    seasonStartsAt: optionalDate(text(formData, 'seasonStartsAt')),
+    seasonEndsAt: optionalDate(text(formData, 'seasonEndsAt')),
     sortOrder: integer(formData.get('sortOrder')),
+    supplier: text(formData, 'supplier') || null,
+    supplierItemNumber: text(formData, 'supplierItemNumber') || null,
+    reorderPoint: optionalInteger(formData.get('reorderPoint')),
+    reorderQuantity: optionalInteger(formData.get('reorderQuantity')),
+    inventoryNotes: text(formData, 'inventoryNotes') || null,
+    inventoryStatus: enumValue(
+      text(formData, 'inventoryStatus'),
+      InventoryStatus,
+      InventoryStatus.STOCKED
+    ),
     galleryImages: text(formData, 'galleryImages')
       .split(/[\n,]+/)
       .map((entry) => entry.trim())
@@ -158,26 +297,47 @@ export async function saveProduct(formData: FormData) {
       .slice(0, 8)
   };
 
-  if (!data.ships && !data.pickup) {
-    data.ships = true;
-    data.pickup = true;
-  }
+  /**
+   * Every failure below lands back on the form it came from. The product form
+   * lives on a page of its own — `new` for one that does not exist yet — and
+   * sending the owner to a dashboard carrying an error about a form she cannot
+   * see there is how a failed save reads as a save.
+   */
+  const editorPath = (error: string) => adminProductPath(id || 'new', { error });
+
+  /**
+   * The one completeness rule that refuses rather than advises.
+   *
+   * Everything else the dashboard checks is a nudge — an incomplete draft is how
+   * the work gets done, and being stopped at the save button is how it stops.
+   * But a tea or a lotion with no net contents and no ingredient list is not
+   * ours to put on sale, so it saves in full and stays a draft, with the reason
+   * on screen. Nothing she typed is lost either way.
+   */
+  const publishBlocked = data.active && Boolean(publishBlockReason(data));
+  if (publishBlocked) data.active = false;
 
   if (!name || !slug || !data.description || priceCents < 0) {
-    redirect(
-      adminDashboardPath({
-        error: 'product-invalid',
-        product: id ? slug || undefined : undefined,
-        section: id ? 'inventory' : 'add-product'
-      })
-    );
+    redirect(editorPath('product-invalid'));
   }
 
   /**
-   * A product whose sizes carry their own counts has no separate quantity to
-   * type: the column is the sum of them, and taking it from the size lines is
+   * A category is required whenever the form offered one, which the presence of
+   * the field is exactly the signal for: a database whose taxonomy has not been
+   * seeded yet renders the older product-type dropdown instead and posts no
+   * `categoryId` at all. The browser enforces this too; this is the half that
+   * cannot be skipped, and it matters because a product with no category is
+   * asked for the wrong details and drops out of every filter that leads to it.
+   */
+  if (!category && formData.has('categoryId')) {
+    redirect(editorPath('category-required'));
+  }
+
+  /**
+   * A product whose variants carry their own counts has no separate quantity to
+   * type: the column is the sum of them, and taking it from the variant rows is
    * what keeps the two from drifting. The quantity box still answers for a
-   * product sold one way, or sold in sizes off one shelf.
+   * product sold one way, or sold in variants off one shelf.
    */
   const tracksSizeStock = storedSizesTrackStock(sizes);
   const postedInventory = productInventoryForSizes(
@@ -191,16 +351,36 @@ export async function saveProduct(formData: FormData) {
     .map((value) => String(value))
     .filter(Boolean);
 
-  const previous = id
-    ? await db.product.findUnique({ where: { id }, select: { inventory: true, slug: true } })
-    : null;
+  /**
+   * A restock dates itself. The owner's own date wins when she sets one, and
+   * otherwise a quantity that went *up* stamps today — which is the difference
+   * between a field that stays current and one field too many to remember.
+   *
+   * "Went up" is measured against `expectedInventory`, the figure this form was
+   * rendered with, not against the row as it stands now. A checkout hold landing
+   * while the form sat open lowers the row, so comparing against it would read
+   * an *unchanged* form as a rise and stamp a restock that never happened —
+   * on the very save path that deliberately leaves the quantity alone.
+   *
+   * A product being created has no earlier figure to have risen from, and its
+   * opening count is stock arriving, so it stamps.
+   */
+  const record = {
+    ...data,
+    lastRestockedAt: nextRestockedAt({
+      typed: parseRestockDate(text(formData, 'lastRestockedAt')),
+      stored: previous?.lastRestockedAt ?? null,
+      previousInventory: id ? expectedInventory : 0,
+      nextInventory: postedInventory
+    })
+  };
 
   let product;
   try {
     if (!id) {
       product = await db.product.create({
         data: {
-          ...data,
+          ...record,
           inventory: postedInventory,
           collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) }
         }
@@ -221,7 +401,7 @@ export async function saveProduct(formData: FormData) {
       product = await db.product.update({
         where: { id },
         data: {
-          ...data,
+          ...record,
           collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
         }
       });
@@ -247,7 +427,7 @@ export async function saveProduct(formData: FormData) {
         return transaction.product.update({
           where: { id },
           data: {
-            ...data,
+            ...record,
             collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
           }
         });
@@ -255,20 +435,14 @@ export async function saveProduct(formData: FormData) {
       // Outside the transaction: `redirect` throws, and rolling the claim back
       // through that throw would depend on how Prisma re-raises it.
       if (!saved) {
-        redirect(adminDashboardPath({ error: 'inventory', product: slug, section: 'inventory' }));
+        redirect(editorPath('inventory'));
       }
       product = saved;
     }
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       const field = uniqueConstraintField(error.meta?.target);
-      redirect(
-        adminDashboardPath({
-          error: field === 'sku' ? 'sku' : 'slug',
-          product: previous?.slug,
-          section: id ? 'inventory' : 'add-product'
-        })
-      );
+      redirect(editorPath(field === 'sku' ? 'sku' : 'slug'));
     }
     throw error;
   }
@@ -283,12 +457,105 @@ export async function saveProduct(formData: FormData) {
   }
 
   refresh('/shop', '/', '/collections', `/shop/${slug}`);
+  // Back to the product: a created one is then open and ready to be finished,
+  // and a saved one shows what was saved. Everything was saved either way; a
+  // publish block only explains why it is not live.
   redirect(
-    adminDashboardPath({
-      notice: id ? 'product-saved' : 'product-created',
-      product: product.slug,
-      section: 'inventory'
+    adminProductPath(product.id, {
+      notice: publishBlocked ? undefined : id ? 'product-saved' : 'product-created',
+      error: publishBlocked ? 'publish-blocked' : undefined
     })
+  );
+}
+
+/**
+ * Adding a delivery to the shelf, without opening the whole product form.
+ *
+ * This is the single most repeated thing Tammy does — a box arrives, six more
+ * are on the bench — and doing it through the product editor meant reading the
+ * current number, adding to it in her head, and typing the sum. Here she types
+ * what arrived.
+ */
+export async function receiveStock(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  if (!id) redirect(adminDashboardPath({ section: 'inventory' }));
+
+  const quantity = optionalInteger(formData.get('quantity'), 100_000);
+  if (!quantity || quantity < 1) {
+    redirect(adminDashboardPath({ error: 'restock-invalid', section: 'inventory' }));
+  }
+  const size = text(formData, 'size');
+
+  const before = await db.product.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      inventory: true,
+      sizes: true,
+      inventoryStatus: true
+    }
+  });
+  if (!before) redirect(adminDashboardPath({ error: 'product-missing', section: 'inventory' }));
+
+  const stored = readStoredSizes(before.sizes);
+  const perSize = storedSizesTrackStock(stored);
+
+  /**
+   * On a product counted per size the delivery has to land on one of them, and
+   * the product total is then rebuilt from the sizes — writing the total alone
+   * would leave it disagreeing with the counts underneath it, which is the one
+   * thing `lib/product-sizes.ts` exists to prevent.
+   */
+  const nextSizes = perSize ? returnStoredSizeStock(stored, size, quantity) : stored;
+  if (perSize && nextSizes === stored) {
+    redirect(
+      adminDashboardPath({ error: 'restock-invalid', product: before.slug, section: 'inventory' })
+    );
+  }
+  const nextInventory = perSize
+    ? productInventoryForSizes(nextSizes, before.inventory)
+    : before.inventory + quantity;
+
+  /**
+   * Claimed on the quantity we read, so a checkout hold that lands in between
+   * cannot be overwritten — the same guard the product form uses, and the same
+   * "refresh and try again" answer when it fires.
+   */
+  const claimed = await db.product.updateMany({
+    where: { id, inventory: before.inventory },
+    data: {
+      inventory: nextInventory,
+      lastRestockedAt: new Date(),
+      /**
+       * The delivery landing is what ends "on order". Left set, the status would
+       * keep the product off the reorder list for good — `needsReorder` excludes
+       * ON_ORDER precisely so a placed order stops nagging — and this very stock
+       * could sell back down below the reorder point without it ever reappearing
+       * on the list Tammy works from. Every other status describes the product
+       * rather than an outstanding order, so none of them is touched.
+       */
+      ...(before.inventoryStatus === InventoryStatus.ON_ORDER
+        ? { inventoryStatus: InventoryStatus.STOCKED }
+        : {}),
+      ...(perSize ? { sizes: nextSizes as Prisma.InputJsonValue } : {})
+    }
+  });
+  if (claimed.count === 0) {
+    redirect(
+      adminDashboardPath({ error: 'inventory', product: before.slug, section: 'inventory' })
+    );
+  }
+
+  if (before.inventory <= 0 && nextInventory > 0) {
+    await notifyStockAlerts(before.id, before.name, before.slug);
+  }
+
+  refresh('/shop', '/', '/collections', `/shop/${before.slug}`);
+  redirect(
+    adminDashboardPath({ notice: 'stock-received', product: before.slug, section: 'inventory' })
   );
 }
 
@@ -307,28 +574,46 @@ export async function saveCollection(formData: FormData) {
     );
   }
 
-  const existing = id ? await db.collection.findUnique({ where: { id } }) : null;
-
-  // A collection the header links to keeps its slug and stays visible; renaming
-  // or hiding it would break the primary navigation.
-  const locked = Boolean(existing && isNavigationCollection(existing.slug));
-  const slug = locked ? existing!.slug : requestedSlug;
+  /**
+   * Every collection is the owner's to rename, hide or delete. Three of them
+   * used to be locked because the site header linked straight at them; the
+   * header navigates by category now, so a collection is purely curatorial and
+   * nothing structural breaks when one is retired.
+   */
+  /**
+   * The FAQ is stored as JSON rather than as the typed lines, so the page and
+   * the FAQPage markup both read one shape. An empty box clears it with
+   * `DbNull` rather than an empty array — the difference matters to the page,
+   * which publishes no FAQ schema at all when there are no questions.
+   */
+  const faq = parseFaqLines(text(formData, 'faq'));
+  const careSheetIds = formData
+    .getAll('careSheetIds')
+    .map((value) => String(value))
+    .filter(Boolean);
 
   const data = {
     title,
-    slug,
+    slug: requestedSlug,
     tagline: text(formData, 'tagline') || null,
     description: text(formData, 'description') || null,
     imageUrl: text(formData, 'imageUrl') || null,
     featured: checked(formData, 'featured'),
-    active: locked ? true : checked(formData, 'active'),
-    sortOrder: integer(formData.get('sortOrder'))
+    active: checked(formData, 'active'),
+    sortOrder: integer(formData.get('sortOrder')),
+    intro: text(formData, 'intro') || null,
+    body: text(formData, 'body') || null,
+    faq: faq.length ? (faq as Prisma.InputJsonValue) : Prisma.DbNull,
+    metaTitle: text(formData, 'metaTitle') || null,
+    metaDescription: text(formData, 'metaDescription') || null,
+    keywords: parseKeywords(text(formData, 'keywords'))
   };
 
+  const careSheets = { set: careSheetIds.map((sheetId) => ({ id: sheetId })) };
   const collection = id
-    ? await db.collection.update({ where: { id }, data })
-    : await db.collection.create({ data });
-  refresh('/', '/collections', `/collections/${slug}`, '/shop');
+    ? await db.collection.update({ where: { id }, data: { ...data, careSheets } })
+    : await db.collection.create({ data: { ...data, careSheets: { connect: careSheets.set } } });
+  refresh('/', '/collections', `/collections/${requestedSlug}`, '/shop');
   redirect(
     adminContentPath({
       notice: id ? 'collection-saved' : 'collection-created',
@@ -349,16 +634,6 @@ export async function deleteCollection(formData: FormData) {
   if (!collection) {
     redirect(adminContentPath({ error: 'collection-missing', section: 'collections' }));
   }
-  if (isNavigationCollection(collection.slug)) {
-    redirect(
-      adminContentPath({
-        error: 'collection-locked',
-        section: 'collections',
-        item: id
-      })
-    );
-  }
-
   await db.collection.delete({ where: { id } });
   refresh('/', '/collections', '/shop');
   redirect(adminContentPath({ notice: 'collection-deleted', section: 'collections' }));
@@ -406,6 +681,28 @@ export async function setProductActive(formData: FormData) {
   const id = text(formData, 'id');
   const active = text(formData, 'active') === 'true';
   if (!id) return;
+
+  /**
+   * The same refusal the save path applies, checked again here because this is
+   * the other door into the shop: "Put back in shop" would otherwise list a tea
+   * with no ingredients on it in one click.
+   */
+  if (active) {
+    const candidate = await db.product.findUnique({
+      where: { id },
+      select: { slug: true, type: true, specs: true }
+    });
+    if (candidate && publishBlockReason(candidate)) {
+      redirect(
+        adminDashboardPath({
+          error: 'publish-blocked',
+          product: candidate.slug,
+          section: 'inventory'
+        })
+      );
+    }
+  }
+
   const product = await db.product.update({
     where: { id },
     data: active ? { active: true } : { active: false, featured: false },
@@ -1013,4 +1310,126 @@ export async function updateRegistration(formData: FormData) {
   if (id) await db.classRegistration.update({ where: { id }, data: { status } });
   refresh('/classes');
   redirect(adminDashboardPath({ notice: 'registration-saved', section: 'registrations' }));
+}
+
+/**
+ * The merchandising taxonomy is owner-editable, which is the whole point of it:
+ * when the bench starts carrying something the six built-in product types never
+ * anticipated, Tammy adds a category rather than filing it under "Botanical
+ * good" and waiting for a deploy.
+ */
+export async function saveCategory(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  const title = text(formData, 'title');
+  const slug = slugFrom(text(formData, 'slug'), title);
+  if (!title || !slug) {
+    redirect(
+      adminContentPath({
+        error: 'category-invalid',
+        section: id ? 'categories' : 'add-category',
+        item: id || undefined
+      })
+    );
+  }
+
+  const rawSpecKind = text(formData, 'specKind');
+  const rawLegacyType = text(formData, 'legacyType');
+  const data = {
+    title,
+    slug,
+    tagline: text(formData, 'tagline') || null,
+    description: text(formData, 'description') || null,
+    imageUrl: text(formData, 'imageUrl') || null,
+    specKind: Object.values(ProductSpecKind).includes(rawSpecKind as ProductSpecKind)
+      ? (rawSpecKind as ProductSpecKind)
+      : ProductSpecKind.GENERAL,
+    legacyType: Object.values(ProductType).includes(rawLegacyType as ProductType)
+      ? (rawLegacyType as ProductType)
+      : ProductType.OTHER,
+    active: checked(formData, 'active'),
+    featured: checked(formData, 'featured'),
+    sortOrder: integer(formData.get('sortOrder'))
+  };
+
+  let category;
+  try {
+    category = id
+      ? await db.category.update({ where: { id }, data })
+      : await db.category.create({ data });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      redirect(
+        adminContentPath({
+          error: 'category-slug',
+          section: id ? 'categories' : 'add-category',
+          item: id || undefined
+        })
+      );
+    }
+    throw error;
+  }
+
+  /**
+   * Changing which legacy type a category stands for has to reach the products
+   * already in it, or the shop's older category links and the return-policy
+   * markup would go on describing them as whatever they used to be.
+   */
+  await db.product.updateMany({
+    where: { categoryId: category.id, type: { not: data.legacyType } },
+    data: { type: data.legacyType }
+  });
+
+  refresh('/shop', '/', '/collections', '/admin/content');
+  redirect(
+    adminContentPath({
+      notice: id ? 'category-saved' : 'category-created',
+      section: 'categories',
+      item: category.id
+    })
+  );
+}
+
+/**
+ * Deleting is refused while a category still holds products: the relation nulls
+ * on delete, so the products would survive but silently fall out of every
+ * filter that leads to them. Hiding a category is the reversible answer, and it
+ * is what the button offers instead.
+ */
+export async function deleteCategory(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  if (!id) redirect(adminContentPath({ error: 'category-missing', section: 'categories' }));
+
+  const category = await db.category.findUnique({
+    where: { id },
+    select: { id: true, _count: { select: { products: true } } }
+  });
+  if (!category) {
+    redirect(adminContentPath({ error: 'category-missing', section: 'categories' }));
+  }
+  if (category._count.products > 0) {
+    redirect(adminContentPath({ error: 'category-in-use', section: 'categories', item: id }));
+  }
+
+  await db.category.delete({ where: { id } });
+  refresh('/shop', '/', '/admin/content');
+  redirect(adminContentPath({ notice: 'category-deleted', section: 'categories' }));
+}
+
+export async function setCategoryActive(formData: FormData) {
+  await guard();
+  const id = text(formData, 'id');
+  const active = text(formData, 'active') === 'true';
+  if (!id) redirect(adminContentPath({ error: 'category-missing', section: 'categories' }));
+
+  await db.category.update({ where: { id }, data: { active } });
+  refresh('/shop', '/', '/admin/content');
+  redirect(
+    adminContentPath({
+      notice: active ? 'category-shown' : 'category-hidden',
+      section: 'categories',
+      item: id
+    })
+  );
 }

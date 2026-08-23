@@ -16,6 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // it that are real, so the classes entry leaves with the page.
     ...(CLASSES_PUBLICLY_VISIBLE ? ['/classes'] : []),
     '/care',
+    '/visit',
     '/gallery',
     '/amazon',
     '/about',
@@ -26,7 +27,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     '/terms'
   ];
 
-  const [products, careGuides, collections, bundles] = await Promise.all([
+  const [products, careGuides, collections, categories, bundles] = await Promise.all([
     db.product.findMany({
       where: { active: true },
       select: { slug: true, updatedAt: true }
@@ -36,6 +37,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       select: { slug: true, updatedAt: true, featured: true }
     }),
     db.collection.findMany({
+      where: { active: true, products: { some: { active: true } } },
+      select: { slug: true, updatedAt: true }
+    }),
+    /**
+     * A category is a filtered view of /shop rather than a route of its own, but
+     * it is a view with its own title, its own description and its own stock —
+     * which is what a crawler needs before it is worth listing. Only the ones
+     * that hold something are, for the same reason a homepage tile is.
+     */
+    db.category.findMany({
       where: { active: true, products: { some: { active: true } } },
       select: { slug: true, updatedAt: true }
     }),
@@ -80,7 +91,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // and there is nothing here that honestly knows when that last happened.
     lastModified: staticModified[path],
     changeFrequency: index === 0 ? 'weekly' : 'monthly',
-    priority: index === 0 ? 1 : path === '/shop' || path === '/care' ? 0.9 : 0.7
+    priority:
+      index === 0
+        ? 1
+        : path === '/shop' || path === '/care'
+          ? 0.9
+          : // The local page is the one static page that answers a search
+            // ("plant shop near Ebensburg") rather than a policy question.
+            path === '/visit' || path === '/collections'
+            ? 0.8
+            : 0.7
   }));
 
   const bundlePages: MetadataRoute.Sitemap = bundles.map((bundle) => ({
@@ -111,5 +131,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.85
   }));
 
-  return [...staticPages, ...collectionPages, ...bundlePages, ...productPages, ...guidePages];
+  const categoryPages: MetadataRoute.Sitemap = categories.map((category) => ({
+    url: absoluteUrl(`/shop?category=${category.slug}`),
+    lastModified: productsModified,
+    changeFrequency: 'weekly',
+    priority: 0.85
+  }));
+
+  return [
+    ...staticPages,
+    ...categoryPages,
+    ...collectionPages,
+    ...bundlePages,
+    ...productPages,
+    ...guidePages
+  ];
 }
