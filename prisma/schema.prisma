@@ -523,7 +523,6 @@ model Category {
   promotions  Promotion[]
   /** The care guides worth reading beside this category. */
   careSheets  CareSheet[]     @relation("CategoryCareGuides")
-
 }
 
 model Order {
