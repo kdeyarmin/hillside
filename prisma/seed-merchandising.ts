@@ -86,8 +86,9 @@ const bundles: BundleSeed[] = [
 ];
 
 /**
- * Tags exist for the recommendation rules. Seeded only onto products that have
- * none at all, so a product Tammy has tagged herself is never overwritten.
+ * Traits exist for the recommendation rules, and are a different field from the
+ * `tags` a shopper filters the shop by. Seeded only onto products that have no
+ * traits at all, so anything Tammy has written herself is never overwritten.
  */
 const traitsByKeyword: Array<{ keyword: string; traits: string[] }> = [
   { keyword: 'tea', traits: ['tea'] },
