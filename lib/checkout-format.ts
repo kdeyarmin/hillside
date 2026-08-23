@@ -12,6 +12,7 @@ import {
   type BundleStockLine
 } from './bundles.ts';
 import { basketLineKey, readLineKind, type LineKind } from './cart-lines.ts';
+import type { DiscountLine } from './discounts.ts';
 import {
   findSize,
   productSizes,
@@ -81,6 +82,8 @@ export type CheckoutProductLine = {
     imageUrl: string | null;
     ships?: boolean | null;
     pickup?: boolean | null;
+    /** Carried so a category-scoped promo code can tell this line apart. */
+    categoryId?: string | null;
   };
   quantity: number;
   size?: string | null;
@@ -448,6 +451,111 @@ function bundleAdjustment(
   }
 
   return null;
+}
+
+/**
+ * The least a product has to say for a basket line to be priced against it.
+ * Written as a constraint rather than as the Prisma row so the same resolution
+ * can be run against a test fixture.
+ */
+export type PricedProduct = CheckoutProductLine['product'] & {
+  active?: boolean;
+  sizes?: unknown;
+  sku?: string | null;
+};
+
+/** As much of a set as building its line needs. */
+export type SellableBundle = BundleForSale & {
+  id: string;
+  active?: boolean;
+  tagline?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+};
+
+/**
+ * Turns what the browser asked for into what the shop will actually charge for,
+ * dropping anything it will not sell: an archived product, one that is sold
+ * out, a size that is no longer offered, a set whose pieces are not all on the
+ * bench.
+ *
+ * **Prices come from the product, its variant list and the bundle row, never
+ * from the basket.** What the browser sent is used only to notice a stale
+ * figure and report it back through `checkoutAdjustments`; it never sets a
+ * charge.
+ *
+ * Shared by the checkout route and the cart's discount quote on purpose. The
+ * quote tells a customer what a code is worth against their basket, and it can
+ * only be trusted to match what they are charged if both are looking at exactly
+ * the same lines.
+ */
+export function resolveCheckoutLines(
+  requested: CheckoutRequestedItem[],
+  products: PricedProduct[],
+  bundles: SellableBundle[] = []
+): CheckoutLine[] {
+  return requested.flatMap((requestedItem): CheckoutLine[] => {
+    if (requestedItem.kind === 'bundle') {
+      const bundle = bundles.find((candidate) => candidate.slug === requestedItem.id);
+      // `checkoutAdjustments` has already refused anything unsellable, so a
+      // set that reaches here can be built at the quantity asked for.
+      if (!bundle || bundle.active === false) return [];
+      return [bundleCheckoutLine(bundle, requestedItem.quantity)];
+    }
+
+    const product = products.find((candidate) => candidate.slug === requestedItem.id);
+    if (!product || product.active === false || product.inventory <= 0) return [];
+
+    const sizes = productSizes(product.sizes, product.priceCents, {
+      sku: product.sku,
+      imageUrl: product.imageUrl,
+      ships: product.ships,
+      pickup: product.pickup
+    });
+    if (sizeChoiceRejected(sizes, requestedItem.size)) return [];
+
+    const chosen = findSize(sizes, requestedItem.size);
+    // Against the chosen variant's own count where the owner keeps one, so a
+    // plant with plenty of 4" pots cannot back a line of 6" ones.
+    const available = sizeAvailable(chosen, product.inventory);
+    if (available <= 0) return [];
+
+    return [
+      {
+        kind: 'product',
+        product,
+        quantity: Math.min(requestedItem.quantity, available),
+        size: chosen?.label || null,
+        unitCents: chosen?.priceCents ?? product.priceCents,
+        /**
+         * Resolved here rather than at the product, because a variant may get
+         * home differently from the product it belongs to and it is the
+         * variant the customer is buying.
+         */
+        ships: chosen ? chosen.ships : product.ships !== false,
+        pickup: chosen ? chosen.pickup : product.pickup !== false,
+        imageUrl: chosen?.imageUrl ?? product.imageUrl
+      }
+    ];
+  });
+}
+
+/**
+ * The same lines, as the discount rules want to read them.
+ *
+ * A set carries no category: it is priced as one thing, its pieces may come
+ * off half a dozen different shelves, and a bundle row has no category of its
+ * own to test against. So a category-scoped code — "20% off teas" — takes
+ * nothing off a set, while an unscoped one discounts it like anything else.
+ * Saying that here, once, is what keeps the cart's quote and the charge from
+ * answering it differently.
+ */
+export function discountLinesForCheckout(items: CheckoutLine[]): DiscountLine[] {
+  return items.map((item) => ({
+    unitCents: item.unitCents,
+    quantity: item.quantity,
+    categoryId: item.kind === 'bundle' ? null : (item.product.categoryId ?? null)
+  }));
 }
 
 export function checkoutAdjustmentNotice(change: {

@@ -294,6 +294,10 @@ export function adminEmailPath(query: Record<string, string | undefined | null> 
   return adminDashboardPath(query).replace(/^\/admin/, '/admin/email');
 }
 
+export function adminDiscountsPath(query: Record<string, string | undefined | null> = {}) {
+  return adminDashboardPath(query).replace(/^\/admin/, '/admin/discounts');
+}
+
 export function adminMerchandisingPath(query: Record<string, string | undefined | null> = {}) {
   return adminDashboardPath(query).replace(/^\/admin/, '/admin/merchandising');
 }
@@ -374,7 +378,20 @@ export const ADMIN_NOTICES: Record<string, string> = {
   'collections-arranged': 'Collection order saved.',
   'merchandising-saved': 'Merchandising updated.',
   'email-sent': 'Email sent.',
-  'reply-sent': 'Reply sent. It is saved with the message below.'
+  'reply-sent': 'Reply sent. It is saved with the message below.',
+  'promotion-saved': 'Promo code saved.',
+  'promotion-created': 'Promo code created. It works in the cart straight away.',
+  'promotion-deleted': 'Promo code deleted.',
+  'promotion-live': 'Promo code is being accepted again.',
+  'promotion-paused': 'Promo code paused. Nobody can redeem it until you switch it back on.',
+  'promotions-generated': 'Codes generated. They are at the top of the list below.',
+  'promotions-generated-partial':
+    'Codes generated. One or two were already in use, so those were left exactly as they were.',
+  'gift-cards-created': 'Gift cards issued. They are at the top of the list below.',
+  'gift-card-emailed': 'Gift card emailed to its recipient.',
+  'gift-card-adjusted': 'Gift card balance updated.',
+  'gift-card-live': 'Gift card is spendable again.',
+  'gift-card-paused': 'Gift card put on hold. It cannot be spent until you switch it back on.'
 };
 
 export const ADMIN_ERRORS: Record<string, string> = {
@@ -400,6 +417,8 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'order-not-confirmable':
     'Confirmation mail is only sent for paid orders that have not shipped yet.',
   'order-status': 'That is not a status this shop uses. Refresh the page and try again.',
+  'order-gift-card-returned':
+    'That order’s gift card was already put back on the card, and it may well have been spent since — so the order cannot be made live again without the shop paying for it twice. Place a new order instead, which charges the card properly.',
   'order-already-paid':
     'That checkout finished paying while you were cancelling it, so the order was left paid. Refresh and look at it again.',
   'pickup-note':
@@ -413,6 +432,8 @@ export const ADMIN_ERRORS: Record<string, string> = {
     'Choose a category for this product. It decides which details the product is asked for and which shop filter it appears under.',
   'category-slug': 'That category address is already in use. Choose a different name or slug.',
   'category-missing': 'That category is no longer here.',
+  'category-in-promotion':
+    'A promo code is narrowed to that category, and deleting it would quietly turn that code into a storewide one. Point the code at another category, or delete the code, then try again.',
   'category-in-use':
     'That category still holds products, and deleting it would drop them out of every filter that leads to them. Move them to another category first, or hide this one instead.',
   'collection-invalid': 'A collection needs a name.',
@@ -446,6 +467,21 @@ export const ADMIN_ERRORS: Record<string, string> = {
   'email-throttled':
     'That is a lot of email in a short time. Wait a few minutes and send the rest.',
   'message-missing': 'That customer message is no longer here.',
+  'promotion-code':
+    'A promo code needs at least three letters or numbers, and cannot be one you are already using.',
+  'promotion-value':
+    'Say what the code takes off: a percentage between 1 and 100, or an amount above zero.',
+  'promotion-dates': 'The end of a promotion cannot come before its start.',
+  'promotion-missing': 'That promo code is no longer here.',
+  'promotion-redeemed':
+    'That code has already been used on an order, so deleting it would leave those orders pointing at nothing. Pause it instead — it stops working immediately either way.',
+  'gift-card-amount': 'A gift card needs an amount between $1 and $1,000.',
+  'gift-card-count': 'Choose how many to make — between 1 and 100 at a time.',
+  'gift-card-missing': 'That gift card is no longer here.',
+  'gift-card-recipient': 'Add the recipient’s email address to the card before sending it to them.',
+  'gift-card-email-failed':
+    'The gift card could not be emailed, so the recipient has not been sent it. Check that SENDGRID_API_KEY is set, then try again — the card itself is safe and its number is below.',
+  'gift-card-adjust': 'Enter how much to add or take off, as an amount other than zero.',
   'review-requests-failed':
     'The review requests could not be sent. Check that SENDGRID_API_KEY is set — those orders are marked as asked either way, so they will not queue up again.'
 };

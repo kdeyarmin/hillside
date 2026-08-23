@@ -6,7 +6,9 @@ import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
 import { lineKey, useCart, type CartLine } from '@/components/CartProvider';
 import CheckoutOptions from '@/components/CheckoutOptions';
+import DiscountCodeFields from '@/components/DiscountCodeFields';
 import { lineHref } from '@/lib/cart-lines';
+import { giftCardTail } from '@/lib/discount-request';
 import { cartFulfillment } from '@/lib/fulfillment';
 import { sizedName } from '@/lib/product-sizes';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
@@ -34,6 +36,7 @@ export default function CartPageClient({
     checkoutNotice,
     fulfillment,
     pickupArranged,
+    discount,
     setQuantity,
     removeItem,
     replaceItems,
@@ -301,18 +304,42 @@ export default function CartPageClient({
           <span>Subtotal</span>
           <strong>{formatMoney(subtotalCents)}</strong>
         </div>
+        {discount && discount.promoDiscountCents > 0 && discount.promotion && (
+          <div className="summary-row discount">
+            <span>{discount.promotion.code}</span>
+            <strong>−{formatMoney(discount.promoDiscountCents)}</strong>
+          </div>
+        )}
+        {discount && discount.giftCardCents > 0 && discount.giftCard && (
+          <div className="summary-row discount">
+            {/* Named by its tail rather than by the whole masked number: a
+                summary row is narrow, and the bullets wrapped mid-code. */}
+            <span>Gift card ending {giftCardTail(discount.giftCard.maskedCode)}</span>
+            <strong>−{formatMoney(discount.giftCardCents)}</strong>
+          </div>
+        )}
         <div className="summary-row">
           <span>{pickup ? 'Pickup' : 'Shipping'}</span>
-          <span>{pickup ? 'Free — local pickup' : 'Calculated at checkout'}</span>
+          <span>
+            {pickup
+              ? 'Free — local pickup'
+              : discount?.freeShipping
+                ? 'Free — promo code'
+                : 'Calculated at checkout'}
+          </span>
         </div>
         <div className="summary-row total">
           <span>Current total</span>
-          <span>{formatMoney(subtotalCents)}</span>
+          {/* The quote covers merchandise and shipping. Tax is Stripe's to add,
+              which is why this stays "current" rather than "total". */}
+          <span>{formatMoney(discount ? discount.totalCents : subtotalCents)}</span>
         </div>
+
+        <DiscountCodeFields />
 
         <CheckoutOptions />
 
-        {!pickup && freeShippingThreshold > 0 && (
+        {!pickup && !discount?.freeShipping && freeShippingThreshold > 0 && (
           <div style={{ margin: '18px 0' }}>
             <div
               className="progress-track"
@@ -347,7 +374,7 @@ export default function CartPageClient({
         <p className="muted" style={{ fontSize: 12 }}>
           {pickup
             ? 'Arrange pickup with us first. Stripe then collects payment and a contact address.'
-            : 'Stripe securely collects payment, billing and shipping information. Promotion codes can be entered during checkout.'}
+            : 'Stripe securely collects payment, billing and shipping information.'}
         </p>
 
         <form className="save-cart" onSubmit={saveCart}>

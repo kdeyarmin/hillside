@@ -96,6 +96,7 @@ It also includes:
 - Customer review moderation with optional public replies
 - A one-click batch that asks customers for a review a fortnight after their order was fulfilled — once per order, never twice
 - Restock request list, emailed automatically when stock returns
+- Gift cards and promo codes at `/admin/discounts` — issue one card or a batch, mint a promo code or fifty, watch every card's balance and ledger
 - Category and collection management, and per-product assignment to both
 - A photography editor with drag-and-drop, mobile upload, named photo slots, reordering, primary selection and previews
 - A merchandising manager at `/admin/merchandising` for homepage rows, badges, sets, per-product recommendations and the products featured on each care guide
@@ -616,6 +617,128 @@ schedule; it is switched **off** unless `TASKS_SECRET` is set, and authorises
 with `Authorization: Bearer <TASKS_SECRET>`. A route that sends customer email
 must never be callable by anyone who finds its address.
 
+## Gift cards and promo codes
+
+Both live at `/admin/discounts`, and both are entered by the customer on the
+cart page before checkout.
+
+They are deliberately different things:
+
+- A **promo code** is a rule the shop applies — a percentage, a fixed amount, or
+  free shipping — with whatever conditions Tammy sets: a minimum basket, one
+  category, a date window, a cap on how many times it may be redeemed.
+- A **gift card** is a balance. It is the customer's money, spent down over as
+  many orders as it takes, and whatever they do not spend stays on the card.
+
+A basket may carry one of each. The promotion is applied first and the card
+against what is left, because the alternative spends somebody's own gift card on
+a discount the shop was giving away anyway.
+
+### What a discount comes off
+
+The merchandise, not the shipping or the tax. That follows from how Stripe
+applies a coupon — to the line items — so it is the shape of the thing doing the
+charging rather than a policy choice. Free shipping is therefore its own kind of
+promotion rather than a coupon: it chooses the free shipping rate as the Stripe
+session is created.
+
+### Gift cards and sales tax
+
+**A gift card reduces the amount Stripe taxes.** Both a promo code and a gift
+card reach Stripe as one coupon, and Stripe Tax calculates after coupons — so a
+$50 card spent on $100 of taxable merchandise has Stripe work the tax out on
+$50. That is right for the promo code, which genuinely is a discount, and wrong
+for the card, which is the customer paying with money they already handed over.
+
+It costs nothing while `STRIPE_AUTOMATIC_TAX` is unset or `false`, which is how
+the shop ships: Stripe collects no tax at all, and the coupon is only deciding
+what to charge. **Turn Stripe Tax on and the shop will under-collect on every
+order paid with a gift card**, by the tax on whatever the card covered.
+
+There is no clean way round it in Stripe Checkout, which has no notion of an
+outside balance as tender — the alternatives are to stop accepting cards once
+tax is on, or for the shop to work the tax out itself rather than letting Stripe
+do it. Neither is worth it for a shop not yet collecting tax. This is written
+down so that it is a decision to revisit rather than a surprise: before enabling
+`STRIPE_AUTOMATIC_TAX`, decide what gift cards should do. The dashboard says the
+same thing on the gift card page, but only once tax is actually on.
+
+A set is discounted like anything else by an unscoped code, and not at all by a
+category-scoped one. A set is priced as a single thing, its pieces may come off
+half a dozen different shelves, and a bundle row has no category of its own to
+test against — so "20% off teas" takes its twenty percent off the loose tea in
+the basket and leaves the Tea Starter Set beside it at full price.
+
+The one adjustment made on top of that: Stripe refuses to charge less than fifty
+cents, so a quote never leaves a total in the gap between nothing and that. A
+card that cannot cover the basket holds back just enough to leave a payable
+remainder, and a promotion that would leave a few cents behind gives those away
+instead. A $25 card against a $25.20 pickup order is the ordinary case, and
+without this it would reach a checkout Stripe rejected outright.
+
+### Generating them
+
+Both forms take a count. Fifty promo codes under a `MARKET` prefix come out as
+`MARKET-7KQ2WD`, `MARKET-3PJXVA` and so on, sharing one set of rules — which is
+how a single-use code stays single-use _per person_ rather than being spent by
+whoever redeems it first. Gift card numbers are sixteen characters of a
+thirty-two letter alphabet, printed in four groups: eighty bits, which is not
+guessable, and no I, L, O or U, so nothing is misread off a printed card and
+nothing is spelled out by accident. A card typed back in with the wrong one of
+those is folded to the right one before it is looked up.
+
+### How the money moves
+
+The same hold-and-release the shop already uses for stock, for the same reason:
+a Stripe Checkout session lives for thirty-five minutes, and what it is spending
+must not be spendable by anyone else in the meantime.
+
+1. **Checkout opens.** The redemption slot and the gift-card money are claimed in
+   the same transaction that reserves the stock. The card's balance moves into
+   its reserved column; the promotion's `redemptionsUsed` goes up.
+2. **The order is paid.** The redemption is recorded and the reserved money comes
+   off the card for good, inside the same claim that marks the order paid — so a
+   redelivered Stripe event cannot spend a card twice.
+3. **The checkout is abandoned or expires.** Both go back, exactly as the stock
+   does.
+4. **The order is refunded.** The gift card's share of the payment returns to
+   the card, in proportion to what was refunded — refund half the cash and half
+   the card comes back with it. Stripe can only refund what Stripe charged, so
+   nothing else would put it back, and once a card has paid for part of an order
+   the Stripe charge is only the cash remainder: "the whole charge" and "the
+   whole order" stop meaning the same thing. The promo redemption stays
+   recorded: a code spent on a refunded order is not handed back, which is
+   deliberate.
+
+   An order whose card has been credited back cannot be moved live again from
+   the dashboard. The money is spendable the moment it returns, very likely
+   already spent, so reopening the order would have the same balance pay for two
+   of them. A new order is the way to put a mistaken refund right.
+
+Every movement on a card is a row in its ledger, visible under the card on the
+dashboard, keyed so that a retried webhook lands once. Balances are only ever
+changed by a conditional update, so two checkouts opened in the same second
+cannot both spend the last of a card.
+
+### Where the codes are visible
+
+A gift card number is a bearer instrument: whoever holds it can spend it. So the
+dashboard's list masks all but the last group, the full number appears only when
+a card is opened, the emailed copy is the customer's only copy, and the sent-mail
+log stores that email with the number masked — the same treatment classroom links
+already get.
+
+If a card is lost, put it on hold from the dashboard and issue a new one.
+
+### Stripe
+
+The discount reaches Stripe as a one-shot coupon rather than as reduced line
+prices, so the receipt, the invoice and the Stripe dashboard all show what was
+charged for the plants and what came off. Stripe refuses a session that carries
+a discount _and_ offers its own promotion-code box, so that box appears only when
+the customer brought no code of the shop's own — anything set up in Stripe's own
+dashboard goes on working for baskets without one.
+
 ## Why the database-backed pages are `force-dynamic`
 
 Every page that reads the database declares `export const dynamic = 'force-dynamic'`.
@@ -751,6 +874,8 @@ Product checkout now reserves stock on a `PENDING` order for 35 minutes, matchin
 
 Set `STRIPE_AUTOMATIC_TAX=true` only after Stripe Tax has been configured for the business. Stripe Checkout emails receipts and creates invoices for paid product and class sessions.
 
+The shop's own gift cards and promo codes are applied before the session is created, as a one-shot Stripe coupon — see [Gift cards and promo codes](#gift-cards-and-promo-codes). Stripe's own promotion-code box is offered on any basket that is not already carrying one of the shop's codes, because Stripe refuses a session that has both.
+
 ## Telnyx Video setup
 
 Online and hybrid classes use Telnyx Video Rooms. Add these Railway variables:
@@ -851,7 +976,9 @@ rather than aiming at coverage: money formatting and quantity clamping, the
 loopback guard on the origin Stripe returns customers to, invoice-number
 uniqueness, the rate limiter's client identification, class join tokens, which
 products a gift guide claims to hold, the rules that decide who is asked for a
-review and when, and the ordering of the dashboard's priority board.
+review and when, the ordering of the dashboard's priority board, and what a
+promo code or a gift card is worth against a basket — including that a quote
+never leaves a total Stripe would refuse to charge.
 
 ## Local development
 

@@ -2315,3 +2315,51 @@ a.filter-chip {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+/* ---- promo codes and gift cards ---- */
+.discount-fields {
+  display: grid;
+  gap: 14px;
+  margin: 18px 0 4px;
+  padding: 16px 0 4px;
+  border-top: 1px solid var(--line);
+}
+.discount-label { display: block; color: var(--forest); font-size: 13px; font-weight: 800; }
+.discount-label small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.discount-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 7px; }
+.discount-row .form-input { flex: 1 1 170px; text-transform: uppercase; letter-spacing: 0.04em; }
+.discount-row .form-input::placeholder { letter-spacing: normal; text-transform: none; }
+.discount-applied {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: var(--sage-light);
+  border: 1px solid var(--cream-deep);
+}
+.discount-chip { display: flex; align-items: center; gap: 8px; flex: 1 1 190px; color: var(--forest); }
+/* The code and what it is worth stack, so a nineteen-character masked card
+   number keeps its shape instead of breaking across two lines mid-group. */
+.discount-chip > span { display: grid; gap: 1px; min-width: 0; }
+.discount-chip b { font-size: 14px; letter-spacing: 0.04em; white-space: nowrap; }
+.discount-chip small { color: var(--muted); font-size: 12px; }
+.discount-saved { color: var(--forest); font-weight: 900; }
+.discount-applied .text-button { font-size: 13px; }
+/* A status paragraph is always in the tree so it can announce; an empty one
+   must not push the field below it down by a line's height. */
+.discount-field .form-status.is-empty { margin: 0; }
+.discount-field .form-status { margin: 6px 0 0; font-size: 13px; }
+.summary-row.discount span:first-child { color: var(--muted); }
+.summary-row.discount strong { color: var(--forest); }
+.discount-search { margin-bottom: 14px; }
+.discount-search-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
+.discount-search-row .admin-input { flex: 1 1 240px; }
+.discount-pager { align-items: center; gap: 12px; margin-top: 14px; }
+.discount-pager .muted { font-size: 13px; }

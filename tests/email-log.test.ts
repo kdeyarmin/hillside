@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import {
   emailBodyHtml,
   redactSecretLinks,
+  redactGiftCardCodes,
   emailSearchText,
   markOwnerText,
   ownerSaidHtml,
@@ -373,5 +374,30 @@ describe('labels', () => {
     );
     assert.equal(emailFailureLabel('teapot'), 'It was not delivered (teapot).');
     assert.equal(emailFailureLabel(null), 'It was not delivered.');
+  });
+});
+
+describe('redactGiftCardCodes', () => {
+  it('masks all but the last group, so a stored body cannot spend the card', () => {
+    const html = '<strong>H3K9-2QWM-7RTF-A4X1</strong> is your gift card.';
+    const redacted = redactGiftCardCodes(html);
+    assert.equal(redacted.includes('H3K9'), false);
+    assert.equal(redacted.includes('••••-••••-••••-A4X1'), true);
+    // Still legible, and still identifies which card the email was about.
+    assert.equal(redacted.includes('is your gift card'), true);
+  });
+
+  it('leaves ordinary text alone', () => {
+    const prose = '<p>Order HG-M8QK2-4RT is on its way. Call 814-555-0134.</p>';
+    assert.equal(redactGiftCardCodes(prose), prose);
+  });
+
+  it('is applied to what the log actually stores', () => {
+    // Both redactions compose: a classroom link and a card in one body.
+    const html = '<a href="/classes/access/Ab3-_x9ZqQ">classroom</a> and 0123-4567-89AB-CDEF';
+    const stored = redactGiftCardCodes(redactSecretLinks(html));
+    assert.equal(stored.includes('Ab3-_x9ZqQ'), false);
+    assert.equal(stored.includes('0123-4567'), false);
+    assert.equal(stored.includes('CDEF'), true);
   });
 });

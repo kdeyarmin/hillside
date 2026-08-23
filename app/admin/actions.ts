@@ -25,6 +25,7 @@ import { readGiftTags } from '@/lib/gifts';
 import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { releaseProductHold, restoreUnshippedOrderInventory } from '@/lib/checkout';
+import { orderGiftCardReturnedCents, refundOrderGiftCard } from '@/lib/discount-store';
 import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
 import {
   productInventoryForSizes,
@@ -743,6 +744,22 @@ export async function updateOrder(formData: FormData) {
   const internalNotes = text(formData, 'internalNotes') || null;
   const pickupNote = text(formData, 'pickupNote');
 
+  /**
+   * An order whose gift card has already been handed back cannot come back to
+   * life. The card is spendable again the moment it is credited — very likely
+   * already spent — so a reopened order would be funded by money the shop has
+   * given away, and the same balance would have paid for two orders. A fresh
+   * order is the honest way to put that right, and it charges the card again.
+   */
+  const reopening =
+    (before.status === OrderStatus.REFUNDED || before.status === OrderStatus.CANCELLED) &&
+    (status === OrderStatus.PAID || status === OrderStatus.FULFILLED);
+  if (reopening && before.giftCardId && (await orderGiftCardReturnedCents(before.id)) > 0) {
+    redirect(
+      adminDashboardPath({ error: 'order-gift-card-returned', order: id, section: 'orders' })
+    );
+  }
+
   if (
     status === OrderStatus.FULFILLED &&
     before.status !== OrderStatus.FULFILLED &&
@@ -791,6 +808,20 @@ export async function updateOrder(formData: FormData) {
 
   if (status === OrderStatus.CANCELLED && before.status !== OrderStatus.PENDING) {
     await restoreUnshippedOrderInventory(order.id);
+  }
+
+  /**
+   * Whatever this order was paid for with a gift card goes back on the card.
+   * Stripe refunds only the money it took, so nothing else would return it —
+   * and unlike stock, a balance is not something that has already left the
+   * bench, so it comes back whether or not the order shipped. Marking the same
+   * order refunded twice credits the card once: the ledger is keyed on it.
+   */
+  if (status === OrderStatus.REFUNDED || status === OrderStatus.CANCELLED) {
+    await refundOrderGiftCard(
+      order.id,
+      `Order ${order.invoiceNumber} was ${status.toLowerCase()}.`
+    );
   }
 
   if (status === OrderStatus.FULFILLED && before.status !== OrderStatus.FULFILLED && order.email) {
@@ -1457,13 +1488,22 @@ export async function deleteCategory(formData: FormData) {
 
   const category = await db.category.findUnique({
     where: { id },
-    select: { id: true, _count: { select: { products: true } } }
+    select: { id: true, _count: { select: { products: true, promotions: true } } }
   });
   if (!category) {
     redirect(adminContentPath({ error: 'category-missing', section: 'categories' }));
   }
   if (category._count.products > 0) {
     redirect(adminContentPath({ error: 'category-in-use', section: 'categories', item: id }));
+  }
+  /**
+   * A promo code narrowed to this category would not be deleted with it — the
+   * relation nulls the column instead, and a null category means *everything*.
+   * A code Tammy wrote for teas alone would quietly become a storewide one, on
+   * a page that never mentioned promo codes.
+   */
+  if (category._count.promotions > 0) {
+    redirect(adminContentPath({ error: 'category-in-promotion', section: 'categories', item: id }));
   }
 
   await db.category.delete({ where: { id } });

@@ -20,6 +20,7 @@ import {
   type FulfillmentChoice
 } from '@/lib/fulfillment';
 import { basketLineKey, readLineKind, type LineKind } from '@/lib/cart-lines';
+import { CODE_INPUT_MAX } from '@/lib/discount-request';
 import { normalizeSizeLabel } from '@/lib/product-sizes';
 import { clampQuantity } from '@/lib/store';
 
@@ -57,6 +58,32 @@ export type CheckoutAdjustment = {
   priceCents?: number;
   size?: string | null;
 };
+
+/** Which of the two code boxes a message or an action is about. */
+export type DiscountField = 'promoCode' | 'giftCardCode';
+
+/**
+ * What the shop says this basket is worth with the customer's codes on it.
+ * Priced by the server and never in the browser: the cart may show a figure,
+ * but it may not decide one.
+ */
+export type DiscountSummary = {
+  subtotalCents: number;
+  shippingCents: number;
+  promoDiscountCents: number;
+  giftCardCents: number;
+  discountCents: number;
+  totalCents: number;
+  freeShipping: boolean;
+  pickup: boolean;
+  promotion: { code: string; summary: string } | null;
+  /** Masked, never the full number: see `DiscountQuoteResult` for why. */
+  giftCard: { maskedCode: string; balanceCents: number } | null;
+  promotionError: string | null;
+  giftCardError: string | null;
+};
+
+type DiscountMessages = Partial<Record<DiscountField, string>>;
 
 /**
  * A basket line is a kind, a slug *and* a size, so every operation below
@@ -105,6 +132,13 @@ type CartContextValue = {
   fulfillment: FulfillmentChoice;
   giftMessage: string;
   pickupArranged: boolean;
+  /** The codes currently applied, and what the shop says they are worth. */
+  appliedCodes: Record<DiscountField, string>;
+  discount: DiscountSummary | null;
+  discountPending: DiscountField | null;
+  discountErrors: DiscountMessages;
+  applyDiscountCode: (field: DiscountField, code: string) => Promise<void>;
+  removeDiscountCode: (field: DiscountField) => void;
   addItem: (product: CartProduct, quantity?: number) => void;
   setQuantity: (key: string, quantity: number) => void;
   removeItem: (key: string) => void;
@@ -122,17 +156,43 @@ const CartContext = createContext<CartContextValue | null>(null);
 const STORAGE_KEY = 'hillside-cart-v2';
 const PREFS_KEY = 'hillside-checkout-prefs-v1';
 
-function readStoredPrefs(): { fulfillment: FulfillmentChoice; giftMessage: string } {
+const NO_CODES: Record<DiscountField, string> = { promoCode: '', giftCardCode: '' };
+
+function readStoredCode(value: unknown) {
+  return typeof value === 'string' ? value.trim().slice(0, CODE_INPUT_MAX) : '';
+}
+
+function readStoredPrefs(): {
+  fulfillment: FulfillmentChoice;
+  giftMessage: string;
+  codes: Record<DiscountField, string>;
+} {
+  const empty = { fulfillment: 'SHIP' as FulfillmentChoice, giftMessage: '', codes: NO_CODES };
   try {
     const saved = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') as unknown;
-    if (!saved || typeof saved !== 'object') return { fulfillment: 'SHIP', giftMessage: '' };
-    const raw = saved as { fulfillment?: unknown; giftMessage?: unknown };
+    if (!saved || typeof saved !== 'object') return empty;
+    const raw = saved as {
+      fulfillment?: unknown;
+      giftMessage?: unknown;
+      promoCode?: unknown;
+      giftCardCode?: unknown;
+    };
     return {
       fulfillment: readFulfillmentChoice({ fulfillment: raw.fulfillment }),
-      giftMessage: sanitizeGiftMessage(raw.giftMessage) || ''
+      giftMessage: sanitizeGiftMessage(raw.giftMessage) || '',
+      /**
+       * The codes are remembered, but nothing they were worth is: the basket
+       * may have changed, the code may have run out, and a discount restored
+       * from storage would be a figure this browser made up. They are priced
+       * again by the server on the next render that has a basket to price.
+       */
+      codes: {
+        promoCode: readStoredCode(raw.promoCode),
+        giftCardCode: readStoredCode(raw.giftCardCode)
+      }
     };
   } catch {
-    return { fulfillment: 'SHIP', giftMessage: '' };
+    return empty;
   }
 }
 
@@ -151,7 +211,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [fulfillment, setFulfillmentState] = useState<FulfillmentChoice>('SHIP');
   const [giftMessage, setGiftMessageState] = useState('');
   const [pickupArranged, setPickupArranged] = useState(false);
+  const [appliedCodes, setAppliedCodes] = useState<Record<DiscountField, string>>(NO_CODES);
+  const [discount, setDiscount] = useState<DiscountSummary | null>(null);
+  const [discountPending, setDiscountPending] = useState<DiscountField | null>(null);
+  const [discountErrors, setDiscountErrors] = useState<DiscountMessages>({});
   const checkoutLock = useRef(false);
+  /** Cancels a quote still in flight when a newer one supersedes it. */
+  const quoteRequest = useRef<AbortController | null>(null);
 
   useEffect(() => {
     try {
@@ -194,6 +260,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const prefs = readStoredPrefs();
       setFulfillmentState(prefs.fulfillment);
       setGiftMessageState(prefs.giftMessage);
+      setAppliedCodes(prefs.codes);
       setReady(true);
     }
   }, []);
@@ -204,8 +271,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!ready) return;
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ fulfillment, giftMessage }));
-  }, [fulfillment, giftMessage, ready]);
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ fulfillment, giftMessage, ...appliedCodes }));
+  }, [appliedCodes, fulfillment, giftMessage, ready]);
 
   useEffect(() => {
     const options = cartFulfillment(items);
@@ -231,6 +298,173 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const setGiftMessage = useCallback((value: string) => {
     setGiftMessageState(value.slice(0, GIFT_MESSAGE_MAX));
   }, []);
+
+  /**
+   * Brings the basket into line with what the shop will actually sell, and says
+   * what changed.
+   *
+   * Shared by the two places that can discover a stale basket — pressing
+   * checkout, and applying a code — because they discover exactly the same
+   * thing and the shopper should not be able to tell which one found it.
+   */
+  const applyAdjustments = useCallback((adjustments: CheckoutAdjustment[]) => {
+    setItems((current) =>
+      current.flatMap((item) => {
+        const change = adjustments.find((entry) => lineKey(entry) === lineKey(item));
+        if (!change) return [item];
+        if (change.reason === 'price' && change.priceCents != null) {
+          return [{ ...item, priceCents: change.priceCents }];
+        }
+        // A size we no longer sell cannot be corrected for the shopper — the
+        // line goes, and the notice sends them back to the dropdown.
+        if (change.reason === 'size' || change.available <= 0) return [];
+        return [{ ...item, inventory: change.available, quantity: change.available }];
+      })
+    );
+    setCheckoutNotice(adjustments.map(noticeForAdjustment).join(' '));
+  }, []);
+
+  /**
+   * Prices the basket against a set of codes and keeps whichever of them the
+   * shop accepted.
+   *
+   * Every figure in the answer comes from the server. The cart never works a
+   * discount out for itself, because the only discount that matters is the one
+   * the checkout route will hold and Stripe will charge, and a cart that did
+   * its own arithmetic would eventually disagree with both.
+   */
+  const requestQuote = useCallback(
+    async (codes: Record<DiscountField, string>, pending: DiscountField | null = null) => {
+      quoteRequest.current?.abort();
+      if ((!codes.promoCode && !codes.giftCardCode) || !items.length) {
+        quoteRequest.current = null;
+        setDiscount(null);
+        // Whatever was in flight has just been abandoned, and an abandoned
+        // request never reaches the line below that clears this. Without it a
+        // code removed mid-check leaves the other box reading "Checking…".
+        setDiscountPending(null);
+        return;
+      }
+
+      const controller = new AbortController();
+      quoteRequest.current = controller;
+      setDiscountPending(pending);
+      try {
+        const response = await fetch('/api/discounts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            fulfillment,
+            promoCode: codes.promoCode,
+            giftCardCode: codes.giftCardCode,
+            // The same lines checkout sends, sets included: a quote priced
+            // against a different basket than the one being bought is worse
+            // than no quote.
+            items: items.map((item) => ({
+              id: item.slug,
+              quantity: item.quantity,
+              ...(item.kind === 'bundle' ? { kind: 'bundle' } : {}),
+              ...(item.size ? { size: item.size } : {})
+            }))
+          })
+        });
+        const result = (await response.json()) as Partial<DiscountSummary> & {
+          error?: string;
+          adjustments?: CheckoutAdjustment[];
+        };
+
+        /**
+         * The basket changed under the shopper — something sold out, or a price
+         * moved — so there is nothing honest to quote against it yet. It is
+         * corrected here and the code is left in the box to try again, rather
+         * than pricing a basket the shop will not sell.
+         */
+        if (result.adjustments?.length) {
+          applyAdjustments(result.adjustments);
+          setDiscount(null);
+          return;
+        }
+        if (!response.ok) {
+          throw new Error(result.error || 'We could not check that code just now.');
+        }
+
+        const summary = result as DiscountSummary;
+        setDiscount(summary);
+        /**
+         * A code the shop refused is dropped rather than left sitting in the
+         * box looking applied; the message below says why. The same object is
+         * handed back when nothing changed, because the effect that re-prices a
+         * changed basket watches this state — a fresh object every time would
+         * have it re-price its own answer, for ever.
+         */
+        setAppliedCodes((current) => {
+          const next = {
+            promoCode: summary.promotion ? codes.promoCode : '',
+            giftCardCode: summary.giftCard ? codes.giftCardCode : ''
+          };
+          return next.promoCode === current.promoCode && next.giftCardCode === current.giftCardCode
+            ? current
+            : next;
+        });
+        setDiscountErrors({
+          ...(summary.promotionError ? { promoCode: summary.promotionError } : {}),
+          ...(summary.giftCardError ? { giftCardCode: summary.giftCardError } : {})
+        });
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        /**
+         * The codes are deliberately left applied. A quote that could not be
+         * fetched says nothing about whether the code is good, and checkout
+         * prices them again for itself — so dropping them here would lose a
+         * working discount to one failed request.
+         */
+        const message =
+          error instanceof Error ? error.message : 'We could not check that code just now.';
+        setDiscount(null);
+        setDiscountErrors(pending ? { [pending]: message } : { promoCode: message });
+      } finally {
+        if (!controller.signal.aborted) setDiscountPending(null);
+      }
+    },
+    [applyAdjustments, fulfillment, items]
+  );
+
+  const applyDiscountCode = useCallback(
+    async (field: DiscountField, code: string) => {
+      const typed = code.trim().slice(0, CODE_INPUT_MAX);
+      if (!typed) return;
+      setDiscountErrors((current) => ({ ...current, [field]: undefined }));
+      await requestQuote({ ...appliedCodes, [field]: typed }, field);
+    },
+    [appliedCodes, requestQuote]
+  );
+
+  const removeDiscountCode = useCallback(
+    (field: DiscountField) => {
+      const next = { ...appliedCodes, [field]: '' };
+      setAppliedCodes(next);
+      setDiscountErrors((current) => ({ ...current, [field]: undefined }));
+      void requestQuote(next);
+    },
+    [appliedCodes, requestQuote]
+  );
+
+  /**
+   * A basket that changes after a code was applied has to be priced again — a
+   * code with a minimum stops applying when a line is removed, and a
+   * percentage is worth something different on every basket. Debounced because
+   * the obvious trigger for this is somebody holding down the quantity button.
+   */
+  useEffect(() => {
+    if (!ready) return;
+    if (!appliedCodes.promoCode && !appliedCodes.giftCardCode) return;
+    const timer = setTimeout(() => void requestQuote(appliedCodes), 400);
+    return () => clearTimeout(timer);
+    // `requestQuote` closes over the basket and the fulfillment choice, which is
+    // exactly what should re-run this, so it is the only dependency needed
+    // besides the codes themselves.
+  }, [appliedCodes, ready, requestQuote]);
 
   const addItem = useCallback((product: CartProduct, quantity = 1) => {
     trackAddToCart(toGtagItem(product, quantity));
@@ -287,6 +521,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setItems([]);
     setGiftMessageState('');
     setPickupArranged(false);
+    setAppliedCodes(NO_CODES);
+    setDiscount(null);
+    setDiscountErrors({});
   }, []);
   const openCart = useCallback(() => setDrawerOpen(true), []);
   const closeCart = useCallback(() => setDrawerOpen(false), []);
@@ -315,6 +552,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           fulfillment: resolved.method,
           pickupArranged,
           giftMessage,
+          promoCode: appliedCodes.promoCode,
+          giftCardCode: appliedCodes.giftCardCode,
           items: items.map((item) => ({
             id: item.slug,
             quantity: item.quantity,
@@ -328,24 +567,30 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         url?: string;
         error?: string;
         adjustments?: CheckoutAdjustment[];
+        discountErrors?: DiscountMessages;
       };
 
+      /**
+       * A code that stopped working between applying it and pressing the button
+       * — it ran out, it expired, the basket fell under its minimum. Checkout
+       * refuses rather than quietly charging the undiscounted total, so the code
+       * comes off here and the customer sees why before trying again.
+       */
+      if (result.discountErrors) {
+        const failed = result.discountErrors;
+        setAppliedCodes((current) => ({
+          promoCode: failed.promoCode ? '' : current.promoCode,
+          giftCardCode: failed.giftCardCode ? '' : current.giftCardCode
+        }));
+        setDiscountErrors(failed);
+        setDiscount(null);
+        checkoutLock.current = false;
+        setCheckoutLoading(false);
+        return;
+      }
+
       if (result.adjustments?.length) {
-        const adjustments = result.adjustments;
-        setItems((current) =>
-          current.flatMap((item) => {
-            const change = adjustments.find((entry) => lineKey(entry) === lineKey(item));
-            if (!change) return [item];
-            if (change.reason === 'price' && change.priceCents != null) {
-              return [{ ...item, priceCents: change.priceCents }];
-            }
-            // A size we no longer sell cannot be corrected for the shopper —
-            // the line goes, and the notice sends them back to the dropdown.
-            if (change.reason === 'size' || change.available <= 0) return [];
-            return [{ ...item, inventory: change.available, quantity: change.available }];
-          })
-        );
-        setCheckoutNotice(adjustments.map(noticeForAdjustment).join(' '));
+        applyAdjustments(result.adjustments);
         checkoutLock.current = false;
         setCheckoutLoading(false);
         return;
@@ -358,7 +603,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       checkoutLock.current = false;
       setCheckoutLoading(false);
     }
-  }, [fulfillment, giftMessage, items, pickupArranged]);
+  }, [applyAdjustments, appliedCodes, fulfillment, giftMessage, items, pickupArranged]);
 
   const count = useMemo(() => items.reduce((total, item) => total + item.quantity, 0), [items]);
   const subtotalCents = useMemo(
@@ -379,6 +624,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       fulfillment,
       giftMessage,
       pickupArranged,
+      appliedCodes,
+      discount,
+      discountPending,
+      discountErrors,
+      applyDiscountCode,
+      removeDiscountCode,
       addItem,
       setQuantity,
       removeItem,
@@ -403,6 +654,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       fulfillment,
       giftMessage,
       pickupArranged,
+      appliedCodes,
+      discount,
+      discountPending,
+      discountErrors,
+      applyDiscountCode,
+      removeDiscountCode,
       addItem,
       setQuantity,
       removeItem,

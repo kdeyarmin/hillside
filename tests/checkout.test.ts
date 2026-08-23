@@ -7,6 +7,7 @@ process.env.DATABASE_URL ||= 'postgresql://postgres:postgres@127.0.0.1:5432/hill
 const {
   checkoutAdjustmentNotice,
   checkoutAdjustments,
+  resolveCheckoutLines,
   encodeCheckoutItems,
   parseCheckoutItems,
   readCheckoutItems,
@@ -14,7 +15,8 @@ const {
   stripeProductImages,
   stripeCheckoutItemsMetadata,
   STRIPE_METADATA_VALUE_MAX,
-  checkoutLineFulfillment
+  checkoutLineFulfillment,
+  discountLinesForCheckout
 } = await import('../lib/checkout-format.ts');
 
 describe('readCheckoutItems', () => {
@@ -572,5 +574,145 @@ describe('checkoutLineFulfillment', () => {
       contents: 'one 2 oz tin and one infuser'
     } as never;
     assert.deepEqual(checkoutLineFulfillment(line), { ships: false, pickup: true });
+  });
+});
+
+describe('resolveCheckoutLines', () => {
+  const monstera = {
+    id: 'p-monstera',
+    slug: 'monstera',
+    name: 'Monstera',
+    shortDescription: null,
+    description: 'A trailing plant.',
+    priceCents: 3200,
+    inventory: 4,
+    active: true,
+    imageUrl: '/images/monstera.webp',
+    categoryId: 'houseplants',
+    ships: true,
+    pickup: true
+  };
+  const lotion = {
+    id: 'p-lotion',
+    slug: 'lotion',
+    name: 'Hillside lotion',
+    shortDescription: null,
+    description: 'A hand lotion.',
+    priceCents: 1400,
+    inventory: 5,
+    active: true,
+    imageUrl: null,
+    categoryId: 'botanicals',
+    ships: true,
+    pickup: true,
+    sizes: [
+      { label: '2 oz', inventory: 3 },
+      { label: '8 oz', priceCents: 2600, inventory: 0, ships: false }
+    ]
+  };
+  /** Narrows a resolved line to the product it is, for the assertions below. */
+  const productLine = (lines: ReturnType<typeof resolveCheckoutLines>) => {
+    const [line] = lines;
+    assert.equal(line?.kind, 'product');
+    return line as Extract<typeof line, { kind: 'product' }>;
+  };
+
+  it('prices a line from the product, never from the basket', () => {
+    const line = productLine(
+      resolveCheckoutLines([{ id: 'monstera', quantity: 2, priceCents: 1 }], [monstera])
+    );
+    assert.equal(line.unitCents, 3200);
+    assert.equal(line.quantity, 2);
+    assert.equal(line.size, null);
+  });
+
+  it("charges a variant's own price and carries its shipping answer", () => {
+    const line = productLine(
+      resolveCheckoutLines([{ id: 'lotion', quantity: 1, size: '2 oz' }], [lotion])
+    );
+    assert.equal(line.unitCents, 1400);
+    assert.equal(line.size, '2 oz');
+    assert.equal(line.ships, true);
+  });
+
+  it('trims a line to what is on the bench for the size that was chosen', () => {
+    const line = productLine(
+      resolveCheckoutLines([{ id: 'lotion', quantity: 9, size: '2 oz' }], [lotion])
+    );
+    assert.equal(line.quantity, 3);
+  });
+
+  it('drops what the shop will not sell', () => {
+    assert.deepEqual(resolveCheckoutLines([{ id: 'ghost', quantity: 1 }], [monstera]), []);
+    assert.deepEqual(
+      resolveCheckoutLines([{ id: 'monstera', quantity: 1 }], [{ ...monstera, active: false }]),
+      []
+    );
+    assert.deepEqual(
+      resolveCheckoutLines([{ id: 'monstera', quantity: 1 }], [{ ...monstera, inventory: 0 }]),
+      []
+    );
+    // A sold-out size, and a size that is no longer offered at all.
+    assert.deepEqual(
+      resolveCheckoutLines([{ id: 'lotion', quantity: 1, size: '8 oz' }], [lotion]),
+      []
+    );
+    assert.deepEqual(
+      resolveCheckoutLines([{ id: 'lotion', quantity: 1, size: '1 gallon' }], [lotion]),
+      []
+    );
+    // A sized product with no size chosen is refused rather than guessed at.
+    assert.deepEqual(resolveCheckoutLines([{ id: 'lotion', quantity: 1 }], [lotion]), []);
+    // A set the basket names but the shop cannot find.
+    assert.deepEqual(
+      resolveCheckoutLines(
+        [{ id: 'tea-starter-set', kind: 'bundle', quantity: 1 }],
+        [monstera],
+        []
+      ),
+      []
+    );
+  });
+});
+
+describe('discountLinesForCheckout', () => {
+  const line = {
+    kind: 'product' as const,
+    product: {
+      id: 'p1',
+      slug: 'tea',
+      name: 'Breakfast tea',
+      shortDescription: null,
+      description: 'A tea.',
+      priceCents: 1200,
+      inventory: 6,
+      imageUrl: null,
+      categoryId: 'teas'
+    },
+    quantity: 2,
+    unitCents: 1200
+  };
+
+  it('carries the category a scoped promo code meters against', () => {
+    assert.deepEqual(discountLinesForCheckout([line]), [
+      { unitCents: 1200, quantity: 2, categoryId: 'teas' }
+    ]);
+  });
+
+  it('gives a set no category, so a category code takes nothing off it', () => {
+    const bundle = {
+      kind: 'bundle' as const,
+      bundle: { id: 'b1', slug: 'tea-starter-set', title: 'Tea Starter Set' },
+      quantity: 1,
+      unitCents: 4200
+    } as never;
+    assert.deepEqual(discountLinesForCheckout([bundle]), [
+      { unitCents: 4200, quantity: 1, categoryId: null }
+    ]);
+  });
+
+  it('reads a product filed under no category as ineligible for a scoped code', () => {
+    const uncategorised = { ...line, product: { ...line.product, categoryId: null } };
+    assert.equal(discountLinesForCheckout([uncategorised])[0].categoryId, null);
   });
 });

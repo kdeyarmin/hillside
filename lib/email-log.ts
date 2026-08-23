@@ -27,6 +27,7 @@ export type EmailKindValue =
   | 'CONTACT'
   | 'REVIEW'
   | 'REPLY'
+  | 'GIFT_CARD'
   | 'MANUAL'
   | 'OTHER';
 
@@ -57,6 +58,7 @@ export const EMAIL_KIND_LABELS: Record<EmailKindValue, string> = {
   CONTACT: 'Contact form',
   REVIEW: 'Review to approve',
   REPLY: 'Reply to a customer',
+  GIFT_CARD: 'Gift card',
   MANUAL: 'Written by hand',
   OTHER: 'Other'
 };
@@ -275,6 +277,26 @@ export function redactSecretLinks(html: string | null | undefined) {
     .replace(/([?&]token=)[^"'&\s<>]+/g, '$1[removed]');
 }
 
+/**
+ * A gift card code in a stored body, masked to its last group.
+ *
+ * The same argument as the classroom link above, for the same reason: a gift
+ * card code is a bearer instrument — anybody holding it can spend what is on it
+ * — so an emailed card that stayed legible in this table would put spendable
+ * money in every backup and CSV export of the shop's mail.
+ *
+ * The tail is kept because it is what the dashboard identifies a card by, so
+ * Tammy can still see *which* card an email was about. The pattern is the
+ * printed form of the alphabet in `lib/discount-codes.ts` — four groups of
+ * four, no I, L, O or U — which is specific enough not to catch prose.
+ */
+export function redactGiftCardCodes(html: string | null | undefined) {
+  return String(html || '').replace(
+    /\b[0-9A-HJKMNP-TV-Z]{4}(?:-[0-9A-HJKMNP-TV-Z]{4}){2}-([0-9A-HJKMNP-TV-Z]{4})\b/g,
+    '••••-••••-••••-$1'
+  );
+}
+
 export type RecordEmailInput = {
   to: string[];
   subject: string;
@@ -296,7 +318,7 @@ export async function recordEmail(entry: RecordEmailInput) {
     const { db } = await import('./db.ts');
     // Redacted before it is stored, not on the way out: a row that never held
     // the token cannot leak it through a backup, an export or a later feature.
-    const html = redactSecretLinks(entry.html);
+    const html = redactGiftCardCodes(redactSecretLinks(entry.html));
     await db.emailLog.create({
       data: {
         to: entry.to,
