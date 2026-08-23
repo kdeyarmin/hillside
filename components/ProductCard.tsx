@@ -13,6 +13,7 @@ import {
   sizeFieldLabel
 } from '@/lib/product-sizes';
 import { merchandisingBadges } from '@/lib/merchandising';
+import { cardTraits } from '@/lib/card-traits';
 import { discountPercent, formatMoney, productTypeLabel } from '@/lib/store';
 
 export type ProductCardProduct = {
@@ -40,6 +41,11 @@ export type ProductCardProduct = {
   averageRating?: number | null;
   reviewCount?: number;
   staffPick?: boolean | null;
+  /**
+   * The attributes Tammy ticked on this product. Read for the claims below, and
+   * only the ones this card is allowed to state — see `cardTraits`.
+   */
+  tags?: readonly string[] | null;
   /**
    * The automatic labels, worked out on the server from order history and the
    * product's dates. Optional because plenty of grids (the cart's suggestions,
@@ -116,11 +122,18 @@ export default function ProductCard({
   const lowStock = !soldOut && product.inventory <= LOW_STOCK_AT;
 
   /**
-   * Local pickup only appears when it is the *only* way home — almost
-   * everything here can be picked up, so saying so on every card would say
-   * nothing at all, while "does not ship" is news.
+   * Quiet claims about the product itself, kept below the copy so the badges on
+   * the photograph stay about urgency. The first two are attributes Tammy ticked
+   * — a card states them, it does not work them out. Local pickup only appears
+   * when it is the *only* way home: almost everything here can be picked up, so
+   * saying so on every card would say nothing at all, while "does not ship" is
+   * news.
    */
   const traits = [
+    ...cardTraits(product.tags, product.type).map((trait) => ({
+      key: trait.slug,
+      text: trait.label
+    })),
     product.pickup && product.ships === false && { key: 'pickup', text: 'Local pickup only' }
   ].filter((trait): trait is { key: string; text: string } => Boolean(trait));
 
