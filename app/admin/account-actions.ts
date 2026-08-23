@@ -59,10 +59,16 @@ export async function resetAdminPassword(formData: FormData) {
   if (passwordComplaint(password)) done('password-weak');
   if (!(await db.adminUser.findUnique({ where: { id }, select: { id: true } }))) done('not-found');
 
-  // Stamping passwordChangedAt is what signs out the sessions opened with the old one.
+  /**
+   * Stamping passwordChangedAt is what signs out the sessions opened with the
+   * old one. `active` is deliberately left alone: the row this form sits on has
+   * its own Reactivate button, and writing `active: true` here meant setting a
+   * password on a revoked account quietly handed that account its access back —
+   * under a notice that says nothing of the kind.
+   */
   await db.adminUser.update({
     where: { id },
-    data: { passwordHash: hashPassword(password), passwordChangedAt: new Date(), active: true }
+    data: { passwordHash: hashPassword(password), passwordChangedAt: new Date() }
   });
   done('password-reset');
 }

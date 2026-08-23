@@ -2,11 +2,13 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import type { ClassEvent } from '@prisma/client';
 import { db } from '@/lib/db';
+import { readJsonBody } from '@/lib/request-body';
 import {
   createFreeClassConfirmToken,
   freeClassConfirmExpiry
 } from '@/lib/class-confirm';
 import { sendFreeClassConfirmEmail } from '@/lib/class-registration-email';
+import { seatsShortLabel } from '@/lib/class-access';
 import { claimFreeSeat } from '@/lib/class-seats';
 import { rateLimited } from '@/lib/rate-limit';
 import { absoluteUrl } from '@/lib/store';
@@ -50,7 +52,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const parsed = requestSchema.safeParse(await request.json());
+    const parsed = requestSchema.safeParse(await readJsonBody(request));
     if (!parsed.success) {
       return NextResponse.json({ error: 'Please check your name, email and seat count.' }, { status: 400 });
     }
@@ -105,7 +107,7 @@ export async function POST(request: Request) {
         );
       }
       return NextResponse.json(
-        { error: claim.seatsLeft ? `Only ${claim.seatsLeft} seats remain.` : 'This class is sold out.' },
+        { error: seatsShortLabel(claim.seatsLeft) },
         { status: 400 }
       );
     }

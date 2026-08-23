@@ -8,6 +8,7 @@ const {
   createClassAccessCookie,
   createClassJoinCredential,
   hashClassJoinToken,
+  seatsShortLabel,
   verifyClassAccessCookie
 } = await import('../lib/class-access.ts');
 
@@ -99,5 +100,22 @@ describe('access cookie', () => {
     assert.ok(access);
     assert.equal(access.tokenHash, 'hash-original');
     assert.notEqual(access.tokenHash, 'hash-rotated');
+  });
+});
+
+describe('seatsShortLabel', () => {
+  /**
+   * Both booking endpoints wrote this inline, and both read "Only 1 seats
+   * remain." to the guest asking for the very last place in a class.
+   */
+  it('agrees with itself about one seat', () => {
+    assert.equal(seatsShortLabel(1), 'Only 1 seat remains.');
+    assert.equal(seatsShortLabel(2), 'Only 2 seats remain.');
+    assert.equal(seatsShortLabel(11), 'Only 11 seats remain.');
+  });
+
+  it('says sold out rather than "only 0 seats"', () => {
+    assert.equal(seatsShortLabel(0), 'This class is sold out.');
+    assert.equal(seatsShortLabel(-1), 'This class is sold out.');
   });
 });

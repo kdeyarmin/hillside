@@ -20,6 +20,7 @@ import { isNavigationCollection } from '@/lib/collections';
 import { createClassJoinCredential, isOnlineClass } from '@/lib/class-access';
 import { sendClassRegistrationEmails } from '@/lib/class-registration-email';
 import { db } from '@/lib/db';
+import { formInteger } from '@/lib/form-values';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
@@ -58,15 +59,18 @@ const money = (value: FormDataEntryValue | null) => {
   const number = Number(value || 0);
   return Number.isFinite(number) ? Math.round(number * 100) : 0;
 };
-const integer = (value: FormDataEntryValue | null, fallback = 0) => {
-  const number = Number(value);
-  return Number.isFinite(number) ? Math.floor(number) : fallback;
-};
 /**
- * A whole number, or nothing at all. Reorder points and quantities are optional,
- * and "0" is a legitimate reorder point — reorder when the last one goes — so a
- * blank box cannot be allowed to fall through to zero and quietly enrol the
- * product in a reorder list nobody asked for.
+ * `formInteger` rather than a local `Number()` guard: an absent or empty field
+ * reads as `0` through `Number`, which is finite, so every fallback beside a
+ * call below used to be unreachable. See lib/form-values.ts.
+ */
+const integer = formInteger;
+/**
+ * A whole number, or nothing at all — which is why this cannot simply be
+ * `formInteger`: that always answers with a number, and a reorder point has to
+ * be able to be unset. "0" is a legitimate reorder point, meaning reorder when
+ * the last one goes, so a blank box cannot be allowed to fall through to zero
+ * and quietly enrol the product in a reorder list nobody asked for.
  */
 const optionalInteger = (value: FormDataEntryValue | null, max = 1_000_000) => {
   const raw = String(value ?? '').trim();

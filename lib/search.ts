@@ -31,6 +31,32 @@ export function tokenizeSearch(term: string): string[] {
   return [];
 }
 
+/**
+ * The SQL half of a search: one filter per token, each asking for that token in
+ * any of `fields`.
+ *
+ * What this replaces is a single `contains` on the whole phrase, which asked the
+ * database for the typed words adjacent and in the typed order. The word-aware
+ * filter below asks for something quite different — every token, anywhere,
+ * across the fields joined together — so a query the filter would have accepted
+ * never reached it: "root rot" found the guide and "rot root" found nothing, and
+ * "yellow pattern" found nothing at all against a summary containing both words.
+ *
+ * Deliberately a superset of `matchesAnySearchField`: a start-of-word match is
+ * always a substring match, so every row that filter would keep is still a
+ * candidate, and the false positives `contains` lets through — "tea" inside
+ * "steady" — are what the filter is there to drop.
+ */
+export type SearchTokenFilter = {
+  OR: Array<Record<string, { contains: string; mode: 'insensitive' }>>;
+};
+
+export function searchTokenFilters(term: string, fields: readonly string[]): SearchTokenFilter[] {
+  return tokenizeSearch(term).map((token) => ({
+    OR: fields.map((field) => ({ [field]: { contains: token, mode: 'insensitive' as const } }))
+  }));
+}
+
 function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
