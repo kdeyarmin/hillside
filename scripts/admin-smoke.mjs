@@ -141,21 +141,35 @@ try {
     const marker = 'Smoke-tested intro ' + Date.now();
     const form = page.locator('form:has(textarea[name="intro"])').first();
     const slug = await form.locator('input[name="slug"]').inputValue();
-    const previous = await db.category.findFirst({ where: { slug } });
-    if (previous) undo.push(() => db.category.update({
-      where: { id: previous.id },
-      data: { intro: previous.intro, metaTitle: previous.metaTitle }
-    }));
 
-    await form.locator('textarea[name="intro"]').fill(marker);
-    await form.locator('input[name="metaTitle"]').fill('Smoke meta title');
-    await form.locator('button[type="submit"], button:not([type])').last().click();
-    await page.waitForTimeout(2500);
+    /**
+     * This page lists categories and collections side by side and both carry
+     * these fields, so which table the form belongs to has to be settled
+     * before anything is written. Reading one and restoring the other would
+     * leave the copy overwritten for good — in the half of the script whose
+     * whole job is to put things back.
+     */
+    const owner = (await db.category.findFirst({ where: { slug } })) ? db.category
+      : (await db.collection.findFirst({ where: { slug } })) ? db.collection
+      : null;
+    if (!owner) {
+      check('category: the first editor on the page maps to a row', false, `no category or collection with slug=${slug}`);
+    } else {
+      const previous = await owner.findFirst({ where: { slug } });
+      undo.push(() => owner.update({
+        where: { id: previous.id },
+        data: { intro: previous.intro, metaTitle: previous.metaTitle }
+      }));
 
-    const after = (await db.category.findFirst({ where: { slug } })) ||
-      (await db.collection.findFirst({ where: { slug } }));
-    check('category: intro saved', after?.intro === marker, `slug=${slug}`);
-    check('category: meta title saved', after?.metaTitle === 'Smoke meta title');
+      await form.locator('textarea[name="intro"]').fill(marker);
+      await form.locator('input[name="metaTitle"]').fill('Smoke meta title');
+      await form.locator('button[type="submit"], button:not([type])').last().click();
+      await page.waitForTimeout(2500);
+
+      const after = await owner.findFirst({ where: { slug } });
+      check('category: intro saved', after?.intro === marker, `slug=${slug}`);
+      check('category: meta title saved', after?.metaTitle === 'Smoke meta title');
+    }
   }
 
   // -------------------------------------------------------- receiving stock
