@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  CARD_TRAIT_TAGS,
   PRODUCT_TAGS,
-  cardTraitTags,
   groupTags,
   normalizeTags,
   tagLabel,
@@ -128,53 +126,5 @@ describe('tagSearchText', () => {
   it('falls back to a readable form for anything unknown', () => {
     assert.equal(tagSearchText(['made-up-thing']), 'made up thing');
     assert.equal(tagLabel('made-up-thing'), 'made up thing');
-  });
-});
-
-/**
- * The two claims a product card is allowed to make about the product itself.
- * Both were briefly derived from other things — boolean columns, and then the
- * free-text specification fields that replaced them — so the point of these
- * tests is that a claim is now only ever made because Tammy ticked it.
- */
-describe('cardTraitTags', () => {
-  it('states the attributes that were ticked, in catalog order', () => {
-    assert.deepEqual(cardTraitTags(['beginner-friendly', 'pet-safe'], 'PLANT'), [
-      'pet-safe',
-      'beginner-friendly'
-    ]);
-    assert.deepEqual(cardTraitTags(['pet-safe'], 'PLANT'), ['pet-safe']);
-  });
-
-  it('claims nothing for a product that was never given the attribute', () => {
-    assert.deepEqual(cardTraitTags([], 'PLANT'), []);
-    assert.deepEqual(cardTraitTags(null, 'PLANT'), []);
-    assert.deepEqual(cardTraitTags(undefined, 'PLANT'), []);
-  });
-
-  it('leaves the rest of the vocabulary off the card', () => {
-    // Every one of these is a real assignable attribute and a real filter; none
-    // of them belongs in the two lines a card has room for.
-    assert.deepEqual(cardTraitTags(['low-light', 'handmade', 'drought-tolerant'], 'PLANT'), []);
-  });
-
-  it('drops an attribute that no longer applies to what the product is', () => {
-    // Pet safety is a plant question. A listing re-shelved as a soap keeps the
-    // stored tag, and must stop advertising it.
-    assert.deepEqual(cardTraitTags(['pet-safe'], 'SOAP'), []);
-    assert.deepEqual(cardTraitTags(['pet-safe'], 'PLANT'), ['pet-safe']);
-  });
-
-  it('makes no claim a derived tag could smuggle in', () => {
-    for (const slug of ['best-seller', 'new', 'in-stock', 'on-sale']) {
-      assert.deepEqual(cardTraitTags([slug], 'PLANT'), []);
-    }
-  });
-
-  it('reads on the card as the words the shop filters by', () => {
-    assert.deepEqual(
-      CARD_TRAIT_TAGS.map((slug) => tagLabel(slug)),
-      ['Pet safe', 'Beginner friendly']
-    );
   });
 });

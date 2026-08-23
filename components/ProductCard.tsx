@@ -13,7 +13,7 @@ import {
   sizeFieldLabel
 } from '@/lib/product-sizes';
 import { merchandisingBadges } from '@/lib/merchandising';
-import { cardTraitTags, tagLabel } from '@/lib/product-tags';
+import { cardTraits } from '@/lib/card-traits';
 import { discountPercent, formatMoney, productTypeLabel } from '@/lib/store';
 
 export type ProductCardProduct = {
@@ -41,7 +41,7 @@ export type ProductCardProduct = {
   staffPick?: boolean | null;
   /**
    * The attributes Tammy ticked on this product. Read for the claims below, and
-   * only the ones this card is allowed to state — see `cardTraitTags`.
+   * only the ones this card is allowed to state — see `cardTraits`.
    */
   tags?: readonly string[] | null;
   /**
@@ -121,9 +121,9 @@ export default function ProductCard({
    * news.
    */
   const traits = [
-    ...cardTraitTags(product.tags, product.type).map((slug) => ({
-      key: slug,
-      text: tagLabel(slug)
+    ...cardTraits(product.tags, product.type).map((trait) => ({
+      key: trait.slug,
+      text: trait.label
     })),
     product.pickup && product.ships === false && { key: 'pickup', text: 'Local pickup only' }
   ].filter((trait): trait is { key: string; text: string } => Boolean(trait));
