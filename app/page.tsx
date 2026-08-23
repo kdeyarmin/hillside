@@ -17,6 +17,11 @@ import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { pageMetadata } from '@/lib/seo';
+import {
+  merchandisingFlagsFor,
+  productsForSection,
+  type MerchandisedProduct
+} from '@/lib/merchandising-data';
 import { formatMoney, formatMoneyCompact, freeShippingThresholdCents } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
@@ -25,48 +30,93 @@ export const metadata = {
     path: '/',
     title: 'The Hillside Gardens | Plants, Teas & Botanicals',
     description:
-      'Shop potted plants, loose-leaf teas, handmade soaps and lotions, and explore practical plant-care sheets from The Hillside Gardens.',
+      'Houseplants, carnivorous plants, succulents, air plants, terrarium supplies and handmade botanical goods from The Hillside Gardens in Ebensburg, PA — with free plant care guides and local pickup.',
     image: '/images/scenes/hillside-hero.webp',
     imageAlt: 'Plants growing in a sunlit greenhouse at The Hillside Gardens'
   }),
   title: { absolute: 'The Hillside Gardens | Plants, Teas & Botanicals' }
 };
 
+/**
+ * Where a row's "shop all" link goes. A best-sellers row should land on the shop
+ * sorted by what is selling, not on an unsorted grid the shopper then has to
+ * re-find the row in.
+ */
+function shopHrefForSection(kind: string) {
+  if (kind === 'BEST_SELLERS' || kind === 'RECENT_BEST_SELLERS') return '/shop?sort=best-selling';
+  if (kind === 'NEW_ARRIVALS') return '/shop?sort=new';
+  if (kind === 'ON_SALE') return '/shop?sale=true';
+  if (kind === 'STAFF_PICKS') return '/shop?tags=staff-pick';
+  if (kind === 'SEASONAL') return '/shop?tags=seasonal';
+  return '/shop';
+}
+
 export default async function Home() {
   const freeShippingThreshold = freeShippingThresholdCents();
-  const [featuredProducts, upcomingClasses, collections, careGuideCount, catalogCount] =
-    await Promise.all([
-      db.product.findMany({
-        where: { active: true, featured: true },
-        orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
-        take: 4
-      }),
-      // Hidden classes are not fetched at all, so the homepage costs one query
-      // less rather than rendering nothing from a result it paid for.
-      CLASSES_PUBLICLY_VISIBLE
-        ? db.classEvent.findMany({
-            where: { active: true, startsAt: { gte: new Date() } },
-            orderBy: { startsAt: 'asc' },
-            take: 2
-          })
-        : [],
-      // Only collections that actually hold something are advertised, so a tile on
-      // the homepage always leads to real stock.
-      db.collection.findMany({
-        where: { active: true, featured: true, products: { some: { active: true } } },
-        orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-        include: { _count: { select: { products: { where: { active: true } } } } }
-      }),
-      db.careSheet.count({ where: { published: true } }),
-      db.product.count({ where: { active: true } })
-    ]);
+  const [sections, upcomingClasses, collections, careGuideCount, catalogCount] = await Promise.all([
+    /**
+     * The rows Tammy arranged, in her order. The homepage used to hardcode one
+     * collection strip and one featured grid, so changing what the front page
+     * led with meant changing the code.
+     */
+    db.homepageSection.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      take: 8
+    }),
+    // Hidden classes are not fetched at all, so the homepage costs one query
+    // less rather than rendering nothing from a result it paid for.
+    CLASSES_PUBLICLY_VISIBLE
+      ? db.classEvent.findMany({
+          where: { active: true, startsAt: { gte: new Date() } },
+          orderBy: { startsAt: 'asc' },
+          take: 2
+        })
+      : [],
+    // Only collections that actually hold something are advertised, so a tile on
+    // the homepage always leads to real stock.
+    db.collection.findMany({
+      where: { active: true, featured: true, products: { some: { active: true } } },
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      include: { _count: { select: { products: { where: { active: true } } } } }
+    }),
+    db.careSheet.count({ where: { published: true } }),
+    db.product.count({ where: { active: true } })
+  ]);
 
-  const ratings = await ratingsByProduct(featuredProducts.map((product) => product.id));
-  const featured = featuredProducts.map((product) => ({
+  const resolved = await Promise.all(
+    sections.map(async (section) => ({
+      section,
+      products:
+        section.kind === 'COLLECTION_TILES'
+          ? ([] as MerchandisedProduct[])
+          : await productsForSection(section)
+    }))
+  );
+
+  const allProducts = resolved.flatMap((entry) => entry.products);
+  const [ratings, flags] = await Promise.all([
+    ratingsByProduct(allProducts.map((product) => product.id)),
+    merchandisingFlagsFor(allProducts)
+  ]);
+  const decorate = (product: MerchandisedProduct) => ({
     ...product,
     averageRating: ratings.get(product.id)?.average ?? null,
-    reviewCount: ratings.get(product.id)?.count ?? 0
-  }));
+    reviewCount: ratings.get(product.id)?.count ?? 0,
+    flags: flags.get(product.id)
+  });
+
+  /**
+   * A row with nothing in it is dropped rather than rendered as a heading over
+   * empty space — which is what lets a "Best sellers" row stay arranged through
+   * a quiet winter. Collection tiles are the same: no stocked collections, no
+   * row.
+   */
+  const rows = resolved.filter(
+    (entry) =>
+      (entry.section.kind === 'COLLECTION_TILES' && collections.length > 0) ||
+      entry.products.length > 0
+  );
   const classSeats = await seatsRemainingFor(upcomingClasses);
 
   return (
@@ -159,7 +209,7 @@ export default async function Home() {
       </section>
 
       <div className="home-merch">
-        {catalogCount === 0 && collections.length === 0 && featured.length === 0 && (
+        {catalogCount === 0 && rows.length === 0 && (
           <section className="section editorial-section home-restock-section">
             <div className="container">
               <div className="home-restock">
@@ -185,61 +235,64 @@ export default async function Home() {
           </section>
         )}
 
-        {collections.length > 0 && (
-          <section className="section editorial-section home-collections-section">
-            <div className="container">
-              <div className="sectionhead">
-                <div className="eyebrow">Shop the garden</div>
-                <h2>Bring a little Hillside home.</h2>
-                <p>
-                  Discover the plants, handmade goods and natural supplies that make The Hillside
-                  Gardens collection distinctive.
-                </p>
-              </div>
-              <div className="editorial-collections">
-                {collections.map((collection) => (
-                  <Link
-                    className="editorial-collection"
-                    href={`/collections/${collection.slug}`}
-                    key={collection.id}
-                  >
-                    <BrandMockupScene
-                      variant="plants"
-                      imageSrc={collection.imageUrl}
-                      alt={collection.title}
-                    />
-                    <div>
-                      <span>{collection.tagline || `${collection._count.products} to browse`}</span>
-                      <h3>{collection.title}</h3>
-                      <b>Shop collection →</b>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-              <div className="collections-all">
-                <Link className="editorial-link" href="/collections">
-                  See every collection →
-                </Link>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {featured.length > 0 && (
-          <section className="section editorial-products home-products-section">
-            <div className="container">
-              <div className="editorial-heading-row">
-                <div>
-                  <div className="eyebrow">New &amp; noteworthy</div>
-                  <h2>Our current favorites.</h2>
+        {rows.map(({ section, products }) =>
+          section.kind === 'COLLECTION_TILES' ? (
+            <section
+              className="section editorial-section home-collections-section"
+              key={section.id}
+            >
+              <div className="container">
+                <div className="sectionhead">
+                  {section.eyebrow && <div className="eyebrow">{section.eyebrow}</div>}
+                  <h2>{section.title}</h2>
+                  {section.subtitle && <p>{section.subtitle}</p>}
                 </div>
-                <Link className="editorial-link" href="/shop">
-                  Shop all products →
-                </Link>
+                <div className="editorial-collections">
+                  {collections.slice(0, section.maxItems).map((collection) => (
+                    <Link
+                      className="editorial-collection"
+                      href={`/collections/${collection.slug}`}
+                      key={collection.id}
+                    >
+                      <BrandMockupScene
+                        variant="plants"
+                        imageSrc={collection.imageUrl}
+                        alt={collection.title}
+                      />
+                      <div>
+                        <span>
+                          {collection.tagline || `${collection._count.products} to browse`}
+                        </span>
+                        <h3>{collection.title}</h3>
+                        <b>Shop collection →</b>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+                <div className="collections-all">
+                  <Link className="editorial-link" href="/collections">
+                    See every collection →
+                  </Link>
+                </div>
               </div>
-              <ProductGrid products={featured} />
-            </div>
-          </section>
+            </section>
+          ) : (
+            <section className="section editorial-products home-products-section" key={section.id}>
+              <div className="container">
+                <div className="editorial-heading-row">
+                  <div>
+                    {section.eyebrow && <div className="eyebrow">{section.eyebrow}</div>}
+                    <h2>{section.title}</h2>
+                    {section.subtitle && <p>{section.subtitle}</p>}
+                  </div>
+                  <Link className="editorial-link" href={shopHrefForSection(section.kind)}>
+                    Shop all products →
+                  </Link>
+                </div>
+                <ProductGrid products={products.map(decorate)} />
+              </div>
+            </section>
+          )
         )}
       </div>
 

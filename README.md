@@ -15,9 +15,12 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 ## Public website
 
 - Professional botanical storefront based on the Hillside green, sage and gold logo system
-- Owner-managed collections with their own pages, assigned from the dashboard
-- Site-wide search across products and care guides
-- Searchable and filterable live product catalog, with sale and new-arrival sorting
+- Owner-managed collections that are real category landing pages — an introduction, the products, the care guides that go with them, the questions customers actually ask, and links onward
+- Site-wide search across product names, botanical names, descriptions, attributes, collections, care guides and classes, with typo tolerance
+- Filterable product catalog: category, collection, price, availability, pickup and shipping, plant attributes, handmade, new, best seller and sale — showing only the filters something on screen answers to
+- Owner-assigned product attributes (pet safe, low light, beginner friendly, handmade, giftable and more) used by the filters, the search and the product pages
+- Best-seller badges and rows worked out from paid orders rather than a checkbox
+- A local-shopping page at `/visit` for Ebensburg and Cambria County pickup
 - Individual SEO-ready product pages with live inventory, multiple photographs and customer reviews
 - A size dropdown on products sold in more than one size, with an optional price and quantity on hand for each size
 - Back-in-stock email alerts on sold-out products
@@ -47,6 +50,9 @@ The dashboard at `/admin` includes:
 - Packing-slip and 4 × 6 shipping-label printing
 - Shipping-address, full-order and newsletter-subscriber CSV exports
 - Product creation and editing, price, sale price, SKU, inventory, badges and featured products
+- A merchandising page at `/admin/merchandising`: homepage rows, product badges, best-seller and new-arrival overrides, drag-to-reorder product and collection order, and featured collections
+- Per-product attributes, botanical name, extra search terms, season dates, related products, cross-sells and bundle contents
+- Category page editing — introduction, longer copy, questions and answers, search words and linked care guides
 - Per-product size choices, typed one per line, with a price and a quantity on hand on any size that needs its own
 - Low-stock visibility and product archiving
 - Paid and free class registrations and seat counts
@@ -152,6 +158,12 @@ refuses a loopback value such as `http://localhost:3000` or `http://127.0.0.1:30
 because those resolve to the visitor's own machine rather than the shop, and logs a
 warning naming the ignored value. Set the variable only to point a build at a genuine
 public origin, such as a Railway preview domain.
+
+## Merchandising, categories and search
+
+`docs/merchandising-and-seo.md` covers how the shop decides what to put in front
+of people: where best sellers come from, what the automatic badges mean, how the
+category pages are written, and which filters appear when.
 
 ## Products sold in more than one size
 
@@ -415,6 +427,9 @@ Before accepting live orders or class registrations:
 - Confirm that inventory decrements once and customer emails arrive as expected.
 - Complete the Telnyx two-device test in `docs/telnyx-video-classes.md`.
 - Replace sample gallery images with Tammy’s real work.
+- Assign product attributes (pet safe, low light, beginner friendly, handmade) so the shop filters and site search have something to work with.
+- Read through the seeded category pages at `/collections` and edit anything that is not true of this shop — they are starting copy, and they stop being overwritten the moment they are edited.
+- Arrange the homepage rows at `/admin/merchandising`.
 - Set `AMAZON_ASSOCIATE_TAG` to Tammy’s associate tag, then add one pick from a link and confirm it appears on `/amazon` with the tag on its button.
 - Create Tammy’s admin account, confirm she can sign in with it, and unset the shared `ADMIN_PASSWORD` once every admin has their own.
 - Verify mobile navigation, checkout, online classroom, admin login and label printing on Tammy’s actual devices.

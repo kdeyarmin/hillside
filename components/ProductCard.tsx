@@ -10,6 +10,7 @@ import {
   productSizes,
   sizeFieldLabel
 } from '@/lib/product-sizes';
+import { merchandisingBadges } from '@/lib/merchandising';
 import { discountPercent, formatMoney, productTypeLabel } from '@/lib/store';
 
 export type ProductCardProduct = {
@@ -31,6 +32,18 @@ export type ProductCardProduct = {
   sizeLabel?: string | null;
   averageRating?: number | null;
   reviewCount?: number;
+  staffPick?: boolean | null;
+  /**
+   * The automatic labels, worked out on the server from order history and the
+   * product's dates. Optional because plenty of grids (the cart's suggestions,
+   * an archived product's page) have no reason to pay for them.
+   */
+  flags?: {
+    isNew?: boolean;
+    isBestSeller?: boolean;
+    isInSeason?: boolean;
+    isOnSale?: boolean;
+  } | null;
 };
 
 function Stars({ rating, count }: { rating: number; count: number }) {
@@ -85,8 +98,16 @@ export default function ProductCard({
     <article className="product-card">
       <Link className="product-image-wrap" href={`/shop/${product.slug}`}>
         <span className="product-badges">
-          {saving > 0 && <span className="product-badge sale">Save {saving}%</span>}
-          {product.badge && <span className="product-badge">{product.badge}</span>}
+          {merchandisingBadges(product, {
+            savingPercent: saving,
+            isBestSeller: product.flags?.isBestSeller,
+            isNew: product.flags?.isNew,
+            isInSeason: product.flags?.isInSeason
+          }).map((badge) => (
+            <span className={`product-badge ${badge.tone}`} key={`${badge.tone}-${badge.label}`}>
+              {badge.label}
+            </span>
+          ))}
         </span>
         <BrandedProductVisual
           slug={product.slug}

@@ -13,6 +13,7 @@ import {
   firstSearchParam
 } from '@/lib/admin-dashboard';
 import { careGuideTypeLabel } from '@/lib/care-seed-data';
+import { faqLines } from '@/lib/category-content';
 import { classFormatLabel, isOnlineClass } from '@/lib/class-access';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { isNavigationCollection } from '@/lib/collections';
@@ -30,7 +31,14 @@ import {
   saveGalleryItem
 } from '../actions';
 
-function CollectionFields({ collection }: { collection?: Collection }) {
+function CollectionFields({
+  collection,
+  careSheets = []
+}: {
+  collection?: Collection & { careSheets?: Array<{ id: string }> };
+  careSheets?: Array<{ id: string; plantName: string }>;
+}) {
+  const linkedGuides = new Set((collection?.careSheets || []).map((sheet) => sheet.id));
   return (
     <>
       {collection && <input type="hidden" name="id" value={collection.id} />}
@@ -41,7 +49,48 @@ function CollectionFields({ collection }: { collection?: Collection }) {
         <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={collection?.sortOrder ?? 0} /></label>
         <label className="admin-label full">Description<textarea className="admin-input" name="description" rows={3} defaultValue={collection?.description || ''} /></label>
         <label className="admin-label full">Cover photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={collection?.imageUrl || ''} /></label>
+        {/* Everything below turns this collection from a filtered grid into a
+            page worth landing on. A shopper deciding between a pitcher plant and
+            a sundew needs sentences, not a heading over a product grid. */}
+        <label className="admin-label full">
+          Introduction (shown above the products)
+          <textarea className="admin-input" name="intro" rows={4} defaultValue={collection?.intro || ''} placeholder="One or two short paragraphs about what is in this collection and who it suits." />
+          <span className="admin-hint">Leave a blank line between paragraphs.</span>
+        </label>
+        <label className="admin-label full">
+          Longer writing (shown under the products)
+          <textarea className="admin-input" name="body" rows={8} defaultValue={collection?.body || ''} placeholder={'Choosing one:\n\nWhat to look for...\n\nLiving with it:\n\nWhat to expect...'} />
+          <span className="admin-hint">Blank line between paragraphs. A short line ending in a colon becomes a heading.</span>
+        </label>
+        <label className="admin-label full">
+          Questions and answers
+          <textarea className="admin-input" name="faq" rows={5} defaultValue={faqLines(collection?.faq)} placeholder={'How often should I water this? | Check the soil rather than the calendar.'} />
+          <span className="admin-hint">
+            One per line: <b>question | answer</b>. These show on the page and are the only thing
+            that makes the collection eligible for question-and-answer results in Google, so write
+            what people actually ask.
+          </span>
+        </label>
+        <label className="admin-label">Page title for search results<input className="admin-input" name="metaTitle" defaultValue={collection?.metaTitle || ''} placeholder="Leave empty to use the collection name" /></label>
+        <label className="admin-label">
+          Words people search for
+          <input className="admin-input" name="keywords" defaultValue={(collection?.keywords || []).join(', ')} placeholder="carnivorous plants, venus flytrap, pitcher plant" />
+          <span className="admin-hint">Comma separated. Used by the site search, never shown.</span>
+        </label>
+        <label className="admin-label full">Description for search results<textarea className="admin-input" name="metaDescription" rows={2} defaultValue={collection?.metaDescription || ''} placeholder="Leave empty to use the introduction above." /></label>
       </div>
+      {careSheets.length > 0 && (
+        <fieldset className="admin-collection-picker">
+          <legend>Care guides to show on this collection page</legend>
+          <span className="admin-hint">These appear under the products and link into the care library.</span>
+          {careSheets.map((sheet) => (
+            <label className="admin-checkbox" key={sheet.id}>
+              <input type="checkbox" name="careSheetIds" value={sheet.id} defaultChecked={linkedGuides.has(sheet.id)} />{' '}
+              {sheet.plantName}
+            </label>
+          ))}
+        </fieldset>
+      )}
       <div className="admin-actions">
         <label className="admin-checkbox"><input name="active" type="checkbox" defaultChecked={collection?.active ?? true} /> Visible on the website</label>
         <label className="admin-checkbox"><input name="featured" type="checkbox" defaultChecked={collection?.featured ?? true} /> Show as a tile on the homepage</label>
@@ -164,7 +213,10 @@ export default async function ContentManager({
     db.careSheet.findMany({ orderBy: [{ published: 'desc' }, { plantName: 'asc' }] }),
     db.collection.findMany({
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-      include: { _count: { select: { products: { where: { active: true } } } } }
+      include: {
+        _count: { select: { products: { where: { active: true } } } },
+        careSheets: { select: { id: true } }
+      }
     })
   ]);
   const telnyxReady = telnyxVideoConfigured();
@@ -185,6 +237,7 @@ export default async function ContentManager({
         <a href="#amazon">Amazon picks</a>
         <a href="#care">Plant care library</a>
         <Link href="/admin/care">Open care library</Link>
+        <Link href="/admin/merchandising">Merchandising</Link>
         <Link href="/">View public website</Link>
       </aside>
       <div className="adminmain">
@@ -239,7 +292,7 @@ export default async function ContentManager({
                 </summary>
                 <div>
                   <form action={saveCollection}>
-                    <CollectionFields collection={collection} />
+                    <CollectionFields collection={collection} careSheets={sheets} />
                     <div className="admin-actions">
                       <button className="btn small">Save collection</button>
                       <Link className="btn outline small" href={`/collections/${collection.slug}`}>View collection</Link>
@@ -267,7 +320,7 @@ export default async function ContentManager({
           <div className="admin-card" id="add-collection" style={{ marginTop: 20 }}>
             <h2 style={{ marginTop: 0 }}>Add a collection</h2>
             <form action={saveCollection}>
-              <CollectionFields />
+              <CollectionFields careSheets={sheets} />
               <button className="btn" style={{ marginTop: 16 }}>Create collection</button>
             </form>
           </div>

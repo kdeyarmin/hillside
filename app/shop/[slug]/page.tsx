@@ -19,24 +19,61 @@ import {
   productSizes,
   sizePriceRange
 } from '@/lib/product-sizes';
-import { pageMetadata } from '@/lib/seo';
+import { breadcrumbJsonLd, pageMetadata, productJsonLd, productOffers } from '@/lib/seo';
+import { merchandisingBadges } from '@/lib/merchandising';
+import { merchandisingFlagsFor } from '@/lib/merchandising-data';
+import { normalizeTags, tagLabel } from '@/lib/product-tags';
 import {
-  absoluteUrl,
   discountPercent,
-  flatShippingCents,
   formatMoney,
   freeShippingThresholdCents,
-  HANDLING_MAX_DAYS,
-  HANDLING_MIN_DAYS,
-  priceValidUntil,
   productTypeLabel,
   productTypePlural,
-  returnPolicyForType,
   resolveImageUrl
 } from '@/lib/store';
 import { fulfillmentBlurb, offersPickup, offersShipping } from '@/lib/fulfillment';
 
 export const dynamic = 'force-dynamic';
+
+/** Card fields for the hand-picked products shown beside this one. */
+const RELATED_SELECT = {
+  id: true,
+  slug: true,
+  name: true,
+  shortDescription: true,
+  description: true,
+  type: true,
+  priceCents: true,
+  compareAtCents: true,
+  inventory: true,
+  imageUrl: true,
+  badge: true,
+  sizes: true,
+  sizeLabel: true,
+  ships: true,
+  pickup: true,
+  staffPick: true,
+  createdAt: true,
+  newArrivalMode: true,
+  bestSellerMode: true,
+  seasonStartsAt: true,
+  seasonEndsAt: true
+} as const;
+
+/**
+ * One list from the two directions of a self-relation, without the product doing
+ * the pointing. Order is preserved so the first thing Tammy picked stays first.
+ */
+function dedupeProducts<T extends { id: string }>(items: T[], excludeId: string): T[] {
+  const seen = new Set([excludeId]);
+  const unique: T[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    unique.push(item);
+  }
+  return unique;
+}
 
 export async function generateMetadata({
   params
@@ -71,7 +108,19 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     where: { slug },
     include: {
       collections: { where: { active: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
-      careSheets: { where: { published: true }, take: 2 }
+      careSheets: { where: { published: true }, take: 2 },
+      /**
+       * Both directions of the hand-picked links. Tammy makes the connection
+       * once, on whichever product she happens to be editing, and the shopper
+       * sees it from either side — otherwise "goes with" would depend on which
+       * product she opened first, which is not something she should have to
+       * think about.
+       */
+      relatedProducts: { where: { active: true }, select: RELATED_SELECT, take: 6 },
+      relatedTo: { where: { active: true }, select: RELATED_SELECT, take: 6 },
+      crossSells: { where: { active: true }, select: RELATED_SELECT, take: 6 },
+      crossSellFor: { where: { active: true }, select: RELATED_SELECT, take: 6 },
+      bundleItems: { where: { active: true }, select: RELATED_SELECT, take: 8 }
     }
   });
   if (!product) notFound();
@@ -80,12 +129,33 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     return <RetiredProduct product={product} catalogEmpty={catalogEmpty} />;
   }
 
-  const [related, reviews, rating] = await Promise.all([
-    db.product.findMany({
-      where: { active: true, id: { not: product.id }, type: product.type },
-      orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
-      take: 3
-    }),
+  /**
+   * What Tammy chose, in both directions, deduplicated and with this product
+   * removed — a product linked to itself would otherwise show up under its own
+   * "you may also like".
+   */
+  const chosenRelated = dedupeProducts(
+    [...product.relatedProducts, ...product.relatedTo],
+    product.id
+  );
+  const crossSells = dedupeProducts([...product.crossSells, ...product.crossSellFor], product.id);
+  const bundleItems = dedupeProducts(product.bundleItems, product.id);
+
+  const [fallbackRelated, reviews, rating] = await Promise.all([
+    // Only asked for when the hand-picked list is short: the point of choosing
+    // related products by hand is that the automatic answer stops being used.
+    chosenRelated.length >= 3
+      ? []
+      : db.product.findMany({
+          where: {
+            active: true,
+            type: product.type,
+            id: { notIn: [product.id, ...chosenRelated.map((item) => item.id)] }
+          },
+          orderBy: [{ featured: 'desc' }, { sortOrder: 'asc' }],
+          select: RELATED_SELECT,
+          take: 3
+        }),
     db.review.findMany({
       where: { productId: product.id, status: 'APPROVED' },
       orderBy: { createdAt: 'desc' },
@@ -94,12 +164,30 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     ratingsByProduct([product.id]).then((map) => map.get(product.id) || { average: 0, count: 0 })
   ]);
 
-  const relatedRatings = await ratingsByProduct(related.map((item) => item.id));
-  const relatedProducts = related.map((item) => ({
+  const related = [...chosenRelated, ...fallbackRelated].slice(0, 3);
+  const sideProducts = [...related, ...crossSells, ...bundleItems];
+  const [relatedRatings, sideFlags] = await Promise.all([
+    ratingsByProduct(sideProducts.map((item) => item.id)),
+    merchandisingFlagsFor([product, ...sideProducts])
+  ]);
+  const withRating = <T extends { id: string }>(item: T) => ({
     ...item,
     averageRating: relatedRatings.get(item.id)?.average ?? null,
-    reviewCount: relatedRatings.get(item.id)?.count ?? 0
-  }));
+    reviewCount: relatedRatings.get(item.id)?.count ?? 0,
+    flags: sideFlags.get(item.id)
+  });
+  const relatedProducts = related.map(withRating);
+  const crossSellProducts = crossSells.map(withRating);
+  const bundleProducts = bundleItems.map(withRating);
+
+  const flags = sideFlags.get(product.id);
+  const primaryCollection = product.collections[0] || null;
+  /**
+   * Only the attributes Tammy assigned. The derived ones — in stock, ships, on
+   * sale — are already stated plainly further up the page, and repeating them as
+   * chips would pad the page with things the shopper just read.
+   */
+  const attributes = normalizeTags(product.tags);
 
   const threshold = freeShippingThresholdCents();
   const soldOut = product.inventory <= 0;
@@ -112,120 +200,41 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
    */
   const priceSpan = sizePriceRange(sizes, product.priceCents);
 
-  const productJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: product.name,
-    description: product.shortDescription || product.description,
-    image: [product.imageUrl, ...product.galleryImages]
-      .filter(Boolean)
-      .map((source) => absoluteUrl(resolveImageUrl(source)))
-      .slice(0, 6),
-    sku: product.sku || undefined,
-    brand: { '@type': 'Brand', name: 'The Hillside Gardens' },
-    ...(rating.count > 0
-      ? {
-          aggregateRating: {
-            '@type': 'AggregateRating',
-            ratingValue: rating.average,
-            reviewCount: rating.count
-          }
-        }
-      : {}),
-    ...(reviews.length
-      ? {
-          review: reviews.slice(0, 5).map((review) => ({
-            '@type': 'Review',
-            author: { '@type': 'Person', name: review.authorName },
-            datePublished: review.createdAt.toISOString().slice(0, 10),
-            name: review.title || undefined,
-            reviewBody: review.body,
-            reviewRating: { '@type': 'Rating', ratingValue: review.rating, bestRating: 5 }
-          }))
-        }
-      : {}),
-    /**
-     * `itemCondition`, `priceValidUntil` and the shipping and returns details are
-     * all fields Search Console warns about when they are absent from an Offer.
-     * The shipping figures come from the same configuration the cart charges by,
-     * so the rich result cannot advertise a rate the checkout does not honour.
-     */
-    offers: {
-      ...(priceSpan.minCents === priceSpan.maxCents
-        ? { '@type': 'Offer', price: (priceSpan.minCents / 100).toFixed(2) }
-        : {
-            '@type': 'AggregateOffer',
-            lowPrice: (priceSpan.minCents / 100).toFixed(2),
-            highPrice: (priceSpan.maxCents / 100).toFixed(2),
-            offerCount: sizes.length
-          }),
-      url: absoluteUrl(`/shop/${product.slug}`),
-      priceCurrency: 'USD',
-      priceValidUntil: priceValidUntil(),
-      itemCondition: 'https://schema.org/NewCondition',
-      availability: soldOut ? 'https://schema.org/OutOfStock' : 'https://schema.org/InStock',
-      seller: { '@id': absoluteUrl('/#business') },
-      ...(offersShipping(product)
-        ? {
-            shippingDetails: {
-              '@type': 'OfferShippingDetails',
-              shippingRate: {
-                '@type': 'MonetaryAmount',
-                value: (
-                  (threshold > 0 && priceSpan.minCents >= threshold ? 0 : flatShippingCents()) / 100
-                ).toFixed(2),
-                currency: 'USD'
-              },
-              shippingDestination: {
-                '@type': 'DefinedRegion',
-                addressCountry: 'US'
-              },
-              deliveryTime: {
-                '@type': 'ShippingDeliveryTime',
-                handlingTime: {
-                  '@type': 'QuantitativeValue',
-                  minValue: HANDLING_MIN_DAYS,
-                  maxValue: HANDLING_MAX_DAYS,
-                  unitCode: 'DAY'
-                },
-                transitTime: {
-                  '@type': 'QuantitativeValue',
-                  minValue: 3,
-                  maxValue: 7,
-                  unitCode: 'DAY'
-                }
-              }
-            }
-          }
-        : {}),
-      hasMerchantReturnPolicy: returnPolicyForType(product.type)
-    }
-  };
+  const offers = productOffers({
+    slug: product.slug,
+    type: product.type,
+    sku: product.sku,
+    ships: product.ships,
+    inventory: product.inventory,
+    priceCents: product.priceCents,
+    sizes
+  });
 
-  const breadcrumbJsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'BreadcrumbList',
-    itemListElement: [
-      { '@type': 'ListItem', position: 1, name: 'Home', item: absoluteUrl('/') },
-      { '@type': 'ListItem', position: 2, name: 'Shop', item: absoluteUrl('/shop') },
-      {
-        '@type': 'ListItem',
-        position: 3,
-        name: product.name,
-        item: absoluteUrl(`/shop/${product.slug}`)
-      }
-    ]
-  };
+  const productSchema = productJsonLd({
+    product,
+    offers,
+    rating,
+    reviews
+  });
+
+  const breadcrumbSchema = breadcrumbJsonLd([
+    { name: 'Home', path: '/' },
+    { name: 'Shop', path: '/shop' },
+    ...(primaryCollection
+      ? [{ name: primaryCollection.title, path: `/collections/${primaryCollection.slug}` }]
+      : []),
+    { name: product.name, path: `/shop/${product.slug}` }
+  ]);
 
   return (
     <section className="content">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: jsonLd(productJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(productSchema) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbSchema) }}
       />
       <ProductViewTracker
         slug={product.slug}
@@ -254,10 +263,27 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <div className="product-detail-copy">
             <div className="eyebrow">{productTypeLabel(product.type)}</div>
             <div className="product-detail-badges">
-              {saving > 0 && <span className="pill sale">Save {saving}%</span>}
-              {product.badge && <span className="pill">{product.badge}</span>}
+              {merchandisingBadges(
+                product,
+                {
+                  savingPercent: saving,
+                  isBestSeller: flags?.isBestSeller,
+                  isNew: flags?.isNew,
+                  isInSeason: flags?.isInSeason
+                },
+                3
+              ).map((badge) => (
+                <span className={`pill ${badge.tone}`} key={`${badge.tone}-${badge.label}`}>
+                  {badge.label}
+                </span>
+              ))}
             </div>
             <h1>{product.name}</h1>
+            {product.botanical && (
+              <p className="product-botanical">
+                <i>{product.botanical}</i>
+              </p>
+            )}
             {rating.count > 0 && (
               <p className="rating-inline">
                 <span className="rating-stars" aria-hidden="true">
@@ -351,6 +377,21 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               />
             )}
 
+            {attributes.length > 0 && (
+              <div className="product-attributes">
+                <b>Good to know</b>
+                <ul>
+                  {attributes.map((tag) => (
+                    <li key={tag}>
+                      {/* Each attribute links to the shop already filtered by it,
+                          so "Pet safe" on one plant is a route to every other
+                          one rather than a decorative label. */}
+                      <Link href={`/shop?tags=${tag}`}>{tagLabel(tag)}</Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {product.collections.length > 0 && (
               <p className="product-collections">
                 Part of{' '}
@@ -377,6 +418,20 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             <div className="eyebrow">Product details</div>
             <h2>About this item</h2>
             <p style={{ whiteSpace: 'pre-line' }}>{product.details}</p>
+          </div>
+        )}
+
+        {bundleProducts.length > 0 && (
+          <div className="product-details-section">
+            <div className="sectionhead">
+              <div className="eyebrow">What is in it</div>
+              <h2>Everything included in this set.</h2>
+              <p>
+                Each piece is also sold on its own — the links go to the full description and care
+                notes for each one.
+              </p>
+            </div>
+            <ProductGrid products={bundleProducts} eagerCount={0} />
           </div>
         )}
 
@@ -407,6 +462,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           </div>
         )}
 
+        {crossSellProducts.length > 0 && (
+          <div className="product-details-section">
+            <div className="sectionhead">
+              <div className="eyebrow">Goes well with this</div>
+              <h2>What people usually add.</h2>
+            </div>
+            <ProductGrid products={crossSellProducts} eagerCount={0} />
+          </div>
+        )}
+
         <ProductReviews
           productSlug={product.slug}
           productName={product.name}
@@ -427,13 +492,17 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         {relatedProducts.length > 0 && (
           <div className="product-details-section">
             <div className="sectionhead">
-              {/* The query behind this list matches on product type, not on the
-                  collections above, so the heading says type — as a plural,
-                  because it introduces a shelf of them, not one. */}
+              {/* Hand-picked when Tammy chose some; otherwise the fallback list
+                  matches on product type, so the heading says type — as a
+                  plural, because it introduces a shelf of them, not one. */}
               <div className="eyebrow">You may also like</div>
-              <h2>More in {productTypePlural(product.type).toLowerCase()}.</h2>
+              <h2>
+                {chosenRelated.length
+                  ? 'Picked to go with this.'
+                  : `More in ${productTypePlural(product.type).toLowerCase()}.`}
+              </h2>
             </div>
-            <ProductGrid products={relatedProducts} />
+            <ProductGrid products={relatedProducts} eagerCount={0} />
           </div>
         )}
       </div>

@@ -7,6 +7,7 @@ import {
   ReviewStatus
 } from '@prisma/client';
 import AdminDeepLink from '@/components/AdminDeepLink';
+import AdminProductPicker from '@/components/AdminProductPicker';
 import {
   ADMIN_ERRORS,
   ADMIN_NOTICES,
@@ -21,6 +22,7 @@ import { db } from '@/lib/db';
 import { currentAdmin } from '@/lib/admin';
 import { REVENUE_STATUSES, isAwaitingShipment } from '@/lib/orders';
 import { sizedName, sizeLines, sizeStockSummary } from '@/lib/product-sizes';
+import { groupTags, PRODUCT_TAGS } from '@/lib/product-tags';
 import { formatMoney, productTypeLabel } from '@/lib/store';
 import { orderStatusBadge } from '@/lib/tracking';
 import {
@@ -63,9 +65,12 @@ function SizeStockNote({ sizes }: { sizes: unknown }) {
 
 function ProductFields({
   product,
-  collections
+  collections,
+  catalog
 }: {
   collections: Array<{ id: string; title: string }>;
+  /** Every product, for the "goes with this" pickers. */
+  catalog: Array<{ id: string; name: string; sku: string | null }>;
   product?: {
     id: string;
     name: string;
@@ -90,11 +95,24 @@ function ProductFields({
     galleryImages: string[];
     sizes: unknown;
     sizeLabel: string | null;
+    botanical?: string | null;
+    searchTerms?: string | null;
+    staffPick?: boolean;
+    tags?: string[];
+    seasonStartsAt?: Date | null;
+    seasonEndsAt?: Date | null;
     collections?: Array<{ id: string }>;
+    relatedProducts?: Array<{ id: string }>;
+    crossSells?: Array<{ id: string }>;
+    bundleItems?: Array<{ id: string }>;
   };
 }) {
   const assigned = new Set((product?.collections || []).map((collection) => collection.id));
   const sizeStock = sizeStockSummary(product?.sizes);
+  const chosenTags = new Set(product?.tags || []);
+  const dateValue = (value: Date | null | undefined) =>
+    value ? value.toISOString().slice(0, 10) : '';
+  const otherProducts = catalog.filter((entry) => entry.id !== product?.id);
   return (
     <>
       {product && <input type="hidden" name="id" value={product.id} />}
@@ -281,7 +299,112 @@ function ProductFields({
             placeholder={'/media/second-angle.jpg\n/media/detail.jpg'}
           />
         </label>
+        <label className="admin-label">
+          Botanical (Latin) name
+          <input
+            className="admin-input"
+            name="botanical"
+            defaultValue={product?.botanical || ''}
+            placeholder="Epipremnum aureum"
+          />
+          <span className="admin-hint">
+            Shown under the product name, and searchable — a lot of people type the Latin name.
+          </span>
+        </label>
+        <label className="admin-label">
+          Other words people search for
+          <input
+            className="admin-input"
+            name="searchTerms"
+            defaultValue={product?.searchTerms || ''}
+            placeholder="devil's ivy, money plant"
+          />
+          <span className="admin-hint">
+            Never shown to customers. Nicknames, common misspellings, what it is called elsewhere.
+          </span>
+        </label>
+        <label className="admin-label">
+          In season from
+          <input
+            className="admin-input"
+            name="seasonStartsAt"
+            type="date"
+            defaultValue={dateValue(product?.seasonStartsAt)}
+          />
+          <span className="admin-hint">
+            Only the day and month matter — a season repeats every year. Leave both empty unless
+            this is a seasonal item.
+          </span>
+        </label>
+        <label className="admin-label">
+          In season until
+          <input
+            className="admin-input"
+            name="seasonEndsAt"
+            type="date"
+            defaultValue={dateValue(product?.seasonEndsAt)}
+          />
+          <span className="admin-hint">
+            Out of season it keeps its page and its price — it just stops appearing in seasonal
+            rows.
+          </span>
+        </label>
       </div>
+
+      {/* Attributes are what customers filter the shop by: pet safe, low light,
+          handmade. Grouped the way they are shown to shoppers, and the plant ones
+          are marked so a soap does not get a light requirement. */}
+      <fieldset className="admin-collection-picker">
+        <legend>What is true about this product</legend>
+        <span className="admin-hint">
+          These become the filters in the shop and the “good to know” links on the product page.
+        </span>
+        {groupTags(PRODUCT_TAGS).map((group) => (
+          <div className="admin-tag-group" key={group.key}>
+            <b>
+              {group.label}
+              {group.tags.every((tag) => tag.types?.includes('PLANT')) ? ' (plants)' : ''}
+            </b>
+            {group.tags.map((tag) => (
+              <label className="admin-checkbox" key={tag.slug} title={tag.hint}>
+                <input
+                  type="checkbox"
+                  name="tags"
+                  value={tag.slug}
+                  defaultChecked={chosenTags.has(tag.slug)}
+                />{' '}
+                {tag.label}
+              </label>
+            ))}
+          </div>
+        ))}
+      </fieldset>
+
+      {otherProducts.length > 0 && (
+        <div className="admin-picker-grid">
+          <AdminProductPicker
+            name="relatedIds"
+            legend="Related products"
+            hint="Shown under “You may also like”. Leave empty to let the shop suggest similar items itself."
+            products={otherProducts}
+            selectedIds={(product?.relatedProducts || []).map((entry) => entry.id)}
+          />
+          <AdminProductPicker
+            name="crossSellIds"
+            legend="Goes well with this"
+            hint="Shown as “what people usually add” — the pot, the mix, the soap that goes with it."
+            products={otherProducts}
+            selectedIds={(product?.crossSells || []).map((entry) => entry.id)}
+          />
+          <AdminProductPicker
+            name="bundleIds"
+            legend="What is inside this set"
+            hint="Only for a bundle or gift set. The pieces are listed on its page and still sold on their own."
+            products={otherProducts}
+            selectedIds={(product?.bundleItems || []).map((entry) => entry.id)}
+          />
+        </div>
+      )}
       {collections.length > 0 && (
         <fieldset className="admin-collection-picker">
           <legend>Collections this product belongs to</legend>
@@ -306,6 +429,10 @@ function ProductFields({
         <label className="admin-checkbox">
           <input name="featured" type="checkbox" defaultChecked={product?.featured ?? false} />{' '}
           Featured
+        </label>
+        <label className="admin-checkbox">
+          <input name="staffPick" type="checkbox" defaultChecked={product?.staffPick ?? false} />{' '}
+          Tammy&rsquo;s pick
         </label>
         <label className="admin-checkbox">
           <input name="ships" type="checkbox" defaultChecked={product?.ships ?? true} /> Ships
@@ -412,7 +539,15 @@ export default async function Admin({
   ] = await Promise.all([
     db.product.findMany({
       orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
-      include: { collections: { select: { id: true } } }
+      include: {
+        collections: { select: { id: true } },
+        // Only the ids — the pickers render names from the catalog list below,
+        // so pulling whole related rows per product would be the same names
+        // serialized once for every product that links to them.
+        relatedProducts: { select: { id: true } },
+        crossSells: { select: { id: true } },
+        bundleItems: { select: { id: true } }
+      }
     }),
     db.order.findMany({ orderBy: { createdAt: 'desc' }, take: 75, include: { items: true } }),
     /**
@@ -474,6 +609,11 @@ export default async function Admin({
     ).map((item) => `${item.productId}:${item.order.email.toLowerCase()}`)
   );
 
+  /** Names for the "goes with this" pickers, active items first. */
+  const catalog = products
+    .filter((product) => product.active)
+    .map((product) => ({ id: product.id, name: product.name, sku: product.sku }));
+
   const lowStock = products.filter(productIsLowStock).length;
   const openOrders = orders.filter((order) =>
     isAwaitingShipment(order.status, order.fulfilledAt)
@@ -526,6 +666,7 @@ export default async function Admin({
         <a href="#reviews">Reviews</a>
         <a href="#restock">Restock requests</a>
         <Link href="/admin/email">Email</Link>
+        <Link href="/admin/merchandising">Merchandising</Link>
         <Link href="/admin/content">Website content</Link>
         <Link href="/admin/care">Plant care library</Link>
         <Link href="/admin/accounts">Admin accounts</Link>
@@ -995,7 +1136,7 @@ export default async function Admin({
               as you create it.
             </p>
             <form action={saveProduct}>
-              <ProductFields collections={collections} />
+              <ProductFields collections={collections} catalog={catalog} />
               <button className="btn" style={{ marginTop: 16 }}>
                 Create product
               </button>
@@ -1028,7 +1169,11 @@ export default async function Admin({
                   </summary>
                   <div>
                     <form action={saveProduct}>
-                      <ProductFields product={product} collections={collections} />
+                      <ProductFields
+                        product={product}
+                        collections={collections}
+                        catalog={catalog}
+                      />
                       <div className="admin-actions">
                         <button className="btn small">Save product</button>
                         <Link className="btn outline small" href={`/shop/${product.slug}`}>

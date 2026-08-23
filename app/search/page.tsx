@@ -1,17 +1,45 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { CalendarDays, Leaf, Search, ShoppingBag } from 'lucide-react';
+import { CalendarDays, FolderOpen, Leaf, Search, ShoppingBag } from 'lucide-react';
 import ProductGrid from '@/components/ProductGrid';
 import { db } from '@/lib/db';
 import { ratingsByProduct } from '@/lib/reviews';
 import { classFormatLabel } from '@/lib/class-access';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { contactHref } from '@/lib/contact';
-import { SEARCH_CANDIDATE_LIMIT, filterSearchHits, normalizeSearchTerm } from '@/lib/search';
+import {
+  careSheetSearchFields,
+  classSearchFields,
+  collectionSearchFields,
+  productSearchFields
+} from '@/lib/catalog-search';
+import {
+  merchandisingFlagsFor,
+  PRODUCT_CARD_SELECT,
+  tagsWithFlags
+} from '@/lib/merchandising-data';
+import { normalizeSearchTerm, rankSearchHits } from '@/lib/search';
 import { formatMoney } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * How many rows are read before ranking happens in memory.
+ *
+ * Searching in SQL is what this page used to do, and it could not answer the
+ * questions people actually type. "pet safe", "low light" and "beginner" are
+ * attributes rather than words in the copy; "pothos" is often a botanical name;
+ * "carnivorous" is a category. None of them are a `contains` match on a product
+ * description, so all of them returned nothing.
+ *
+ * With a catalog of a few hundred rows, reading the searchable columns and
+ * ranking them here is both better and cheaper than building an index the shop
+ * is nowhere near large enough to need. These ceilings exist so that stops being
+ * true loudly rather than quietly, if the shop ever grows into it.
+ */
+const PRODUCT_SCAN_LIMIT = 400;
+const GUIDE_SCAN_LIMIT = 300;
 
 export async function generateMetadata({
   searchParams
@@ -23,7 +51,8 @@ export async function generateMetadata({
   return pageMetadata({
     path: '/search',
     title: term ? `Search: ${term}` : 'Search',
-    description: 'Search plants, botanicals and plant care guides at The Hillside Gardens.',
+    description:
+      'Search plants, botanical goods, collections and plant care guides at The Hillside Gardens.',
     noindex: true
   });
 }
@@ -35,78 +64,76 @@ export default async function SearchPage({
 }) {
   const { q } = await searchParams;
   const term = normalizeSearchTerm(q || '');
-  const contains = { contains: term, mode: 'insensitive' as const };
 
-  const [productCandidates, guideCandidates, classCandidates, catalogCount] = term
+  const [productRows, guideRows, collectionRows, classRows, catalogCount] = term
     ? await Promise.all([
         db.product.findMany({
-          where: {
-            active: true,
-            OR: [{ name: contains }, { shortDescription: contains }, { description: contains }]
+          where: { active: true },
+          select: {
+            ...PRODUCT_CARD_SELECT,
+            sku: true,
+            details: true,
+            careNotes: true,
+            collections: {
+              where: { active: true },
+              select: { slug: true, title: true, tagline: true, keywords: true }
+            }
           },
           orderBy: [{ featured: 'desc' }, { name: 'asc' }],
-          take: SEARCH_CANDIDATE_LIMIT
+          take: PRODUCT_SCAN_LIMIT
         }),
         db.careSheet.findMany({
-          where: {
-            published: true,
-            OR: [
-              { plantName: contains },
-              { botanical: contains },
-              { summary: contains },
-              { symptoms: contains },
-              { category: contains }
-            ]
-          },
+          where: { published: true },
           orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
-          take: SEARCH_CANDIDATE_LIMIT
+          take: GUIDE_SCAN_LIMIT
+        }),
+        db.collection.findMany({
+          where: { active: true },
+          orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+          select: {
+            id: true,
+            slug: true,
+            title: true,
+            tagline: true,
+            description: true,
+            intro: true,
+            keywords: true
+          },
+          take: 50
         }),
         CLASSES_PUBLICLY_VISIBLE
           ? db.classEvent.findMany({
-              where: {
-                active: true,
-                startsAt: { gte: new Date() },
-                OR: [{ title: contains }, { description: contains }]
-              },
+              where: { active: true, startsAt: { gte: new Date() } },
               orderBy: { startsAt: 'asc' },
-              take: SEARCH_CANDIDATE_LIMIT
+              take: 50
             })
           : [],
         db.product.count({ where: { active: true } })
       ])
-    : [[], [], [], 0];
+    : [[], [], [], [], 0];
 
-  /**
-   * Prisma can only do substring `contains`. The word-aware filter is what
-   * stops "tea" from matching a Monstera guide that mentions "steady watering".
-   * Candidates are over-fetched so a page of false positives cannot hide a
-   * real hit sitting just behind them.
-   */
-  const products = filterSearchHits(
-    productCandidates,
-    (product) => [product.name, product.shortDescription, product.description],
+  // Derived attributes first, so "best seller" and "in stock" are searchable
+  // terms rather than things only the filter rail knows about.
+  const productFlags = await merchandisingFlagsFor(productRows);
+
+  const products = rankSearchHits(
+    productRows,
+    (product) => productSearchFields(product, tagsWithFlags(product, productFlags.get(product.id))),
     term
   );
-  const guides = filterSearchHits(
-    guideCandidates,
-    (guide) => [guide.plantName, guide.botanical, guide.summary, guide.symptoms, guide.category],
-    term
-  );
-  const classes = filterSearchHits(
-    classCandidates,
-    (event) => [event.title, event.description],
-    term,
-    6
-  );
+  const guides = rankSearchHits(guideRows, careSheetSearchFields, term);
+  const collections = rankSearchHits(collectionRows, collectionSearchFields, term, 6);
+  const classes = rankSearchHits(classRows, classSearchFields, term, 6);
 
   const ratings = await ratingsByProduct(products.map((product) => product.id));
   const shopProducts = products.map((product) => ({
     ...product,
     averageRating: ratings.get(product.id)?.average ?? null,
-    reviewCount: ratings.get(product.id)?.count ?? 0
+    reviewCount: ratings.get(product.id)?.count ?? 0,
+    flags: productFlags.get(product.id)
   }));
 
-  const total = products.length + guides.length + classes.length;
+  const total = products.length + guides.length + collections.length + classes.length;
 
   return (
     <>
@@ -126,7 +153,7 @@ export default async function SearchPage({
                 type="search"
                 name="q"
                 defaultValue={term}
-                placeholder="Plants, symptoms, care topics"
+                placeholder="pothos, pet safe, low light, carnivorous, terrarium"
                 enterKeyHint="search"
               />
             </div>
@@ -136,7 +163,8 @@ export default async function SearchPage({
           </form>
           {term && (
             <p>
-              {total} {total === 1 ? 'result' : 'results'} across the shop and care library.
+              {total} {total === 1 ? 'result' : 'results'} across the shop, the collections and the
+              care library.
             </p>
           )}
         </div>
@@ -148,7 +176,10 @@ export default async function SearchPage({
             <div className="empty-state">
               <Search size={38} />
               <h3>What are you looking for?</h3>
-              <p>Search a plant name, a symptom such as “yellow leaves”, or a product.</p>
+              <p>
+                Search a plant name, a botanical name, a symptom such as “yellow leaves”, or what
+                you need from a plant — “pet safe”, “low light”, “beginner”.
+              </p>
             </div>
           )}
 
@@ -197,6 +228,38 @@ export default async function SearchPage({
                 </Link>
               </div>
               <ProductGrid products={shopProducts} />
+            </div>
+          )}
+
+          {collections.length > 0 && (
+            <div className="search-group">
+              <div className="editorial-heading-row">
+                <div>
+                  <div className="eyebrow">
+                    <FolderOpen size={14} /> Collections
+                  </div>
+                  <h2>
+                    {collections.length} {collections.length === 1 ? 'collection' : 'collections'}
+                  </h2>
+                </div>
+                <Link className="editorial-link" href="/collections">
+                  All collections →
+                </Link>
+              </div>
+              <div className="care-related-grid">
+                {collections.map((collection) => (
+                  <article className="care-related-card" key={collection.id}>
+                    <span>Collection</span>
+                    <h3>
+                      <Link href={`/collections/${collection.slug}`}>{collection.title}</Link>
+                    </h3>
+                    <p>{collection.tagline || collection.description}</p>
+                    <Link className="text-link" href={`/collections/${collection.slug}`}>
+                      Browse the collection →
+                    </Link>
+                  </article>
+                ))}
+              </div>
             </div>
           )}
 

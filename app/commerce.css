@@ -106,6 +106,14 @@
 .product-badges { position: absolute; top: 14px; left: 14px; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; }
 .product-badges .product-badge { position: static; }
 .product-badge.sale, .pill.sale { background: var(--danger); color: var(--white); }
+/* One tone per kind of label, so "Best seller" and "New" are told apart at a
+   glance rather than being three gold pills in a row. --sage-ink rather than
+   --sage on the new badge: white on the lighter sage is 3.3:1, and badge text is
+   10px, which needs 4.5:1. */
+.product-badge.best-seller, .pill.best-seller { background: var(--forest); color: var(--white); }
+.product-badge.staff-pick, .pill.staff-pick { background: var(--gold-strong); color: var(--white); }
+.product-badge.new, .pill.new { background: var(--sage-ink); color: var(--white); }
+.product-badge.seasonal, .pill.seasonal { background: #8a6d3b; color: var(--white); }
 
 /* ---- collections ---- */
 .pagehero-links {
@@ -338,6 +346,33 @@
   background: var(--cream);
 }
 .admin-collection-picker legend { padding: 0 6px; color: var(--forest); font-size: 12px; font-weight: 800; }
+.admin-tag-group { flex: 1 1 200px; display: grid; gap: 6px; align-content: start; }
+.admin-tag-group b { font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+/* Drag-to-reorder: the arrows are not a fallback, they are how this works on a
+   touchscreen and with a keyboard. */
+.admin-reorder-list { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 6px; }
+.admin-reorder-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--white);
+  cursor: grab;
+}
+.admin-reorder-row.dragging { opacity: 0.55; border-style: dashed; }
+.admin-reorder-label { display: grid; margin-right: auto; }
+.admin-reorder-label small { color: var(--muted); font-size: 12px; }
+.admin-reorder-buttons { display: flex; gap: 4px; }
+.admin-reorder-buttons button { display: inline-flex; padding: 4px; }
+.admin-reorder-buttons button[disabled] { opacity: 0.35; cursor: not-allowed; }
+.admin-picker-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); margin-top: 16px; }
+.admin-picker { margin: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; background: var(--cream); }
+.admin-picker legend { padding: 0 6px; color: var(--forest); font-size: 12px; font-weight: 800; }
+.admin-picker-search { margin: 8px 0 10px; }
+.admin-picker-list { display: grid; gap: 5px; max-height: 230px; overflow-y: auto; }
+.admin-picker-list .admin-checkbox.picked { font-weight: 800; }
 .admin-alert { margin-top: 18px; border-color: var(--danger); }
 .admin-alert b { color: var(--danger); }
 .admin-notice { margin-top: 18px; border-color: var(--success); background: #f2faf4; }
@@ -685,4 +720,75 @@ a.filter-chip { text-decoration: none; }
   .care-related-grid {
     display: none !important;
   }
+}
+
+/* ---- shop filter rail ---- */
+.shop-filter-toggle { position: relative; display: inline-flex; align-items: center; gap: 7px; }
+.filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 19px;
+  height: 19px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--forest);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 900;
+}
+.active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.active-filters .filter-chip { display: inline-flex; align-items: center; gap: 6px; }
+/* Collapsed by default so the grid stays the first thing a shopper sees; the
+   toggle carries a count so a filtered shop never hides that it is filtered. */
+.shop-filter-rail { display: none; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+.shop-filter-rail.open { display: grid; }
+.filter-group { display: grid; gap: 8px; align-content: start; }
+.filter-select-field { display: grid; gap: 6px; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.filter-fieldset { border: 0; margin: 0; padding: 0; }
+.filter-fieldset legend { padding: 0; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.filter-fieldset .filter-row { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+.filter-chip-count { opacity: 0.65; font-weight: 700; }
+
+/* ---- product attributes ---- */
+.product-attributes { margin: 18px 0; }
+.product-attributes b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 8px; }
+.product-attributes ul { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.product-attributes a {
+  display: inline-block;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--forest);
+  text-decoration: none;
+  background: var(--white);
+}
+.product-attributes a:hover { border-color: var(--forest); }
+.product-botanical { margin: -6px 0 12px; color: var(--muted); font-size: 15px; }
+
+/* ---- category landing pages ---- */
+.category-intro { max-width: 68ch; }
+.category-body { margin-top: 40px; }
+.category-body h3 { margin: 26px 0 8px; }
+.category-body p { max-width: 68ch; }
+.category-faq { margin-top: 40px; }
+.category-links { margin-top: 40px; display: grid; gap: 12px; }
+.category-links ul { display: flex; flex-wrap: wrap; gap: 10px; list-style: none; margin: 0; padding: 0; }
+.category-links a {
+  display: inline-block;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--forest);
+  text-decoration: none;
+  background: var(--white);
+}
+.category-links a:hover { border-color: var(--forest); }
+
+@media (max-width: 640px) {
+  .shop-filter-rail.open { grid-template-columns: 1fr; }
 }

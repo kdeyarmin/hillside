@@ -21,12 +21,7 @@ import { lineKey, useCart } from '@/components/CartProvider';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { cartFulfillment } from '@/lib/fulfillment';
 import { focusableElements, trapTabKey } from '@/lib/focus-trap';
-import {
-  formatSizePriceRange,
-  productSizes,
-  sizedName,
-  sizeFieldLabel
-} from '@/lib/product-sizes';
+import { formatSizePriceRange, productSizes, sizedName, sizeFieldLabel } from '@/lib/product-sizes';
 import {
   DEFAULT_BUSINESS_EMAIL,
   FALLBACK_PRODUCT_IMAGE,
@@ -384,7 +379,10 @@ function CartDrawer({
             </div>
             <div className="drawer-total">
               {fulfillment !== 'PICKUP' && (
-                <FreeShippingMeter subtotalCents={subtotalCents} threshold={freeShippingThreshold} />
+                <FreeShippingMeter
+                  subtotalCents={subtotalCents}
+                  threshold={freeShippingThreshold}
+                />
               )}
               <div>
                 <span>Subtotal</span>
@@ -780,6 +778,14 @@ export function SiteFooter({
           )}
           <p>
             <Link href="/care">Care sheets</Link>
+          </p>
+          <p>
+            <Link href="/collections">Collections</Link>
+          </p>
+          <p>
+            {/* The local page is where "plant shop near me" lands, so it needs a
+                link from every page rather than only from the sitemap. */}
+            <Link href="/visit">Visit &amp; local pickup</Link>
           </p>
           <p>
             <Link href="/gallery">Gallery</Link>
