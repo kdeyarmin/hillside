@@ -13,6 +13,13 @@
  *   DATABASE_URL=... ADMIN_PASSWORD=... ADMIN_SESSION_SECRET=... \
  *     node scripts/admin-smoke.mjs
  *
+ * Playwright is not a declared dependency — same as `scripts/responsive-audit.mjs`,
+ * which the audit workflow installs on demand rather than carrying in the
+ * lockfile for everyone who only wants to build the site:
+ *
+ *   npm install --no-save --package-lock=false playwright@1.55.0
+ *   npx playwright install --with-deps chromium
+ *
  * Exits non-zero on the first failed expectation, listing every failure.
  */
 import { chromium } from 'playwright';
@@ -28,13 +35,28 @@ const PW = process.env.ADMIN_PASSWORD;
  * do to a real shelf by accident. So it refuses to run anywhere but a local
  * database unless it is told, in as many words, that this one is disposable.
  */
-const url = process.env.DATABASE_URL || '';
-const isLocal = /@(127\.0\.0\.1|localhost)[:/]/.test(url);
-if (!isLocal && process.env.ADMIN_SMOKE_ALLOW_REMOTE !== 'yes-this-database-is-disposable') {
-  console.error('Refusing to run: DATABASE_URL is not local.');
-  console.error('This script creates rows and books stock in. Point it at a scratch database,');
-  console.error('or set ADMIN_SMOKE_ALLOW_REMOTE=yes-this-database-is-disposable.');
-  process.exit(2);
+const DISPOSABLE = 'yes-this-database-is-disposable';
+const dbUrl = process.env.DATABASE_URL || '';
+const localish = (value) => /^(https?:\/\/)?(127\.0\.0\.1|localhost|\[::1\])([:/]|$)/.test(value);
+if (process.env.ADMIN_SMOKE_ALLOW_REMOTE !== DISPOSABLE) {
+  /**
+   * Both halves of "where does this write land" have to be checked, not one.
+   *
+   * The forms this drives write through the *site*, while the assertions and
+   * the cleanup run against the *database* — and the two are configured
+   * separately. Checking only the database would let a local DATABASE_URL wave
+   * through a remote SMOKE_BASE_URL, so every form submission would edit that
+   * site's categories, products and stock while cleanup tidied an unrelated
+   * local database and reported success.
+   */
+  const dbLocal = /@(127\.0\.0\.1|localhost)[:/]/.test(dbUrl);
+  if (!dbLocal || !localish(BASE)) {
+    console.error('Refusing to run: this must point at a local database AND a local site.');
+    console.error(`  DATABASE_URL   local: ${dbLocal}`);
+    console.error(`  SMOKE_BASE_URL local: ${localish(BASE)}  (${BASE})`);
+    console.error(`Set ADMIN_SMOKE_ALLOW_REMOTE=${DISPOSABLE} to override.`);
+    process.exit(2);
+  }
 }
 if (!PW) {
   console.error('Refusing to run: ADMIN_PASSWORD is not set, so there is no way to sign in.');
@@ -192,22 +214,48 @@ try {
     } else {
       /**
        * Booking stock in is the one step here that moves a number the shop
-       * actually trades on, so the counts are captured per product and put
-       * back afterwards. A total alone would not be enough to reverse it —
-       * it says five arrived somewhere, not which shelf they went on.
+       * actually trades on, so it is captured per product and put back
+       * afterwards. A total alone would not be enough to reverse it — that
+       * says five arrived somewhere, not which shelf they went on.
+       *
+       * And `inventory` alone is not enough either: receiving stock also
+       * stamps `lastRestockedAt`, can move `inventoryStatus` off ON_ORDER, and
+       * on a size-tracked product increments the chosen entry inside `sizes`.
+       * Restoring only the total would leave the metadata behind and, on a
+       * sized product, a per-size count five higher than the total it belongs
+       * to — a corruption worse than the change it was undoing.
        */
-      const columns = { select: { id: true, inventory: true } };
+      const columns = {
+        select: {
+          id: true, inventory: true, sizes: true,
+          lastRestockedAt: true, inventoryStatus: true
+        }
+      };
       const before = await db.product.findMany(columns);
       await form.locator('input[name="quantity"]').fill('5');
       await form.locator('button').first().click();
       await page.waitForTimeout(2500);
       const after = await db.product.findMany(columns);
 
-      const priorById = new Map(before.map((p) => [p.id, p.inventory]));
-      const moved = after.filter((p) => priorById.get(p.id) !== p.inventory);
+      const priorById = new Map(before.map((p) => [p.id, p]));
+      const differs = (a, b) =>
+        a.inventory !== b.inventory ||
+        a.lastRestockedAt?.getTime() !== b.lastRestockedAt?.getTime() ||
+        a.inventoryStatus !== b.inventoryStatus ||
+        JSON.stringify(a.sizes) !== JSON.stringify(b.sizes);
+      const moved = after.filter((row) => differs(priorById.get(row.id), row));
       undo.push(async () => {
         for (const row of moved) {
-          await db.product.update({ where: { id: row.id }, data: { inventory: priorById.get(row.id) } });
+          const prior = priorById.get(row.id);
+          await db.product.update({
+            where: { id: row.id },
+            data: {
+              inventory: prior.inventory,
+              sizes: prior.sizes ?? undefined,
+              lastRestockedAt: prior.lastRestockedAt,
+              inventoryStatus: prior.inventoryStatus
+            }
+          });
         }
       });
 
@@ -242,6 +290,19 @@ try {
     await form.locator('button:has-text("Save")').first().click();
     await page.waitForTimeout(2500);
     const after = await db.product.findUnique({ where: { id: product.id } });
+
+    /**
+     * First prove the save actually happened.
+     *
+     * Every check below asserts a field is *unchanged*, and a form whose
+     * button is wired to nothing — or an action that quietly became a no-op —
+     * leaves every field unchanged too. All four would pass while testing
+     * nothing whatsoever. `updatedAt` moves on any write, so a stamp no newer
+     * than before means nothing was written and the rest is meaningless.
+     */
+    check(`product form: ${slug} save actually wrote`,
+      after.updatedAt.getTime() > before.updatedAt.getTime(),
+      `updatedAt ${before.updatedAt.toISOString()} -> ${after.updatedAt.toISOString()}`);
 
     const same = (key) => JSON.stringify(after[key]) === JSON.stringify(before[key]);
     check(`product form: ${slug} keeps tags on an untouched save`, same('tags'), `${JSON.stringify(before.tags)} -> ${JSON.stringify(after.tags)}`);
@@ -295,8 +356,18 @@ try {
   }
 } finally {
   // Undo newest first, so a row's dependents go before the row.
+  /**
+   * Cleanup failures are failures. A run that leaves an issued card, a set or
+   * booked-in stock behind has not done what this script promises, and
+   * reporting success because the functional checks passed would be the one
+   * lie that matters most here.
+   */
   for (const step of undo.reverse()) {
-    await step().catch((error) => console.error('cleanup step failed:', error.message));
+    try {
+      await step();
+    } catch (error) {
+      check('cleanup: everything this run created was removed', false, error.message);
+    }
   }
   await browser.close();
   await db.$disconnect();
