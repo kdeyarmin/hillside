@@ -55,9 +55,18 @@ export default async function SearchPage({
    */
   const searchable = tokenizeSearch(term).length > 0;
 
-  const [productCandidates, guideCandidates, classCandidates, catalogCount] = searchable
-    ? await Promise.all([
-        db.product.findMany({
+  /**
+   * `catalogCount` is asked for whenever there is a term, not only when that
+   * term is searchable. It is not part of the search: it decides which empty
+   * state a miss gets — "try a shorter word" against a stocked shop, "we are
+   * between batches" against an empty one — and a term of pure punctuation
+   * lands on that same empty state. Gated alongside the candidates it read
+   * zero, and `/search?q=!!!` told a shopper the shop was empty while seven
+   * products were on the bench.
+   */
+  const [productCandidates, guideCandidates, classCandidates, catalogCount] = await Promise.all([
+    searchable
+      ? db.product.findMany({
           where: {
             active: true,
             AND: searchTokenFilters(term, [
@@ -68,8 +77,10 @@ export default async function SearchPage({
           },
           orderBy: [{ featured: 'desc' }, { name: 'asc' }],
           take: SEARCH_CANDIDATE_LIMIT
-        }),
-        db.careSheet.findMany({
+        })
+      : [],
+    searchable
+      ? db.careSheet.findMany({
           where: {
             published: true,
             AND: searchTokenFilters(term, [
@@ -82,24 +93,24 @@ export default async function SearchPage({
           },
           orderBy: [{ featured: 'desc' }, { plantName: 'asc' }],
           take: SEARCH_CANDIDATE_LIMIT
-        }),
-        CLASSES_PUBLICLY_VISIBLE
-          ? db.classEvent.findMany({
-              where: {
-                active: true,
-                startsAt: { gte: new Date() },
-                AND: searchTokenFilters(term, [
-                  'title',
-                  'description'
-                ]) as Prisma.ClassEventWhereInput[]
-              },
-              orderBy: { startsAt: 'asc' },
-              take: SEARCH_CANDIDATE_LIMIT
-            })
-          : [],
-        db.product.count({ where: { active: true } })
-      ])
-    : [[], [], [], 0];
+        })
+      : [],
+    searchable && CLASSES_PUBLICLY_VISIBLE
+      ? db.classEvent.findMany({
+          where: {
+            active: true,
+            startsAt: { gte: new Date() },
+            AND: searchTokenFilters(term, [
+              'title',
+              'description'
+            ]) as Prisma.ClassEventWhereInput[]
+          },
+          orderBy: { startsAt: 'asc' },
+          take: SEARCH_CANDIDATE_LIMIT
+        })
+      : [],
+    term ? db.product.count({ where: { active: true } }) : 0
+  ]);
 
   /**
    * Prisma can only do substring `contains`. The word-aware filter is what
