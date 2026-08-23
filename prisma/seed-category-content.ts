@@ -33,7 +33,7 @@ const PA_LIGHT =
 
 const categories: CategorySeed[] = [
   {
-    slug: 'house-plants',
+    slug: 'houseplants',
     metaTitle: 'Houseplants for Real Rooms',
     metaDescription:
       'Houseplants chosen to live in ordinary rooms — low light, pet safe, beginner friendly and statement plants, potted by hand in Ebensburg, PA, for local pickup or shipping.',
@@ -311,7 +311,7 @@ const categories: CategorySeed[] = [
     careMatches: ['moss', 'terrarium']
   },
   {
-    slug: 'botanicals',
+    slug: 'handmade-soap',
     metaTitle: 'Handmade Botanical Goods',
     metaDescription:
       'Small-batch soaps, lotions, salves and botanical goods made by hand at The Hillside Gardens in Ebensburg, Pennsylvania. Giftable, locally made, available for pickup or shipping.',
@@ -348,7 +348,7 @@ const categories: CategorySeed[] = [
     careMatches: []
   },
   {
-    slug: 'teas-herbals',
+    slug: 'tea',
     metaTitle: 'Loose-Leaf Teas & Herbal Blends',
     metaDescription:
       'Loose-leaf teas, herbal blends and the simple brewing tools that go with them, from The Hillside Gardens in Ebensburg, Pennsylvania.',
@@ -379,7 +379,7 @@ const categories: CategorySeed[] = [
     careMatches: []
   },
   {
-    slug: 'live-plant-planters',
+    slug: 'live-plant-arrangements',
     metaTitle: 'Planted Arrangements & Live Planters',
     metaDescription:
       'Finished live planters and dish gardens, arranged by hand at The Hillside Gardens in Ebensburg, PA. Ready to set down — local pickup recommended for larger pieces.',
@@ -417,6 +417,17 @@ const categories: CategorySeed[] = [
   }
 ];
 
+/**
+ * `Category` rather than `Collection`.
+ *
+ * These subjects — houseplants, carnivorous plants, succulents, terrarium
+ * supplies — are the shop's structural categories. They were collections when
+ * this copy was written; the taxonomy that landed since made them categories and
+ * left collections as the curated groupings (pet friendly, gifts under $30), at
+ * which point every slug below matched nothing and the whole seed quietly became
+ * a no-op. The copy needed re-homing, not rewriting.
+ */
+
 /** Whether a one-time seed has already had its turn. */
 async function alreadySeeded(key: string) {
   return Boolean(await db.seedMarker.findUnique({ where: { key }, select: { key: true } }));
@@ -444,13 +455,20 @@ async function seedCategoryContent() {
      * not want simply scheduled its return. Keyed per category so a category
      * added to this file later still gets its starting copy.
      */
-    const marker = `category-content:${seed.slug}`;
+    /**
+     * A distinct key from the collection-era `category-content:` markers. Five
+     * of these slugs — succulents, air-plants, carnivorous-plants,
+     * terrarium-supplies, moss — were collection slugs too, so reusing the old
+     * prefix would make an install seeded before the taxonomy change skip
+     * exactly the categories it has never seeded.
+     */
+    const marker = `category-page:${seed.slug}`;
     if (await alreadySeeded(marker)) {
       skipped += 1;
       continue;
     }
 
-    const collection = await db.collection.findUnique({
+    const category = await db.category.findUnique({
       where: { slug: seed.slug },
       select: {
         id: true,
@@ -463,36 +481,36 @@ async function seedCategoryContent() {
         _count: { select: { careSheets: true } }
       }
     });
-    if (!collection) continue;
+    if (!category) continue;
 
     /**
      * Each field is filled only when it is still empty, so a category Tammy has
      * already written is left alone even on its first pass through this seed.
      */
-    const data: Prisma.CollectionUpdateInput = {};
-    if (!collection.intro?.trim()) data.intro = seed.intro;
-    if (!collection.body?.trim()) data.body = seed.body;
-    if (!Array.isArray(collection.faq) || collection.faq.length === 0) data.faq = seed.faq;
-    if (!collection.metaTitle?.trim()) data.metaTitle = seed.metaTitle;
-    if (!collection.metaDescription?.trim()) data.metaDescription = seed.metaDescription;
-    if (!collection.keywords.length) data.keywords = seed.keywords;
+    const data: Prisma.CategoryUpdateInput = {};
+    if (!category.intro?.trim()) data.intro = seed.intro;
+    if (!category.body?.trim()) data.body = seed.body;
+    if (!Array.isArray(category.faq) || category.faq.length === 0) data.faq = seed.faq;
+    if (!category.metaTitle?.trim()) data.metaTitle = seed.metaTitle;
+    if (!category.metaDescription?.trim()) data.metaDescription = seed.metaDescription;
+    if (!category.keywords.length) data.keywords = seed.keywords;
 
     if (Object.keys(data).length) {
-      await db.collection.update({ where: { id: collection.id }, data });
+      await db.category.update({ where: { id: category.id }, data });
       updated += 1;
     }
 
     // Care guides are linked once, when the category has none — so a guide she
     // unlinked by hand does not come back on the next deploy.
-    if (collection._count.careSheets === 0 && seed.careMatches?.length) {
+    if (category._count.careSheets === 0 && seed.careMatches?.length) {
       const matches = careSheets.filter((sheet) => {
         const haystack =
           `${sheet.plantName} ${sheet.botanical || ''} ${sheet.category || ''} ${sheet.summary}`.toLowerCase();
         return seed.careMatches!.some((keyword) => haystack.includes(keyword));
       });
       if (matches.length) {
-        await db.collection.update({
-          where: { id: collection.id },
+        await db.category.update({
+          where: { id: category.id },
           data: { careSheets: { connect: matches.slice(0, 6).map((sheet) => ({ id: sheet.id })) } }
         });
         careLinked += Math.min(matches.length, 6);

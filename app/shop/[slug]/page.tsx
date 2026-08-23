@@ -257,7 +257,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
      * to this page; it is only used where a product has no category yet.
      */
     ...(product.category
-      ? [{ name: product.category.title, path: `/shop?category=${product.category.slug}` }]
+      ? [{ name: product.category.title, path: `/categories/${product.category.slug}` }]
       : primaryCollection
         ? [{ name: primaryCollection.title, path: `/collections/${primaryCollection.slug}` }]
         : []),
@@ -288,7 +288,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           {product.category && (
             <>
               <span>/</span>
-              <Link href={`/shop?category=${product.category.slug}`}>{product.category.title}</Link>
+              <Link href={`/categories/${product.category.slug}`}>{product.category.title}</Link>
             </>
           )}
           <span>/</span>
@@ -309,7 +309,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               {product.category ? (
                 <Link
                   className="product-category-link"
-                  href={`/shop?category=${product.category.slug}`}
+                  href={`/categories/${product.category.slug}`}
                 >
                   {product.category.title}
                 </Link>

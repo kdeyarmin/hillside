@@ -15,7 +15,8 @@ a code change.
 | What a product _is_ (pet safe, low light…)  | `/admin` → product form → "What is true about this" |
 | Related products, cross-sells, bundles      | `/admin` → product form → the three pickers         |
 | Season dates                                | `/admin` → product form                             |
-| Category page copy, FAQs and care guides    | `/admin/content` → Collections                      |
+| Category page copy, FAQs and care guides    | `/admin/content` → Categories                       |
+| Collection page copy, FAQs and care guides  | `/admin/content` → Collections                      |
 
 ## Best sellers come from orders, not a checkbox
 
@@ -86,9 +87,20 @@ applies to and the words people would type for it. The admin form, the filter
 rail and the search all pick it up. Slugs are stored values — renaming one needs
 a data migration; the labels can be reworded freely.
 
-## Category pages
+## Category and collection pages
 
-A collection is a page, not a filter. Beyond its name and picture it can carry:
+The shop has two kinds of browsable grouping and they share one page,
+`components/GroupingLanding.tsx`:
+
+- a **category** is the structural parent — houseplants, carnivorous plants,
+  succulents, terrarium supplies — and lives at `/categories/<slug>`. A product
+  has exactly one, so it is the breadcrumb;
+- a **collection** cuts across categories — pet friendly, gifts under $30 — and
+  lives at `/collections/<slug>`.
+
+Both are what a stranger lands on from a search, so both need the same thing and
+neither should get a fix the other misses. Beyond its name and picture, either
+can carry:
 
 - **Introduction** — one or two paragraphs above the products;
 - **Longer writing** — below the products; a blank line starts a paragraph, and
@@ -101,8 +113,15 @@ A collection is a page, not a filter. Beyond its name and picture it can carry:
 
 `prisma/seed-category-content.ts` writes starting copy for the canonical
 categories — houseplants, carnivorous plants, succulents, air plants, terrarium
-supplies, moss, botanical goods, teas, planted arrangements — and seeds the
-default homepage rows.
+supplies, moss, handmade soap, tea, planted arrangements — and seeds the default
+homepage rows.
+
+The seed writes to `Category`. It targeted `Collection` when those subjects were
+collections; the taxonomy change moved them, at which point every slug matched
+nothing and the seed silently became a no-op. Its markers use a `category-page:`
+prefix rather than the older `category-content:` one, because five of the slugs
+were collection slugs too and an install seeded before the change would
+otherwise skip exactly the categories it has never seeded.
 
 Both run **once, ever**, recorded in the `SeedMarker` table. Emptiness is not
 the test: it cannot tell an untouched install from an owner who deliberately

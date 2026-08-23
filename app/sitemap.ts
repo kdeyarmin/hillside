@@ -116,9 +116,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.85
   }));
 
+  /**
+   * The category's own page, not `/shop?category=`. A filtered shop view
+   * canonicalises to `/shop`, so submitting it here asked crawlers to index a
+   * URL that tells them to look somewhere else — the fastest way to have a
+   * sitemap's entries disregarded.
+   */
   const categoryPages: MetadataRoute.Sitemap = categories.map((category) => ({
-    url: absoluteUrl(`/shop?category=${category.slug}`),
-    lastModified: productsModified,
+    url: absoluteUrl(`/categories/${category.slug}`),
+    lastModified: category.updatedAt,
     changeFrequency: 'weekly',
     priority: 0.85
   }));
