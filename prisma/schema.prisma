@@ -102,6 +102,7 @@ enum EmailKind {
   CONTACT
   REVIEW
   REPLY
+  GIFT_CARD
   MANUAL
   OTHER
 }
@@ -222,6 +223,7 @@ model Category {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   products    Product[]
+  promotions  Promotion[]
 }
 
 model Order {
@@ -259,9 +261,43 @@ model Order {
   confirmationEmailSentAt DateTime?
   confirmationEmailError  String?
   fulfilledAt             DateTime?
+  /**
+   * The promo code this order was placed with, and what it took off. The code
+   * is snapshotted beside the id because a promotion the owner later renames,
+   * re-rates or deletes must not rewrite what this customer was charged under.
+   */
+  promotionId             String?
+  promoCode               String?
+  promoDiscountCents      Int         @default(0)
+  /**
+   * The gift card spent against this order, and how much of it. Moved aside on
+   * the card when the checkout session is created and only taken when the order
+   * is paid, so an abandoned basket gives the money back.
+   */
+  giftCardId              String?
+  giftCardCode            String?
+  giftCardCents           Int         @default(0)
+  /**
+   * When the promo redemption was recorded and the gift-card hold was taken for
+   * good. Set once, and the guard that makes a redelivered Stripe event a no-op
+   * rather than a second helping of somebody's gift card.
+   */
+  discountsSettledAt      DateTime?
+  /**
+   * When a hold that never settled was handed back — an abandoned checkout, an
+   * expired session. Cleared again if that order settles after all, which Stripe
+   * can deliver in that order, and which is why settlement has to know whether
+   * it is taking a hold or re-taking money already given back.
+   */
+  discountsReleasedAt     DateTime?
   createdAt               DateTime    @default(now())
   updatedAt               DateTime    @updatedAt
   items                   OrderItem[]
+  promotion               Promotion?  @relation(fields: [promotionId], references: [id], onDelete: SetNull)
+  giftCard                GiftCard?   @relation(fields: [giftCardId], references: [id], onDelete: SetNull)
+
+  @@index([promotionId])
+  @@index([giftCardId])
 }
 
 model OrderItem {
@@ -513,4 +549,174 @@ model AdminUser {
   lastLoginAt       DateTime?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
+}
+
+/**
+ * How a promotion code takes money off a basket.
+ *
+ * `FREE_SHIPPING` is its own kind rather than a hundred-percent coupon on the
+ * shipping line, because shipping is not a line item here: it is a Stripe
+ * shipping rate chosen as the session is created, so the only way to give it
+ * away is to choose the free one instead.
+ */
+enum DiscountKind {
+  PERCENT
+  AMOUNT
+  FREE_SHIPPING
+}
+
+/**
+ * What one row of a gift card's ledger records. `HOLD` and `RELEASE` move money
+ * between the spendable balance and the reserved one while a checkout is open;
+ * only `REDEEM` takes it off the card.
+ */
+enum GiftCardEntryKind {
+  ISSUE
+  HOLD
+  RELEASE
+  REDEEM
+  REFUND
+  ADJUST
+}
+
+/**
+ * A promo code the owner hands out — SPRING20, or one of fifty printed for a
+ * market stall. The discount is worked out here rather than in Stripe's coupon
+ * dashboard so the rules Tammy sets (a minimum basket, one category, a date
+ * window, a redemption cap) are enforced against the real cart before Stripe is
+ * asked for a session, and so the shop's own records can say what was given
+ * away and on which order.
+ */
+model Promotion {
+  id               String                @id @default(cuid())
+  /** Normalized to upper case on save, so the customer may type it either way. */
+  code             String                @unique
+  /** What this code is for, in Tammy's words. Never shown to a customer. */
+  label            String?
+  kind             DiscountKind          @default(PERCENT)
+  /** 1–100, on a PERCENT promotion. */
+  percentOff       Int?
+  /** A flat amount off, on an AMOUNT promotion. */
+  amountOffCents   Int?
+  /** The basket has to reach this before the code is accepted at all. */
+  minSubtotalCents Int                   @default(0)
+  /**
+   * Narrows the discount to one category: "20% off teas" takes nothing off the
+   * pot in the same basket. Null discounts everything.
+   */
+  categoryId       String?
+  startsAt         DateTime?
+  endsAt           DateTime?
+  /** How many times the code may be claimed altogether. Null is unlimited. */
+  maxRedemptions   Int?
+  /**
+   * How many claims are spoken for: the settled redemptions *and* the holds
+   * sitting on checkouts that are still open. Raised when a checkout session is
+   * created and lowered again if that hold is released, which is what stops a
+   * one-use code being spent twice inside the thirty-five minutes before the
+   * first of the two settles. The settled count is the number of redemption
+   * rows, so the difference between the two is what is currently held.
+   */
+  redemptionsUsed  Int                   @default(0)
+  active           Boolean               @default(true)
+  /** Which generated run this code came from, when it came from one. */
+  batch            String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+  category         Category?             @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  redemptions      PromotionRedemption[]
+  orders           Order[]
+
+  @@index([categoryId])
+}
+
+/** One settled use of a promo code, written when the order is paid. */
+model PromotionRedemption {
+  id          String    @id @default(cuid())
+  promotionId String
+  /** One row per order, which is what makes a redelivered webhook a no-op. */
+  orderId     String    @unique
+  /** The code as it read at the time, so a rename cannot rewrite history. */
+  code        String
+  email       String?
+  amountCents Int
+  createdAt   DateTime  @default(now())
+  promotion   Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+
+  @@index([promotionId])
+}
+
+/**
+ * A gift card with money on it. Unlike a promotion this is a balance rather
+ * than a rule: it is spent down over as many orders as it takes, and whatever
+ * is left stays on the card.
+ *
+ * `balanceCents` is what the card can spend right now. `reservedCents` is money
+ * a checkout that is open but unpaid has moved aside: still on the card, not
+ * spendable, and given back in full if that checkout is abandoned. The money
+ * left on a card altogether is the two added together, and only `REDEEM` —
+ * which fires when the order is paid — takes any of it away for good.
+ *
+ * Moving the two together in one conditional update is what makes this safe
+ * under load: "has this card still got twenty dollars" stays a comparison
+ * against a single column, which Postgres settles under the row lock, so two
+ * checkouts opened in the same second cannot both spend the last of a card.
+ */
+model GiftCard {
+  id             String          @id @default(cuid())
+  /** Stored and compared in the grouped upper-case form the card is printed in. */
+  code           String          @unique
+  initialCents   Int
+  /** Spendable now. A hold moves money out of here into `reservedCents`. */
+  balanceCents   Int
+  /** Held by an open checkout: still on the card, not spendable, not yet spent. */
+  reservedCents  Int             @default(0)
+  recipientName  String?
+  recipientEmail String?
+  purchaserName  String?
+  purchaserEmail String?
+  /** A note from the giver, included in the email to the recipient. */
+  message        String?
+  expiresAt      DateTime?
+  active         Boolean         @default(true)
+  /** Which generated run this card came from, when it came from one. */
+  batch          String?
+  /** Tammy's own note. Never shown to the customer. */
+  note           String?
+  /** Which admin issued it, for the ledger. */
+  issuedBy       String?
+  /** When the card was last emailed to its recipient. */
+  lastSentAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  entries        GiftCardEntry[]
+  orders         Order[]
+}
+
+/**
+ * Every movement on a gift card, so "where did the other twelve dollars go?"
+ * has an answer that is not a guess.
+ *
+ * Rows are immutable and keyed by `reference` — `hold:<orderId>`,
+ * `redeem:<orderId>` — which is what makes a retried Stripe webhook, or a
+ * release that runs twice, land exactly once.
+ */
+model GiftCardEntry {
+  id                 String            @id @default(cuid())
+  giftCardId         String
+  kind               GiftCardEntryKind
+  /** Signed change to `GiftCard.balanceCents`, the spendable figure. */
+  amountCents        Int               @default(0)
+  /** Signed change to `GiftCard.reservedCents`. */
+  reservedDeltaCents Int               @default(0)
+  balanceAfterCents  Int
+  reservedAfterCents Int
+  orderId            String?
+  /** Idempotency key: one row per event, however often it is delivered. */
+  reference          String            @unique
+  note               String?
+  createdAt          DateTime          @default(now())
+  giftCard           GiftCard          @relation(fields: [giftCardId], references: [id], onDelete: Cascade)
+
+  @@index([giftCardId, createdAt])
 }

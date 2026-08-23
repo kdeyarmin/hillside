@@ -1,5 +1,11 @@
 import { Prisma } from '@prisma/client';
 import { db } from '@/lib/db';
+import {
+  claimDiscounts,
+  NO_DISCOUNTS,
+  releaseOrderDiscounts,
+  type DiscountPlan
+} from '@/lib/discount-store';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
 import {
   CHECKOUT_HOLD_MINUTES,
@@ -28,6 +34,7 @@ export {
   checkoutAdjustments,
   encodeCheckoutItems,
   parseCheckoutItems,
+  resolveCheckoutLines,
   stripeCheckoutItemsMetadata
 } from '@/lib/checkout-format';
 
@@ -35,7 +42,9 @@ export type {
   CheckoutRequestedItem,
   CheckoutAdjustment,
   CheckoutLine,
-  ParsedCheckoutItem
+  ParsedCheckoutItem,
+  PricedProduct,
+  ResolvedCheckoutLine
 } from '@/lib/checkout-format';
 
 /**
@@ -111,13 +120,24 @@ export async function returnSizeStock(
   return inventory;
 }
 
+/**
+ * Reserves the stock and — where the basket carries a code — the discount, in
+ * one transaction.
+ *
+ * `shippingCents` is the rate the basket would pay with no promotion on it.
+ * Whether it actually pays that is decided in here, because a free-shipping
+ * code is only *held* at the same moment the stock is, and a code whose last
+ * redemption went to somebody else a second ago has to leave this order
+ * carrying the full rate rather than a figure nothing backs.
+ */
 export async function reserveProductOrder({
   invoiceNumber,
   items,
   subtotalCents,
   shippingCents,
   fulfillmentMethod,
-  giftMessage
+  giftMessage,
+  discountPlan
 }: {
   invoiceNumber: string;
   items: CheckoutLine[];
@@ -125,11 +145,16 @@ export async function reserveProductOrder({
   shippingCents: number;
   fulfillmentMethod: FulfillmentChoice;
   giftMessage?: string | null;
+  discountPlan?: DiscountPlan | null;
 }) {
   const expiresAt = holdExpiry();
   const holdId = `hold_${crypto.randomUUID()}`;
+  const claiming = Boolean(discountPlan?.promotion || discountPlan?.giftCard);
+  const plannedShipping = discountPlan?.freeShipping ? 0 : shippingCents;
+  const plannedDiscount =
+    (discountPlan?.promoDiscountCents || 0) + (discountPlan?.giftCardCents || 0);
 
-  const order = await db.$transaction(async (transaction) => {
+  const reserved = await db.$transaction(async (transaction) => {
     for (const item of items) {
       const result = await transaction.product.updateMany({
         where: { id: item.product.id, active: true, inventory: { gte: item.quantity } },
@@ -149,7 +174,7 @@ export async function reserveProductOrder({
       }
     }
 
-    return transaction.order.create({
+    const order = await transaction.order.create({
       data: {
         invoiceNumber,
         stripeSessionId: holdId,
@@ -162,12 +187,13 @@ export async function reserveProductOrder({
         postalCode: '',
         country: 'US',
         subtotalCents,
-        shippingCents,
+        shippingCents: plannedShipping,
         taxCents: 0,
-        totalCents: subtotalCents + shippingCents,
+        discountCents: plannedDiscount,
+        totalCents: Math.max(0, subtotalCents + plannedShipping - plannedDiscount),
         fulfillmentMethod,
         giftMessage: giftMessage || null,
-        shippingMethod: shippingMethodLabel(fulfillmentMethod, shippingCents),
+        shippingMethod: shippingMethodLabel(fulfillmentMethod, plannedShipping),
         items: {
           create: items.map((item) => ({
             productId: item.product.id,
@@ -179,9 +205,35 @@ export async function reserveProductOrder({
         }
       }
     });
+
+    if (!claiming || !discountPlan) return { order, discounts: NO_DISCOUNTS };
+
+    const discounts = await claimDiscounts(transaction, order.id, discountPlan);
+    const appliedShipping = discounts.freeShipping ? 0 : shippingCents;
+    const appliedDiscount = discounts.promoDiscountCents + discounts.giftCardCents;
+    if (appliedShipping === plannedShipping && appliedDiscount === plannedDiscount) {
+      return { order, discounts };
+    }
+
+    /**
+     * Part of the plan was lost to another basket between pricing this one and
+     * reserving it. The order is rewritten to what was actually held, so the
+     * row, the Stripe session built from it and the money the customer is asked
+     * for all say the same thing.
+     */
+    const corrected = await transaction.order.update({
+      where: { id: order.id },
+      data: {
+        shippingCents: appliedShipping,
+        discountCents: appliedDiscount,
+        totalCents: Math.max(0, subtotalCents + appliedShipping - appliedDiscount),
+        shippingMethod: shippingMethodLabel(fulfillmentMethod, appliedShipping)
+      }
+    });
+    return { order: corrected, discounts };
   });
 
-  return { order, holdId, expiresAt };
+  return { order: reserved.order, discounts: reserved.discounts, holdId, expiresAt };
 }
 
 /**
@@ -258,6 +310,11 @@ export async function releaseProductHold(orderId: string) {
     });
     if (claimed.count === 0) return;
     released = true;
+
+    // The promo slot and the gift-card money this checkout was sitting on go
+    // back with the stock. Both are as unavailable to the next customer as the
+    // plant was while this basket held them.
+    await releaseOrderDiscounts(transaction, order.id);
 
     for (const item of order.items) {
       const previousInventory = item.product.inventory;

@@ -7,6 +7,7 @@ process.env.DATABASE_URL ||= 'postgresql://postgres:postgres@127.0.0.1:5432/hill
 const {
   checkoutAdjustmentNotice,
   checkoutAdjustments,
+  resolveCheckoutLines,
   encodeCheckoutItems,
   parseCheckoutItems,
   readCheckoutItems,
@@ -349,5 +350,77 @@ describe('encode/parse checkout items', () => {
         }))
       ).length > STRIPE_METADATA_VALUE_MAX
     );
+  });
+});
+
+describe('resolveCheckoutLines', () => {
+  const monstera = {
+    slug: 'monstera',
+    name: 'Monstera',
+    priceCents: 3200,
+    inventory: 4,
+    active: true,
+    imageUrl: '/images/monstera.webp',
+    ships: true,
+    pickup: true
+  };
+  const lotion = {
+    slug: 'lotion',
+    name: 'Hillside lotion',
+    priceCents: 1400,
+    inventory: 5,
+    active: true,
+    imageUrl: null,
+    ships: true,
+    pickup: true,
+    sizes: [
+      { label: '2 oz', inventory: 3 },
+      { label: '8 oz', priceCents: 2600, inventory: 0, ships: false }
+    ]
+  };
+
+  it('prices a line from the product, never from the basket', () => {
+    const [line] = resolveCheckoutLines(
+      [{ id: 'monstera', quantity: 2, priceCents: 1 }],
+      [monstera]
+    );
+    assert.equal(line.unitCents, 3200);
+    assert.equal(line.quantity, 2);
+    assert.equal(line.size, null);
+  });
+
+  it("charges a variant's own price and carries its shipping answer", () => {
+    const [line] = resolveCheckoutLines([{ id: 'lotion', quantity: 1, size: '2 oz' }], [lotion]);
+    assert.equal(line.unitCents, 1400);
+    assert.equal(line.size, '2 oz');
+    assert.equal(line.ships, true);
+  });
+
+  it('trims a line to what is on the bench for the size that was chosen', () => {
+    const [line] = resolveCheckoutLines([{ id: 'lotion', quantity: 9, size: '2 oz' }], [lotion]);
+    assert.equal(line.quantity, 3);
+  });
+
+  it('drops what the shop will not sell', () => {
+    assert.deepEqual(resolveCheckoutLines([{ id: 'ghost', quantity: 1 }], [monstera]), []);
+    assert.deepEqual(
+      resolveCheckoutLines([{ id: 'monstera', quantity: 1 }], [{ ...monstera, active: false }]),
+      []
+    );
+    assert.deepEqual(
+      resolveCheckoutLines([{ id: 'monstera', quantity: 1 }], [{ ...monstera, inventory: 0 }]),
+      []
+    );
+    // A sold-out size, and a size that is no longer offered at all.
+    assert.deepEqual(
+      resolveCheckoutLines([{ id: 'lotion', quantity: 1, size: '8 oz' }], [lotion]),
+      []
+    );
+    assert.deepEqual(
+      resolveCheckoutLines([{ id: 'lotion', quantity: 1, size: '1 gallon' }], [lotion]),
+      []
+    );
+    // A sized product with no size chosen is refused rather than guessed at.
+    assert.deepEqual(resolveCheckoutLines([{ id: 'lotion', quantity: 1 }], [lotion]), []);
   });
 });

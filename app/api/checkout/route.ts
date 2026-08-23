@@ -10,24 +10,16 @@ import {
   releaseExpiredProductHolds,
   releaseProductHold,
   reserveProductOrder,
+  resolveCheckoutLines,
   stripeCheckoutItemsMetadata,
   stripeProductDescription,
   stripeProductImages
 } from '@/lib/checkout';
-import {
-  findSize,
-  productSizes,
-  sizeAvailable,
-  sizeChoiceRejected,
-  sizedName
-} from '@/lib/product-sizes';
+import { discountLabel, discountMetadata, quoteCartDiscounts } from '@/lib/discount-store';
+import { readDiscountCodes } from '@/lib/discount-request';
+import { sizedName } from '@/lib/product-sizes';
 import { rateLimited } from '@/lib/rate-limit';
-import {
-  checkoutReturnOrigin,
-  flatShippingCents,
-  freeShippingThresholdCents,
-  newInvoiceNumber
-} from '@/lib/store';
+import { checkoutReturnOrigin, newInvoiceNumber, standardShippingCents } from '@/lib/store';
 import {
   cartFulfillment,
   pickupTaxOrigin,
@@ -85,43 +77,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ adjustments }, { status: 409 });
     }
 
-    /**
-     * Prices are taken from the product and its size list, never from the
-     * basket: the browser sends what it displayed only so a stale figure can be
-     * reported back as an adjustment above, not so it can set the charge.
-     */
-    const items = requested.flatMap((requestedItem) => {
-      const product = products.find((candidate) => candidate.slug === requestedItem.id);
-      if (!product || !product.active || product.inventory <= 0) return [];
-      const sizes = productSizes(product.sizes, product.priceCents, {
-        sku: product.sku,
-        imageUrl: product.imageUrl,
-        ships: product.ships,
-        pickup: product.pickup
-      });
-      if (sizeChoiceRejected(sizes, requestedItem.size)) return [];
-      const chosen = findSize(sizes, requestedItem.size);
-      // Against the chosen size's own count where the owner keeps one, so a
-      // plant with plenty of 4" pots cannot back a line of 6" ones.
-      const available = sizeAvailable(chosen, product.inventory);
-      if (available <= 0) return [];
-      return [
-        {
-          product,
-          quantity: Math.min(requestedItem.quantity, available),
-          size: chosen?.label || null,
-          unitCents: chosen?.priceCents ?? product.priceCents,
-          /**
-           * Resolved here rather than at the product, because a variant may get
-           * home differently from the product it belongs to and it is the
-           * variant the customer is buying.
-           */
-          ships: chosen ? chosen.ships : product.ships,
-          pickup: chosen ? chosen.pickup : product.pickup,
-          imageUrl: chosen?.imageUrl ?? product.imageUrl
-        }
-      ];
-    });
+    const items = resolveCheckoutLines(requested, products);
 
     if (!items.length) {
       return NextResponse.json(
@@ -147,12 +103,46 @@ export async function POST(request: Request) {
     // Sized lines are charged their size's price, so the subtotal is summed
     // from the resolved unit price rather than from the product's own.
     const subtotalCents = items.reduce((total, item) => total + item.unitCents * item.quantity, 0);
-    const freeShippingThreshold = freeShippingThresholdCents();
-    const shippingCents = pickup
-      ? 0
-      : freeShippingThreshold > 0 && subtotalCents >= freeShippingThreshold
-        ? 0
-        : flatShippingCents();
+    const shippingCents = standardShippingCents(subtotalCents, { pickup });
+
+    /**
+     * Priced again here rather than trusted from the basket. The cart shows a
+     * quote so the customer knows what a code is worth before they commit, but
+     * the browser could send any figure it liked, so what is charged is worked
+     * out from the shop's own rows, against the same lines above.
+     */
+    const codes = readDiscountCodes(body);
+    const { quote, plan, promotionError, giftCardError } = await quoteCartDiscounts({
+      lines: items.map((item) => ({
+        unitCents: item.unitCents,
+        quantity: item.quantity,
+        categoryId: item.product.categoryId
+      })),
+      subtotalCents,
+      shippingCents,
+      promoCode: codes.promoCode,
+      giftCardCode: codes.giftCardCode
+    });
+
+    /**
+     * A code that stopped working between the cart and this request — it ran
+     * out, it expired, the basket changed — sends the customer back rather than
+     * on to a Stripe page charging more than the total they were looking at. It
+     * is the same contract as a price adjustment above: nothing is reserved and
+     * nothing is charged until they have seen the corrected figure.
+     */
+    if (quote.promotionRefused || quote.giftCardRefused) {
+      return NextResponse.json(
+        {
+          discountErrors: {
+            ...(promotionError ? { promoCode: promotionError } : {}),
+            ...(giftCardError ? { giftCardCode: giftCardError } : {})
+          }
+        },
+        { status: 409 }
+      );
+    }
+
     const invoiceNumber = newInvoiceNumber();
     const site = checkoutReturnOrigin();
     const stripe = new Stripe(secret);
@@ -172,7 +162,8 @@ export async function POST(request: Request) {
         subtotalCents,
         shippingCents,
         fulfillmentMethod: fulfillment.method,
-        giftMessage
+        giftMessage,
+        discountPlan: plan
       });
     } catch (error) {
       if (error instanceof InsufficientStockError) {
@@ -207,9 +198,33 @@ export async function POST(request: Request) {
     }
 
     const itemsSnapshot = stripeCheckoutItemsMetadata(items);
+    const applied = reservation.discounts;
+    const appliedShipping = applied.freeShipping ? 0 : shippingCents;
+    const appliedDiscountCents = applied.promoDiscountCents + applied.giftCardCents;
 
     let session: Stripe.Checkout.Session;
     try {
+      /**
+       * The discount reaches Stripe as a one-shot coupon rather than as reduced
+       * line prices, so the receipt, the invoice and the Stripe dashboard all
+       * show what the shop charged for the plants and what it took off — which
+       * is what the customer needs to see, and what Tammy needs when somebody
+       * rings up about a refund.
+       *
+       * It is created only once the discount is actually held. A coupon minted
+       * before the reservation would outlive a basket that failed to reserve.
+       */
+      const coupon =
+        appliedDiscountCents > 0
+          ? await stripe.coupons.create({
+              amount_off: appliedDiscountCents,
+              currency: 'usd',
+              duration: 'once',
+              max_redemptions: 1,
+              name: discountLabel(applied)
+            })
+          : null;
+
       session = await stripe.checkout.sessions.create({
         mode: 'payment',
         client_reference_id: invoiceNumber,
@@ -269,8 +284,8 @@ export async function POST(request: Request) {
                 {
                   shipping_rate_data: {
                     type: 'fixed_amount' as const,
-                    fixed_amount: { amount: shippingCents, currency: 'usd' },
-                    display_name: shippingMethodLabel('SHIP', shippingCents),
+                    fixed_amount: { amount: appliedShipping, currency: 'usd' },
+                    display_name: shippingMethodLabel('SHIP', appliedShipping),
                     delivery_estimate: {
                       minimum: { unit: 'business_day' as const, value: 3 },
                       maximum: { unit: 'business_day' as const, value: 7 }
@@ -282,7 +297,16 @@ export async function POST(request: Request) {
         phone_number_collection: { enabled: true },
         automatic_tax: { enabled: process.env.STRIPE_AUTOMATIC_TAX === 'true' },
         invoice_creation: { enabled: true },
-        allow_promotion_codes: true,
+        /**
+         * Stripe refuses a session that both carries a discount and offers its
+         * own promotion-code box, and the shop's codes are the ones that have
+         * been reserved against this basket. So the box is offered only when
+         * the customer brought nothing of their own — Stripe's own coupons stay
+         * usable for anything Tammy sets up in its dashboard directly.
+         */
+        ...(coupon
+          ? { discounts: [{ coupon: coupon.id }] }
+          : { allow_promotion_codes: true as const }),
         consent_collection: { promotions: 'auto' },
         payment_intent_data: {
           description: `The Hillside Gardens ${invoiceNumber}`,
@@ -290,7 +314,8 @@ export async function POST(request: Request) {
             invoiceNumber,
             kind: 'PRODUCT_ORDER',
             orderId: reservation.order.id,
-            fulfillment: fulfillment.method
+            fulfillment: fulfillment.method,
+            ...discountMetadata(applied)
           }
         },
         custom_text: pickup
@@ -313,6 +338,7 @@ export async function POST(request: Request) {
           orderId: reservation.order.id,
           held: '1',
           fulfillment: fulfillment.method,
+          ...discountMetadata(applied),
           ...(giftMessage ? { gift: giftMessage } : {}),
           /**
            * Compact backup. Fulfillment prefers the reserved order and Stripe

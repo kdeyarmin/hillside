@@ -23,6 +23,7 @@ import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { ensureTelnyxRoom, telnyxVideoConfigured } from '@/lib/telnyx-video';
 import { notifyStockAlerts } from '@/lib/stock-alerts';
 import { releaseProductHold, restoreUnshippedOrderInventory } from '@/lib/checkout';
+import { refundOrderGiftCard } from '@/lib/discount-store';
 import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
 import {
   productInventoryForSizes,
@@ -551,6 +552,20 @@ export async function updateOrder(formData: FormData) {
 
   if (status === OrderStatus.CANCELLED && before.status !== OrderStatus.PENDING) {
     await restoreUnshippedOrderInventory(order.id);
+  }
+
+  /**
+   * Whatever this order was paid for with a gift card goes back on the card.
+   * Stripe refunds only the money it took, so nothing else would return it —
+   * and unlike stock, a balance is not something that has already left the
+   * bench, so it comes back whether or not the order shipped. Marking the same
+   * order refunded twice credits the card once: the ledger is keyed on it.
+   */
+  if (status === OrderStatus.REFUNDED || status === OrderStatus.CANCELLED) {
+    await refundOrderGiftCard(
+      order.id,
+      `Order ${order.invoiceNumber} was ${status.toLowerCase()}.`
+    );
   }
 
   if (status === OrderStatus.FULFILLED && before.status !== OrderStatus.FULFILLED && order.email) {

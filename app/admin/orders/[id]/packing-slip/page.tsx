@@ -1,4 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
+import OrderDiscountRows from '@/components/OrderDiscountRows';
 import PrintButton from '@/components/PrintButton';
 import { isAdmin } from '@/lib/admin';
 import { db } from '@/lib/db';
@@ -123,12 +124,7 @@ export default async function PackingSlip({ params }: { params: Promise<{ id: st
             <span>Subtotal</span>
             <span>{formatMoney(order.subtotalCents)}</span>
           </div>
-          {order.discountCents > 0 && (
-            <div className="summary-row">
-              <span>Discount</span>
-              <span>−{formatMoney(order.discountCents)}</span>
-            </div>
-          )}
+          <OrderDiscountRows order={order} />
           <div className="summary-row">
             <span>{pickup ? 'Pickup' : 'Shipping'}</span>
             <span>{formatMoney(order.shippingCents)}</span>

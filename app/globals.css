@@ -447,6 +447,15 @@ textarea.form-input { min-height: 145px; resize: vertical; }
 .admin-form-grid .full { grid-column: 1 / -1; }
 .admin-label { display: grid; gap: 5px; color: var(--forest); font-size: 12px; font-weight: 800; }
 .admin-hint { color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1.45; }
+/* A gift card number is read off the screen and typed somewhere else, so it is
+   set in a face whose 0 and O, 1 and l cannot be confused for one another. */
+.gift-card-code {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 19px;
+  letter-spacing: 0.12em;
+  color: var(--forest);
+  user-select: all;
+}
 .admin-checkbox { display: inline-flex; align-items: center; gap: 7px; color: var(--forest); font-weight: 800; }
 .admin-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
 /* The paste-a-link form: one field and its button on a line, wrapping to two on

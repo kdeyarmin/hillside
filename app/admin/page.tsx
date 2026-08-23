@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { MessageStatus, OrderStatus, RegistrationStatus, ReviewStatus } from '@prisma/client';
 import AdminDeepLink from '@/components/AdminDeepLink';
+import OrderDiscountRows from '@/components/OrderDiscountRows';
 import {
   ADMIN_ERRORS,
   ADMIN_NOTICES,
@@ -247,6 +248,7 @@ export default async function Admin({
         <a href="#subscribers">Email subscribers</a>
         <a href="#reviews">Reviews</a>
         <a href="#restock">Restock requests</a>
+        <Link href="/admin/discounts">Gift cards &amp; promo codes</Link>
         <Link href="/admin/email">Email</Link>
         <Link href="/admin/content">Website content</Link>
         <Link href="/admin/care">Plant care library</Link>
@@ -280,6 +282,9 @@ export default async function Admin({
             </a>
             <Link className="btn gold" href="/admin/content">
               Manage website content
+            </Link>
+            <Link className="btn outline" href="/admin/discounts">
+              Gift cards &amp; promo codes
             </Link>
             <Link className="btn outline" href="/admin/email">
               Email
@@ -508,6 +513,7 @@ export default async function Admin({
                           <span>{formatMoney(item.unitCents * item.quantity)}</span>
                         </div>
                       ))}
+                      <OrderDiscountRows order={order} />
                       <div className="summary-row">
                         <span>{order.fulfillmentMethod === 'PICKUP' ? 'Pickup' : 'Shipping'}</span>
                         <span>{formatMoney(order.shippingCents)}</span>

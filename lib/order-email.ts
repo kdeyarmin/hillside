@@ -1,3 +1,4 @@
+import { giftCardTail } from './discount-request.ts';
 import { emailShell, escapeHtml } from './email.ts';
 import { isPickupOrder } from './fulfillment.ts';
 import { sizedName } from './product-sizes.ts';
@@ -16,6 +17,15 @@ export type OrderForEmail = {
   shippingCents?: number;
   taxCents?: number;
   discountCents?: number;
+  /**
+   * The two halves of the discount, where the shop's own codes were used. Named
+   * separately because they are different things to the person reading the
+   * letter: one is money the shop took off, the other is money they already had.
+   */
+  promoCode?: string | null;
+  promoDiscountCents?: number;
+  giftCardCode?: string | null;
+  giftCardCents?: number;
   giftMessage?: string | null;
   fulfillmentMethod?: string | null;
   shippingMethod?: string | null;
@@ -45,11 +55,38 @@ export function orderConfirmationHtml(order: OrderForEmail) {
    * wrong in the customer's inbox.
    */
   const shippingLabel = pickup ? 'Pickup' : 'Shipping';
-  const totalRows = `${
-    discountCents > 0
-      ? `<tr><td style="padding:8px 0;border-bottom:1px solid #dfe4dc">Discount</td><td style="padding:8px 0;border-bottom:1px solid #dfe4dc;text-align:right">−${formatMoney(discountCents)}</td></tr>`
-      : ''
-  }<tr><td style="padding:8px 0;border-bottom:1px solid #dfe4dc">${shippingLabel}</td><td style="padding:8px 0;border-bottom:1px solid #dfe4dc;text-align:right">${formatMoney(shippingCents)}</td></tr>${
+  const promoCents = order.promoDiscountCents || 0;
+  const giftCardCents = order.giftCardCents || 0;
+  const moneyRow = (label: string, amount: string) =>
+    `<tr><td style="padding:8px 0;border-bottom:1px solid #dfe4dc">${label}</td><td style="padding:8px 0;border-bottom:1px solid #dfe4dc;text-align:right">${amount}</td></tr>`;
+  /**
+   * Itemised where the shop knows what the discount was, and left as one
+   * "Discount" line where it does not — a coupon entered on Stripe's own page
+   * reaches us as a total and nothing else.
+   */
+  const discountRows =
+    promoCents > 0 || giftCardCents > 0
+      ? `${
+          promoCents > 0
+            ? moneyRow(
+                order.promoCode ? `Promo code ${escapeHtml(order.promoCode)}` : 'Promo code',
+                `−${formatMoney(promoCents)}`
+              )
+            : ''
+        }${
+          giftCardCents > 0
+            ? moneyRow(
+                order.giftCardCode
+                  ? `Gift card ending ${escapeHtml(giftCardTail(order.giftCardCode))}`
+                  : 'Gift card',
+                `−${formatMoney(giftCardCents)}`
+              )
+            : ''
+        }`
+      : discountCents > 0
+        ? moneyRow('Discount', `−${formatMoney(discountCents)}`)
+        : '';
+  const totalRows = `${discountRows}<tr><td style="padding:8px 0;border-bottom:1px solid #dfe4dc">${shippingLabel}</td><td style="padding:8px 0;border-bottom:1px solid #dfe4dc;text-align:right">${formatMoney(shippingCents)}</td></tr>${
     taxCents > 0
       ? `<tr><td style="padding:8px 0;border-bottom:1px solid #dfe4dc">Tax</td><td style="padding:8px 0;border-bottom:1px solid #dfe4dc;text-align:right">${formatMoney(taxCents)}</td></tr>`
       : ''

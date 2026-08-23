@@ -233,6 +233,91 @@ export function checkoutAdjustments(
   return adjustments;
 }
 
+/**
+ * The least a product has to say for a basket line to be priced against it.
+ * Written as a constraint rather than as the Prisma row so the same resolution
+ * can be run against a test fixture, and so the caller's own row type — with
+ * its name, its description and everything else the caller goes on to need —
+ * survives the call.
+ */
+export type PricedProduct = {
+  slug: string;
+  priceCents: number;
+  inventory: number;
+  active?: boolean;
+  sizes?: unknown;
+  sku?: string | null;
+  imageUrl?: string | null;
+  ships?: boolean;
+  pickup?: boolean;
+};
+
+export type ResolvedCheckoutLine<P> = {
+  product: P;
+  quantity: number;
+  size: string | null;
+  /** What this line is charged: the chosen variant's price, or the product's. */
+  unitCents: number;
+  /**
+   * Resolved per line rather than per product, because a variant may get home
+   * differently from the product it belongs to — a specimen too large to post
+   * safely, beside pots that ship fine — and it is the variant being bought.
+   */
+  ships: boolean;
+  pickup: boolean;
+  imageUrl: string | null;
+};
+
+/**
+ * Turns what the browser asked for into what the shop will actually charge for,
+ * dropping anything it will not sell: an archived product, one that is sold
+ * out, a size that is no longer offered.
+ *
+ * **Prices come from the product and its size list, never from the basket.**
+ * What the browser sent is used only to notice a stale figure and report it
+ * back through `checkoutAdjustments`; it never sets a charge.
+ *
+ * Shared by the checkout route and the cart's discount quote on purpose. The
+ * quote tells a customer what a code is worth against their basket, and it can
+ * only be trusted to match what they are charged if both are looking at the
+ * same lines.
+ */
+export function resolveCheckoutLines<P extends PricedProduct>(
+  requested: CheckoutRequestedItem[],
+  products: P[]
+): Array<ResolvedCheckoutLine<P>> {
+  return requested.flatMap((requestedItem) => {
+    const product = products.find((candidate) => candidate.slug === requestedItem.id);
+    if (!product || product.active === false || product.inventory <= 0) return [];
+
+    const sizes = productSizes(product.sizes, product.priceCents, {
+      sku: product.sku,
+      imageUrl: product.imageUrl,
+      ships: product.ships,
+      pickup: product.pickup
+    });
+    if (sizeChoiceRejected(sizes, requestedItem.size)) return [];
+
+    const chosen = findSize(sizes, requestedItem.size);
+    // Against the chosen size's own count where the owner keeps one, so a plant
+    // with plenty of 4" pots cannot back a line of 6" ones.
+    const available = sizeAvailable(chosen, product.inventory);
+    if (available <= 0) return [];
+
+    return [
+      {
+        product,
+        quantity: Math.min(requestedItem.quantity, available),
+        size: chosen?.label || null,
+        unitCents: chosen?.priceCents ?? product.priceCents,
+        ships: chosen ? chosen.ships : product.ships !== false,
+        pickup: chosen ? chosen.pickup : product.pickup !== false,
+        imageUrl: chosen?.imageUrl ?? product.imageUrl ?? null
+      }
+    ];
+  });
+}
+
 export function checkoutAdjustmentNotice(change: {
   name: string;
   available: number;

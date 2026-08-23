@@ -163,6 +163,19 @@ export function flatShippingCents() {
 }
 
 /**
+ * What a basket of this size pays to be posted. One function rather than the
+ * same three lines in two routes, because the cart's discount quote and the
+ * checkout that charges for it have to agree on the figure a free-shipping code
+ * is giving away.
+ */
+export function standardShippingCents(subtotalCents: number, { pickup = false } = {}) {
+  if (pickup) return 0;
+  const threshold = freeShippingThresholdCents();
+  if (threshold > 0 && subtotalCents >= threshold) return 0;
+  return flatShippingCents();
+}
+
+/**
  * How long a product's advertised price should be treated as good for. Google
  * warns about an Offer without it and may stop showing the price outright. A year
  * out is the usual convention for a shop that does not run time-boxed pricing.

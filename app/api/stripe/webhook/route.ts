@@ -11,6 +11,7 @@ import {
   returnSizeStock,
   takeAvailableInventory
 } from '@/lib/checkout';
+import { returnGiftCardForRefund, settleOrderDiscounts } from '@/lib/discount-store';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { sendOrderConfirmationEmail } from '@/lib/order-send';
 import { refundedOrderStatus, shouldRestoreInventoryOnRefund } from '@/lib/orders';
@@ -140,6 +141,7 @@ async function completeReservedOrder(
   };
 
   let oversold = false;
+  let giftCardShortfallCents = 0;
   await db.$transaction(async (transaction) => {
     const current = await transaction.order.findUnique({
       where: { id: order.id },
@@ -167,7 +169,20 @@ async function completeReservedOrder(
     if (claimed.count === 0) {
       throw new Error(`Lost the claim on order ${current.id} during fulfillment.`);
     }
+
+    /**
+     * The promo redemption is recorded and the gift-card hold is taken here,
+     * inside the same claim as the payment itself, so a redelivered event
+     * cannot spend a card twice and a fulfillment that rolls back does not
+     * leave a code marked as used.
+     */
+    const settled = await settleOrderDiscounts(transaction, current.id, paidFields.email);
+    giftCardShortfallCents = settled.shortfallCents;
   });
+
+  if (giftCardShortfallCents > 0) {
+    await notifyGiftCardShortfall(order.invoiceNumber, giftCardShortfallCents);
+  }
 
   if (oversold) {
     await notifyOversell(
@@ -175,6 +190,27 @@ async function completeReservedOrder(
       order.items.map((item) => sizedName(item.name, item.size)).join(', ')
     );
   }
+}
+
+/**
+ * A paid order whose gift card could not be charged in full — its hold had been
+ * released and the money spent elsewhere before Stripe's late `completed` event
+ * arrived. The customer has paid the discounted total, so this is the shop's
+ * money, and the only thing that helps is telling Tammy which order it was.
+ */
+async function notifyGiftCardShortfall(invoiceNumber: string, shortfallCents: number) {
+  const ownerEmails = ownerNotificationEmails();
+  if (!ownerEmails.length) return;
+  await sendEmail({
+    to: ownerEmails,
+    kind: 'ORDER_ADMIN',
+    subject: `Gift card shortfall on order ${invoiceNumber}`,
+    html: emailShell(
+      `Gift card shortfall on ${invoiceNumber}`,
+      `<p>This order settled after its gift-card hold had already been released, and ${formatMoney(shortfallCents)} of the card's balance had been spent elsewhere in the meantime.</p><p>The customer paid the discounted total, so the difference is the shop's. Nothing needs doing for them — this is a note for your books.</p>`
+    ),
+    idempotencyKey: `gift-card-shortfall/${invoiceNumber}`
+  });
 }
 
 async function notifyOversell(invoiceNumber: string, items: string) {
@@ -595,6 +631,20 @@ async function applyRefund(charge: Stripe.Charge) {
       data: { status, refundedCents: charge.amount_refunded }
     });
     if (applied.count === 0) return;
+
+    /**
+     * Stripe can only give back what Stripe took, so the part of this order that
+     * was paid with a gift card has to be returned to the card here or not at
+     * all. It goes back on a full refund whether or not the order shipped —
+     * unlike stock, a refunded balance is not a plant that has left the bench.
+     */
+    if (fullyRefunded) {
+      await returnGiftCardForRefund(
+        transaction,
+        order.id,
+        `Order ${order.invoiceNumber} was refunded.`
+      );
+    }
 
     if (
       !shouldRestoreInventoryOnRefund({

@@ -105,6 +105,10 @@ export function adminEmailPath(query: Record<string, string | undefined | null> 
   return adminDashboardPath(query).replace(/^\/admin/, '/admin/email');
 }
 
+export function adminDiscountsPath(query: Record<string, string | undefined | null> = {}) {
+  return adminDashboardPath(query).replace(/^\/admin/, '/admin/discounts');
+}
+
 /**
  * Next can hand a repeated query string through as `string[]`. The dashboard
  * used to call `.trim()` on `params.q` directly, so `/admin?q=one&q=two`
@@ -159,7 +163,20 @@ export const ADMIN_NOTICES: Record<string, string> = {
   'care-created': 'Care sheet published.',
   'content-archived': 'Archived. It is no longer on the public website.',
   'email-sent': 'Email sent.',
-  'reply-sent': 'Reply sent. It is saved with the message below.'
+  'reply-sent': 'Reply sent. It is saved with the message below.',
+  'promotion-saved': 'Promo code saved.',
+  'promotion-created': 'Promo code created. It works in the cart straight away.',
+  'promotion-deleted': 'Promo code deleted.',
+  'promotion-live': 'Promo code is being accepted again.',
+  'promotion-paused': 'Promo code paused. Nobody can redeem it until you switch it back on.',
+  'promotions-generated': 'Codes generated. They are at the top of the list below.',
+  'promotions-generated-partial':
+    'Codes generated. One or two were already in use, so those were left exactly as they were.',
+  'gift-cards-created': 'Gift cards issued. They are at the top of the list below.',
+  'gift-card-emailed': 'Gift card emailed to its recipient.',
+  'gift-card-adjusted': 'Gift card balance updated.',
+  'gift-card-live': 'Gift card is spendable again.',
+  'gift-card-paused': 'Gift card put on hold. It cannot be spent until you switch it back on.'
 };
 
 export const ADMIN_ERRORS: Record<string, string> = {
@@ -208,5 +225,20 @@ export const ADMIN_ERRORS: Record<string, string> = {
     'The email could not be sent, so nothing left the shop. Check that SENDGRID_API_KEY is set, then try again.',
   'email-throttled':
     'That is a lot of email in a short time. Wait a few minutes and send the rest.',
-  'message-missing': 'That customer message is no longer here.'
+  'message-missing': 'That customer message is no longer here.',
+  'promotion-code':
+    'A promo code needs at least three letters or numbers, and cannot be one you are already using.',
+  'promotion-value':
+    'Say what the code takes off: a percentage between 1 and 100, or an amount above zero.',
+  'promotion-dates': 'The end of a promotion cannot come before its start.',
+  'promotion-missing': 'That promo code is no longer here.',
+  'promotion-redeemed':
+    'That code has already been used on an order, so deleting it would leave those orders pointing at nothing. Pause it instead — it stops working immediately either way.',
+  'gift-card-amount': 'A gift card needs an amount between $1 and $1,000.',
+  'gift-card-count': 'Choose how many to make — between 1 and 100 at a time.',
+  'gift-card-missing': 'That gift card is no longer here.',
+  'gift-card-recipient': 'Add the recipient’s email address to the card before sending it to them.',
+  'gift-card-email-failed':
+    'The gift card could not be emailed, so the recipient has not been sent it. Check that SENDGRID_API_KEY is set, then try again — the card itself is safe and its number is below.',
+  'gift-card-adjust': 'Enter how much to add or take off, as an amount other than zero.'
 };

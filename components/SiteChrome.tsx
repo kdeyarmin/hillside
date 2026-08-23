@@ -17,6 +17,7 @@ import {
 import NewsletterForm from '@/components/NewsletterForm';
 import ResilientImage from '@/components/ResilientImage';
 import CheckoutOptions from '@/components/CheckoutOptions';
+import { giftCardTail } from '@/lib/discount-request';
 import { lineKey, useCart } from '@/components/CartProvider';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { cartFulfillment } from '@/lib/fulfillment';
@@ -198,6 +199,7 @@ function CartDrawer({
     checkoutNotice,
     fulfillment,
     pickupArranged,
+    discount,
     closeCart,
     setQuantity,
     removeItem,
@@ -384,7 +386,7 @@ function CartDrawer({
               </div>
             </div>
             <div className="drawer-total">
-              {fulfillment !== 'PICKUP' && (
+              {fulfillment !== 'PICKUP' && !discount?.freeShipping && (
                 <FreeShippingMeter
                   subtotalCents={subtotalCents}
                   threshold={freeShippingThreshold}
@@ -394,10 +396,28 @@ function CartDrawer({
                 <span>Subtotal</span>
                 <strong>{formatMoney(subtotalCents)}</strong>
               </div>
+              {/* Applied codes are shown here but only entered on the cart page:
+                  the picker and the gift note already fill this panel, and a
+                  discount the drawer did not mention would make its subtotal
+                  read as the whole story. */}
+              {discount && discount.promoDiscountCents > 0 && discount.promotion && (
+                <div>
+                  <span>{discount.promotion.code}</span>
+                  <strong>−{formatMoney(discount.promoDiscountCents)}</strong>
+                </div>
+              )}
+              {discount && discount.giftCardCents > 0 && discount.giftCard && (
+                <div>
+                  <span>Gift card ending {giftCardTail(discount.giftCard.maskedCode)}</span>
+                  <strong>−{formatMoney(discount.giftCardCents)}</strong>
+                </div>
+              )}
               <p>
                 {fulfillment === 'PICKUP'
                   ? 'No shipping charge. Tax is calculated securely in Stripe Checkout.'
-                  : 'Shipping and any applicable tax are calculated securely in Stripe Checkout.'}
+                  : discount?.freeShipping
+                    ? 'Free shipping with your promo code. Tax is calculated securely in Stripe Checkout.'
+                    : 'Shipping and any applicable tax are calculated securely in Stripe Checkout.'}
               </p>
               {checkoutError && (
                 <p className="drawer-error" role="alert">
