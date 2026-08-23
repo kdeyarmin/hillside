@@ -1,8 +1,10 @@
 import Link from 'next/link';
 import { ArrowRight, BookOpen, Leaf, MapPin, Package, Sparkles, Sprout, Truck } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
+import BundleGrid from '@/components/BundleGrid';
 import NewsletterForm from '@/components/NewsletterForm';
 import ProductGrid from '@/components/ProductGrid';
+import { bundleCardData, sellableBundles } from '@/lib/bundle-queries';
 import {
   classDateLabel,
   classFormatLabel,
@@ -71,54 +73,67 @@ function sectionLink(section: { kind: string; collection: { slug: string } | nul
 
 export default async function Home() {
   const freeShippingThreshold = freeShippingThresholdCents();
-  const [sections, upcomingClasses, categories, collections, careGuideCount, catalogCount] =
-    await Promise.all([
-      /**
-       * The rows Tammy arranged, in her order. The homepage used to hardcode one
-       * collection strip and one featured grid, so changing what the front page
-       * led with meant changing the code.
-       */
-      db.homepageSection.findMany({
-        where: { active: true },
-        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-        // The slug is what lets a collection row link back to its own page.
-        include: { collection: { select: { slug: true } } },
-        take: 8
-      }),
-      // Hidden classes are not fetched at all, so the homepage costs one query
-      // less rather than rendering nothing from a result it paid for.
-      CLASSES_PUBLICLY_VISIBLE
-        ? db.classEvent.findMany({
-            where: { active: true, startsAt: { gte: new Date() } },
-            orderBy: { startsAt: 'asc' },
-            take: 2
-          })
-        : [],
-      /**
-       * Every category the owner is showing, in her order — read once and used
-       * twice below, for the hero's list of what the shop sells and for the
-       * shop-by tiles.
-       *
-       * Read rather than hard-coded, which is the whole point of the taxonomy
-       * being rows: a static list went on advertising a category's old name
-       * after Tammy renamed it, kept linking one she had hidden, and pointed at
-       * a slug that no longer matched anything.
-       */
-      db.category.findMany({
-        where: { active: true },
-        orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-        include: { _count: { select: { products: { where: { active: true } } } } }
-      }),
-      // Only collections that actually hold something are advertised, so a tile on
-      // the homepage always leads to real stock.
-      db.collection.findMany({
-        where: { active: true, featured: true, products: { some: { active: true } } },
-        orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-        include: { _count: { select: { products: { where: { active: true } } } } }
-      }),
-      db.careSheet.count({ where: { published: true } }),
-      db.product.count({ where: { active: true } })
-    ]);
+  const [
+    sections,
+    featuredSets,
+    upcomingClasses,
+    categories,
+    collections,
+    careGuideCount,
+    catalogCount
+  ] = await Promise.all([
+    /**
+     * The rows Tammy arranged, in her order. The homepage used to hardcode one
+     * collection strip and one featured grid, so changing what the front page
+     * led with meant changing the code.
+     */
+    db.homepageSection.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      // The slug is what lets a collection row link back to its own page.
+      include: { collection: { select: { slug: true } } },
+      take: 8
+    }),
+    /**
+     * Featured sets, but only ones that can actually be built right now — a
+     * kit whose last component sold this morning drops off the homepage on its
+     * own rather than sending the day's visitors to a sold-out page.
+     */
+    sellableBundles({ featured: true, take: 3 }),
+    // Hidden classes are not fetched at all, so the homepage costs one query
+    // less rather than rendering nothing from a result it paid for.
+    CLASSES_PUBLICLY_VISIBLE
+      ? db.classEvent.findMany({
+          where: { active: true, startsAt: { gte: new Date() } },
+          orderBy: { startsAt: 'asc' },
+          take: 2
+        })
+      : [],
+    /**
+     * Every category the owner is showing, in her order — read once and used
+     * twice below, for the hero's list of what the shop sells and for the
+     * shop-by tiles.
+     *
+     * Read rather than hard-coded, which is the whole point of the taxonomy
+     * being rows: a static list went on advertising a category's old name
+     * after Tammy renamed it, kept linking one she had hidden, and pointed at
+     * a slug that no longer matched anything.
+     */
+    db.category.findMany({
+      where: { active: true },
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      include: { _count: { select: { products: { where: { active: true } } } } }
+    }),
+    // Only collections that actually hold something are advertised, so a tile on
+    // the homepage always leads to real stock.
+    db.collection.findMany({
+      where: { active: true, featured: true, products: { some: { active: true } } },
+      orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+      include: { _count: { select: { products: { where: { active: true } } } } }
+    }),
+    db.careSheet.count({ where: { published: true } }),
+    db.product.count({ where: { active: true } })
+  ]);
 
   const resolved = await Promise.all(
     sections.map(async (section) => ({
@@ -393,6 +408,25 @@ export default async function Home() {
               </div>
             </section>
           )
+        )}
+
+        {featuredSets.length > 0 && (
+          <section className="section editorial-products home-products-section">
+            <div className="container">
+              <div className="editorial-heading-row">
+                <div>
+                  <div className="eyebrow">
+                    <Package size={14} aria-hidden="true" /> Everything in one box
+                  </div>
+                  <h2>Sets we have made up.</h2>
+                </div>
+                <Link className="editorial-link" href="/bundles">
+                  All sets &amp; kits &rarr;
+                </Link>
+              </div>
+              <BundleGrid bundles={featuredSets.map(bundleCardData)} />
+            </div>
+          </section>
         )}
       </div>
 

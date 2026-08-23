@@ -12,7 +12,12 @@ export async function sendOrderConfirmationEmail(
   orderId: string,
   options: { force?: boolean } = {}
 ): Promise<{ sent: boolean; reason?: string; invoiceNumber?: string }> {
-  const order = await db.order.findUnique({ where: { id: orderId }, include: { items: true } });
+  const order = await db.order.findUnique({
+    where: { id: orderId },
+    // A set's line names the box; its components say what was in it, which is
+    // the only place the customer's own copy of the order can say so.
+    include: { items: { include: { components: true } } }
+  });
   if (!order) return { sent: false, reason: 'missing' };
   if (!isAwaitingShipment(order.status, order.fulfilledAt)) {
     return { sent: false, reason: 'not-confirmable', invoiceNumber: order.invoiceNumber };

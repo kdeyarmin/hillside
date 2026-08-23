@@ -47,6 +47,12 @@ const routes = [
      page, which is more stacked layout than anything else on the site. */
   { name: 'category', path: '/categories/houseplants' },
   { name: 'collection', path: '/collections/tammys-favorites' },
+  /* The sets pages carry two layouts nothing else on the site has: a card whose
+     body holds a contents list of arbitrary length, and a manifest of two-column
+     rows on the detail page. Both are driven by product names Tammy types, so
+     they are exactly the kind of thing that widens a 320px phone. */
+  { name: 'bundles', path: '/bundles' },
+  { name: 'bundle', path: '/bundles/tea-starter-set' },
   // '/classes' is hidden from the storefront (lib/class-visibility.ts) and
   // answers 404; restore this line with the flag.
   { name: 'care', path: '/care' },
@@ -78,6 +84,7 @@ const reducedRoutes = new Set([
   'shop-category',
   'product',
   'product-variants',
+  'bundle',
   'classes',
   'care',
   'contact',

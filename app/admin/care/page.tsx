@@ -2,7 +2,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { CareGuideType, type CareSheet } from '@prisma/client';
 import { isAdmin } from '@/lib/admin';
-import { careGuideTypeLabel, starterCareGuides } from '@/lib/care-seed-data';
+import { CARE_GUIDE_TYPE_OPTIONS, careGuideTypeLabel } from '@/lib/care-guides';
+import { starterCareGuides } from '@/lib/care-seed-data';
 import { db } from '@/lib/db';
 import {
   saveCareGuide,
@@ -35,10 +36,11 @@ function CareGuideFields({
         </label>
         <label className="admin-label">Guide type
           <select className="admin-input" name="guideType" defaultValue={guide?.guideType || CareGuideType.PLANT}>
-            <option value={CareGuideType.PLANT}>Plant profile</option>
-            <option value={CareGuideType.GENERAL}>Plant care basics</option>
-            <option value={CareGuideType.PROBLEM}>Common issue / plant problem</option>
-            <option value={CareGuideType.SEASONAL}>Seasonal care</option>
+            {CARE_GUIDE_TYPE_OPTIONS.map((option) => (
+              <option value={option.value} key={option.value}>
+                {option.label} — {option.hint}
+              </option>
+            ))}
           </select>
         </label>
         <label className="admin-label">Category
@@ -170,6 +172,7 @@ export default async function CareLibraryManager({
         <b>Plant Care Library</b>
         <Link href="/admin">← Business dashboard</Link>
         <Link href="/admin/content">Website content</Link>
+        <Link href="/admin/merchandising#care-commerce">Products on guides</Link>
         <a href="#starter-library">Starter library</a>
         <a href="#guides">Edit guides</a>
         <a href="#new-guide">Add a guide</a>

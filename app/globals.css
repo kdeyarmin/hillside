@@ -185,7 +185,10 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
   letter-spacing: 0.09em;
 }
 .price { color: var(--forest) !important; font-size: 23px; font-weight: 900; }
-.compare-price { margin-left: 8px; color: var(--muted); text-decoration: line-through; font-size: 15px; }
+/* `white-space: nowrap` because a struck-through price broke mid-number in a
+   narrow card — "$28.0" on one line and "0" on the next, which reads as a
+   different price. Two-up cards on a 320px phone are where it showed. */
+.compare-price { margin-left: 8px; color: var(--muted); text-decoration: line-through; font-size: 15px; white-space: nowrap; }
 .split { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 56px; }
 /* `1fr` is `minmax(auto, 1fr)`, so a track never shrinks below its content's
    min-content width — and a photo frame carrying both `aspect-ratio: 4 / 3` and

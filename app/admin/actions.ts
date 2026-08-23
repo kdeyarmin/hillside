@@ -352,25 +352,6 @@ export async function saveProduct(formData: FormData) {
     .filter(Boolean);
 
   /**
-   * The hand-picked links, with this product removed from each. A product
-   * offered as its own cross-sell would render a card linking to the page the
-   * shopper is already on.
-   */
-  const linkIds = (field: string) =>
-    Array.from(
-      new Set(
-        formData
-          .getAll(field)
-          .map((value) => String(value))
-          .filter((value) => value && value !== id)
-      )
-    ).slice(0, 12);
-  const relatedIds = linkIds('relatedIds');
-  const crossSellIds = linkIds('crossSellIds');
-  const bundleIds = linkIds('bundleIds');
-  const connectIds = (ids: string[]) => ids.map((entry) => ({ id: entry }));
-
-  /**
    * A restock dates itself. The owner's own date wins when she sets one, and
    * otherwise a quantity that went *up* stamps today — which is the difference
    * between a field that stays current and one field too many to remember.
@@ -401,10 +382,7 @@ export async function saveProduct(formData: FormData) {
         data: {
           ...record,
           inventory: postedInventory,
-          collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) },
-          relatedProducts: { connect: connectIds(relatedIds) },
-          crossSells: { connect: connectIds(crossSellIds) },
-          bundleItems: { connect: connectIds(bundleIds) }
+          collections: { connect: collectionIds.map((collectionId) => ({ id: collectionId })) }
         }
       });
     } else if (postedInventory === expectedInventory && !tracksSizeStock) {
@@ -424,10 +402,7 @@ export async function saveProduct(formData: FormData) {
         where: { id },
         data: {
           ...record,
-          collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) },
-          relatedProducts: { set: connectIds(relatedIds) },
-          crossSells: { set: connectIds(crossSellIds) },
-          bundleItems: { set: connectIds(bundleIds) }
+          collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
         }
       });
     } else {
@@ -453,10 +428,7 @@ export async function saveProduct(formData: FormData) {
           where: { id },
           data: {
             ...record,
-            collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) },
-            relatedProducts: { set: connectIds(relatedIds) },
-            crossSells: { set: connectIds(crossSellIds) },
-            bundleItems: { set: connectIds(bundleIds) }
+            collections: { set: collectionIds.map((collectionId) => ({ id: collectionId })) }
           }
         });
       });

@@ -23,6 +23,8 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Owner-assigned product attributes (pet safe, low light, beginner friendly, handmade, giftable and more) used by the filters, the search and the product pages
 - Best-seller badges and rows worked out from paid orders rather than a checkbox
 - A local-shopping page at `/visit` for Ebensburg and Cambria County pickup
+- Sets and starter kits at `/bundles`, built from real stock and priced below their parts
+- Contextual recommendations on every product page — "Pairs well with", "Complete the setup", "Frequently bought together" and "You may also like"
 - Individual SEO-ready product pages with live inventory, a named photograph gallery and customer reviews
 - Structured product detail that changes with the category — a plant's light, water, pot size and pet safety; a tea's steep time, caffeine and allergens; a soap's full ingredient list
 - Product cards that carry a price or price range, sale, new, best-seller and low-stock signals, and which sizes are still available
@@ -34,11 +36,12 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Configurable flat or free standard shipping
 - Customer order-confirmation page and Stripe invoice link
 - Self-service order-status lookup
-- Printable houseplant care sheets and detailed care pages
+- Printable houseplant care sheets and detailed care pages, in five kinds: plant profiles, beginner guides, general education, troubleshooting and seasonal
 - Gallery of Tammy’s past planter arrangements
 - Tammy’s Amazon influencer picks with affiliate disclosure, published by pasting the item’s link
 - Newsletter signup, cart saving and customer contact form
-- Care guides that link through to the plant they describe
+- Care guides that link through to the plant they describe, and can feature the products used for the job with Tammy's own reason for each
+- A prominent care-guide link in the buy box of every plant that has one
 - Google Analytics 4 ecommerce events (opt-in through an environment variable)
 - LocalBusiness structured data, plus a purpose-built social share image
 - About, FAQ, shipping/returns, privacy and terms pages
@@ -73,6 +76,7 @@ The dashboard at `/admin` includes:
 - Restock request list, emailed automatically when stock returns
 - Category and collection management, and per-product assignment to both
 - A photography editor with drag-and-drop, mobile upload, named photo slots, reordering, primary selection and previews
+- A merchandising manager at `/admin/merchandising` for homepage rows, badges, sets, per-product recommendations and the products featured on each care guide
 - Visibility of products still missing their own photograph, and of products still showing shared category artwork
 - Order confirmation email delivery status
 - Admin account management at `/admin/accounts` — add an admin, change a password, revoke access
@@ -416,6 +420,99 @@ view is labelled for customers in the product gallery, because "Size" and
 makes them hunt. `lib/product-photos.ts` is the one place that decides what
 counts as shared category artwork rather than a real photograph, and both the
 storefront visual and the dashboard's chip ask it.
+
+## Sets and kits
+
+A set — the Tea Starter Set, the Terrarium Starter Kit, the Hillside Gift Box —
+is built at `/admin/merchandising` out of products already in inventory. It has
+a title, a photograph, a description, a badge, its own selling price, and
+active/featured switches, exactly like a product.
+
+What it does **not** have is stock.
+
+There is no bundle inventory column anywhere in the schema, and that absence is
+the design. A second count would be a copy of the real one, and it would drift
+the first time a loose infuser was sold on its own — after which the shop would
+go on offering a set it could not build. So how many sets exist is worked out
+every time the question is asked:
+
+> the fewest complete sets any **required** component can supply, counting
+> against the exact variant the recipe names.
+
+Everything follows from that one figure. A set whose component runs out
+disappears from the sets page, the homepage, the header, the sitemap and search
+on its own, with nothing for anyone to remember to switch off, and comes back
+when the component is restocked. Sold-out sets are also `noindex`, so a crawler
+is not sent to a page that cannot sell.
+
+Each line of the recipe carries:
+
+- **the product** — the same row the shop sells on its own page;
+- **a required variant**, for a product sold in sizes. The Tea Starter Set wants
+  the 2 oz tin, not whichever tin a shopper would otherwise have picked. A sized
+  product with no variant named is a recipe nobody can fill, so the set stays off
+  the website and the editor says why;
+- **how many** of it one set contains;
+- **Extra**, for a garnish that should not take the whole set off sale. An extra
+  is packed when the shelf can cover it and quietly left out when it cannot,
+  which is also why it is left out of the "you save $12" figure — a saving
+  measured against something the customer might not receive is a claim the shop
+  cannot stand behind.
+
+When a set sells, the components come off the shelf, per variant, exactly as if
+they had been bought loose. The order records one line at the price the customer
+paid, with the components it took snapshotted underneath it — the snapshot, not
+the recipe, is what a refund six weeks later puts back, because the recipe may
+have changed since. Packing slips print the set and then the pieces to pick.
+
+## Recommendations
+
+Every product page can show four sections, and each only appears when something
+genuinely answers it:
+
+| Section                    | Where it comes from                                                                 |
+| -------------------------- | ----------------------------------------------------------------------------------- |
+| Pairs well with            | Owner's choice, then companion rules (tea → infuser, soap → lotion)                 |
+| Complete the setup         | Owner's choice, then requirement rules (carnivorous plant → its growing medium)     |
+| Frequently bought together | Real orders, counted per order, needing at least two before it will claim a pattern |
+| You may also like          | Owner's choice, then shared traits and collections                                  |
+
+The rule the whole feature enforces is negative: **nothing is recommended merely
+for sharing a broad category**. "Plants" is not a reason to show a monstera under
+a venus flytrap. Matching happens on _traits_ — `carnivorous`, `terrarium`,
+`planter`, `substrate`, `infuser` — which come from the tags set per product at
+`/admin/merchandising`, and are otherwise inferred from what the product says
+about itself. Type inference is guarded: "grown on in a 6\" pot" appears in half
+the plant descriptions on the site, and without the guard every plant would be
+tagged as a planter and recommended as the thing to pot itself in.
+
+Anything Tammy configures always wins and always shows, with her own reason
+printed under the card. If nothing matches, the heading does not appear at all —
+an empty "Complete the setup" is a better answer than a wrong one, because a
+shopper shown a bar of soap under a fly trap stops reading the section.
+
+The cart drawer's "goes well with" strip runs the same rules against the whole
+basket. It used to show whatever happened to be featured.
+
+## Care guides and commerce
+
+The care library is why strangers find this site, so it is wired to the shop in
+both directions:
+
+- Every product with a guide carries a **care-guide link in the buy box**, above
+  the Add button — that is where a nervous first-time buyer decides whether the
+  plant is survivable — plus the full list of guides further down the page.
+- Every guide can **feature products** with Tammy's own sentence for each ("this
+  is what we pot ours in"). It renders as an editorial list rather than a grid of
+  buy buttons, and a sold-out piece is left off rather than shown struck through.
+- A guide whose subject appears in a set links to the set.
+- The old "here are three plants we have in stock" fallback is gone. It fired on
+  every guide with nothing attached, including troubleshooting guides, where
+  somebody arrives worried about a plant they already own and was shown three
+  more to buy.
+
+Guides come in five kinds, chosen in the care manager: plant profile, beginner
+guide, general education, troubleshooting and seasonal.
 
 ## Why the database-backed pages are `force-dynamic`
 

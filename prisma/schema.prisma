@@ -111,6 +111,24 @@ enum CareGuideType {
   GENERAL
   PROBLEM
   SEASONAL
+  BEGINNER
+}
+
+/**
+ * Why one product is worth showing beside another. The kind is the *section* a
+ * recommendation appears in, not a loose label: "Pairs well with" is a companion
+ * (a tea and the infuser you brew it in), "Complete the setup" is something the
+ * first product needs in order to work (a carnivorous plant and its growing
+ * medium), and "You may also like" is an alternative to it rather than an
+ * addition to it.
+ *
+ * Keeping them apart is the whole point of the feature — a shop that files every
+ * relationship under one heading is back to showing whatever shares a category.
+ */
+enum ProductRelationKind {
+  PAIRS_WITH
+  COMPLETES_SETUP
+  SIMILAR
 }
 
 /**
@@ -316,26 +334,118 @@ model Product {
   reviews          Review[]
   stockAlerts      StockAlert[]
   careSheets       CareSheet[]
-  /**
-   * Hand-picked "you may also like". Both sides of each self-relation are
-   * declared because Prisma requires it; only the first of each pair is ever
-   * written from the dashboard, and the shop reads both so a link Tammy made in
-   * one direction still shows on the other product.
-   */
-  relatedProducts  Product[]         @relation("RelatedProducts")
-  relatedTo        Product[]         @relation("RelatedProducts")
-  /**
-   * "Goes with this" — the potting mix beside the plant, at the cart step.
-   */
-  crossSells       Product[]         @relation("CrossSellProducts")
-  crossSellFor     Product[]         @relation("CrossSellProducts")
-  /**
-   * What is inside this product when it is sold as a bundle or gift set.
-   */
-  bundleItems      Product[]         @relation("ProductBundle")
-  bundledIn        Product[]         @relation("ProductBundle")
+  careGuides       CareGuideProduct[]
+  bundleItems      BundleItem[]
+  orderComponents  OrderItemComponent[]
+  recommends       ProductRelation[]    @relation("RecommendationFrom")
+  recommendedBy    ProductRelation[]    @relation("RecommendationTo")
+}
 
-  @@index([categoryId])
+/**
+ * One owner-configured recommendation: "show this tea infuser under Pairs well
+ * with on the Hillside Calm Tea page".
+ *
+ * Directional on purpose. A planter belongs under "Complete the setup" on a
+ * plant, but a plant is not what completes a planter — reading one row both ways
+ * would put the wrong thing under the wrong heading, which is the
+ * category-shaped noise this exists to replace.
+ */
+model ProductRelation {
+  id               String              @id @default(cuid())
+  productId        String
+  relatedProductId String
+  kind             ProductRelationKind @default(PAIRS_WITH)
+  /** Tammy's own words for why, printed under the card. */
+  note             String?
+  sortOrder        Int                 @default(0)
+  createdAt        DateTime            @default(now())
+  product          Product             @relation("RecommendationFrom", fields: [productId], references: [id], onDelete: Cascade)
+  related          Product             @relation("RecommendationTo", fields: [relatedProductId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, relatedProductId, kind])
+  @@index([relatedProductId])
+}
+
+/**
+ * A product featured on a care guide, with the owner's reason for it.
+ *
+ * `CareSheet.productId` already names the one plant a profile is *about*; this
+ * is everything else — the sphagnum a terrarium guide calls for, the distilled
+ * water a carnivorous guide insists on. Its own table because a guide can
+ * feature several, and because the note is what keeps the block reading as
+ * editorial rather than as an advertisement bolted onto the article.
+ */
+model CareGuideProduct {
+  id          String    @id @default(cuid())
+  careSheetId String
+  productId   String
+  /** "This is what we pot ours in" — the line printed beside the product. */
+  note        String?
+  sortOrder   Int       @default(0)
+  careSheet   CareSheet @relation(fields: [careSheetId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([careSheetId, productId])
+  @@index([productId])
+}
+
+/**
+ * A set sold as one thing — the Tea Starter Set, the Terrarium Starter Kit.
+ *
+ * A bundle has a price, a photograph and a description of its own but **no
+ * inventory column**, and that absence is the design. What is on the bench is
+ * the components; a second count here would be a copy that drifts the first time
+ * a loose infuser is sold, and the shop would go on offering a set it cannot
+ * build. How many sets are available is therefore always derived — the fewest
+ * any required component can supply — so a bundle whose component runs out goes
+ * unavailable on its own, with nothing for anyone to remember to switch off.
+ */
+model Bundle {
+  id            String       @id @default(cuid())
+  slug          String       @unique
+  title         String
+  tagline       String?
+  description   String
+  imageUrl      String?
+  galleryImages String[]     @default([])
+  /** What the set sells for. Independent of what its parts add up to. */
+  priceCents    Int
+  badge         String?
+  active        Boolean      @default(true)
+  featured      Boolean      @default(false)
+  sortOrder     Int          @default(0)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  items         BundleItem[]
+  orderItems    OrderItem[]
+}
+
+/**
+ * One line of a bundle's recipe: which product, in which variant, how many.
+ *
+ * `size` pins the variant when the set calls for one — the Tea Starter Set wants
+ * the 2 oz tin, not whichever tin a shopper would otherwise have chosen — and is
+ * null when any variant will do, or when the product is sold one way. A product
+ * counted per size is checked and decremented against exactly that size.
+ *
+ * `optional` marks a garnish that should not take the whole set off sale: the
+ * dried botanical in a gift box is worth listing, but running out of it is no
+ * reason to stop selling the tea, soap and lotion beside it.
+ */
+model BundleItem {
+  id        String  @id @default(cuid())
+  bundleId  String
+  productId String
+  size      String?
+  quantity  Int     @default(1)
+  optional  Boolean @default(false)
+  note      String?
+  sortOrder Int     @default(0)
+  bundle    Bundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([bundleId])
+  @@index([productId])
 }
 
 /**
@@ -430,19 +540,63 @@ model Order {
   items                   OrderItem[]
 }
 
+/**
+ * A line on an order: either one product, or one bundle. Exactly one of
+ * `productId` and `bundleId` is set.
+ *
+ * A bundle line carries the price the customer actually paid for the set and the
+ * set's own name, so the receipt, the packing slip and the order total all read
+ * the way the shopper bought it — and the physical goods it takes off the shelf
+ * are its `components`. Recording a bundle as several ordinary product lines
+ * instead would have meant inventing a per-product share of the set price, and
+ * three succulents sold together at $35 have no whole-cent share to invent.
+ */
 model OrderItem {
-  id        String  @id @default(cuid())
-  orderId   String
-  productId String
-  name      String
+  id         String               @id @default(cuid())
+  orderId    String
+  productId  String?
+  bundleId   String?
+  name       String
   /**
    * The size the customer chose, when the product is sold in more than one.
    */
-  size      String?
-  quantity  Int
-  unitCents Int
-  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product   Product @relation(fields: [productId], references: [id])
+  size       String?
+  quantity   Int
+  unitCents  Int
+  order      Order                @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product    Product?             @relation(fields: [productId], references: [id])
+  /**
+   * Null once the bundle is deleted. The line keeps its name, its price and its
+   * components regardless, because an order records what was sold and must not
+   * change when the shop stops selling it.
+   */
+  bundle     Bundle?              @relation(fields: [bundleId], references: [id], onDelete: SetNull)
+  components OrderItemComponent[]
+
+  @@index([bundleId])
+}
+
+/**
+ * What a bundle line actually took off the shelf, frozen at the moment of sale.
+ *
+ * A snapshot rather than a lookup back through `BundleItem`, because a refund six
+ * weeks later has to return what was sold, not what the recipe says today.
+ * `quantity` is the total for the line — the recipe's quantity already multiplied
+ * by how many sets were bought — so every stock movement reads it straight.
+ */
+model OrderItemComponent {
+  id          String    @id @default(cuid())
+  orderItemId String
+  productId   String
+  /** The product's name as it was sold, for the packing slip. */
+  name        String
+  size        String?
+  quantity    Int
+  orderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id])
+
+  @@index([orderItemId])
+  @@index([productId])
 }
 
 model CareSheet {
@@ -477,6 +631,8 @@ model CareSheet {
   product     Product?      @relation(fields: [productId], references: [id], onDelete: SetNull)
   collections Collection[]  @relation("CollectionCareGuides")
   categories  Category[]    @relation("CategoryCareGuides")
+  /** Anything else the guide recommends, beyond the plant it is about. */
+  products    CareGuideProduct[]
 
   @@index([productId])
 }

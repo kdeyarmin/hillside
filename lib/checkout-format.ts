@@ -1,11 +1,23 @@
 import {
-  cartLineKey,
+  bundleContentsLine,
+  bundleFulfillment,
+  bundleStockLines,
+  componentSetsAvailable,
+  componentShelfKey,
+  includedItems,
+  productShelfKey,
+  requiredItems,
+  type BundleComponent,
+  type BundleForSale,
+  type BundleStockLine
+} from './bundles.ts';
+import { basketLineKey, readLineKind, type LineKind } from './cart-lines.ts';
+import {
   findSize,
   productSizes,
   sizeAvailable,
   sizeChoiceRejected,
   sizedName,
-  sizesTrackStock,
   SIZE_LABEL_MAX
 } from './product-sizes.ts';
 import { absoluteUrl, formatMoney, resolveImageUrl } from './store.ts';
@@ -17,18 +29,28 @@ import { absoluteUrl, formatMoney, resolveImageUrl } from './store.ts';
 export const CHECKOUT_HOLD_MINUTES = 35;
 
 export class InsufficientStockError extends Error {
+  /** The basket line that could not be filled — a product's slug or a set's. */
   slug: string;
   size: string | null;
-  constructor(slug: string, size: string | null = null) {
+  /**
+   * What to call the thing that ran out, when the slug alone will not name it.
+   * A set's line fails on one of its components, and telling the customer that
+   * "tea-starter-set was claimed" leaves out the part they can act on.
+   */
+  label: string | null;
+  constructor(slug: string, size: string | null = null, label: string | null = null) {
     super(`Insufficient stock for ${slug}`);
     this.name = 'InsufficientStockError';
     this.slug = slug;
     this.size = size;
+    this.label = label;
   }
 }
 
 export type CheckoutRequestedItem = {
   id: string;
+  /** Omitted for an ordinary product, so a pre-bundles basket reads unchanged. */
+  kind?: LineKind;
   quantity: number;
   priceCents?: number;
   /** The chosen size, for products sold in more than one. */
@@ -37,6 +59,7 @@ export type CheckoutRequestedItem = {
 
 export type CheckoutAdjustment = {
   slug: string;
+  kind?: LineKind;
   name: string;
   requested: number;
   available: number;
@@ -45,7 +68,8 @@ export type CheckoutAdjustment = {
   size?: string;
 };
 
-export type CheckoutLine = {
+export type CheckoutProductLine = {
+  kind: 'product';
   product: {
     id: string;
     slug: string;
@@ -55,6 +79,8 @@ export type CheckoutLine = {
     priceCents: number;
     inventory: number;
     imageUrl: string | null;
+    ships?: boolean | null;
+    pickup?: boolean | null;
   };
   quantity: number;
   size?: string | null;
@@ -70,6 +96,60 @@ export type CheckoutLine = {
   /** The photograph for this line, which a variant may override. */
   imageUrl?: string | null;
 };
+
+/**
+ * A set on its way to Stripe. It charges the bundle's own price and it carries
+ * `components` — the products and variants it will take off the shelf — because
+ * that, not the bundle, is where the stock lives.
+ */
+export type CheckoutBundleLine = {
+  kind: 'bundle';
+  bundle: {
+    id: string;
+    slug: string;
+    title: string;
+    tagline: string | null;
+    description: string;
+    imageUrl: string | null;
+    priceCents: number;
+  };
+  quantity: number;
+  unitCents: number;
+  /** Totals for the whole line: per-set quantity × sets bought. */
+  components: BundleStockLine[];
+  /** Optional extras the shelf could not cover, so left out of the box. */
+  skipped: BundleComponent[];
+  contents: string;
+  ships: boolean;
+  pickup: boolean;
+};
+
+export type CheckoutLine = CheckoutProductLine | CheckoutBundleLine;
+
+/** What a line is called on a receipt, an oversell notice or a packing slip. */
+export function checkoutLineName(line: CheckoutLine) {
+  return line.kind === 'bundle' ? line.bundle.title : sizedName(line.product.name, line.size);
+}
+
+/**
+ * Whether a line may ship or be picked up, whichever kind of line it is.
+ *
+ * A product line answers with its own resolved figures rather than its
+ * product's: a variant may be pickup-only where the product ships, and it is
+ * the variant the customer is buying. Reading the product here would let a
+ * cart mixing a pickup-only variant with a ships-only line past the conflict
+ * check and into an order the shop cannot fulfil either way.
+ *
+ * A set answers for its whole recipe — it can only ship if every piece can —
+ * which `sellableBundle` has already worked out.
+ */
+export function checkoutLineFulfillment(line: CheckoutLine) {
+  if (line.kind === 'bundle') return { ships: line.ships, pickup: line.pickup };
+  return {
+    ships: line.ships ?? line.product.ships,
+    pickup: line.pickup ?? line.product.pickup
+  };
+}
 
 export function holdExpiry(now = new Date()) {
   return new Date(now.getTime() + CHECKOUT_HOLD_MINUTES * 60_000);
@@ -105,25 +185,39 @@ export function readCheckoutItems(body: unknown): CheckoutRequestedItem[] {
   const items = (body as { items?: unknown }).items;
   if (!Array.isArray(items)) return [];
   /**
-   * Keyed by product *and* size: a basket holding a 4" and a 6" pot of the same
-   * plant is two lines, and merging them on the slug alone would have charged
-   * for two of whichever size happened to arrive first.
+   * Keyed by kind, product *and* size: a basket holding a 4" and a 6" pot of the
+   * same plant is two lines, and merging them on the slug alone would have
+   * charged for two of whichever size happened to arrive first. The kind is in
+   * the key because a bundle may share a slug with a product.
    */
   const merged = new Map<string, CheckoutRequestedItem>();
   for (const entry of items) {
     if (!entry || typeof entry !== 'object') continue;
-    const raw = entry as { id?: unknown; quantity?: unknown; priceCents?: unknown; size?: unknown };
+    const raw = entry as {
+      id?: unknown;
+      kind?: unknown;
+      quantity?: unknown;
+      priceCents?: unknown;
+      size?: unknown;
+    };
     const id = String(raw.id || '').trim();
     if (!id) continue;
-    const size = String(raw.size ?? '')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, SIZE_LABEL_MAX);
+    const kind = readLineKind(raw.kind);
+    // A set has no size of its own: its recipe already pinned every variant.
+    const size =
+      kind === 'bundle'
+        ? ''
+        : String(raw.size ?? '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, SIZE_LABEL_MAX);
     const quantity = Math.max(1, Math.min(20, Math.floor(Number(raw.quantity) || 1)));
     const priceCents = Number(raw.priceCents);
-    const current = merged.get(cartLineKey(id, size));
-    merged.set(cartLineKey(id, size), {
+    const key = basketLineKey(kind, id, size);
+    const current = merged.get(key);
+    merged.set(key, {
       id,
+      ...(kind === 'bundle' ? { kind } : {}),
       ...(size ? { size } : {}),
       quantity: Math.min(20, (current?.quantity || 0) + quantity),
       ...(Number.isFinite(priceCents) && priceCents >= 0
@@ -136,6 +230,18 @@ export function readCheckoutItems(body: unknown): CheckoutRequestedItem[] {
   return [...merged.values()];
 }
 
+/**
+ * Which count a line draws on. Sizes the owner did not count separately share
+ * the product's one number, so every line of that product meters against the
+ * same key; sizes she did count have their own, so a basket holding the last 4"
+ * pot and the last 6" pot is two lines against two shelves and both are
+ * honoured.
+ *
+ * Bundles meter here too, through the same keys — the components are the stock,
+ * so a set and a loose jar of the same lotion are two lines against one shelf.
+ */
+const shelfKey = productShelfKey;
+
 export function checkoutAdjustments(
   requested: CheckoutRequestedItem[],
   products: Array<{
@@ -145,23 +251,24 @@ export function checkoutAdjustments(
     priceCents: number;
     active?: boolean;
     sizes?: unknown;
-  }>
+  }>,
+  bundles: BundleForSale[] = []
 ): CheckoutAdjustment[] {
   const adjustments: CheckoutAdjustment[] = [];
   /**
    * Stock is spent line by line rather than each line being checked against the
    * shelf independently, because two lines drawing on the same shelf would
    * otherwise each pass on the last three jars.
-   *
-   * Which shelf a line draws on depends on the product. Sizes the owner did not
-   * count separately share the product's one count, so every line of that
-   * product meters against the same key; sizes she did count have their own, so
-   * a basket holding the last 4" pot and the last 6" pot is two lines against
-   * two shelves and both are honoured.
    */
   const remaining = new Map<string, number>();
 
   for (const requestedItem of requested) {
+    if (requestedItem.kind === 'bundle') {
+      const change = bundleAdjustment(requestedItem, bundles, remaining);
+      if (change) adjustments.push(change);
+      continue;
+    }
+
     const product = products.find((candidate) => candidate.slug === requestedItem.id);
     if (!product || product.active === false) {
       adjustments.push({
@@ -200,7 +307,7 @@ export function checkoutAdjustments(
 
     const unitCents = chosen?.priceCents ?? product.priceCents;
     const sizeFields = requestedItem.size ? { size: requestedItem.size } : {};
-    const shelf = sizesTrackStock(sizes) ? cartLineKey(product.slug, chosen?.label) : product.slug;
+    const shelf = shelfKey(product, chosen?.label);
     const available = remaining.get(shelf) ?? sizeAvailable(chosen, product.inventory);
 
     if (available < requestedItem.quantity) {
@@ -233,6 +340,116 @@ export function checkoutAdjustments(
   return adjustments;
 }
 
+/**
+ * A set's line, checked against the components it is built from and metered on
+ * the same shelves the loose products use.
+ *
+ * How many sets a basket may take is the fewest any required component can
+ * still supply *after everything ahead of it in the basket has been spent* —
+ * which is why this reads and writes the shared `remaining` map rather than
+ * asking `bundleAvailability` for a fresh answer. A basket holding the last
+ * loose infuser and a set that needs one is a basket the shop cannot fill, and
+ * checking the set on its own would have said it could.
+ */
+function bundleAdjustment(
+  requestedItem: CheckoutRequestedItem,
+  bundles: BundleForSale[],
+  remaining: Map<string, number>
+): CheckoutAdjustment | null {
+  const bundle = bundles.find((candidate) => candidate.slug === requestedItem.id);
+  if (!bundle || bundle.active === false || !requiredItems(bundle).length) {
+    return {
+      slug: requestedItem.id,
+      kind: 'bundle',
+      name: bundle?.title || 'That set',
+      requested: requestedItem.quantity,
+      available: 0,
+      reason: 'unavailable'
+    };
+  }
+
+  const perSet = (item: BundleComponent) => Math.max(1, Math.floor(item.quantity || 1));
+  const onShelf = (item: BundleComponent) => {
+    const key = componentShelfKey(item);
+    const units =
+      remaining.get(key) ??
+      // The recipe's own view of the shelf, which is zero for a variant that
+      // has been retired or was never pinned.
+      componentSetsAvailable({ ...item, quantity: 1 });
+    return { key, units };
+  };
+
+  /**
+   * Per-set demand summed by shelf before dividing.
+   *
+   * Two recipe lines can draw on one count — a box holding both the 2 oz and the
+   * 8 oz of a lotion whose sizes are not counted separately. Divided line by
+   * line, a pile of one jar answers "one set available" to a recipe that needs
+   * two of them, and the reservation then fails against a correction that
+   * repeats the same wrong number.
+   */
+  const demandByShelf = (items: BundleComponent[]) => {
+    const shelves = new Map<string, { perSet: number; units: number }>();
+    for (const item of items) {
+      const { key, units } = onShelf(item);
+      const existing = shelves.get(key);
+      shelves.set(key, { perSet: (existing?.perSet ?? 0) + perSet(item), units });
+    }
+    return shelves;
+  };
+
+  const sets = [...demandByShelf(requiredItems(bundle)).values()].reduce(
+    (fewest, shelf) => Math.min(fewest, Math.floor(shelf.units / shelf.perSet)),
+    Number.POSITIVE_INFINITY
+  );
+  const available = Math.max(0, Number.isFinite(sets) ? sets : 0);
+  const taking = Math.min(requestedItem.quantity, available);
+
+  /**
+   * Spend what this line will actually take, so the next line sees the shelf as
+   * it will be. Summed by shelf for the same reason as above: two lines against
+   * one pile spend it once between them, not once each.
+   *
+   * An extra the shelf cannot cover for every set is left out of the box rather
+   * than shrinking the order, so it spends nothing — matching `includedItems`,
+   * which decides the same question for the reservation and the receipt.
+   */
+  const included = new Set(includedItems(bundle, Math.max(1, taking)));
+  for (const [key, shelf] of demandByShelf(bundle.items.filter((item) => included.has(item)))) {
+    remaining.set(key, Math.max(0, shelf.units - shelf.perSet * taking));
+  }
+  for (const item of bundle.items) {
+    if (included.has(item)) continue;
+    const { key, units } = onShelf(item);
+    if (!remaining.has(key)) remaining.set(key, units);
+  }
+
+  if (available < requestedItem.quantity) {
+    return {
+      slug: bundle.slug,
+      kind: 'bundle',
+      name: bundle.title,
+      requested: requestedItem.quantity,
+      available,
+      reason: 'stock'
+    };
+  }
+
+  if (requestedItem.priceCents != null && requestedItem.priceCents !== bundle.priceCents) {
+    return {
+      slug: bundle.slug,
+      kind: 'bundle',
+      name: bundle.title,
+      requested: requestedItem.quantity,
+      available,
+      reason: 'price',
+      priceCents: bundle.priceCents
+    };
+  }
+
+  return null;
+}
+
 export function checkoutAdjustmentNotice(change: {
   name: string;
   available: number;
@@ -261,15 +478,23 @@ export function checkoutAdjustmentNotice(change: {
  * a line to protect a path that only runs when the order row is gone, and the
  * budget it would spend is the scarce one guarded below.
  */
-export function encodeCheckoutItems(
-  items: Array<{ product: { id: string }; quantity: number; size?: string | null }>
-) {
+export type SnapshotLine =
+  | { kind?: 'product'; product: { id: string }; quantity: number; size?: string | null }
+  | { kind: 'bundle'; bundle: { id: string }; quantity: number };
+
+export function encodeCheckoutItems(items: SnapshotLine[]) {
   return JSON.stringify(
-    items.map(({ product, quantity, size }) => ({
-      id: product.id,
-      q: quantity,
-      ...(size ? { s: size } : {})
-    }))
+    items.map((line) =>
+      line.kind === 'bundle'
+        ? // `k` marks the id as a bundle's. Without it a set and a product that
+          // happened to share an id would resolve to whichever was found first.
+          { id: line.bundle.id, q: line.quantity, k: 'b' }
+        : {
+            id: line.product.id,
+            q: line.quantity,
+            ...(line.size ? { s: line.size } : {})
+          }
+    )
   );
 }
 
@@ -289,14 +514,12 @@ export function encodeCheckoutItems(
  */
 export const STRIPE_METADATA_VALUE_MAX = 500;
 
-export function stripeCheckoutItemsMetadata(
-  items: Array<{ product: { id: string }; quantity: number; size?: string | null }>
-) {
+export function stripeCheckoutItemsMetadata(items: SnapshotLine[]) {
   const encoded = encodeCheckoutItems(items);
   return encoded.length <= STRIPE_METADATA_VALUE_MAX ? encoded : undefined;
 }
 
-export type ParsedCheckoutItem = { id: string; q: number; p?: number; s?: string };
+export type ParsedCheckoutItem = { id: string; q: number; p?: number; s?: string; k?: 'b' };
 
 export function parseCheckoutItems(value: string | null | undefined): ParsedCheckoutItem[] {
   try {
@@ -305,18 +528,23 @@ export function parseCheckoutItems(value: string | null | undefined): ParsedChec
     const merged = new Map<string, ParsedCheckoutItem>();
     for (const entry of parsed) {
       if (!entry || typeof entry !== 'object') continue;
-      const item = entry as { id?: unknown; q?: unknown; p?: unknown; s?: unknown };
+      const item = entry as { id?: unknown; q?: unknown; p?: unknown; s?: unknown; k?: unknown };
       const id = String(item.id || '').trim();
       if (!id) continue;
-      const s = String(item.s ?? '')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, SIZE_LABEL_MAX);
+      const bundle = item.k === 'b';
+      const s = bundle
+        ? ''
+        : String(item.s ?? '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .slice(0, SIZE_LABEL_MAX);
       const q = Math.max(1, Math.min(20, Math.floor(Number(item.q) || 1)));
       const price = Number(item.p);
-      const current = merged.get(cartLineKey(id, s));
-      merged.set(cartLineKey(id, s), {
+      const key = basketLineKey(bundle ? 'bundle' : 'product', id, s);
+      const current = merged.get(key);
+      merged.set(key, {
         id,
+        ...(bundle ? { k: 'b' as const } : {}),
         ...(s ? { s } : {}),
         q: Math.min(20, (current?.q || 0) + q),
         ...(Number.isFinite(price) && price >= 0
@@ -330,4 +558,40 @@ export function parseCheckoutItems(value: string | null | undefined): ParsedChec
   } catch {
     return [];
   }
+}
+
+/**
+ * Turns a resolved bundle and a number of sets into the checkout line that
+ * Stripe, the reservation and the order row all read from.
+ */
+export function bundleCheckoutLine(
+  bundle: BundleForSale & {
+    id: string;
+    tagline?: string | null;
+    description?: string | null;
+    imageUrl?: string | null;
+  },
+  quantity: number
+): CheckoutBundleLine {
+  const { lines, skipped } = bundleStockLines(bundle, quantity);
+  const fulfillment = bundleFulfillment(bundle, quantity);
+  return {
+    kind: 'bundle',
+    bundle: {
+      id: bundle.id,
+      slug: bundle.slug,
+      title: bundle.title,
+      tagline: bundle.tagline ?? null,
+      description: bundle.description ?? '',
+      imageUrl: bundle.imageUrl ?? null,
+      priceCents: bundle.priceCents
+    },
+    quantity,
+    unitCents: bundle.priceCents,
+    components: lines,
+    skipped,
+    contents: bundleContentsLine(bundle, quantity),
+    ships: fulfillment.ships,
+    pickup: fulfillment.pickup
+  };
 }
