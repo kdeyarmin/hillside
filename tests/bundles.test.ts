@@ -217,15 +217,21 @@ describe('bundle fulfilment and copy', () => {
 
 describe('what a sold set takes off the shelf', () => {
   it('multiplies the recipe by the number of sets', () => {
+    // Each component keeps its own name: the snapshot is what the packing slip
+    // prints, so a line that carried the wrong product's name would send the
+    // packer to the wrong shelf.
     const { lines } = bundleStockLines(
       bundle([
-        { quantity: 3, product: product({ id: 'p-succulent', inventory: 12 }) },
+        {
+          quantity: 3,
+          product: product({ id: 'p-succulent', name: 'Echeveria', inventory: 12 })
+        },
         { quantity: 1, size: '2 oz', product: product({ id: 'p-tea', inventory: 8 }) }
       ]),
       2
     );
     assert.deepEqual(lines, [
-      { productId: 'p-succulent', name: 'Hillside Calm Tea', size: null, quantity: 6 },
+      { productId: 'p-succulent', name: 'Echeveria', size: null, quantity: 6 },
       { productId: 'p-tea', name: 'Hillside Calm Tea', size: '2 oz', quantity: 2 }
     ]);
   });

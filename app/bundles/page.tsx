@@ -99,7 +99,7 @@ export default async function BundlesPage() {
             <Link
               className="btn gold"
               href={contactHref({
-                subject: 'Custom planter arrangement',
+                subject: 'Custom gift set',
                 message: 'I am after a set that is not on the sets page — '
               })}
             >

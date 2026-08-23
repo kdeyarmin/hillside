@@ -115,7 +115,14 @@ export async function sellableBundlesWithAnyProduct(productIds: string[], take =
   return bundles.filter((bundle) => bundleIsBuyable(bundle)).slice(0, take);
 }
 
-/** Every active bundle whose slug is in the basket, sellable or not. */
+/**
+ * Every bundle whose slug is in the basket, **including archived ones**, and
+ * whether or not it can currently be built.
+ *
+ * Deliberately unfiltered: the caller restoring a saved cart has to tell "this
+ * set is archived" apart from "this slug was never a set", and a query that
+ * filtered on `active` would hand it the same empty answer for both.
+ */
 export async function bundlesBySlug(slugs: string[]) {
   if (!slugs.length) return [];
   return db.bundle.findMany({
