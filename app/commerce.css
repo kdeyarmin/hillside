@@ -1705,3 +1705,8 @@ a.filter-chip {
 .discount-field .form-status { margin: 6px 0 0; font-size: 13px; }
 .summary-row.discount span:first-child { color: var(--muted); }
 .summary-row.discount strong { color: var(--forest); }
+.discount-search { margin-bottom: 14px; }
+.discount-search-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; align-items: center; }
+.discount-search-row .admin-input { flex: 1 1 240px; }
+.discount-pager { align-items: center; gap: 12px; margin-top: 14px; }
+.discount-pager .muted { font-size: 13px; }

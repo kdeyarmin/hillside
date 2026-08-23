@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import {
+  checkoutAdjustments,
   checkoutLineFulfillment,
   discountLinesForCheckout,
   readCheckoutItems,
@@ -75,6 +76,22 @@ export async function POST(request: Request) {
       ? db.bundle.findMany({ where: { slug: { in: bundleSlugs } }, include: bundleSaleInclude })
       : Promise.resolve([])
   ]);
+  /**
+   * The same correction checkout makes, made here too.
+   *
+   * Without it the resolver would quietly drop a sold-out line or clamp one
+   * whose price moved, and answer with a code's worth against *that* basket
+   * while the cart went on showing the lines it had — so the total on screen
+   * would be for an order the shop was not going to sell. The customer would
+   * find out only after pressing the pay button. Same payload and same status
+   * as the checkout route, because the cart already knows how to correct itself
+   * from it.
+   */
+  const adjustments = checkoutAdjustments(requested, products, bundles);
+  if (adjustments.length) {
+    return NextResponse.json({ adjustments }, { status: 409 });
+  }
+
   const items = resolveCheckoutLines(requested, products, bundles);
   if (!items.length) {
     return NextResponse.json(

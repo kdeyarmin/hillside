@@ -6,6 +6,7 @@ import {
   evaluateGiftCard,
   evaluatePromotion,
   expiryFromDateInput,
+  giftCardSearchTerms,
   giftCardEntryMovementCents,
   giftCardRefusalMessage,
   promotionDiscountCents,
@@ -483,5 +484,38 @@ describe('expiryFromDateInput', () => {
     assert.equal(expiryFromDateInput('   '), null);
     assert.equal(expiryFromDateInput('not a date'), null);
     assert.equal(expiryFromDateInput(null), null);
+  });
+});
+
+describe('giftCardSearchTerms', () => {
+  it('regroups a bare number into the form the card is stored in', () => {
+    assert.deepEqual(giftCardSearchTerms('01BT41BVA8Z2Y3TM'), [
+      '01BT41BVA8Z2Y3TM',
+      '01BT-41BV-A8Z2-Y3TM'
+    ]);
+  });
+
+  it('leaves a number that already has its dashes alone', () => {
+    assert.deepEqual(giftCardSearchTerms('01BT-41BV-A8Z2-Y3TM'), ['01BT-41BV-A8Z2-Y3TM']);
+  });
+
+  it('passes a bare tail straight through, which is how a card is named', () => {
+    assert.deepEqual(giftCardSearchTerms('Y3TM'), ['Y3TM']);
+  });
+
+  it('regroups a partial number read off the front of a card', () => {
+    assert.deepEqual(giftCardSearchTerms('01BT41BV'), ['01BT41BV', '01BT-41BV']);
+  });
+
+  it('has nothing to look for when nothing was typed', () => {
+    assert.deepEqual(giftCardSearchTerms(''), []);
+    assert.deepEqual(giftCardSearchTerms('   '), []);
+  });
+
+  it('leaves a name or an address as the one term it is', () => {
+    assert.deepEqual(giftCardSearchTerms('marion@example.com'), [
+      'marion@example.com',
+      'mari-onex-ampl-ecom'
+    ]);
   });
 });

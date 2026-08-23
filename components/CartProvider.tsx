@@ -300,6 +300,31 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   /**
+   * Brings the basket into line with what the shop will actually sell, and says
+   * what changed.
+   *
+   * Shared by the two places that can discover a stale basket — pressing
+   * checkout, and applying a code — because they discover exactly the same
+   * thing and the shopper should not be able to tell which one found it.
+   */
+  const applyAdjustments = useCallback((adjustments: CheckoutAdjustment[]) => {
+    setItems((current) =>
+      current.flatMap((item) => {
+        const change = adjustments.find((entry) => lineKey(entry) === lineKey(item));
+        if (!change) return [item];
+        if (change.reason === 'price' && change.priceCents != null) {
+          return [{ ...item, priceCents: change.priceCents }];
+        }
+        // A size we no longer sell cannot be corrected for the shopper — the
+        // line goes, and the notice sends them back to the dropdown.
+        if (change.reason === 'size' || change.available <= 0) return [];
+        return [{ ...item, inventory: change.available, quantity: change.available }];
+      })
+    );
+    setCheckoutNotice(adjustments.map(noticeForAdjustment).join(' '));
+  }, []);
+
+  /**
    * Prices the basket against a set of codes and keeps whichever of them the
    * shop accepted.
    *
@@ -344,7 +369,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             }))
           })
         });
-        const result = (await response.json()) as Partial<DiscountSummary> & { error?: string };
+        const result = (await response.json()) as Partial<DiscountSummary> & {
+          error?: string;
+          adjustments?: CheckoutAdjustment[];
+        };
+
+        /**
+         * The basket changed under the shopper — something sold out, or a price
+         * moved — so there is nothing honest to quote against it yet. It is
+         * corrected here and the code is left in the box to try again, rather
+         * than pricing a basket the shop will not sell.
+         */
+        if (result.adjustments?.length) {
+          applyAdjustments(result.adjustments);
+          setDiscount(null);
+          return;
+        }
         if (!response.ok) {
           throw new Error(result.error || 'We could not check that code just now.');
         }
@@ -387,7 +427,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         if (!controller.signal.aborted) setDiscountPending(null);
       }
     },
-    [fulfillment, items]
+    [applyAdjustments, fulfillment, items]
   );
 
   const applyDiscountCode = useCallback(
@@ -550,21 +590,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (result.adjustments?.length) {
-        const adjustments = result.adjustments;
-        setItems((current) =>
-          current.flatMap((item) => {
-            const change = adjustments.find((entry) => lineKey(entry) === lineKey(item));
-            if (!change) return [item];
-            if (change.reason === 'price' && change.priceCents != null) {
-              return [{ ...item, priceCents: change.priceCents }];
-            }
-            // A size we no longer sell cannot be corrected for the shopper —
-            // the line goes, and the notice sends them back to the dropdown.
-            if (change.reason === 'size' || change.available <= 0) return [];
-            return [{ ...item, inventory: change.available, quantity: change.available }];
-          })
-        );
-        setCheckoutNotice(adjustments.map(noticeForAdjustment).join(' '));
+        applyAdjustments(result.adjustments);
         checkoutLock.current = false;
         setCheckoutLoading(false);
         return;
@@ -577,7 +603,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       checkoutLock.current = false;
       setCheckoutLoading(false);
     }
-  }, [appliedCodes, fulfillment, giftMessage, items, pickupArranged]);
+  }, [applyAdjustments, appliedCodes, fulfillment, giftMessage, items, pickupArranged]);
 
   const count = useMemo(() => items.reduce((total, item) => total + item.quantity, 0), [items]);
   const subtotalCents = useMemo(

@@ -100,6 +100,35 @@ export const DISCOUNT_BATCH_MAX = 100;
  */
 export const STRIPE_MINIMUM_CHARGE_CENTS = 50;
 
+/** The printed form's group size, which the search below regroups against. */
+const GIFT_CARD_CODE_GROUP = 4;
+
+/** How many gift cards or promo codes one page of the dashboard lists. */
+export const DISCOUNT_PAGE_SIZE = 60;
+
+/**
+ * The code-shaped things a search box's contents might be looking for.
+ *
+ * A card number is stored in the grouped form it is printed in, but it gets
+ * typed back every which way — off the card with its dashes, pasted bare out of
+ * an email, or just the last group, which is how a card is named everywhere the
+ * whole number is deliberately not shown. Regrouping the bare characters in
+ * fours is what makes `01BT41BVA8Z2Y3TM` find `01BT-41BV-A8Z2-Y3TM`.
+ *
+ * Returned as terms rather than applied as a predicate, so the dashboard can
+ * hand them to Postgres and search every card the shop has ever issued rather
+ * than filtering whichever page it happened to load. A query starting partway
+ * through a group will not match — nobody reads a number off a card that way.
+ */
+export function giftCardSearchTerms(query: string) {
+  const raw = query.trim();
+  if (!raw) return [];
+  const bare = raw.replace(/[^a-zA-Z0-9]/g, '');
+  const grouped =
+    bare.length > GIFT_CARD_CODE_GROUP ? (bare.match(/.{1,4}/g) || []).join('-') : bare;
+  return [...new Set([raw, grouped].filter(Boolean))];
+}
+
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
 /**

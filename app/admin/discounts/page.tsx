@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { DiscountKind, type Category, type Promotion } from '@prisma/client';
+import { DiscountKind, Prisma, type Category, type Promotion } from '@prisma/client';
 import AdminDeepLink from '@/components/AdminDeepLink';
 import ConfirmSubmit from '@/components/ConfirmSubmit';
 import PendingSubmit from '@/components/PendingSubmit';
@@ -11,6 +11,8 @@ import { maskGiftCardCode } from '@/lib/discount-codes';
 import {
   DISCOUNT_BATCH_MAX,
   DISCOUNT_KIND_LABELS,
+  DISCOUNT_PAGE_SIZE,
+  giftCardSearchTerms,
   GIFT_CARD_ENTRY_LABELS,
   GIFT_CARD_MAX_CENTS,
   GIFT_CARD_MIN_CENTS,
@@ -44,6 +46,15 @@ function dateTimeValue(value: Date | null) {
 
 function dateValue(value: Date | null) {
   return value ? dateTimeValue(value).slice(0, 10) : '';
+}
+
+/** A link back to this page at another page of cards, keeping the search. */
+function cardPageHref(query: string, page: number) {
+  const params = new URLSearchParams();
+  if (query) params.set('cards', query);
+  if (page > 1) params.set('page', String(page));
+  const encoded = params.toString();
+  return `/admin/discounts${encoded ? `?${encoded}` : ''}#gift-cards`;
 }
 
 /**
@@ -197,6 +208,8 @@ export default async function AdminDiscounts({
     promotion?: string | string[];
     card?: string | string[];
     section?: string | string[];
+    cards?: string | string[];
+    page?: string | string[];
   }>;
 }) {
   if (!(await isAdmin())) redirect('/admin');
@@ -206,8 +219,35 @@ export default async function AdminDiscounts({
   const focusPromotion = firstSearchParam(params.promotion);
   const focusCard = firstSearchParam(params.card);
   const focusSection = firstSearchParam(params.section);
+  const cardQuery = firstSearchParam(params.cards).trim();
+  const cardPage = Math.max(1, Number(firstSearchParam(params.page)) || 1);
 
-  const [promotions, giftCards, categories, redeemed, outstanding] = await Promise.all([
+  /**
+   * Cards are searched in the database rather than filtered after the fact.
+   *
+   * One batch may itself issue a hundred cards, so a page that read the newest
+   * hundred and filtered those would lose every older card the moment a batch
+   * went out — and a card nobody can find is a card the owner cannot put on
+   * hold when it is lost. The code is matched on its bare characters so a
+   * number read off a slip finds its row with or without the printed hyphens.
+   */
+  const cardWhere: Prisma.GiftCardWhereInput = cardQuery
+    ? {
+        OR: [
+          ...giftCardSearchTerms(cardQuery).map((term) => ({
+            code: { contains: term, mode: 'insensitive' as const }
+          })),
+          { recipientName: { contains: cardQuery, mode: 'insensitive' as const } },
+          { recipientEmail: { contains: cardQuery, mode: 'insensitive' as const } },
+          { purchaserName: { contains: cardQuery, mode: 'insensitive' as const } },
+          { purchaserEmail: { contains: cardQuery, mode: 'insensitive' as const } },
+          { batch: { contains: cardQuery, mode: 'insensitive' as const } },
+          { note: { contains: cardQuery, mode: 'insensitive' as const } }
+        ]
+      }
+    : {};
+
+  const [promotions, giftCards, cardCount, categories, redeemed, outstanding] = await Promise.all([
     db.promotion.findMany({
       orderBy: [{ active: 'desc' }, { createdAt: 'desc' }],
       take: 100,
@@ -217,10 +257,13 @@ export default async function AdminDiscounts({
       }
     }),
     db.giftCard.findMany({
+      where: cardWhere,
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      skip: (cardPage - 1) * DISCOUNT_PAGE_SIZE,
+      take: DISCOUNT_PAGE_SIZE,
       include: { entries: { orderBy: { createdAt: 'desc' }, take: 15 } }
     }),
+    db.giftCard.count({ where: cardWhere }),
     db.category.findMany({
       where: { active: true },
       orderBy: { title: 'asc' },
@@ -239,6 +282,7 @@ export default async function AdminDiscounts({
     })
   ]);
 
+  const cardPages = Math.max(1, Math.ceil(cardCount / DISCOUNT_PAGE_SIZE));
   const liveCodes = promotions.filter((promotion) => promotion.active).length;
   const outstandingCents =
     (outstanding._sum.balanceCents || 0) + (outstanding._sum.reservedCents || 0);
@@ -534,6 +578,35 @@ export default async function AdminDiscounts({
             paid — an abandoned basket puts it straight back.
           </p>
 
+          {/* A GET form, so a search is a link Tammy can bookmark or send to
+              herself, and so it works with no JavaScript at all. */}
+          <form className="admin-card discount-search" method="get" action="/admin/discounts">
+            <input type="hidden" name="section" value="gift-cards" />
+            <label className="admin-label" htmlFor="card-search">
+              Find a card
+              <span className="admin-hint">
+                By its number — with or without the dashes — or by who it was for, who bought it,
+                its batch or your own note.
+              </span>
+            </label>
+            <div className="discount-search-row">
+              <input
+                id="card-search"
+                className="admin-input"
+                name="cards"
+                defaultValue={cardQuery}
+                placeholder="M3QA, marion@example.com, Holiday cards 2026"
+                autoComplete="off"
+              />
+              <button className="btn small">Search</button>
+              {cardQuery && (
+                <Link className="btn outline small" href="/admin/discounts#gift-cards">
+                  Clear
+                </Link>
+              )}
+            </div>
+          </form>
+
           {giftCards.length ? (
             <div className="admin-list">
               {giftCards.map((card) => {
@@ -680,7 +753,38 @@ export default async function AdminDiscounts({
             </div>
           ) : (
             <div className="admin-card">
-              <p>No gift cards issued yet.</p>
+              <p>
+                {cardQuery
+                  ? `Nothing matches “${cardQuery}”. Try the last four characters of the number on its own.`
+                  : 'No gift cards issued yet.'}
+              </p>
+            </div>
+          )}
+
+          {cardPages > 1 && (
+            <div className="admin-actions discount-pager">
+              <span className="muted">
+                {cardCount} {cardCount === 1 ? 'card' : 'cards'}
+                {cardQuery ? ' matching' : ''} • page {cardPage} of {cardPages}
+              </span>
+              {cardPage > 1 && (
+                <Link
+                  className="btn outline small"
+                  href={cardPageHref(cardQuery, cardPage - 1)}
+                  rel="prev"
+                >
+                  ← Newer
+                </Link>
+              )}
+              {cardPage < cardPages && (
+                <Link
+                  className="btn outline small"
+                  href={cardPageHref(cardQuery, cardPage + 1)}
+                  rel="next"
+                >
+                  Older →
+                </Link>
+              )}
             </div>
           )}
         </section>
