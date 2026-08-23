@@ -226,6 +226,12 @@ export async function POST(request: Request) {
     const appliedDiscountCents = applied.promoDiscountCents + applied.giftCardCents;
 
     let session: Stripe.Checkout.Session;
+    /**
+     * The coupon below, for as long as nothing is using it. Held outside the
+     * try so the failure path can clean it up, and cleared the moment a session
+     * takes it on — see both places below.
+     */
+    let unusedCoupon: Stripe.Coupon | null = null;
     try {
       /**
        * The discount reaches Stripe as a one-shot coupon rather than as reduced
@@ -247,6 +253,7 @@ export async function POST(request: Request) {
               name: discountLabel(applied)
             })
           : null;
+      unusedCoupon = coupon;
 
       session = await stripe.checkout.sessions.create({
         mode: 'payment',
@@ -403,6 +410,12 @@ export async function POST(request: Request) {
           ...(itemsSnapshot ? { items: itemsSnapshot } : {})
         }
       });
+      /**
+       * The session is holding the coupon now, so it is no longer this
+       * request's to tidy away — and deleting one a live session references
+       * would take the discount off a basket the customer is about to pay for.
+       */
+      unusedCoupon = null;
 
       if (pickup && process.env.STRIPE_AUTOMATIC_TAX === 'true') {
         try {
@@ -442,6 +455,21 @@ export async function POST(request: Request) {
       }
     } catch (error) {
       await releaseProductHold(reservation.order.id);
+      /**
+       * A coupon minted for a session that never came into being. It is already
+       * unspendable — nobody outside this request ever learned its id, and it
+       * is capped at one redemption — but leaving one behind on every failed
+       * checkout would fill the shop's coupon list with clutter Tammy has to
+       * scroll past. Best-effort, and never at the expense of the real error:
+       * whatever actually went wrong is what gets thrown.
+       */
+      if (unusedCoupon) {
+        try {
+          await stripe.coupons.del(unusedCoupon.id);
+        } catch (cleanupError) {
+          console.error('Unable to delete the unused Stripe coupon', cleanupError);
+        }
+      }
       throw error;
     }
 
