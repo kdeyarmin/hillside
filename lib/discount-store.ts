@@ -121,10 +121,23 @@ export async function findGiftCardByCode(input: unknown) {
 
 export type DiscountQuoteResult = {
   quote: DiscountQuote;
+  /**
+   * What was actually claimed against, for the caller that goes on to reserve
+   * it. Server-side only: it carries the gift card's real number, which is the
+   * one thing in here that must not travel back to a browser.
+   */
   plan: DiscountPlan;
-  /** How the applied codes should read in the cart, and why one was refused. */
+  /**
+   * How the applied codes should read in the cart, and why one was refused.
+   *
+   * A promo code appears in full because that is what it is for — the customer
+   * was given it to type and the cart shows it back to them. A gift card
+   * appears only masked: it is a bearer instrument, the holder already has the
+   * number, and echoing it into a response body puts spendable money somewhere
+   * it did not need to go.
+   */
   promotion: { code: string; summary: string; message?: string } | null;
-  giftCard: { code: string; maskedCode: string; balanceCents: number; message?: string } | null;
+  giftCard: { maskedCode: string; balanceCents: number; message?: string } | null;
   promotionError: string | null;
   giftCardError: string | null;
 };
@@ -208,11 +221,7 @@ export async function quoteCartDiscounts({
         : null,
     giftCard:
       giftCardApplied && giftCard
-        ? {
-            code: giftCard.code,
-            maskedCode: maskGiftCardCode(giftCard.code),
-            balanceCents: giftCard.balanceCents
-          }
+        ? { maskedCode: maskGiftCardCode(giftCard.code), balanceCents: giftCard.balanceCents }
         : null,
     promotionError,
     giftCardError

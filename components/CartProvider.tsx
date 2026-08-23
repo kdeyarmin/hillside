@@ -77,7 +77,8 @@ export type DiscountSummary = {
   freeShipping: boolean;
   pickup: boolean;
   promotion: { code: string; summary: string } | null;
-  giftCard: { code: string; maskedCode: string; balanceCents: number } | null;
+  /** Masked, never the full number: see `DiscountQuoteResult` for why. */
+  giftCard: { maskedCode: string; balanceCents: number } | null;
   promotionError: string | null;
   giftCardError: string | null;
 };
