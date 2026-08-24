@@ -113,11 +113,53 @@ try {
     await db.order.deleteMany({ where: { id: { in: ids } } });
   });
 
-  const product = await db.product.findFirst({
-    where: { active: true, inventory: { gte: 5 } },
+  /**
+   * What the basket product has to be, all of which used to be true by luck of
+   * which product happened to be cheapest.
+   *
+   * It must ship, because every checkout below asks for `SHIP`. A pickup-only
+   * product is refused at validation, and a refusal measured twenty times is
+   * not twenty passing checks — it is one fixture chosen wrongly.
+   *
+   * It must be sold one way, for the same reason: every line built below
+   * carries no size, and the checkout rightly refuses a sized product addressed
+   * without one.
+   *
+   * And it should hold fewer than 20, because a line's quantity is capped at 20
+   * on the way in, so a deeper shelf cannot be oversold through one line at all.
+   * Unlike the two above this is a preference — every other check runs against a
+   * deeply stocked product perfectly well — but it is not free: the oversell
+   * check below deliberately records a *failure* rather than a quiet pass when
+   * it cannot be exercised, so a catalog with nothing shallow ends the run
+   * non-zero. Preferring a shallow shelf is what keeps that from being the
+   * ordinary outcome.
+   */
+  const candidates = await db.product.findMany({
+    where: { active: true, ships: true, inventory: { gte: 5 } },
     orderBy: { priceCents: 'asc' }
   });
-  if (!product) throw new Error('no sellable product to test with');
+  /**
+   * `sizes` is not always an array in the column. `readStoredSizes` parses a
+   * string too — "older rows, or a hand-edited column, may hold the JSON as
+   * text" — and a bare `Array.isArray` reads one of those as unsized, which
+   * picks exactly the fixture this is here to avoid.
+   */
+  const sizeCount = (value) => {
+    let parsed = value;
+    if (typeof parsed === 'string') {
+      try {
+        parsed = JSON.parse(parsed);
+      } catch {
+        return 0;
+      }
+    }
+    return Array.isArray(parsed) ? parsed.length : 0;
+  };
+  const oneSize = candidates.filter((row) => sizeCount(row.sizes) === 0);
+  const product = oneSize.find((row) => row.inventory < 20) || oneSize[0];
+  if (!product) {
+    throw new Error('no sellable, shippable, one-size product to test with');
+  }
   const line = (quantity = 1, priceCents = product.priceCents) => ([
     { id: product.slug, kind: 'product', quantity, priceCents }
   ]);

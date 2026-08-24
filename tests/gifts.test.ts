@@ -205,6 +205,31 @@ describe('occasion guides', () => {
     assert.equal(matchesGiftGuide(tagged, guide('plant-lover')), true);
   });
 
+  /**
+   * The teacher guide is an occasion guide that also carries a ceiling, and its
+   * own description says "under $30". A tag adds a product to an occasion
+   * guide; it does not get to break the promise in that sentence. The
+   * equivalent for a price band is asserted above — this is the case that was
+   * unreachable until the product form grew the boxes that set these tags.
+   */
+  it('holds a capped occasion guide’s ceiling against an owner tag', () => {
+    const expensive = product({ priceCents: 8000, giftTags: ['teacher'] });
+    assert.equal(matchesGiftGuide(expensive, guide('teacher')), false);
+    // An uncapped occasion guide still takes the tag at its word.
+    assert.equal(
+      matchesGiftGuide(
+        product({ priceCents: 8000, giftTags: ['housewarming'] }),
+        guide('housewarming')
+      ),
+      true
+    );
+    // And a tagged product inside the ceiling is unaffected.
+    assert.equal(
+      matchesGiftGuide(product({ priceCents: 3000, giftTags: ['teacher'] }), guide('teacher')),
+      true
+    );
+  });
+
   it("puts the owner's featured picks in the holiday guide", () => {
     assert.equal(matchesGiftGuide(product({ featured: true }), guide('holiday')), true);
     assert.equal(matchesGiftGuide(product(), guide('holiday')), false);

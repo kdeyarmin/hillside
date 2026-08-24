@@ -1,5 +1,6 @@
 import { InventoryStatus, type ProductSpecKind, type ProductType } from '@prisma/client';
 import ProductPhotoManager from '@/components/ProductPhotoManager';
+import { GIFT_EXCLUDE_TAG, GIFT_TAG_CHOICES } from '@/lib/gifts';
 import { groupTags, PRODUCT_TAGS } from '@/lib/product-tags';
 import {
   INVENTORY_STATUS_HINTS,
@@ -69,6 +70,7 @@ export type AdminProductDraft = {
   searchTerms: string | null;
   staffPick: boolean;
   tags: string[];
+  giftTags: string[];
   seasonStartsAt: Date | null;
   seasonEndsAt: Date | null;
   active: boolean;
@@ -321,6 +323,7 @@ export default function ProductFields({
 }) {
   const assigned = new Set((product?.collections || []).map((collection) => collection.id));
   const chosenTags = new Set(product?.tags || []);
+  const chosenGiftTags = new Set(product?.giftTags || []);
   const dateValue = (value: Date | null | undefined) =>
     value ? value.toISOString().slice(0, 10) : '';
   const stored = readStoredSizes(product?.sizes);
@@ -642,6 +645,55 @@ export default function ProductFields({
             ))}
           </div>
         ))}
+      </fieldset>
+
+      {/* The occasion guides. `saveProduct` has always written this column from
+          `giftTags`, but nothing ever rendered the boxes, so every save posted an
+          empty list and wiped whatever placement the product had — the one lever
+          over the gift guides could only ever be cleared, never set.
+
+          Only the occasion guides are here. The price bands and the set shelf are
+          worked out from what a product costs and what it is, and a tick box that
+          disagreed with either would put a $60 plant under "Gifts under $25";
+          `readGiftTags` drops them for the same reason. */}
+      <fieldset className="admin-collection-picker">
+        <legend>Gift guides</legend>
+        <span className="admin-hint">
+          Ticking a guide adds this product to it. The price guides fill themselves from the price,
+          so a product can appear in a guide you have not ticked — these only ever add.
+        </span>
+        <div className="admin-tag-group">
+          {GIFT_TAG_CHOICES.map((guide) => (
+            <label className="admin-checkbox" key={guide.slug} title={guide.blurb}>
+              <input
+                type="checkbox"
+                name="giftTags"
+                value={guide.slug}
+                defaultChecked={chosenGiftTags.has(guide.slug)}
+              />{' '}
+              {guide.shortTitle}
+            </label>
+          ))}
+        </div>
+        <div className="admin-tag-group">
+          <b>Or keep it out altogether</b>
+          <label
+            className="admin-checkbox"
+            title="For the things that sell perfectly well and give badly."
+          >
+            <input
+              type="checkbox"
+              name="giftTags"
+              value={GIFT_EXCLUDE_TAG}
+              defaultChecked={chosenGiftTags.has(GIFT_EXCLUDE_TAG)}
+            />{' '}
+            Not a gift
+          </label>
+          <span className="admin-hint">
+            Keeps it out of every guide however well it matches, including the price ones. It wins
+            over any guide ticked above.
+          </span>
+        </div>
       </fieldset>
 
       <fieldset className="admin-subsection">

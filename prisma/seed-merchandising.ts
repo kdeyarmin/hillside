@@ -1,6 +1,7 @@
 import { PrismaClient, ProductRelationKind } from '@prisma/client';
 import { ALL_TAGS } from '../lib/product-tags.ts';
 import { DEFAULT_HOMEPAGE_SECTIONS } from '../lib/merchandising.ts';
+import { publishBlockReason } from '../lib/product-completeness.ts';
 
 const db = new PrismaClient();
 
@@ -248,6 +249,52 @@ async function main() {
     select: { id: true, name: true, slug: true, traits: true }
   });
 
+  /**
+   * The products that exist but are not live, kept apart so a skipped set can
+   * say which of the two things went wrong. A recipe naming a product nobody
+   * has entered is a different problem from one naming a product that is
+   * entered but not on sale: the tea, the soap and the lotion seed as drafts
+   * until their net contents and ingredients are filled in, so the tea starter
+   * and the gift box are held back by products that are sitting right there.
+   * Told only "not in the catalog", whoever ran the seed would go looking for
+   * something that is not missing.
+   *
+   * Both reasons are real and they can appear in the same run. The plant parent
+   * kit asks for a planter, which no seeded product answers to — that one *is*
+   * a gap in the catalog, and it is why the skipped count can exceed the number
+   * of sets named below.
+   *
+   * And not-live is itself two things. A product the rule is holding back is
+   * fixed by filling in what it is missing; one the owner archived on purpose
+   * is fixed by putting it back on sale, if she wants it back at all. The same
+   * rule the seed publishes by decides which sentence to print, so the advice
+   * cannot drift from the behaviour.
+   */
+  const offSale = await db.product.findMany({
+    where: { active: false },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      type: true,
+      specs: true,
+      sku: true,
+      description: true,
+      shortDescription: true,
+      details: true,
+      priceCents: true,
+      inventory: true,
+      inventoryStatus: true,
+      imageUrl: true,
+      ships: true,
+      pickup: true,
+      category: { select: { specKind: true } }
+    }
+  });
+  const heldBackByRule = new Set(
+    offSale.filter((row) => publishBlockReason(row)).map((row) => row.id)
+  );
+
   let tagged = 0;
   for (const product of products) {
     if (product.traits.length) continue;
@@ -266,6 +313,10 @@ async function main() {
 
   let createdBundles = 0;
   let skippedBundles = 0;
+  /** Sets held back because a component exists but is not on sale, and which one. */
+  const waitingOnDrafts: string[] = [];
+  /** Whether any of those is waiting on a product the rule is holding back. */
+  let anyHeldBackByRule = false;
   for (const seed of bundles) {
     const existing = await db.bundle.findUnique({ where: { slug: seed.slug } });
     if (existing) continue;
@@ -275,6 +326,17 @@ async function main() {
     // Hillside Gift Box is not a smaller gift box; it is a wrong one.
     if (resolved.some((entry) => !entry.product)) {
       skippedBundles += 1;
+      const missing = resolved
+        .filter((entry) => !entry.product)
+        .map((entry) => find(offSale, entry.item))
+        .filter((product): product is ProductRow => Boolean(product));
+      if (missing.length) {
+        const named = missing.map((row) =>
+          heldBackByRule.has(row.id) ? `${row.name} (draft)` : `${row.name} (archived)`
+        );
+        if (missing.some((row) => heldBackByRule.has(row.id))) anyHeldBackByRule = true;
+        waitingOnDrafts.push(`${seed.title} — waiting on ${named.join(', ')}`);
+      }
       continue;
     }
 
@@ -330,9 +392,17 @@ async function main() {
 
   console.log(
     `Merchandising ready: ${createdBundles} sets created` +
-      `${skippedBundles ? ` (${skippedBundles} skipped — their products are not in the catalog)` : ''}` +
+      `${skippedBundles ? ` (${skippedBundles} skipped — a product in each recipe is missing or still a draft)` : ''}` +
       `, ${tagged} products tagged, ${createdRelations} recommendations added.`
   );
+  for (const line of waitingOnDrafts) console.log(`  · ${line}`);
+  if (waitingOnDrafts.length) {
+    console.log(
+      anyHeldBackByRule
+        ? '  Fill in what the drafts are missing (and put back anything archived), then run `npm run db:seed:merchandising` to build the sets.'
+        : '  Put those products back on sale, then run `npm run db:seed:merchandising` to build the sets.'
+    );
+  }
   if (rescued) {
     console.log(`Recommendation words moved from tags to traits on ${rescued} products.`);
   }

@@ -285,10 +285,19 @@ function searchableText(product: GiftMatchable) {
     .toLowerCase();
 }
 
+/**
+ * Whether a product is inside a guide's price ceiling, where it has one.
+ *
+ * Its own function because two paths need it and they used not to agree: a
+ * guide reached by its rules honoured the ceiling, and a guide reached by an
+ * owner's tag did not.
+ */
+function withinGuideCeiling(product: GiftMatchable, guide: GiftGuide) {
+  return guide.maxPriceCents === undefined || giftPriceCents(product) <= guide.maxPriceCents;
+}
+
 function matchesGuideRules(product: GiftMatchable, guide: GiftGuide) {
-  if (guide.maxPriceCents !== undefined && giftPriceCents(product) > guide.maxPriceCents) {
-    return false;
-  }
+  if (!withinGuideCeiling(product, guide)) return false;
   // A price band asks one question and has now asked it.
   if (guide.kind === 'price') return true;
 
@@ -314,7 +323,19 @@ export function matchesGiftGuide(product: GiftMatchable, guide: GiftGuide) {
    * and the bundle shelf a statement about the product, so a tag pointing at
    * either would be a claim the next page contradicts.
    */
-  if (guide.kind === 'occasion' && (product.giftTags || []).includes(guide.slug)) return true;
+  if (guide.kind === 'occasion' && (product.giftTags || []).includes(guide.slug)) {
+    /**
+     * A ceiling outlives the tag, for the same reason the tag cannot reach a
+     * price band at all: "Teacher gifts" is an occasion guide, but its own
+     * description says *under $30*, so an $80 plant tagged into it contradicts
+     * the sentence at the top of the page it lands on.
+     *
+     * Unreachable until the product form grew the boxes that set these tags —
+     * nothing could put a tag on a product, so nothing could put an expensive
+     * one in a capped guide.
+     */
+    return withinGuideCeiling(product, guide);
+  }
   return matchesGuideRules(product, guide);
 }
 
