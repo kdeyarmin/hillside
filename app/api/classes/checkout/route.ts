@@ -11,6 +11,7 @@ import { attachSessionToHold, holdExpiryUnix, releaseHold, reserveSeats } from '
 import { stripeProductDescription, stripeProductImages } from '@/lib/checkout';
 import { CLASSES_EXIT_LINK, CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { rateLimited } from '@/lib/rate-limit';
+import { describeStripeFailure } from '@/lib/stripe-health';
 import { checkoutReturnOrigin } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -176,7 +177,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error('Unable to create class checkout', error);
+    // The refusal's own words first — see the product checkout's catch.
+    console.error(`Unable to create class checkout: ${describeStripeFailure(error)}`, error);
     return NextResponse.json({ error: 'Unable to start class registration.' }, { status: 500 });
   }
 }
