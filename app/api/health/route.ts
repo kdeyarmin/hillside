@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isAdmin } from '@/lib/admin';
 import { db } from '@/lib/db';
+import { stripeDiagnostics } from '@/lib/stripe-health';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic';
  * is useful on the dashboard and useful to an attacker doing recon, so it is
  * reserved for a signed-in admin.
  */
-export async function GET() {
+export async function GET(request: Request) {
   const checks = {
     database: false,
     stripe: Boolean(process.env.STRIPE_SECRET_KEY),
@@ -68,7 +69,22 @@ export async function GET() {
    * release for. `configured` carries that detail in the body instead, and only
    * for someone already signed in to the dashboard.
    */
+  /**
+   * `checks.stripe` above only says a key is *set*; whether Stripe accepts it
+   * is a different question, and the one every failed checkout actually asks.
+   * Asked live here, admin-only: the answer costs a Stripe round trip and
+   * names the account, neither of which belongs in the unauthenticated body
+   * Railway polls. `?probe=checkout` additionally opens and immediately
+   * expires a throwaway Checkout Session, because a key can pass `/v1/account`
+   * and still be refused at the call the cart depends on.
+   */
   const signedIn = await isAdmin();
+  const stripe = signedIn
+    ? await stripeDiagnostics({
+        probeCheckout: new URL(request.url).searchParams.get('probe') === 'checkout'
+      })
+    : null;
+
   return NextResponse.json(
     signedIn
       ? {
@@ -76,7 +92,8 @@ export async function GET() {
           configured: missing.length === 0,
           service: 'hillside-gardens',
           checks,
-          missing
+          missing,
+          stripe
         }
       : {
           ok: checks.database,

@@ -22,6 +22,7 @@ import { readDiscountCodes } from '@/lib/discount-request';
 import { discountLabel, discountMetadata, quoteCartDiscounts } from '@/lib/discount-store';
 import { sizedName } from '@/lib/product-sizes';
 import { rateLimited } from '@/lib/rate-limit';
+import { describeStripeFailure } from '@/lib/stripe-health';
 import { checkoutReturnOrigin, newInvoiceNumber, standardShippingCents } from '@/lib/store';
 import {
   cartFulfillment,
@@ -483,7 +484,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ url: session.url });
   } catch (error) {
-    console.error('Unable to create checkout session', error);
+    /**
+     * The refusal's own words go in the first line of the log entry. A Stripe
+     * error logged as an object prints as a stack in the middle of the deploy
+     * platform's log stream, and "authentication_error, HTTP 401" — the line
+     * that says the deployed key is wrong — was effectively invisible in it.
+     * The same line is what the signed-in health view reports.
+     */
+    console.error(`Unable to create checkout session: ${describeStripeFailure(error)}`, error);
     return NextResponse.json(
       { error: 'Unable to start checkout. Please try again.' },
       { status: 500 }
