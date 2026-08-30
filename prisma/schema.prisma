@@ -603,6 +603,13 @@ model Order {
 
   @@index([promotionId])
   @@index([giftCardId])
+  /**
+   * `releaseExpiredProductHolds` filters exactly this pair, and it runs at the
+   * top of every `/api/checkout` POST and every Stripe webhook. Without the
+   * index that sweep is a sequential scan of the whole order history on the two
+   * most latency-sensitive endpoints the shop has, growing with every sale.
+   */
+  @@index([status, createdAt])
 }
 
 /**
@@ -639,6 +646,14 @@ model OrderItem {
   components OrderItemComponent[]
 
   @@index([bundleId])
+  /**
+   * Postgres does not index a foreign key for you. Every `include: { items }` on
+   * an order — the webhook, both confirmation emails, the dashboard, the
+   * customer's own status lookup — filters `orderId`; the best-seller and
+   * co-purchase aggregates filter `productId`.
+   */
+  @@index([orderId])
+  @@index([productId])
 }
 
 /**
@@ -743,6 +758,13 @@ model ClassRegistration {
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
   classEvent              ClassEvent         @relation(fields: [classEventId], references: [id], onDelete: Cascade)
+
+  /**
+   * `seatsTaken` aggregates on this column, including inside the advisory-locked
+   * reservation transaction — so an unindexed scan here lengthens the window
+   * every other booking is serialized behind.
+   */
+  @@index([classEventId])
 }
 
 model GalleryItem {
@@ -1174,4 +1196,6 @@ model GiftCardEntry {
   giftCard           GiftCard          @relation(fields: [giftCardId], references: [id], onDelete: Cascade)
 
   @@index([giftCardId, createdAt])
+  /** The refund aggregates in `discount-store` sum a card's entries by order. */
+  @@index([orderId])
 }

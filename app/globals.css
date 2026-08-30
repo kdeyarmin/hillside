@@ -265,6 +265,9 @@ button:disabled { cursor: not-allowed; opacity: 0.58; }
    specific than a lone class, so the drawer's size line would otherwise keep
    the muted colour the price beside it uses. */
 .cart-line-size, .cart-line-copy .cart-line-size { margin: 0; color: var(--forest); font-size: 13px; font-weight: 800; }
+/* Why the plus button stopped. Both selectors for the same reason as above:
+   the drawer nests this inside `.cart-line-copy`, which styles bare spans. */
+.cart-line-cap, .cart-line-copy .cart-line-cap { display: block; margin: 4px 0 0; font-size: 12px; font-weight: 600; color: var(--muted); }
 .add-to-cart-panel { display: flex; gap: 12px; align-items: stretch; }
 .add-button { flex: 1; }
 .quantity-picker { display: inline-grid; grid-template-columns: 42px 48px 42px; align-items: center; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--white); }

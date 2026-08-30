@@ -19,7 +19,7 @@ import ResilientImage from '@/components/ResilientImage';
 import CheckoutOptions from '@/components/CheckoutOptions';
 import { giftCardTail } from '@/lib/discount-request';
 import { lineKey, useCart } from '@/components/CartProvider';
-import { lineHref } from '@/lib/cart-lines';
+import { lineCapNote, lineCeiling, lineHref } from '@/lib/cart-lines';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { cartFulfillment } from '@/lib/fulfillment';
 import { focusableElements, trapTabKey } from '@/lib/focus-trap';
@@ -370,9 +370,12 @@ function CartDrawer({
                           role="group"
                           aria-label={`Quantity for ${lineName(item)}`}
                         >
+                          {/* Stops at 1 rather than deleting the line: see the
+                              same control on the cart page. */}
                           <button
                             type="button"
                             onClick={() => setQuantity(lineKey(item), item.quantity - 1)}
+                            disabled={item.quantity <= 1}
                             aria-label={`Decrease ${lineName(item)} quantity`}
                           >
                             <Minus size={14} />
@@ -386,7 +389,7 @@ function CartDrawer({
                           <button
                             type="button"
                             onClick={() => setQuantity(lineKey(item), item.quantity + 1)}
-                            disabled={item.quantity >= item.inventory}
+                            disabled={item.quantity >= lineCeiling(item)}
                             aria-label={`Increase ${lineName(item)} quantity`}
                           >
                             <Plus size={14} />
@@ -400,6 +403,9 @@ function CartDrawer({
                           <Trash2 size={14} /> Remove
                         </button>
                       </div>
+                      {item.quantity >= lineCeiling(item) && (
+                        <span className="cart-line-cap">{lineCapNote(item)}</span>
+                      )}
                     </div>
                     <b>{formatMoney(item.priceCents * item.quantity)}</b>
                   </div>
@@ -457,14 +463,29 @@ function CartDrawer({
                   {checkoutNotice}
                 </p>
               )}
+              {/* Says why the button will refuse before it is pressed. The
+                  checkbox that clears this lives up in the scrolling body, so on
+                  a full basket it is off-screen from here — which is how an
+                  unexplained dead button used to be the whole experience. */}
+              {fulfillment === 'PICKUP' && !pickupArranged && !cartFulfillment(items).conflict && (
+                <p className="drawer-notice" id="drawer-pickup-hint">
+                  Tick “I have already arranged this pickup” above to continue.
+                </p>
+              )}
               <button
                 className="btn full"
                 type="button"
                 onClick={checkout}
-                disabled={
-                  checkoutLoading ||
-                  cartFulfillment(items).conflict ||
-                  (fulfillment === 'PICKUP' && !pickupArranged)
+                /**
+                 * Not disabled for an unarranged pickup on purpose. The disabled
+                 * attribute swallowed the click that would have produced
+                 * `PICKUP_ARRANGE_ERROR`, so the one explanation the code had was
+                 * unreachable — and disabled buttons are skipped by Tab, so a
+                 * keyboard shopper could not even land on it to hear why.
+                 */
+                disabled={checkoutLoading || cartFulfillment(items).conflict}
+                aria-describedby={
+                  fulfillment === 'PICKUP' && !pickupArranged ? 'drawer-pickup-hint' : undefined
                 }
                 aria-busy={checkoutLoading}
               >

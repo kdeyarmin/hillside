@@ -166,7 +166,7 @@ is the only variable sign-in actually requires. Rotating or clearing
 1. Create a Railway project from `kdeyarmin/hillside`.
 2. Add a PostgreSQL service.
 3. Add the variables from `.env.example` to the web service. Railway supplies the PostgreSQL `DATABASE_URL` when the database is linked.
-4. Deploy. `railway.json` runs `npx prisma db push` as a pre-deploy command, then starts Next.js on Railway’s assigned `PORT`.
+4. Deploy. `railway.json` runs `npm run db:migrate` as a pre-deploy command, then starts Next.js on Railway’s assigned `PORT`.
 5. Run the starter-data command once from a Railway shell or one-off command:
 
 ```bash
@@ -203,6 +203,58 @@ refuses a loopback value such as `http://localhost:3000` or `http://127.0.0.1:30
 because those resolve to the visitor's own machine rather than the shop, and logs a
 warning naming the ignored value. Set the variable only to point a build at a genuine
 public origin, such as a Railway preview domain.
+
+## Changing the database schema
+
+Schema changes are applied by **migrations** — reviewed SQL files committed
+alongside the schema — and never by `prisma db push` against the live shop.
+
+The deploy used to run `prisma db push --accept-data-loss`. That command makes
+the database match `schema.prisma` by whatever means necessary, and the flag
+pre-approves the destructive half without asking. Renaming a column — the
+ordinary way to improve a name — would have dropped the old column and
+everything in it on the next deploy, silently, with the deploy reported as
+successful. On a database holding every order the shop has ever taken, that is
+the wrong default.
+
+To change the schema:
+
+1. Edit `prisma/schema.prisma`.
+2. Generate the migration against a local database:
+
+```bash
+npm run db:migrate:new -- --name describe_the_change
+```
+
+3. **Read the generated SQL** in `prisma/migrations/<timestamp>_describe_the_change/`.
+   Anything that drops or renames needs a data-preserving rewrite first — copy
+   the column, backfill it, drop the old one in a later release.
+4. Commit the migration with the schema change. Deploy applies it.
+
+`prisma/migrate-deploy.ts` is what the deploy runs. On a database that has never
+seen a migration but already has tables — which is what `db push` left behind —
+it records `0_init` as already applied, then applies everything after it. That
+baselining happens once, by itself; every deploy after it is an ordinary
+`prisma migrate deploy`. A failed migration exits non-zero and stops the deploy
+rather than starting the app against a half-changed schema.
+
+`npm run db:push` still exists for local scratch databases. Do not point it at
+production.
+
+### Backups
+
+Railway PostgreSQL backups are configured on the database service, not in this
+repository — open the Postgres service in Railway, then **Settings → Backups**,
+and confirm scheduled backups are enabled.
+
+Two things are worth doing beyond switching them on:
+
+- **Test a restore before you need one.** Restore the most recent backup into a
+  scratch database and point a local `DATABASE_URL` at it. A backup nobody has
+  restored is a guess.
+- **Take one before a risky migration.** Any migration whose SQL contains
+  `DROP`, `ALTER COLUMN` or a rename deserves a fresh manual backup immediately
+  before the deploy that carries it.
 
 ## Categories and collections
 

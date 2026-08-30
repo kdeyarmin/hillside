@@ -13,7 +13,7 @@ import { readJsonBody } from '@/lib/request-body';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { rateLimited } from '@/lib/rate-limit';
 import { findSize, productSizes, sizeAvailable, sizeChoiceRejected } from '@/lib/product-sizes';
-import { absoluteUrl, clampQuantity } from '@/lib/store';
+import { absoluteUrl, clampQuantity, LINE_QUANTITY_MAX } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -98,7 +98,7 @@ export async function POST(request: Request) {
     const email = input.email.toLowerCase();
     const items = input.items.map((item) => ({
       slug: item.slug,
-      quantity: Math.max(1, Math.min(20, item.quantity)),
+      quantity: Math.max(1, Math.min(LINE_QUANTITY_MAX, item.quantity)),
       ...(item.size ? { size: item.size } : {}),
       ...(item.kind === 'bundle' ? { kind: 'bundle' as const } : {})
     }));

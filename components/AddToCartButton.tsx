@@ -12,7 +12,7 @@ import {
   variantsDifferOnFulfillment,
   type SizeOption
 } from '@/lib/product-sizes';
-import { formatMoney } from '@/lib/store';
+import { formatMoney, LINE_QUANTITY_MAX } from '@/lib/store';
 
 export default function AddToCartButton({
   product,
@@ -54,9 +54,17 @@ export default function AddToCartButton({
     ? sizeAvailable(chosen, product.inventory)
     : Math.max(0, product.inventory);
   const chosenSoldOut = Boolean(chosen) && available <= 0;
+  /**
+   * The shelf is not the only ceiling: checkout will not sell more than
+   * `LINE_QUANTITY_MAX` of one line, so a stepper that climbed past it built a
+   * basket the till would silently cut back. `available` itself stays the real
+   * count — it is what the line carries into the basket, and what "only N left"
+   * is counted from.
+   */
+  const stepperMax = Math.min(available, LINE_QUANTITY_MAX);
   // Clamped as it is rendered rather than reset by an effect, so switching from
   // a size with six left to one with two corrects the number on the same paint.
-  const quantity = Math.max(1, Math.min(wanted, available || 1));
+  const quantity = Math.max(1, Math.min(wanted, stepperMax || 1));
 
   function add() {
     if (soldOut || needsSize || chosenSoldOut) return;
@@ -180,9 +188,9 @@ export default function AddToCartButton({
           </span>
           <button
             type="button"
-            onClick={() => setWanted(Math.min(available, quantity + 1))}
+            onClick={() => setWanted(Math.min(stepperMax, quantity + 1))}
             aria-label="Increase quantity"
-            disabled={quantity >= available}
+            disabled={quantity >= stepperMax}
           >
             <Plus size={16} />
           </button>

@@ -8,6 +8,8 @@
     "start": "next start -p ${PORT:-3000}",
     "postinstall": "prisma generate",
     "db:push": "prisma db push",
+    "db:migrate": "tsx prisma/migrate-deploy.ts",
+    "db:migrate:new": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts && tsx prisma/seed-care.ts && tsx prisma/seed-categories.ts && tsx prisma/seed-collections.ts && tsx prisma/seed-category-content.ts && tsx prisma/seed-merchandising.ts",
     "db:seed:care": "tsx prisma/seed-care.ts",
     "db:seed:care:on-deploy": "tsx prisma/seed-care-on-deploy.ts && tsx prisma/seed-categories.ts && tsx prisma/seed-collections.ts && tsx prisma/seed-category-content.ts && tsx prisma/seed-merchandising.ts",

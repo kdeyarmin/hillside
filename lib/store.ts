@@ -372,8 +372,19 @@ export function returnPolicyForType(type: string) {
   };
 }
 
+/**
+ * The most of any one line the shop will sell in a single order.
+ *
+ * Checkout has always enforced this — `readCheckoutItems` and the metadata
+ * snapshot both clamp to it — but the cart did not, so a shopper could build a
+ * basket of 24, watch it total 24, and be charged for 20 with nothing anywhere
+ * saying so. The ceiling belongs wherever a quantity is decided, which is here.
+ */
+export const LINE_QUANTITY_MAX = 20;
+
 export function clampQuantity(value: number, inventory: number) {
-  return Math.max(1, Math.min(Math.max(1, inventory), Math.floor(value || 1)));
+  const ceiling = Math.min(Math.max(1, inventory), LINE_QUANTITY_MAX);
+  return Math.max(1, Math.min(ceiling, Math.floor(value || 1)));
 }
 
 // IPv6 keeps its brackets here on purpose: URL.hostname serialises [::1] with

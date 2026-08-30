@@ -210,7 +210,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
   const [fulfillment, setFulfillmentState] = useState<FulfillmentChoice>('SHIP');
   const [giftMessage, setGiftMessageState] = useState('');
-  const [pickupArranged, setPickupArranged] = useState(false);
+  const [pickupArranged, setPickupArrangedState] = useState(false);
   const [appliedCodes, setAppliedCodes] = useState<Record<DiscountField, string>>(NO_CODES);
   const [discount, setDiscount] = useState<DiscountSummary | null>(null);
   const [discountPending, setDiscountPending] = useState<DiscountField | null>(null);
@@ -269,6 +269,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (ready) localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items, ready]);
 
+  /**
+   * Releases the checkout lock when the browser restores this page from the
+   * back/forward cache.
+   *
+   * `checkout()` takes the lock and then hands the tab to Stripe with
+   * `location.assign`. Pressing Back brings the *same* JavaScript state back —
+   * bfcache restores the heap rather than re-running the module — so the lock
+   * was still held and the button stayed disabled for the rest of the session,
+   * with "Opening secure checkout…" on it. Stripe's own cancel link is a fresh
+   * load and was never affected, which is why this only ever bit the customers
+   * who pressed Back to check something before paying.
+   */
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      checkoutLock.current = false;
+      setCheckoutLoading(false);
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
+
   useEffect(() => {
     if (!ready) return;
     localStorage.setItem(PREFS_KEY, JSON.stringify({ fulfillment, giftMessage, ...appliedCodes }));
@@ -297,6 +319,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const setGiftMessage = useCallback((value: string) => {
     setGiftMessageState(value.slice(0, GIFT_MESSAGE_MAX));
+  }, []);
+
+  /**
+   * Ticking the box is the shopper answering the "arrange a pickup first"
+   * refusal, so the refusal goes with it. Left standing, a stale red line above
+   * a now-working button reads as a checkout that is still broken.
+   */
+  const setPickupArranged = useCallback((value: boolean) => {
+    setPickupArrangedState(value);
+    if (value) setCheckoutError(null);
   }, []);
 
   /**
@@ -520,7 +552,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const clearCart = useCallback(() => {
     setItems([]);
     setGiftMessageState('');
-    setPickupArranged(false);
+    setPickupArrangedState(false);
     setAppliedCodes(NO_CODES);
     setDiscount(null);
     setDiscountErrors({});

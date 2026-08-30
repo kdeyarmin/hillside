@@ -7,7 +7,7 @@ import ResilientImage from '@/components/ResilientImage';
 import { lineKey, useCart, type CartLine } from '@/components/CartProvider';
 import CheckoutOptions from '@/components/CheckoutOptions';
 import DiscountCodeFields from '@/components/DiscountCodeFields';
-import { lineHref } from '@/lib/cart-lines';
+import { lineCapNote, lineCeiling, lineHref } from '@/lib/cart-lines';
 import { giftCardTail } from '@/lib/discount-request';
 import { cartFulfillment } from '@/lib/fulfillment';
 import { sizedName } from '@/lib/product-sizes';
@@ -51,6 +51,7 @@ export default function CartPageClient({
     restoreToken ? 'loading' : 'idle'
   );
   const [cancelNotice, setCancelNotice] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!canceledSessionId) return;
@@ -133,6 +134,10 @@ export default function CartPageClient({
    */
   async function saveCart(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    // Without this, a slow network looks like nothing happened and a second
+    // press sends the basket again.
+    if (saving) return;
+    setSaving(true);
     try {
       const response = await fetch('/api/cart-lead', {
         method: 'POST',
@@ -159,7 +164,26 @@ export default function CartPageClient({
         type: 'error',
         message: error instanceof Error ? error.message : 'We could not save your cart.'
       });
+    } finally {
+      setSaving(false);
     }
+  }
+
+  if (restoreState === 'loading' && !items.length) {
+    /**
+     * The saved-cart fetch is in flight. Rendering the full cart layout here
+     * showed empty lines under a $0.00 summary, which reads as a broken cart
+     * rather than one still arriving.
+     */
+    return (
+      <div className="empty-state">
+        <ShoppingBag size={42} aria-hidden="true" />
+        <h3>Restoring your saved cart…</h3>
+        <p className="muted" role="status">
+          One moment while we put those pieces back in your basket.
+        </p>
+      </div>
+    );
   }
 
   if (!items.length && restoreState !== 'loading') {
@@ -214,7 +238,15 @@ export default function CartPageClient({
       : 100;
   const pickup = fulfillment === 'PICKUP';
   const options = cartFulfillment(items);
-  const checkoutBlocked = options.conflict || (pickup && !pickupArranged);
+  /**
+   * A conflicted cart is the only state the button itself refuses, and
+   * `CheckoutOptions` prints the reason for that one directly above. An
+   * unarranged pickup is *not* blocked here: pressing runs `checkout()`, which
+   * answers with `PICKUP_ARRANGE_ERROR` in the status slot. Disabling it swallowed
+   * the click and left the customer with a dead button and no explanation.
+   */
+  const checkoutBlocked = options.conflict;
+  const pickupNeedsArranging = pickup && !pickupArranged && !options.conflict;
 
   return (
     <div className="cart-page">
@@ -253,9 +285,16 @@ export default function CartPageClient({
                   role="group"
                   aria-label={`Quantity for ${lineName(item)}`}
                 >
+                  {/* Stops at 1 rather than deleting the line. Decrementing past
+                      one removed the item outright — no confirmation, no undo,
+                      and for a keyboard shopper the button they had just pressed
+                      vanished, dropping focus to the top of the document. Remove
+                      is the deliberate way to take a line out, and it is
+                      immediately to the right. */}
                   <button
                     type="button"
                     onClick={() => setQuantity(lineKey(item), item.quantity - 1)}
+                    disabled={item.quantity <= 1}
                     aria-label={`Decrease ${lineName(item)} quantity`}
                   >
                     <Minus size={14} />
@@ -269,12 +308,15 @@ export default function CartPageClient({
                   <button
                     type="button"
                     onClick={() => setQuantity(lineKey(item), item.quantity + 1)}
-                    disabled={item.quantity >= item.inventory}
+                    disabled={item.quantity >= lineCeiling(item)}
                     aria-label={`Increase ${lineName(item)} quantity`}
                   >
                     <Plus size={14} />
                   </button>
                 </div>
+                {item.quantity >= lineCeiling(item) && (
+                  <p className="muted cart-line-cap">{lineCapNote(item)}</p>
+                )}
                 <button
                   className="text-button danger"
                   type="button"
@@ -362,11 +404,17 @@ export default function CartPageClient({
         <FormStatus message={checkoutError} tone="error" />
         <FormStatus message={checkoutNotice} tone="notice" />
         <FormStatus message={cancelNotice} tone="notice" />
+        {pickupNeedsArranging && (
+          <p className="muted" id="cart-pickup-hint" style={{ fontSize: 13 }}>
+            Tick “I have already arranged this pickup” above to continue.
+          </p>
+        )}
         <button
           className="btn full"
           type="button"
           onClick={checkout}
           disabled={checkoutLoading || restoreState === 'loading' || checkoutBlocked}
+          aria-describedby={pickupNeedsArranging ? 'cart-pickup-hint' : undefined}
           aria-busy={checkoutLoading}
         >
           {checkoutLoading ? 'Opening secure checkout…' : 'Continue to secure checkout'}
@@ -394,8 +442,8 @@ export default function CartPageClient({
               onChange={(event) => setSaveEmail(event.target.value)}
               placeholder="you@example.com"
             />
-            <button className="btn outline small" type="submit">
-              Save cart
+            <button className="btn outline small" type="submit" disabled={saving} aria-busy={saving}>
+              {saving ? 'Saving…' : 'Save cart'}
             </button>
           </div>
           {/* Saving a cart is not consent to be marketed to. The newsletter is a
