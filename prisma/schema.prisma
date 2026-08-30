@@ -1059,10 +1059,23 @@ model AdminUser {
  */
 model RateLimitCounter {
   /** "<limit name>:<caller>", e.g. `admin-login:203.0.113.4`. */
-  key     String   @id
-  count   Int      @default(0)
+  key       String   @id
+  count     Int      @default(0)
+  /**
+   * What the window before this one counted, kept so the limit can slide rather
+   * than reset.
+   *
+   * A plain fixed window forgets everything at its boundary, which lets twice
+   * the limit through in the moment either side of it: measured on the admin
+   * login, eight attempts at the end of one window and eight more at the start
+   * of the next — sixteen password guesses inside a span shorter than the
+   * fifteen minutes that were supposed to allow eight. Weighting this by how
+   * much of the previous window is still in view closes that, and is also what
+   * makes the checkout-hold limit track holds that are genuinely still open.
+   */
+  prevCount Int      @default(0)
   /** When this window ends. The row is reusable — and sweepable — after it. */
-  resetAt DateTime
+  resetAt   DateTime
 
   @@index([resetAt])
 }

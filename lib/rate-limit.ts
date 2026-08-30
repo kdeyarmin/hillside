@@ -124,14 +124,17 @@ function inProcessLimited(key: string, { limit, windowMs }: { limit: number; win
 /**
  * Bumps a shared counter and says whether this caller has now gone over.
  *
- * A fixed window rather than the sliding one the in-process limiter used: it is
- * one statement, and it cannot be raced, which a read-then-write pair very much
- * can. `resetAt` in the past means the previous window has ended, so the same
- * row is reused with the count restarted — no separate expiry pass is needed for
- * correctness, only the housekeeping sweep further down.
+ * Counting and checking happen in one statement, which is what makes concurrent
+ * requests come out right: a read followed by a write can be raced, and this
+ * cannot. `resetAt` in the past means the window has rolled, so the same row is
+ * reused with the count restarted and the old count kept as `prevCount` — no
+ * separate expiry pass is needed for correctness, only the housekeeping sweep
+ * further down.
  *
- * The comparison is `>` rather than `>=` because the insert has already counted
- * this request: a limit of 8 must allow the eighth attempt and refuse the ninth.
+ * The window *slides* rather than resetting, by weighting `prevCount`; the note
+ * on the estimate below says why that matters and what it measured. The
+ * comparison is `>` rather than `>=` because the insert has already counted this
+ * request: a limit of 8 must allow the eighth attempt and refuse the ninth.
  */
 async function durableLimited(
   key: string,
@@ -139,19 +142,47 @@ async function durableLimited(
 ) {
   const now = new Date();
   const resetAt = new Date(now.getTime() + windowMs);
+  // Two windows without a request means even the previous one is out of view.
+  const staleBefore = new Date(now.getTime() - windowMs);
 
-  const rows = await db.$queryRaw<Array<{ count: number }>>`
-    INSERT INTO "RateLimitCounter" ("key", "count", "resetAt")
-    VALUES (${key}, 1, ${resetAt})
+  const rows = await db.$queryRaw<Array<{ count: number; prevCount: number; resetAt: Date }>>`
+    INSERT INTO "RateLimitCounter" ("key", "count", "prevCount", "resetAt")
+    VALUES (${key}, 1, 0, ${resetAt})
     ON CONFLICT ("key") DO UPDATE SET
-      "count"   = CASE WHEN "RateLimitCounter"."resetAt" <= ${now}
-                       THEN 1 ELSE "RateLimitCounter"."count" + 1 END,
-      "resetAt" = CASE WHEN "RateLimitCounter"."resetAt" <= ${now}
-                       THEN ${resetAt} ELSE "RateLimitCounter"."resetAt" END
-    RETURNING "count"
+      "count"     = CASE WHEN "RateLimitCounter"."resetAt" <= ${now}
+                         THEN 1 ELSE "RateLimitCounter"."count" + 1 END,
+      "prevCount" = CASE WHEN "RateLimitCounter"."resetAt" <= ${staleBefore} THEN 0
+                         WHEN "RateLimitCounter"."resetAt" <= ${now}
+                         THEN "RateLimitCounter"."count"
+                         ELSE "RateLimitCounter"."prevCount" END,
+      "resetAt"   = CASE WHEN "RateLimitCounter"."resetAt" <= ${now}
+                         THEN ${resetAt} ELSE "RateLimitCounter"."resetAt" END
+    RETURNING "count", "prevCount", "resetAt"
   `;
 
-  if ((rows[0]?.count ?? 1) <= limit) return false;
+  const row = rows[0];
+  if (!row) return false;
+
+  /**
+   * A sliding estimate, not a bare count.
+   *
+   * `resetAt - now` is how much of the current window is left, which is also how
+   * much of the *previous* window is still inside the trailing window this limit
+   * is supposed to describe. Weighting the previous count by that fraction and
+   * adding it to this one gives the standard sliding-window-counter estimate: at
+   * the instant a window rolls it carries the whole of the last one, and the
+   * carry decays to nothing as the new window fills.
+   *
+   * A plain fixed window forgets everything at the boundary, which lets twice
+   * the limit through in the moment either side of it — measured on the admin
+   * login, eight attempts at the end of one window and eight more at the start
+   * of the next, sixteen password guesses inside a span meant to allow eight. It
+   * is also what made `checkout-hold` forget reservations made just before a
+   * boundary while they were still holding stock.
+   */
+  const remaining = Math.max(0, Math.min(windowMs, row.resetAt.getTime() - now.getTime()));
+  const estimate = row.count + row.prevCount * (remaining / windowMs);
+  if (estimate <= limit) return false;
 
   /**
    * Refused — and its own increment is taken back, so the column counts
