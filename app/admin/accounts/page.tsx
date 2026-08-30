@@ -9,22 +9,52 @@ export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Admin Accounts' };
 
 const notices: Record<string, { tone: 'ok' | 'bad'; message: string }> = {
-  created: { tone: 'ok', message: 'Admin account created. They can sign in with that email and password now.' },
-  'password-reset': { tone: 'ok', message: 'Password changed. Any device that was already signed in to that account has been signed out.' },
-  deactivated: { tone: 'ok', message: 'Account deactivated. It can no longer sign in, and any session it had has ended.' },
+  created: {
+    tone: 'ok',
+    message: 'Admin account created. They can sign in with that email and password now.'
+  },
+  'password-reset': {
+    tone: 'ok',
+    message:
+      'Password changed. Any device that was already signed in to that account has been signed out.'
+  },
+  deactivated: {
+    tone: 'ok',
+    message: 'Account deactivated. It can no longer sign in, and any session it had has ended.'
+  },
   reactivated: { tone: 'ok', message: 'Account reactivated.' },
   'name-required': { tone: 'bad', message: 'Enter the person’s full name.' },
   'email-invalid': { tone: 'bad', message: 'That does not look like an email address.' },
-  'email-taken': { tone: 'bad', message: 'An account with that email already exists. Use “Set a new password” on their row to change it.' },
-  'password-weak': { tone: 'bad', message: `Choose a password of at least ${MINIMUM_PASSWORD_LENGTH} characters, with no space at either end.` },
+  'email-taken': {
+    tone: 'bad',
+    message:
+      'An account with that email already exists. Use “Set a new password” on their row to change it.'
+  },
+  'password-weak': {
+    tone: 'bad',
+    message: `Choose a password of at least ${MINIMUM_PASSWORD_LENGTH} characters, with no space at either end.`
+  },
   'not-found': { tone: 'bad', message: 'That account no longer exists.' },
-  'self-deactivate': { tone: 'bad', message: 'You cannot deactivate the account you are signed in with. Sign in as another admin to do that.' },
-  'last-account': { tone: 'bad', message: 'This is the only account that can sign in. Create another admin first, or set ADMIN_PASSWORD, before deactivating it.' }
+  'self-deactivate': {
+    tone: 'bad',
+    message:
+      'You cannot deactivate the account you are signed in with. Sign in as another admin to do that.'
+  },
+  'last-account': {
+    tone: 'bad',
+    message:
+      'This is the only account that can sign in. Create another admin first, or set ADMIN_PASSWORD, before deactivating it.'
+  }
 };
 
-const signedInLabel = (at: Date | null) => (at ? `${at.toLocaleDateString()} ${at.toLocaleTimeString()}` : 'Never');
+const signedInLabel = (at: Date | null) =>
+  at ? `${at.toLocaleDateString()} ${at.toLocaleTimeString()}` : 'Never';
 
-export default async function AdminAccounts({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+export default async function AdminAccounts({
+  searchParams
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   const admin = await currentAdmin();
   if (!admin) redirect('/admin');
 
@@ -42,7 +72,9 @@ export default async function AdminAccounts({ searchParams }: { searchParams: Pr
         <a href="#people">Who can sign in</a>
         <a href="#add">Add an admin</a>
         <Link href="/">View public website</Link>
-        <p className="muted" style={{ marginTop: 16, marginBottom: 0, fontSize: 14 }}>Signed in as {admin.name}</p>
+        <p className="muted" style={{ marginTop: 16, marginBottom: 0, fontSize: 14 }}>
+          Signed in as {admin.name}
+        </p>
       </aside>
 
       <div className="adminmain">
@@ -83,7 +115,12 @@ export default async function AdminAccounts({ searchParams }: { searchParams: Pr
                     <tr key={account.id}>
                       <td>
                         {account.name}
-                        {account.id === admin.id && <><br /><small>(you)</small></>}
+                        {account.id === admin.id && (
+                          <>
+                            <br />
+                            <small>(you)</small>
+                          </>
+                        )}
                       </td>
                       <td>{account.email}</td>
                       <td>{signedInLabel(account.lastLoginAt)}</td>
@@ -104,13 +141,19 @@ export default async function AdminAccounts({ searchParams }: { searchParams: Pr
                             autoComplete="new-password"
                             placeholder="New password"
                           />
-                          <button className="btn small" style={{ marginTop: 6 }}>Save password</button>
+                          <button className="btn small" style={{ marginTop: 6 }}>
+                            Save password
+                          </button>
                         </form>
                       </td>
                       <td>
                         <form action={setAdminAccountActive}>
                           <input type="hidden" name="id" value={account.id} />
-                          <input type="hidden" name="active" value={account.active ? 'false' : 'true'} />
+                          <input
+                            type="hidden"
+                            name="active"
+                            value={account.active ? 'false' : 'true'}
+                          />
                           <button className={`btn small ${account.active ? 'outline' : 'gold'}`}>
                             {account.active ? 'Deactivate' : 'Reactivate'}
                           </button>
@@ -167,7 +210,9 @@ export default async function AdminAccounts({ searchParams }: { searchParams: Pr
                 />
               </label>
             </div>
-            <button className="btn" style={{ marginTop: 12 }}>Create account</button>
+            <button className="btn" style={{ marginTop: 12 }}>
+              Create account
+            </button>
           </form>
         </section>
 

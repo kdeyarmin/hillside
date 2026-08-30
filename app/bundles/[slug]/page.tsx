@@ -6,6 +6,7 @@ import AddBundleButton from '@/components/AddBundleButton';
 import BundleGrid from '@/components/BundleGrid';
 import ProductGallery from '@/components/ProductGallery';
 import ResilientImage from '@/components/ResilientImage';
+import { cache } from 'react';
 import { bundleAvailability, bundleStockNote } from '@/lib/bundles';
 import { bundleCardData, bundleSaleInclude, sellableBundles } from '@/lib/bundle-queries';
 import { contactHref } from '@/lib/contact';
@@ -23,9 +24,14 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-async function loadBundle(slug: string) {
+/**
+ * `cache()` so `generateMetadata` and the page itself, which both run on every
+ * request for this route and both need the set's components to decide what to
+ * say about it, read the bundle once rather than twice.
+ */
+const loadBundle = cache(async (slug: string) => {
   return db.bundle.findFirst({ where: { slug }, include: bundleSaleInclude });
-}
+});
 
 export async function generateMetadata({
   params

@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { orderConfirmationHtml } from '@/lib/order-email';
 import { sendEmail } from '@/lib/email';
 import { isAwaitingShipment } from '@/lib/orders';
+import { reportError } from '@/lib/report-error';
 
 /**
  * Sends (or resends) the customer order confirmation and records the result
@@ -36,6 +37,24 @@ export async function sendOrderConfirmationEmail(
       ? `order-confirmation/${order.id}/resend/${Date.now()}`
       : `order-confirmation/${order.id}`
   });
+
+  /**
+   * A confirmation that did not go out is recorded on the order, and the caller
+   * — the Stripe webhook, or Tammy's resend button — carries on regardless,
+   * because a paid order must be saved whether or not the letter about it
+   * arrived. That is right, and it is also exactly how this failure stayed
+   * hidden: the customer is not told, the webhook reports success to Stripe, and
+   * the only sign is a `confirmationEmailError` on a row nobody has cause to
+   * open. Money has already changed hands by this point, so it is worth waking
+   * someone for.
+   */
+  if (!delivery.sent) {
+    reportError(
+      'Order confirmation email did not go out',
+      new Error(delivery.reason || 'unknown-error'),
+      { invoiceNumber: order.invoiceNumber, orderId: order.id, resend: Boolean(options.force) }
+    );
+  }
 
   await db.order.update({
     where: { id: order.id },

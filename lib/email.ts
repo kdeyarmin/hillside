@@ -1,4 +1,5 @@
 import { recordEmail, type EmailKindValue } from './email-log.ts';
+import { reportError } from './report-error.ts';
 import { normalizeHillsideDomain } from './store.ts';
 
 type EmailInput = {
@@ -143,7 +144,20 @@ export async function sendEmail(input: EmailInput) {
     });
 
     if (!response.ok) {
-      console.error('Email send failed', response.status, await response.text());
+      /**
+       * Reported, not merely logged. A refusal here is the shop's mail silently
+       * stopping — the order confirmation, the private classroom link, the
+       * pickup notice — and it is invisible to everyone: the caller carries on,
+       * the customer is told nothing, and the only trace is a `FAILED` row on a
+       * dashboard page nobody has reason to open. SendGrid's own words come
+       * along because they are usually the whole answer (an unauthenticated
+       * sending domain, a key without send permission).
+       */
+      reportError('Email send failed', await response.text(), {
+        status: response.status,
+        kind: input.kind,
+        subject: input.subject
+      });
       await log('FAILED', { reason: 'provider-error' });
       return { sent: false, reason: 'provider-error' as const };
     }
@@ -157,7 +171,7 @@ export async function sendEmail(input: EmailInput) {
     await log('SENT', { providerId });
     return { sent: true, id: providerId };
   } catch (error) {
-    console.error('Email send failed', error);
+    reportError('Email send failed', error, { kind: input.kind, subject: input.subject });
     await log('FAILED', { reason: 'network-error' });
     return { sent: false, reason: 'network-error' as const };
   }

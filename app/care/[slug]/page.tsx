@@ -23,6 +23,7 @@ import InlineNewsletter from '@/components/InlineNewsletter';
 import ProductGrid from '@/components/ProductGrid';
 import PrintButton from '@/components/PrintButton';
 import ResilientImage from '@/components/ResilientImage';
+import { cache } from 'react';
 import { bundleCardData, sellableBundlesWithAnyProduct } from '@/lib/bundle-queries';
 import { careGuideTypeHeading } from '@/lib/care-guides';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
@@ -33,6 +34,36 @@ import { jsonLd } from '@/lib/json-ld';
 import { breadcrumbJsonLd, businessRef, pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * The guide this page is about.
+ *
+ * `cache()` so `generateMetadata` and the page itself, which both run on every
+ * request for this route, read it once instead of fetching the same row twice.
+ * Metadata only needs the scalar columns, but the page's read is a superset of
+ * them and happens on the same request regardless — so answering both from it
+ * costs the request nothing and saves it a whole query.
+ */
+const loadCareSheet = cache(async (slug: string) => {
+  return db.careSheet.findFirst({
+    where: { slug, published: true },
+    include: {
+      /**
+       * The categories this guide belongs to. The care library is where most
+       * strangers arrive, and a reader who has just learned how to water a
+       * pitcher plant is the best-qualified visitor the carnivorous-plants page
+       * will ever get — so the guide points at it rather than only at other
+       * guides.
+       */
+      collections: {
+        where: { active: true },
+        orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
+        select: { slug: true, title: true },
+        take: 4
+      }
+    }
+  });
+});
 
 function guideTitle(title: string, type: CareGuideType) {
   if (type === CareGuideType.PLANT) return `${title} Care Guide`;
@@ -63,7 +94,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const sheet = await db.careSheet.findFirst({ where: { slug, published: true } });
+  const sheet = await loadCareSheet(slug);
   if (!sheet) return { title: 'Care guide not found' };
   const title = guideTitle(sheet.plantName, sheet.guideType);
   return pageMetadata({
@@ -79,24 +110,7 @@ export async function generateMetadata({
 
 export default async function CareSheetPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const sheet = await db.careSheet.findFirst({
-    where: { slug, published: true },
-    include: {
-      /**
-       * The categories this guide belongs to. The care library is where most
-       * strangers arrive, and a reader who has just learned how to water a
-       * pitcher plant is the best-qualified visitor the carnivorous-plants page
-       * will ever get — so the guide points at it rather than only at other
-       * guides.
-       */
-      collections: {
-        where: { active: true },
-        orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
-        select: { slug: true, title: true },
-        take: 4
-      }
-    }
-  });
+  const sheet = await loadCareSheet(slug);
   if (!sheet) notFound();
 
   const relatedWhere: Prisma.CareSheetWhereInput = {

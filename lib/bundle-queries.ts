@@ -11,7 +11,9 @@
  */
 
 import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 import { Prisma } from '@prisma/client';
+import { CATALOG_SHAPE_TTL_SECONDS } from '@/lib/cache';
 import {
   bundleAvailability,
   bundleContentsLine,
@@ -86,9 +88,25 @@ export async function sellableBundles(options: { featured?: boolean; take?: numb
  * `cache()` dedupes it within a request the way `catalogHasActiveProducts` does,
  * so the layout, the page and the footer share one read.
  */
+const probesSellableBundles = unstable_cache(
+  async () => {
+    /**
+     * The cheap half first. Whether a set is buyable depends on the stock of
+     * every component, so answering it properly means loading each set with its
+     * items and their products — and this runs in the root layout, on every page
+     * of the site. A shop with no sets at all (which is most of the year here)
+     * paid for that join to be told what one indexed count already says.
+     */
+    if ((await db.bundle.count({ where: { active: true } })) === 0) return false;
+    return (await sellableBundles({ take: 1 })).length > 0;
+  },
+  ['bundles', 'has-sellable'],
+  { revalidate: CATALOG_SHAPE_TTL_SECONDS }
+);
+
 export const hasSellableBundles = cache(async () => {
   try {
-    return (await sellableBundles({ take: 1 })).length > 0;
+    return await probesSellableBundles();
   } catch {
     return false;
   }

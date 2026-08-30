@@ -52,7 +52,9 @@ export default function StockAlertForm({ slug, name }: { slug: string; name: str
         </div>
       </div>
       <div className="stock-alert-row">
-        <label className="sr-only" htmlFor={`stock-alert-${slug}`}>Email address</label>
+        <label className="sr-only" htmlFor={`stock-alert-${slug}`}>
+          Email address
+        </label>
         <input
           id={`stock-alert-${slug}`}
           className="form-input"

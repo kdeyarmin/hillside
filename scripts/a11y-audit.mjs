@@ -48,15 +48,50 @@ const routes = process.argv.slice(2).length
       '/admin?error=1'
     ];
 
+/**
+ * Routes that name one specific catalog record. Several of the defaults above
+ * hardcode a slug, so a renamed product or a retired collection turns them into
+ * 404s without anything else changing — worth saying so in the failure, because
+ * the fix is in the catalog or in the list above, not in the page.
+ */
+const namesACatalogRecord = (route) => /^\/(shop|collections|gifts|care)\/[^/?]/.test(route);
+
 const browser = await chromium.launch(
   process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}
 );
 const context = await browser.newContext();
 const failures = [];
+const unreachable = [];
 
 for (const route of routes) {
   const page = await context.newPage();
-  await page.goto(`${baseURL}${route}`, { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  const response = await page.goto(`${baseURL}${route}`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 60_000
+  });
+
+  /**
+   * The status was never read, so the audit scanned whatever the server
+   * answered with: a route whose slug had left the catalog rendered the
+   * not-found page, axe found nothing wrong with that page, and the run
+   * reported the route "clean". A route that does not load is a failure of the
+   * audit, not a pass, and it is not scanned — there is no point auditing a
+   * page nobody can reach.
+   */
+  const status = response?.status() ?? 0;
+  if (status < 200 || status > 299) {
+    unreachable.push({ url: `${baseURL}${route}`, status });
+    console.log(
+      `\n${route} — NOT AUDITED: ${baseURL}${route} answered HTTP ${status || 'no response'}${
+        namesACatalogRecord(route)
+          ? '\n      That slug may no longer exist in the catalog. Check it, then fix the catalog or update the route list in this script.'
+          : ''
+      }`
+    );
+    await page.close();
+    continue;
+  }
+
   await page.addScriptTag({ path: axePath });
 
   const results = await page.evaluate(async () =>
@@ -71,7 +106,9 @@ for (const route of routes) {
     failures.push({ route, violations });
     console.log(`\n${route}`);
     for (const violation of violations) {
-      console.log(`  [${violation.impact}] ${violation.id} — ${violation.help} (${violation.nodes.length})`);
+      console.log(
+        `  [${violation.impact}] ${violation.id} — ${violation.help} (${violation.nodes.length})`
+      );
       for (const node of violation.nodes.slice(0, 3)) {
         console.log(`      ${node.html.slice(0, 130).replace(/\s+/g, ' ')}`);
       }
@@ -85,5 +122,16 @@ for (const route of routes) {
 await browser.close();
 
 const total = failures.reduce((sum, f) => sum + f.violations.length, 0);
-console.log(`\n${total} violation type(s) across ${failures.length} of ${routes.length} routes.`);
-process.exit(total > 0 ? 1 : 0);
+const audited = routes.length - unreachable.length;
+console.log(`\n${total} violation type(s) across ${failures.length} of ${audited} audited routes.`);
+
+if (unreachable.length) {
+  console.log(
+    `\n${unreachable.length} of ${routes.length} route(s) did not load and were NOT audited:`
+  );
+  for (const item of unreachable) {
+    console.log(`  HTTP ${item.status || 'no response'} — ${item.url}`);
+  }
+}
+
+process.exit(total > 0 || unreachable.length > 0 ? 1 : 0);

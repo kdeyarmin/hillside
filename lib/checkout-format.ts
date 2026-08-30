@@ -21,7 +21,7 @@ import {
   sizedName,
   SIZE_LABEL_MAX
 } from './product-sizes.ts';
-import { absoluteUrl, formatMoney, resolveImageUrl } from './store.ts';
+import { absoluteUrl, formatMoney, LINE_QUANTITY_MAX, resolveImageUrl } from './store.ts';
 
 /**
  * How long a Stripe Checkout Session may hold stock. Matches the class-seat
@@ -214,7 +214,10 @@ export function readCheckoutItems(body: unknown): CheckoutRequestedItem[] {
             .replace(/\s+/g, ' ')
             .trim()
             .slice(0, SIZE_LABEL_MAX);
-    const quantity = Math.max(1, Math.min(20, Math.floor(Number(raw.quantity) || 1)));
+    const quantity = Math.max(
+      1,
+      Math.min(LINE_QUANTITY_MAX, Math.floor(Number(raw.quantity) || 1))
+    );
     const priceCents = Number(raw.priceCents);
     const key = basketLineKey(kind, id, size);
     const current = merged.get(key);
@@ -222,7 +225,7 @@ export function readCheckoutItems(body: unknown): CheckoutRequestedItem[] {
       id,
       ...(kind === 'bundle' ? { kind } : {}),
       ...(size ? { size } : {}),
-      quantity: Math.min(20, (current?.quantity || 0) + quantity),
+      quantity: Math.min(LINE_QUANTITY_MAX, (current?.quantity || 0) + quantity),
       ...(Number.isFinite(priceCents) && priceCents >= 0
         ? { priceCents: Math.round(priceCents) }
         : current?.priceCents != null
@@ -646,7 +649,7 @@ export function parseCheckoutItems(value: string | null | undefined): ParsedChec
             .replace(/\s+/g, ' ')
             .trim()
             .slice(0, SIZE_LABEL_MAX);
-      const q = Math.max(1, Math.min(20, Math.floor(Number(item.q) || 1)));
+      const q = Math.max(1, Math.min(LINE_QUANTITY_MAX, Math.floor(Number(item.q) || 1)));
       const price = Number(item.p);
       const key = basketLineKey(bundle ? 'bundle' : 'product', id, s);
       const current = merged.get(key);
@@ -654,7 +657,7 @@ export function parseCheckoutItems(value: string | null | undefined): ParsedChec
         id,
         ...(bundle ? { k: 'b' as const } : {}),
         ...(s ? { s } : {}),
-        q: Math.min(20, (current?.q || 0) + q),
+        q: Math.min(LINE_QUANTITY_MAX, (current?.q || 0) + q),
         ...(Number.isFinite(price) && price >= 0
           ? { p: Math.round(price) }
           : current?.p != null

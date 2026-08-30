@@ -28,7 +28,7 @@ export async function POST(request: Request) {
      * Two attempts per ten minutes still lets a guest recover from a closed tab;
      * six was enough to empty a typical class from one IP.
      */
-    if (rateLimited(request, { name: 'class-checkout', limit: 2, windowMs: 10 * 60_000 })) {
+    if (await rateLimited(request, { name: 'class-checkout', limit: 2, windowMs: 10 * 60_000 })) {
       return NextResponse.json(
         { error: 'Too many booking attempts. Please wait a few minutes and try again.' },
         { status: 429 }
@@ -87,10 +87,7 @@ export async function POST(request: Request) {
       amountCents: event.priceCents * seats
     });
     if (!reservation.ok) {
-      return NextResponse.json(
-        { error: seatsShortLabel(reservation.seatsLeft) },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: seatsShortLabel(reservation.seatsLeft) }, { status: 400 });
     }
 
     const stripe = new Stripe(secret);

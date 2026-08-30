@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { db } from '@/lib/db';
 import { releaseProductHold } from '@/lib/checkout';
-import { rateLimited } from '@/lib/rate-limit';
+import { rateLimited, refundRateLimit } from '@/lib/rate-limit';
+import { reportError } from '@/lib/report-error';
 
 export const runtime = 'nodejs';
 
@@ -15,7 +16,7 @@ const SESSION_ID = /^cs_(?:test_|live_)?[A-Za-z0-9]+$/;
  */
 export async function POST(request: Request) {
   try {
-    if (rateLimited(request, { name: 'checkout-cancel', limit: 8, windowMs: 10 * 60_000 })) {
+    if (await rateLimited(request, { name: 'checkout-cancel', limit: 8, windowMs: 10 * 60_000 })) {
       return NextResponse.json(
         { error: 'Too many requests. Please wait a few minutes and try again.' },
         { status: 429 }
@@ -67,10 +68,16 @@ export async function POST(request: Request) {
         try {
           latest = await stripe.checkout.sessions.retrieve(sessionId);
         } catch (lookupError) {
-          console.error(
-            'Unable to re-read Stripe checkout session after expire failed',
-            lookupError
-          );
+          /**
+           * Reported rather than logged, unlike the expire failure just above:
+           * that one is usually recovered from a line later, whereas reaching
+           * here means the shop can no longer tell what state the session is in.
+           * The hold stays on, so the plant is off the shelf and unsellable
+           * until a sweep expires it — quiet, and it costs a sale.
+           */
+          reportError('Unable to re-read Stripe session after expire failed', lookupError, {
+            sessionId
+          });
           return NextResponse.json(
             {
               error: 'Unable to cancel that checkout just now. Please try again.',
@@ -100,16 +107,29 @@ export async function POST(request: Request) {
     }
 
     const reservedId = session.metadata?.orderId?.trim();
+    let released = false;
     if (reservedId) {
-      await releaseProductHold(reservedId);
+      released = await releaseProductHold(reservedId);
     } else {
       const order = await db.order.findUnique({ where: { stripeSessionId: sessionId } });
-      if (order) await releaseProductHold(order.id);
+      if (order) released = await releaseProductHold(order.id);
+    }
+
+    /**
+     * The hold is off the shelf, so it should stop counting against the limit
+     * that exists to cap how many holds one customer may have open. Without
+     * this, somebody who opened checkout and came back to change something
+     * three times was refused a fourth attempt while holding nothing at all.
+     */
+    if (released) {
+      await refundRateLimit(request, { name: 'checkout-hold' });
     }
 
     return NextResponse.json({ released: true });
   } catch (error) {
-    console.error('Unable to cancel checkout session', error);
+    // Whatever went wrong, the customer is back on the cart page with stock
+    // still held against a checkout they walked away from.
+    reportError('Unable to cancel checkout session', error);
     return NextResponse.json({ error: 'Unable to cancel that checkout.' }, { status: 500 });
   }
 }

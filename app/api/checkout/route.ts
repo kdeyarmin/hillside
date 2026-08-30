@@ -22,6 +22,7 @@ import { readDiscountCodes } from '@/lib/discount-request';
 import { discountLabel, discountMetadata, quoteCartDiscounts } from '@/lib/discount-store';
 import { sizedName } from '@/lib/product-sizes';
 import { rateLimited } from '@/lib/rate-limit';
+import { reportError } from '@/lib/report-error';
 import { describeStripeFailure } from '@/lib/stripe-health';
 import { checkoutReturnOrigin, newInvoiceNumber, standardShippingCents } from '@/lib/store';
 import {
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
   try {
     // Each call creates a real Stripe Checkout Session. Unthrottled, that is an
     // unbounded write into the shop's Stripe account from an anonymous caller.
-    if (rateLimited(request, { name: 'checkout', limit: 8, windowMs: 10 * 60_000 })) {
+    if (await rateLimited(request, { name: 'checkout', limit: 8, windowMs: 10 * 60_000 })) {
       return NextResponse.json(
         { error: 'Too many checkout attempts. Please wait a few minutes and try again.' },
         { status: 429 }
@@ -162,7 +163,7 @@ export async function POST(request: Request) {
     const site = checkoutReturnOrigin();
     const stripe = new Stripe(secret);
 
-    if (rateLimited(request, { name: 'checkout-hold', limit: 3, windowMs: 35 * 60_000 })) {
+    if (await rateLimited(request, { name: 'checkout-hold', limit: 3, windowMs: 35 * 60_000 })) {
       return NextResponse.json(
         { error: 'Please finish or wait for an open checkout before starting another.' },
         { status: 429 }
@@ -448,8 +449,14 @@ export async function POST(request: Request) {
            * Tax origin is a nicety. The session is already paid-ready and stock
            * is held — failing checkout here would leave the customer with a 500
            * after Stripe already created the session.
+           *
+           * Swallowed but not unnoticed: every pickup order that goes through
+           * after this failure is taxed against the wrong locality, and the
+           * customer completes checkout with no sign anything was wrong.
            */
-          console.error('Unable to pin pickup tax origin on Stripe session', error);
+          reportError('Unable to pin pickup tax origin on Stripe session', error, {
+            sessionId: session.id
+          });
         }
       }
 
@@ -458,9 +465,15 @@ export async function POST(request: Request) {
       } catch (error) {
         /**
          * The session exists and stock is already held against orderId. The
-         * webhook looks the order up by metadata.orderId if this attach fails.
+         * webhook looks the order up by metadata.orderId if this attach fails,
+         * so the sale survives — but the fallback is the only thing standing
+         * between a paid customer and an order the shop cannot match to them,
+         * which is not a limb to be walking on unknowingly.
          */
-        console.error('Unable to attach Stripe session to reserved order', error);
+        reportError('Unable to attach Stripe session to reserved order', error, {
+          orderId: reservation.holdId,
+          sessionId: session.id
+        });
       }
     } catch (error) {
       await releaseProductHold(reservation.order.id);
@@ -490,8 +503,12 @@ export async function POST(request: Request) {
      * platform's log stream, and "authentication_error, HTTP 401" — the line
      * that says the deployed key is wrong — was effectively invisible in it.
      * The same line is what the signed-in health view reports.
+     *
+     * It titles the report as well, on purpose: a revoked key and a Stripe
+     * outage both land here, and they are worth being two alerts rather than one
+     * that says "checkout broke" a hundred times over.
      */
-    console.error(`Unable to create checkout session: ${describeStripeFailure(error)}`, error);
+    reportError(`Unable to create checkout session: ${describeStripeFailure(error)}`, error);
     return NextResponse.json(
       { error: 'Unable to start checkout. Please try again.' },
       { status: 500 }

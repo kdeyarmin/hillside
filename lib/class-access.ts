@@ -6,10 +6,7 @@ const COOKIE_PREFIX = 'hillside-class-access';
 
 type WindowEvent = Pick<
   ClassEvent,
-  | 'startsAt'
-  | 'durationMinutes'
-  | 'joinOpensMinutesBefore'
-  | 'joinClosesMinutesAfter'
+  'startsAt' | 'durationMinutes' | 'joinOpensMinutesBefore' | 'joinClosesMinutesAfter'
 >;
 
 type AccessPayload = {

@@ -123,15 +123,58 @@ export async function loginAdmin(formData: FormData) {
   const requestHeaders = await headers();
   const identity = clientKeyFromHeaders(requestHeaders);
 
-  if (rateLimitedByKey(identity, { name: 'admin-login', limit: 8, windowMs: 15 * 60_000 })) {
+  /**
+   * Three limits, because one address is not the only thing worth counting.
+   *
+   * Per address is the ordinary throttle. Per *account* is what actually stops
+   * password spraying: the shared `ADMIN_PASSWORD` is accepted with any email
+   * at all, so there is no username factor to slow an attacker down, and an
+   * attacker with a pool of addresses defeated a per-address limit simply by
+   * rotating through it. And a shop-wide ceiling catches the case where even the
+   * account being guessed at is varied.
+   *
+   * All three are counted in Postgres now. In process memory they reset on every
+   * deploy, which on a shop that deploys often is an attacker's best friend.
+   *
+   * The account key is the typed address, lowercased — not a resolved account
+   * id. Resolving first would mean answering "does this address have an account"
+   * before the throttle applied, and the failure path is careful not to say.
+   */
+  const account = email.trim().toLowerCase();
+
+  /**
+   * In order, and stopping at the first refusal — never all three at once.
+   *
+   * Counted together, a caller whose address was already blocked went on
+   * charging the shop-wide budget with every further attempt. One address could
+   * therefore spend the whole hourly allowance by itself and lock every
+   * legitimate admin out for the rest of the window: a lockout weaker than the
+   * attack it was meant to stop. An attempt that this address is not allowed to
+   * make should cost the wider counters nothing.
+   */
+  if (await rateLimitedByKey(identity, { name: 'admin-login', limit: 8, windowMs: 15 * 60_000 })) {
+    redirect('/admin?error=throttled');
+  }
+  if (
+    await rateLimitedByKey(account || 'blank', {
+      name: 'admin-login-account',
+      limit: 12,
+      windowMs: 60 * 60_000
+    })
+  ) {
+    redirect('/admin?error=throttled');
+  }
+  if (
+    await rateLimitedByKey('all', { name: 'admin-login-global', limit: 60, windowMs: 60 * 60_000 })
+  ) {
     redirect('/admin?error=throttled');
   }
 
-  const account = await authenticateAdmin(email, password);
-  if (!account) {
+  const authenticated = await authenticateAdmin(email, password);
+  if (!authenticated) {
     redirect('/admin?error=1');
   }
-  await setAdminSession(account.subject, account.passwordVersion);
+  await setAdminSession(authenticated.subject, authenticated.passwordVersion);
   redirect('/admin');
 }
 

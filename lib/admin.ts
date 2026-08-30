@@ -21,7 +21,8 @@ const sessionLengthMs = 12 * 60 * 60 * 1000;
 const ENV_SUBJECT = 'shared-password';
 type SessionPayload = { sub: string; pv: number; exp: number };
 
-export type AdminIdentity = { id: string; name: string; email: string } | { id: null; name: string; email: null };
+export type AdminIdentity =
+  { id: string; name: string; email: string } | { id: null; name: string; email: null };
 
 function signingKey() {
   const secret = process.env.ADMIN_SESSION_SECRET || '';
@@ -32,7 +33,10 @@ function signingKey() {
    * optional now: with named accounts configured the site can run with
    * ADMIN_PASSWORD unset, and the key is then the secret alone.
    */
-  return crypto.createHash('sha256').update(`${secret}:${process.env.ADMIN_PASSWORD || ''}`).digest();
+  return crypto
+    .createHash('sha256')
+    .update(`${secret}:${process.env.ADMIN_PASSWORD || ''}`)
+    .digest();
 }
 
 function sign(value: string, key: Buffer) {
@@ -90,13 +94,18 @@ export async function authenticateAdmin(email: string, password: string) {
   if (user?.active) {
     if (verifyPassword(password, user.passwordHash)) {
       await db.adminUser.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-      return { subject: user.id, name: user.name, passwordVersion: user.passwordChangedAt.getTime() };
+      return {
+        subject: user.id,
+        name: user.name,
+        passwordVersion: user.passwordChangedAt.getTime()
+      };
     }
   } else {
     verifyPassword(password, decoyHash);
   }
 
-  if (verifyAdminPassword(password)) return { subject: ENV_SUBJECT, name: 'Owner', passwordVersion: 0 };
+  if (verifyAdminPassword(password))
+    return { subject: ENV_SUBJECT, name: 'Owner', passwordVersion: 0 };
   return null;
 }
 
@@ -104,10 +113,13 @@ function readSession(token: string): SessionPayload | null {
   const key = signingKey();
   if (!key) return null;
   const [encodedPayload, signature] = token.split('.');
-  if (!encodedPayload || !signature || !safeEqual(sign(encodedPayload, key), signature)) return null;
+  if (!encodedPayload || !signature || !safeEqual(sign(encodedPayload, key), signature))
+    return null;
 
   try {
-    const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8')) as SessionPayload;
+    const payload = JSON.parse(
+      Buffer.from(encodedPayload, 'base64url').toString('utf8')
+    ) as SessionPayload;
     if (!Number.isFinite(payload.exp) || payload.exp <= Date.now()) return null;
     /**
      * Cookies minted before admin accounts existed carry an expiry and nothing

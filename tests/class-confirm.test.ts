@@ -3,16 +3,18 @@ import { describe, it } from 'node:test';
 
 process.env.CLASS_ACCESS_SECRET ||= 'test-class-access-secret-long-enough-to-be-real';
 
-const {
-  createFreeClassConfirmToken,
-  freeClassConfirmExpiry,
-  readFreeClassConfirmToken
-} = await import('../lib/class-confirm.ts');
+const { createFreeClassConfirmToken, freeClassConfirmExpiry, readFreeClassConfirmToken } =
+  await import('../lib/class-confirm.ts');
 
 describe('free class confirm tokens', () => {
   it('round-trips the registration the email pointed at', () => {
     const expiresAt = new Date(Date.now() + 60 * 60_000);
-    const token = createFreeClassConfirmToken('reg_1', 'Guest@Hillside.example', 'class_9', expiresAt);
+    const token = createFreeClassConfirmToken(
+      'reg_1',
+      'Guest@Hillside.example',
+      'class_9',
+      expiresAt
+    );
     assert.ok(token);
     const payload = readFreeClassConfirmToken(token);
     assert.ok(payload);
@@ -32,7 +34,9 @@ describe('free class confirm tokens', () => {
     assert.ok(token);
     assert.equal(readFreeClassConfirmToken(`${token}x`), null);
     assert.equal(
-      readFreeClassConfirmToken(createFreeClassConfirmToken('reg_1', 'a@b.com', 'class_9', new Date(Date.now() - 1000))!),
+      readFreeClassConfirmToken(
+        createFreeClassConfirmToken('reg_1', 'a@b.com', 'class_9', new Date(Date.now() - 1000))!
+      ),
       null
     );
   });

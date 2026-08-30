@@ -11,9 +11,11 @@ import { bundlesBySlug } from '@/lib/bundle-queries';
 import { db } from '@/lib/db';
 import { readJsonBody } from '@/lib/request-body';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
+import { honeypotFields, honeypotTripped } from '@/lib/honeypot';
 import { rateLimited } from '@/lib/rate-limit';
+import { reportError } from '@/lib/report-error';
 import { findSize, productSizes, sizeAvailable, sizeChoiceRejected } from '@/lib/product-sizes';
-import { absoluteUrl, clampQuantity } from '@/lib/store';
+import { absoluteUrl, clampQuantity, LINE_QUANTITY_MAX } from '@/lib/store';
 
 export const runtime = 'nodejs';
 
@@ -33,13 +35,10 @@ const schema = z.object({
     .optional()
     .default([]),
   subscribe: z.boolean().optional().default(false),
-  /**
-   * Honeypot. Bounded rather than required-empty: `max(0)` made a filled
-   * honeypot fail schema validation and return 400, which meant the quiet-success
-   * branch below could never run and a bot was told plainly that the field was
-   * the problem. The cap keeps it from being used to post a payload.
-   */
-  website: z.string().max(200).optional().default('')
+  /* Spam honeypot, under a name browsers do not autofill — see lib/honeypot.ts
+     for why it must never be called `website` again. The old name is still
+     accepted there so a cached page or an old bot still trips it. */
+  ...honeypotFields
 });
 
 async function emailSavedCart(
@@ -80,7 +79,7 @@ async function emailSavedCart(
  * possible and lets a customer pick the cart up on another device.
  */
 export async function POST(request: Request) {
-  if (rateLimited(request, { name: 'cart-lead', limit: 10, windowMs: 15 * 60_000 })) {
+  if (await rateLimited(request, { name: 'cart-lead', limit: 10, windowMs: 15 * 60_000 })) {
     return NextResponse.json(
       { error: 'Too many requests. Please try again shortly.' },
       { status: 429 }
@@ -93,12 +92,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 });
     }
     const input = parsed.data;
-    if (input.website) return NextResponse.json({ message: 'Saved.' });
+    if (honeypotTripped(input)) {
+      return NextResponse.json({ message: 'Saved.' });
+    }
 
     const email = input.email.toLowerCase();
     const items = input.items.map((item) => ({
       slug: item.slug,
-      quantity: Math.max(1, Math.min(20, item.quantity)),
+      quantity: Math.max(1, Math.min(LINE_QUANTITY_MAX, item.quantity)),
       ...(item.size ? { size: item.size } : {}),
       ...(item.kind === 'bundle' ? { kind: 'bundle' as const } : {})
     }));
@@ -137,13 +138,15 @@ export async function POST(request: Request) {
       message: 'Saved — check your email for a link to restore this cart on any device.'
     });
   } catch (error) {
-    console.error('Unable to save cart lead', error);
+    // A customer who asked to be emailed their basket and was not: an abandoned
+    // cart the shop can no longer follow up, and an address it never captured.
+    reportError('Unable to save cart lead', error);
     return NextResponse.json({ error: 'We could not save your cart right now.' }, { status: 500 });
   }
 }
 
 export async function GET(request: Request) {
-  if (rateLimited(request, { name: 'cart-restore', limit: 20, windowMs: 15 * 60_000 })) {
+  if (await rateLimited(request, { name: 'cart-restore', limit: 20, windowMs: 15 * 60_000 })) {
     return NextResponse.json(
       { error: 'Too many requests. Please try again shortly.' },
       { status: 429 }

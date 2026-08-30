@@ -19,7 +19,7 @@ import ResilientImage from '@/components/ResilientImage';
 import CheckoutOptions from '@/components/CheckoutOptions';
 import { giftCardTail } from '@/lib/discount-request';
 import { lineKey, useCart } from '@/components/CartProvider';
-import { lineHref } from '@/lib/cart-lines';
+import { lineCapNote, lineCeiling, lineHref } from '@/lib/cart-lines';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { cartFulfillment } from '@/lib/fulfillment';
 import { focusableElements, trapTabKey } from '@/lib/focus-trap';
@@ -197,7 +197,16 @@ function CartDrawerSuggestions() {
                 Choose size
               </Link>
             ) : (
-              <button className="btn small" type="button" onClick={() => addItem(product)}>
+              // Named, because a screen reader listing this panel's controls
+              // otherwise reads "Add, Add, Add" with nothing to tell them apart —
+              // while the "Choose size" link beside it has always said what it
+              // was for.
+              <button
+                className="btn small"
+                type="button"
+                onClick={() => addItem(product)}
+                aria-label={`Add ${product.name} to your basket`}
+              >
                 Add
               </button>
             )}
@@ -232,6 +241,20 @@ function CartDrawer({
   } = useCart();
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  /**
+   * One answer for both the hint and the button's `aria-describedby`.
+   *
+   * They were written as two conditions and drifted: the hint also required
+   * that the cart not be in conflict, while the description did not, so a
+   * conflicted pickup basket left the button pointing `aria-describedby` at an
+   * id nothing had rendered — a dangling reference a screen reader resolves to
+   * nothing. A conflicted cart has its own explanation from `CheckoutOptions`
+   * and is the one state the button really does refuse, so neither belongs
+   * there. Deriving both from one value is what stops them separating again.
+   */
+  const conflicted = cartFulfillment(items).conflict;
+  const pickupNeedsArranging = fulfillment === 'PICKUP' && !pickupArranged && !conflicted;
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -370,9 +393,12 @@ function CartDrawer({
                           role="group"
                           aria-label={`Quantity for ${lineName(item)}`}
                         >
+                          {/* Stops at 1 rather than deleting the line: see the
+                              same control on the cart page. */}
                           <button
                             type="button"
                             onClick={() => setQuantity(lineKey(item), item.quantity - 1)}
+                            disabled={item.quantity <= 1}
                             aria-label={`Decrease ${lineName(item)} quantity`}
                           >
                             <Minus size={14} />
@@ -386,7 +412,7 @@ function CartDrawer({
                           <button
                             type="button"
                             onClick={() => setQuantity(lineKey(item), item.quantity + 1)}
-                            disabled={item.quantity >= item.inventory}
+                            disabled={item.quantity >= lineCeiling(item)}
                             aria-label={`Increase ${lineName(item)} quantity`}
                           >
                             <Plus size={14} />
@@ -400,6 +426,9 @@ function CartDrawer({
                           <Trash2 size={14} /> Remove
                         </button>
                       </div>
+                      {item.quantity >= lineCeiling(item) && (
+                        <span className="cart-line-cap">{lineCapNote(item)}</span>
+                      )}
                     </div>
                     <b>{formatMoney(item.priceCents * item.quantity)}</b>
                   </div>
@@ -457,15 +486,28 @@ function CartDrawer({
                   {checkoutNotice}
                 </p>
               )}
+              {/* Says why the button will refuse before it is pressed. The
+                  checkbox that clears this lives up in the scrolling body, so on
+                  a full basket it is off-screen from here — which is how an
+                  unexplained dead button used to be the whole experience. */}
+              {pickupNeedsArranging && (
+                <p className="drawer-notice" id="drawer-pickup-hint">
+                  Tick “I have already arranged this pickup” above to continue.
+                </p>
+              )}
               <button
                 className="btn full"
                 type="button"
                 onClick={checkout}
-                disabled={
-                  checkoutLoading ||
-                  cartFulfillment(items).conflict ||
-                  (fulfillment === 'PICKUP' && !pickupArranged)
-                }
+                /**
+                 * Not disabled for an unarranged pickup on purpose. The disabled
+                 * attribute swallowed the click that would have produced
+                 * `PICKUP_ARRANGE_ERROR`, so the one explanation the code had was
+                 * unreachable — and disabled buttons are skipped by Tab, so a
+                 * keyboard shopper could not even land on it to hear why.
+                 */
+                disabled={checkoutLoading || conflicted}
+                aria-describedby={pickupNeedsArranging ? 'drawer-pickup-hint' : undefined}
                 aria-busy={checkoutLoading}
               >
                 {checkoutLoading ? 'Opening secure checkout…' : 'Secure checkout'}
@@ -554,8 +596,21 @@ export function SiteHeader({
   useEffect(() => {
     if (!mobileOpen) return;
 
+    /**
+     * The first *link*, not simply the first focusable thing.
+     *
+     * The first focusable element in this panel is the search box, and focusing
+     * a text input is what raises the on-screen keyboard on a phone — so every
+     * tap of the menu button, by somebody who wanted to look at the navigation,
+     * covered half the navigation with a keyboard they had not asked for. The
+     * panel still traps focus and still restores it on close; only the landing
+     * spot changed. Falling back to the first focusable element keeps the trap
+     * honest if the panel ever holds no links.
+     */
     const focusTimer = window.requestAnimationFrame(() => {
-      focusableElements(mobileMenuRef.current)[0]?.focus();
+      const focusable = focusableElements(mobileMenuRef.current);
+      const firstLink = focusable.find((element) => element instanceof HTMLAnchorElement);
+      (firstLink || focusable[0])?.focus();
     });
 
     const handleKeyDown = (event: KeyboardEvent) => {

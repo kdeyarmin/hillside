@@ -137,7 +137,8 @@ type CartContextValue = {
   discount: DiscountSummary | null;
   discountPending: DiscountField | null;
   discountErrors: DiscountMessages;
-  applyDiscountCode: (field: DiscountField, code: string) => Promise<void>;
+  /** Resolves true when the shop accepted the code, so the box can be cleared. */
+  applyDiscountCode: (field: DiscountField, code: string) => Promise<boolean>;
   removeDiscountCode: (field: DiscountField) => void;
   addItem: (product: CartProduct, quantity?: number) => void;
   setQuantity: (key: string, quantity: number) => void;
@@ -157,6 +158,9 @@ const STORAGE_KEY = 'hillside-cart-v2';
 const PREFS_KEY = 'hillside-checkout-prefs-v1';
 
 const NO_CODES: Record<DiscountField, string> = { promoCode: '', giftCardCode: '' };
+
+/** Invisible, and unspoken by screen readers — see `addItem`. */
+const ZERO_WIDTH = '\u200B';
 
 function readStoredCode(value: unknown) {
   return typeof value === 'string' ? value.trim().slice(0, CODE_INPUT_MAX) : '';
@@ -210,7 +214,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
   const [fulfillment, setFulfillmentState] = useState<FulfillmentChoice>('SHIP');
   const [giftMessage, setGiftMessageState] = useState('');
-  const [pickupArranged, setPickupArranged] = useState(false);
+  const [pickupArranged, setPickupArrangedState] = useState(false);
   const [appliedCodes, setAppliedCodes] = useState<Record<DiscountField, string>>(NO_CODES);
   const [discount, setDiscount] = useState<DiscountSummary | null>(null);
   const [discountPending, setDiscountPending] = useState<DiscountField | null>(null);
@@ -269,6 +273,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     if (ready) localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items, ready]);
 
+  /**
+   * Releases the checkout lock when the browser restores this page from the
+   * back/forward cache.
+   *
+   * `checkout()` takes the lock and then hands the tab to Stripe with
+   * `location.assign`. Pressing Back brings the *same* JavaScript state back —
+   * bfcache restores the heap rather than re-running the module — so the lock
+   * was still held and the button stayed disabled for the rest of the session,
+   * with "Opening secure checkout…" on it. Stripe's own cancel link is a fresh
+   * load and was never affected, which is why this only ever bit the customers
+   * who pressed Back to check something before paying.
+   */
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      checkoutLock.current = false;
+      setCheckoutLoading(false);
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
+
   useEffect(() => {
     if (!ready) return;
     localStorage.setItem(PREFS_KEY, JSON.stringify({ fulfillment, giftMessage, ...appliedCodes }));
@@ -297,6 +323,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const setGiftMessage = useCallback((value: string) => {
     setGiftMessageState(value.slice(0, GIFT_MESSAGE_MAX));
+  }, []);
+
+  /**
+   * Ticking the box is the shopper answering the "arrange a pickup first"
+   * refusal, so the refusal goes with it. Left standing, a stale red line above
+   * a now-working button reads as a checkout that is still broken.
+   */
+  const setPickupArranged = useCallback((value: boolean) => {
+    setPickupArrangedState(value);
+    if (value) setCheckoutError(null);
   }, []);
 
   /**
@@ -343,7 +379,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         // request never reaches the line below that clears this. Without it a
         // code removed mid-check leaves the other box reading "Checking…".
         setDiscountPending(null);
-        return;
+        return false;
       }
 
       const controller = new AbortController();
@@ -383,7 +419,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         if (result.adjustments?.length) {
           applyAdjustments(result.adjustments);
           setDiscount(null);
-          return;
+          return false;
         }
         if (!response.ok) {
           throw new Error(result.error || 'We could not check that code just now.');
@@ -411,8 +447,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           ...(summary.promotionError ? { promoCode: summary.promotionError } : {}),
           ...(summary.giftCardError ? { giftCardCode: summary.giftCardError } : {})
         });
+        /**
+         * Whether the box that was just submitted may be emptied. A code the
+         * shop refused is reported as not accepted, so the cart page leaves it
+         * on screen to be corrected rather than making the customer retype it.
+         */
+        if (!pending) return true;
+        return Boolean(pending === 'promoCode' ? summary.promotion : summary.giftCard);
       } catch (error) {
-        if (controller.signal.aborted) return;
+        // Superseded by a newer quote, which owns the answer now. Reported as
+        // not accepted so the box keeps what was typed either way.
+        if (controller.signal.aborted) return false;
         /**
          * The codes are deliberately left applied. A quote that could not be
          * fetched says nothing about whether the code is good, and checkout
@@ -423,6 +468,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           error instanceof Error ? error.message : 'We could not check that code just now.';
         setDiscount(null);
         setDiscountErrors(pending ? { [pending]: message } : { promoCode: message });
+        return false;
       } finally {
         if (!controller.signal.aborted) setDiscountPending(null);
       }
@@ -433,9 +479,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const applyDiscountCode = useCallback(
     async (field: DiscountField, code: string) => {
       const typed = code.trim().slice(0, CODE_INPUT_MAX);
-      if (!typed) return;
+      if (!typed) return false;
       setDiscountErrors((current) => ({ ...current, [field]: undefined }));
-      await requestQuote({ ...appliedCodes, [field]: typed }, field);
+      return requestQuote({ ...appliedCodes, [field]: typed }, field);
     },
     [appliedCodes, requestQuote]
   );
@@ -468,12 +514,29 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addItem = useCallback((product: CartProduct, quantity = 1) => {
     trackAddToCart(toGtagItem(product, quantity));
-    setLastAdded(
-      product.size
-        ? `${product.name} (${product.size}) added to your basket.`
-        : product.kind === 'bundle'
-          ? `The ${product.name} set was added to your basket.`
-          : `${product.name} added to your basket.`
+    const announcement = product.size
+      ? `${product.name} (${product.size}) added to your basket.`
+      : product.kind === 'bundle'
+        ? `The ${product.name} set was added to your basket.`
+        : `${product.name} added to your basket.`;
+    /**
+     * The alternating zero-width space is what makes a repeat announce.
+     *
+     * A live region is read when its text *changes*. Adding the same product
+     * twice produced an identical string, so React saw no state change, the DOM
+     * never mutated, and the second add was silent — which is exactly the case
+     * the drawer's "Add" buttons produce, since the drawer is already open and
+     * has nothing else to signal with.
+     *
+     * Toggling an invisible character on the end mutates the text while leaving
+     * the sentence a screen reader speaks unchanged. Clearing it first would not
+     * work: both updates are batched into one, and the batch lands on the same
+     * value it already held.
+     */
+    setLastAdded((current) =>
+      current?.startsWith(announcement) && !current.endsWith(ZERO_WIDTH)
+        ? `${announcement}${ZERO_WIDTH}`
+        : announcement
     );
     setItems((current) => {
       const key = lineKey(product);
@@ -520,7 +583,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const clearCart = useCallback(() => {
     setItems([]);
     setGiftMessageState('');
-    setPickupArranged(false);
+    setPickupArrangedState(false);
     setAppliedCodes(NO_CODES);
     setDiscount(null);
     setDiscountErrors({});

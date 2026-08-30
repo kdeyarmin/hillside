@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { PackageSearch } from 'lucide-react';
+import FormStatus from '@/components/FormStatus';
 import { sizedName } from '@/lib/product-sizes';
 import { formatMoney } from '@/lib/store';
 import { isPickupOrder, orderStatusHeading } from '@/lib/fulfillment';
@@ -87,11 +88,23 @@ export default function OrderStatusLookup() {
         <button className="btn" type="submit" disabled={loading}>
           <PackageSearch size={17} /> {loading ? 'Looking up order…' : 'Check order status'}
         </button>
-        {error && (
-          <p className="form-status error" role="alert">
-            {error}
-          </p>
-        )}
+        {/**
+         * Always mounted, both of them. A `role="alert"` element that is
+         * rendered only when there is something to say is the pattern
+         * `FormStatus` exists to replace: some screen reader and browser pairs
+         * never announce a live region that arrives already populated, so the
+         * message they most needed was the one they were least likely to hear.
+         *
+         * The success line is new. Finding the order used to be announced by
+         * nothing at all — the card simply appeared further down the page, which
+         * a sighted customer sees and a screen-reader customer has to go looking
+         * for without being told there is anything to look for.
+         */}
+        <FormStatus message={error} tone="error" />
+        <FormStatus
+          message={order ? `Order ${order.invoiceNumber} found. ${orderStatusHeading(order)}` : ''}
+          tone="success"
+        />
       </form>
 
       {order && (

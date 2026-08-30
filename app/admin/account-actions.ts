@@ -43,7 +43,8 @@ export async function createAdminAccount(formData: FormData) {
    * that person's password, which is not what "add an admin" should ever do.
    * The row's own reset control is the deliberate way to do that.
    */
-  if (await db.adminUser.findUnique({ where: { email }, select: { id: true } })) done('email-taken');
+  if (await db.adminUser.findUnique({ where: { email }, select: { id: true } }))
+    done('email-taken');
 
   await db.adminUser.create({
     data: { name, email, passwordHash: hashPassword(password), passwordChangedAt: new Date() }

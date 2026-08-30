@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import GroupingLanding from '@/components/GroupingLanding';
+import { cache } from 'react';
 import { categoryDescription } from '@/lib/category-content';
 import { db } from '@/lib/db';
 import { PRODUCT_CARD_SELECT, withCardFacts } from '@/lib/product-cards';
@@ -22,8 +23,12 @@ export const dynamic = 'force-dynamic';
  *
  * The shop filter still works and is still the right tool for narrowing. This is
  * the page it narrows *from*.
+ *
+ * `cache()` so `generateMetadata` and the page itself, which both run on every
+ * request for this route, read the category once rather than fetching it — and
+ * its up-to-200 product cards — twice over.
  */
-async function loadCategory(slug: string) {
+const loadCategory = cache(async (slug: string) => {
   return db.category.findFirst({
     where: { slug, active: true },
     include: {
@@ -48,7 +53,7 @@ async function loadCategory(slug: string) {
       }
     }
   });
-}
+});
 
 export async function generateMetadata({
   params

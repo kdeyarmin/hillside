@@ -1,5 +1,7 @@
 import type { MetadataRoute } from 'next';
+import { unstable_cache } from 'next/cache';
 import { sellableBundles } from '@/lib/bundle-queries';
+import { SITEMAP_TTL_SECONDS } from '@/lib/cache';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { db } from '@/lib/db';
 import { giftGuideProducts, loadGiftCatalog } from '@/lib/gift-catalog';
@@ -8,7 +10,7 @@ import { absoluteUrl } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+async function buildSitemap(): Promise<MetadataRoute.Sitemap> {
   const pages = [
     '',
     '/shop',
@@ -191,3 +193,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...guidePages
   ];
 }
+
+/**
+ * Built at most once an hour rather than on every fetch.
+ *
+ * Six queries go into this file, including every active product, every category
+ * with its products and care guides, and the full set-buildability check — and
+ * a sitemap is fetched by crawlers, repeatedly, on their schedule rather than
+ * ours. Nothing in it is time-critical: a product listed an hour after it was
+ * published is well inside the window a crawler takes to come and look.
+ *
+ * `lastModified` survives the cache as an ISO string rather than a `Date`, which
+ * is one of the two shapes Next accepts for the field, and serializes to exactly
+ * the same `<lastmod>`.
+ */
+export default unstable_cache(buildSitemap, ['sitemap'], { revalidate: SITEMAP_TTL_SECONDS });

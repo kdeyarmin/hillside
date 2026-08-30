@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import GroupingLanding from '@/components/GroupingLanding';
+import { cache } from 'react';
 import { categoryDescription } from '@/lib/category-content';
 import { db } from '@/lib/db';
 import { PRODUCT_CARD_SELECT, withCardFacts } from '@/lib/product-cards';
@@ -9,7 +10,12 @@ import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
 
-async function loadCollection(slug: string) {
+/**
+ * `cache()` so `generateMetadata` and the page itself, which both run on every
+ * request for this route, read the collection once rather than fetching it —
+ * and its up-to-200 product cards — twice over.
+ */
+const loadCollection = cache(async (slug: string) => {
   return db.collection.findFirst({
     where: { slug, active: true },
     include: {
@@ -28,7 +34,7 @@ async function loadCollection(slug: string) {
       }
     }
   });
-}
+});
 
 export async function generateMetadata({
   params

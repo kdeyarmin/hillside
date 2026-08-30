@@ -65,7 +65,10 @@ async function telnyxRequest<T>(path: string, body?: unknown, method = 'POST'): 
     errors?: Array<{ detail?: string; title?: string }>;
   };
   if (!response.ok) {
-    const message = payload.errors?.map((item) => item.detail || item.title).filter(Boolean).join('; ');
+    const message = payload.errors
+      ?.map((item) => item.detail || item.title)
+      .filter(Boolean)
+      .join('; ');
     throw new Error(message || `Telnyx Video request failed with status ${response.status}.`);
   }
   return payload;
@@ -77,7 +80,9 @@ async function findRoomIdByUniqueName(uniqueName: string) {
     undefined,
     'GET'
   );
-  return listed.data?.find((room) => room.unique_name === uniqueName)?.id || listed.data?.[0]?.id || null;
+  return (
+    listed.data?.find((room) => room.unique_name === uniqueName)?.id || listed.data?.[0]?.id || null
+  );
 }
 
 export async function ensureTelnyxRoom(event: TelnyxClass) {

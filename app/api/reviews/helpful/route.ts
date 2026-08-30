@@ -19,7 +19,7 @@ const schema = z.object({ id: z.string().trim().min(1).max(60) });
  * is public and someone will eventually try.
  */
 export async function POST(request: Request) {
-  if (rateLimited(request, { name: 'review-helpful', limit: 20, windowMs: 10 * 60_000 })) {
+  if (await rateLimited(request, { name: 'review-helpful', limit: 20, windowMs: 10 * 60_000 })) {
     return NextResponse.json({ error: 'Too many votes just now.' }, { status: 429 });
   }
 

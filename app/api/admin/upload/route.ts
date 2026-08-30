@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (rateLimited(request, { name: 'admin-upload', limit: 20, windowMs: 15 * 60_000 })) {
+  if (await rateLimited(request, { name: 'admin-upload', limit: 20, windowMs: 15 * 60_000 })) {
     return NextResponse.json(
       { error: 'Too many uploads. Wait a few minutes and try again.' },
       { status: 429 }

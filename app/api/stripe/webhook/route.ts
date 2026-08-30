@@ -147,6 +147,8 @@ async function completeReservedOrder(
     paymentIntentId: objectId(session.payment_intent),
     stripeInvoiceId: objectId(session.invoice),
     status: 'PAID' as const,
+    // The durable "this was paid for" marker. See `wasEverPaid`.
+    paidAt: new Date(),
     ...customer,
     taxCents,
     discountCents,
@@ -247,11 +249,58 @@ async function notifyOversell(invoiceNumber: string, items: string) {
   });
 }
 
+/**
+ * Whether this order has ever been paid for, whatever it says now.
+ *
+ * `CANCELLED` carries two meanings that have to be told apart. Ordinarily it is
+ * a hold that was released — an abandoned basket, an expired session — and
+ * re-completing one is correct: Stripe can deliver `expired` before the
+ * `completed` that followed it, and the customer really did pay.
+ *
+ * But `CANCELLED` is also where an admin cancel of a *paid* order lands. Without
+ * this check, redelivering that order's original `checkout.session.completed`
+ * — which the Stripe dashboard will happily do while somebody is debugging
+ * something else — silently returned a deliberately cancelled order to PAID and
+ * took its stock a second time. The `confirmationEmailSentAt` guard above only
+ * catches that when the confirmation actually recorded as sent, so it fails open
+ * on exactly the shops where email is misconfigured.
+ *
+ * `paidAt` is the marker that actually answers this: it is written in the same
+ * claim that moves an order to PAID, whatever the order contained and however it
+ * was paid for, and it is never cleared. The three after it are kept as a
+ * fallback for orders paid before that column existed, none of which can be
+ * relied on alone — `paymentIntentId` is null on a session a Stripe-side
+ * promotion brought to zero, and `discountsSettledAt` is only written for an
+ * order carrying one of the shop's own codes.
+ */
+function wasEverPaid(order: {
+  paidAt?: Date | null;
+  paymentIntentId?: string | null;
+  discountsSettledAt?: Date | null;
+  fulfilledAt?: Date | null;
+}) {
+  return Boolean(
+    order.paidAt || order.paymentIntentId || order.discountsSettledAt || order.fulfilledAt
+  );
+}
+
 async function fulfillProductOrder(session: Stripe.Checkout.Session) {
   const existing = await findReservedOrder(session);
   if (existing?.confirmationEmailSentAt) return;
   if (existing?.status === 'PAID' || existing?.status === 'FULFILLED') {
     await sendOrderEmails(existing.id);
+    return;
+  }
+
+  /**
+   * A cancelled order that was paid for once is not a released hold, so it is
+   * left exactly as the owner left it. Re-sending the confirmation would be
+   * telling a customer their cancelled order is on its way.
+   */
+  if (existing?.status === 'CANCELLED' && wasEverPaid(existing)) {
+    console.warn(
+      `Ignoring a redelivered completion for order ${existing.invoiceNumber}, which was cancelled after it was paid.`
+    );
     return;
   }
 
@@ -795,8 +844,21 @@ export async function POST(request: Request) {
   }
 
   try {
-    await releaseExpiredProductHolds();
-
+    /**
+     * The sweep runs *after* the event, not before it.
+     *
+     * Running it first meant a payment landing near the 35-minute boundary could
+     * have its own hold swept a moment before the event that pays for it was
+     * handled: the stock went back on the shelf, everyone on that product's
+     * waiting list was emailed to say it had returned, and `completeReservedOrder`
+     * then immediately took it again — possibly as an oversell, and always
+     * leaving those customers with a "back in stock" notice for something that
+     * never came back.
+     *
+     * Handling the event first closes that window completely. A hold that has
+     * just become a paid order is no longer `PENDING`, and `releaseProductHold`
+     * only ever acts on `PENDING`, so the sweep below simply passes it by.
+     */
     if (
       event.type === 'checkout.session.completed' ||
       event.type === 'checkout.session.async_payment_succeeded'
@@ -814,6 +876,11 @@ export async function POST(request: Request) {
     if (event.type === 'charge.refunded') {
       await applyRefund(event.data.object as Stripe.Charge);
     }
+
+    // Abandoned checkouts whose `expired` event never arrived. See the note
+    // above for why this is the last thing the handler does rather than the
+    // first.
+    await releaseExpiredProductHolds();
   } catch (error) {
     console.error('Stripe fulfillment failed', error);
     return new NextResponse('Fulfillment failed', { status: 500 });

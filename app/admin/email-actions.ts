@@ -41,7 +41,7 @@ async function guard() {
  * relay case is exactly the one the ceiling is for. `null` is the shared
  * ADMIN_PASSWORD session, which is one account and buckets as one.
  */
-function throttled(adminId: string | null) {
+async function throttled(adminId: string | null) {
   return rateLimitedByKey(adminId || 'shared-owner-login', {
     name: 'admin-email',
     limit: 40,
@@ -108,7 +108,7 @@ function releaseSend(key: string) {
 
 export async function sendOwnerEmail(formData: FormData) {
   const admin = await guard();
-  if (throttled(admin.id)) redirect(adminEmailPath({ error: 'email-throttled' }));
+  if (await throttled(admin.id)) redirect(adminEmailPath({ error: 'email-throttled' }));
 
   const { addresses, invalid } = parseRecipients(text(formData, 'to'));
   const subject = text(formData, 'subject');
@@ -158,7 +158,7 @@ export async function sendOwnerEmail(formData: FormData) {
  */
 export async function replyToCustomerMessage(formData: FormData) {
   const admin = await guard();
-  if (throttled(admin.id)) redirect(adminEmailPath({ error: 'email-throttled' }));
+  if (await throttled(admin.id)) redirect(adminEmailPath({ error: 'email-throttled' }));
 
   const id = text(formData, 'id');
   const body = text(formData, 'body');

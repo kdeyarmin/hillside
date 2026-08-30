@@ -82,10 +82,8 @@ export async function seatsRemainingFor(
   return remaining;
 }
 
-
 export type Reservation =
-  | { ok: true; holdId: string; expiresAt: Date }
-  | { ok: false; seatsLeft: number };
+  { ok: true; holdId: string; expiresAt: Date } | { ok: false; seatsLeft: number };
 
 /**
  * Reserves seats atomically.
@@ -245,7 +243,9 @@ export async function releaseHold(holdId: string) {
 }
 
 export async function findHoldBySessionOrHoldId(sessionId: string, holdId?: string | null) {
-  const bySession = await db.classRegistration.findUnique({ where: { stripeSessionId: sessionId } });
+  const bySession = await db.classRegistration.findUnique({
+    where: { stripeSessionId: sessionId }
+  });
   if (bySession) return bySession;
   if (!holdId || holdId === sessionId) return null;
   return db.classRegistration.findUnique({ where: { stripeSessionId: holdId } });

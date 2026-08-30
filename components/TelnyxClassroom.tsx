@@ -199,7 +199,9 @@ export default function TelnyxClassroom({
   const subscribedRef = useRef(new Set<string>());
   const mountedRef = useRef(true);
 
-  const [status, setStatus] = useState<'ready' | 'joining' | 'connected' | 'left' | 'error'>('ready');
+  const [status, setStatus] = useState<'ready' | 'joining' | 'connected' | 'left' | 'error'>(
+    'ready'
+  );
   const [message, setMessage] = useState('');
   const [remoteTiles, setRemoteTiles] = useState<RemoteTile[]>([]);
   const [audioEnabled, setAudioEnabled] = useState(true);
@@ -233,8 +235,10 @@ export default function TelnyxClassroom({
     if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
     refreshTimerRef.current = null;
     try {
-      if (screenMediaRef.current) await roomRef.current?.removeStream('screen').catch(() => undefined);
-      if (localMediaRef.current) await roomRef.current?.removeStream('camera').catch(() => undefined);
+      if (screenMediaRef.current)
+        await roomRef.current?.removeStream('screen').catch(() => undefined);
+      if (localMediaRef.current)
+        await roomRef.current?.removeStream('camera').catch(() => undefined);
       await roomRef.current?.disconnect().catch(() => undefined);
     } finally {
       stopAllMedia();
@@ -271,7 +275,9 @@ export default function TelnyxClassroom({
 
     try {
       const credentials = await requestCredentials();
-      const sdk = (await import(/* webpackIgnore: true */ credentials.sdkUrl)) as unknown as TelnyxModule;
+      const sdk = (await import(
+        /* webpackIgnore: true */ credentials.sdkUrl
+      )) as unknown as TelnyxModule;
       if (!sdk.Room || !sdk.createLocalParticipant) {
         throw new Error('The video classroom could not be loaded. Please refresh and try again.');
       }
@@ -307,11 +313,7 @@ export default function TelnyxClassroom({
         }
       };
 
-      const subscribe = async (
-        participantId: string,
-        streamKey: string,
-        state?: RoomState
-      ) => {
+      const subscribe = async (participantId: string, streamKey: string, state?: RoomState) => {
         const participant = getParticipant(state, participantId);
         if (participant?.origin === 'local') return;
         const key = `${participantId}:${streamKey}`;
@@ -534,7 +536,9 @@ export default function TelnyxClassroom({
         <div>
           <span className="eyebrow">Secure Hillside classroom</span>
           <h1>{title}</h1>
-          <p><ShieldCheck size={16} /> Your place is verified before the classroom opens.</p>
+          <p>
+            <ShieldCheck size={16} /> Your place is verified before the classroom opens.
+          </p>
         </div>
         {recording && <span className="classroom-recording-notice">Recording enabled</span>}
       </div>
@@ -544,12 +548,13 @@ export default function TelnyxClassroom({
           <Video size={42} />
           <h2>{host ? 'Open your host studio' : 'Ready to join us?'}</h2>
           <p>
-            Select join, then allow camera and microphone access. You can still join in listening-only
-            mode when browser permissions are unavailable.
+            Select join, then allow camera and microphone access. You can still join in
+            listening-only mode when browser permissions are unavailable.
           </p>
           {message && <p className={status === 'error' ? 'classroom-error' : 'muted'}>{message}</p>}
           <button className="btn" type="button" onClick={join}>
-            <Video size={18} /> {status === 'left' ? 'Rejoin class' : host ? 'Open host studio' : 'Join online class'}
+            <Video size={18} />{' '}
+            {status === 'left' ? 'Rejoin class' : host ? 'Open host studio' : 'Join online class'}
           </button>
         </div>
       )}
@@ -572,7 +577,9 @@ export default function TelnyxClassroom({
           <div className="classroom-grid">
             <div className="classroom-video-tile local">
               <video ref={localVideoRef} autoPlay muted playsInline />
-              <span>{participantName} {host ? '• Host' : '• You'}</span>
+              <span>
+                {participantName} {host ? '• Host' : '• You'}
+              </span>
             </div>
             {screenSharing && (
               <div className="classroom-video-tile screen-preview">
@@ -580,14 +587,17 @@ export default function TelnyxClassroom({
                 <span>Your shared screen</span>
               </div>
             )}
-            {remoteTiles.map((tile) => <RemoteVideo tile={tile} key={tile.id} />)}
+            {remoteTiles.map((tile) => (
+              <RemoteVideo tile={tile} key={tile.id} />
+            ))}
           </div>
           <div className="classroom-controls" aria-label="Classroom controls">
             <button type="button" onClick={toggleAudio} disabled={!hasLocalAudio}>
               {audioEnabled ? <Mic /> : <MicOff />} <span>{audioEnabled ? 'Mute' : 'Unmute'}</span>
             </button>
             <button type="button" onClick={toggleVideo} disabled={!hasLocalVideo}>
-              {videoEnabled ? <Video /> : <VideoOff />} <span>{videoEnabled ? 'Camera off' : 'Camera on'}</span>
+              {videoEnabled ? <Video /> : <VideoOff />}{' '}
+              <span>{videoEnabled ? 'Camera off' : 'Camera on'}</span>
             </button>
             {host && (
               <button type="button" onClick={toggleScreenShare}>

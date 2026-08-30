@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { readJsonBody } from '@/lib/request-body';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
+import { honeypotFields, honeypotTripped } from '@/lib/honeypot';
 import { unsubscribeUrl } from '@/lib/newsletter';
 import { readNewsletterSource, readNewsletterSourceDetail } from '@/lib/newsletter-source';
 import { rateLimited } from '@/lib/rate-limit';
@@ -18,13 +19,10 @@ const requestSchema = z.object({
    * one field that was fine.
    */
   name: z.string().trim().max(120).nullish(),
-  /**
-   * Honeypot. Bounded rather than required-empty: `max(0)` made a filled
-   * honeypot fail schema validation and return 400, which meant the quiet-success
-   * branch below could never run and a bot was told plainly that the field was
-   * the problem. The cap keeps it from being used to post a payload.
-   */
-  website: z.string().max(200).optional().default(''),
+  /* Spam honeypot, under a name browsers do not autofill — see lib/honeypot.ts
+     for why it must never be called `website` again. The old name is still
+     accepted there so a cached page or an old bot still trips it. */
+  ...honeypotFields,
   /**
    * Which form this was, and the page it was on. Both are bounded here and
    * narrowed to a known placement and a plain site path below — they land in a
@@ -38,7 +36,7 @@ export async function POST(request: Request) {
   // Sends a welcome email to whatever address is posted, so the same open-relay
   // reasoning as /api/contact applies. Varying the address defeated the partial
   // self-limiting the "already subscribed" check happened to provide.
-  if (rateLimited(request, { name: 'newsletter', limit: 5, windowMs: 15 * 60_000 })) {
+  if (await rateLimited(request, { name: 'newsletter', limit: 5, windowMs: 15 * 60_000 })) {
     return NextResponse.json(
       { error: 'Too many signups from this connection. Please try again shortly.' },
       { status: 429 }
@@ -50,9 +48,11 @@ export async function POST(request: Request) {
     if (!parsed.success) {
       return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 });
     }
-    const { email, website } = parsed.data;
+    const { email } = parsed.data;
     const name = parsed.data.name || null;
-    if (website) return NextResponse.json({ message: 'You’re on the list.' });
+    if (honeypotTripped(parsed.data)) {
+      return NextResponse.json({ message: 'You’re on the list.' });
+    }
 
     const source = readNewsletterSource(parsed.data.source);
     const sourceDetail = readNewsletterSourceDetail(parsed.data.sourceDetail);

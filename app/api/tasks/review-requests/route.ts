@@ -48,7 +48,9 @@ export async function POST(request: Request) {
   }
   // Throttled on the unauthenticated path too, so the endpoint cannot be used
   // to guess at the secret quickly.
-  if (rateLimited(request, { name: 'tasks-review-requests', limit: 6, windowMs: 10 * 60_000 })) {
+  if (
+    await rateLimited(request, { name: 'tasks-review-requests', limit: 6, windowMs: 10 * 60_000 })
+  ) {
     return NextResponse.json({ error: 'Too many requests.' }, { status: 429 });
   }
   if (!authorised(request)) {

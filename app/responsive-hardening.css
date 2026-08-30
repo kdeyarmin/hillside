@@ -172,10 +172,27 @@ fieldset {
   overflow: hidden;
 }
 
+/**
+ * The 44px floor and the track widths have to be set together. This rule forced
+ * 44px buttons at every width while `.quantity-picker.small` still laid out
+ * 30px / 34px / 30px tracks, so in the drawer and on the cart page the minus
+ * button overlapped the count and the plus was clipped by the rounded
+ * container's `overflow: hidden`. The matching template lived only inside the
+ * ≤620px block below, which is why the control looked right on a phone and
+ * broken on every larger screen.
+ */
 .quantity-picker button,
 .quantity-picker.small button {
   min-width: 44px;
   min-height: 44px;
+}
+
+.quantity-picker.small {
+  grid-template-columns: 44px minmax(42px, 1fr) 44px;
+}
+
+.quantity-picker.small button {
+  height: 44px;
 }
 
 .care-filter-row button {

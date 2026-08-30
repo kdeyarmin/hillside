@@ -550,6 +550,21 @@ model Order {
   // Set once when a full refund returns stock, so repeated deliveries of the same
   // Stripe event cannot inflate inventory.
   inventoryRestoredAt     DateTime?
+  /**
+   * When Stripe's money actually landed. Set once, in the same claim that moves
+   * the order to PAID, and never cleared — including when the order is later
+   * cancelled or refunded, because "was this ever paid for" is a different
+   * question from "what is it now" and only this column answers it durably.
+   *
+   * The webhook needs it to tell a released inventory hold, which may legitimately
+   * be completed late, from an admin's cancel of an order that was already paid,
+   * which may not. Both land in `CANCELLED`. The markers used before —
+   * `paymentIntentId`, `discountsSettledAt`, `fulfilledAt` — cover the ordinary
+   * order but not all of them: a session brought to zero by a Stripe-side
+   * promotion has no payment intent, and `discountsSettledAt` is only written for
+   * an order carrying one of the shop's *own* codes.
+   */
+  paidAt                  DateTime?
   shippingMethod          String?
   fulfillmentMethod       FulfillmentMethod @default(SHIP)
   giftMessage             String?
@@ -603,6 +618,13 @@ model Order {
 
   @@index([promotionId])
   @@index([giftCardId])
+  /**
+   * `releaseExpiredProductHolds` filters exactly this pair, and it runs at the
+   * top of every `/api/checkout` POST and every Stripe webhook. Without the
+   * index that sweep is a sequential scan of the whole order history on the two
+   * most latency-sensitive endpoints the shop has, growing with every sale.
+   */
+  @@index([status, createdAt])
 }
 
 /**
@@ -639,6 +661,14 @@ model OrderItem {
   components OrderItemComponent[]
 
   @@index([bundleId])
+  /**
+   * Postgres does not index a foreign key for you. Every `include: { items }` on
+   * an order — the webhook, both confirmation emails, the dashboard, the
+   * customer's own status lookup — filters `orderId`; the best-seller and
+   * co-purchase aggregates filter `productId`.
+   */
+  @@index([orderId])
+  @@index([productId])
 }
 
 /**
@@ -743,6 +773,13 @@ model ClassRegistration {
   createdAt               DateTime           @default(now())
   updatedAt               DateTime           @updatedAt
   classEvent              ClassEvent         @relation(fields: [classEventId], references: [id], onDelete: Cascade)
+
+  /**
+   * `seatsTaken` aggregates on this column, including inside the advisory-locked
+   * reservation transaction — so an unindexed scan here lengthens the window
+   * every other booking is serialized behind.
+   */
+  @@index([classEventId])
 }
 
 model GalleryItem {
@@ -1007,6 +1044,43 @@ model AdminUser {
 }
 
 /**
+ * One fixed window of one rate limit, shared by every instance of the app.
+ *
+ * The limiter used to count in process memory, which meant its counters reset on
+ * every deploy, a second replica would have allowed twice every limit, and an
+ * attacker with a pool of addresses could evict the admin-login counters mid
+ * attempt simply by minting enough fresh keys to overflow the map. For the
+ * public forms that was a reasonable trade; for the login to a dashboard holding
+ * every order, every address and the newsletter list, it was not.
+ *
+ * A row per window rather than a row per request: the counter is bumped by one
+ * conditional upsert, so a limit costs a single round trip and the table stays
+ * roughly as large as the number of distinct callers inside the longest window.
+ */
+model RateLimitCounter {
+  /** "<limit name>:<caller>", e.g. `admin-login:203.0.113.4`. */
+  key       String   @id
+  count     Int      @default(0)
+  /**
+   * What the window before this one counted, kept so the limit can slide rather
+   * than reset.
+   *
+   * A plain fixed window forgets everything at its boundary, which lets twice
+   * the limit through in the moment either side of it: measured on the admin
+   * login, eight attempts at the end of one window and eight more at the start
+   * of the next — sixteen password guesses inside a span shorter than the
+   * fifteen minutes that were supposed to allow eight. Weighting this by how
+   * much of the previous window is still in view closes that, and is also what
+   * makes the checkout-hold limit track holds that are genuinely still open.
+   */
+  prevCount Int      @default(0)
+  /** When this window ends. The row is reusable — and sweepable — after it. */
+  resetAt   DateTime
+
+  @@index([resetAt])
+}
+
+/**
  * How a promotion code takes money off a basket.
  *
  * `FREE_SHIPPING` is its own kind rather than a hundred-percent coupon on the
@@ -1174,4 +1248,6 @@ model GiftCardEntry {
   giftCard           GiftCard          @relation(fields: [giftCardId], references: [id], onDelete: Cascade)
 
   @@index([giftCardId, createdAt])
+  /** The refund aggregates in `discount-store` sum a card's entries by order. */
+  @@index([orderId])
 }

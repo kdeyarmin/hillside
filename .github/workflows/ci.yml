@@ -47,10 +47,34 @@ jobs:
         run: npm run typecheck
       - name: Lint
         run: npm run lint
+
+      # The same command the deploy runs, against an empty database, so a broken
+      # or missing migration fails here rather than on Railway. `db push` stood
+      # here before and would happily build a schema no migration describes,
+      # which is precisely the drift that makes a deploy fail on its own.
+      #
+      # It runs *before* the tests on purpose. Some of them need the schema —
+      # the durable rate limiter can only be exercised against a real database —
+      # and they are written to skip rather than fail when there is nothing to
+      # talk to. With the tests first they found an empty database and skipped
+      # every one of those, which is worse than not having them: a silent pass
+      # that reads like coverage.
+      - name: Apply migrations
+        run: npm run db:migrate
+
+      # Migrations are the only thing allowed to change the schema, so they have
+      # to add up to it exactly. This prints nothing and succeeds when the
+      # database they just built already matches schema.prisma.
+      - name: Check for schema drift
+        run: |
+          npx prisma migrate diff \
+            --from-url "$DATABASE_URL" \
+            --to-schema-datamodel prisma/schema.prisma \
+            --exit-code \
+          && echo "No drift: the migrations describe the schema exactly."
+
       - name: Unit tests
         run: npm test
 
-      - name: Push schema
-        run: npx prisma db push --skip-generate
       - name: Build
         run: npm run build

@@ -27,10 +27,7 @@ function accessFailure(reason: 'invalid' | 'expired', request: Request) {
   return response;
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ token: string }> }
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   if (!token || token.length < 24 || token.length > 200) {
     return accessFailure('invalid', request);

@@ -3,13 +3,11 @@ import { z } from 'zod';
 import type { ClassEvent } from '@prisma/client';
 import { db } from '@/lib/db';
 import { readJsonBody } from '@/lib/request-body';
-import {
-  createFreeClassConfirmToken,
-  freeClassConfirmExpiry
-} from '@/lib/class-confirm';
+import { createFreeClassConfirmToken, freeClassConfirmExpiry } from '@/lib/class-confirm';
 import { sendFreeClassConfirmEmail } from '@/lib/class-registration-email';
 import { seatsShortLabel } from '@/lib/class-access';
 import { claimFreeSeat } from '@/lib/class-seats';
+import { honeypotFields, honeypotTripped } from '@/lib/honeypot';
 import { rateLimited } from '@/lib/rate-limit';
 import { absoluteUrl } from '@/lib/store';
 
@@ -21,22 +19,30 @@ const requestSchema = z.object({
   email: z.string().trim().email().max(254),
   phone: z.string().trim().max(40).optional().default(''),
   seats: z.coerce.number().int().min(1).max(6).default(1),
-  /**
-   * Honeypot. Bounded rather than required-empty: `max(0)` made a filled
-   * honeypot fail schema validation and return 400, which meant the quiet-success
-   * branch below could never run and a bot was told plainly that the field was
-   * the problem. The cap keeps it from being used to post a payload.
-   */
-  website: z.string().max(200).optional().default('')
+  /* Spam honeypot, under a name browsers do not autofill — see lib/honeypot.ts
+     for why it must never be called `website` again. The old name is still
+     accepted there so a cached page or an old bot still trips it. */
+  ...honeypotFields
 });
 
 async function sendConfirmFor(
   event: Pick<ClassEvent, 'id' | 'title' | 'startsAt' | 'format' | 'location' | 'durationMinutes'>,
-  registration: { id: string; name: string; email: string; seats: number; holdExpiresAt: Date | null },
+  registration: {
+    id: string;
+    name: string;
+    email: string;
+    seats: number;
+    holdExpiresAt: Date | null;
+  },
   resend = false
 ) {
   const expiresAt = registration.holdExpiresAt || freeClassConfirmExpiry(event.startsAt);
-  const token = createFreeClassConfirmToken(registration.id, registration.email, event.id, expiresAt);
+  const token = createFreeClassConfirmToken(
+    registration.id,
+    registration.email,
+    event.id,
+    expiresAt
+  );
   if (!token) return { sent: false as const, reason: 'not-configured' as const };
   return sendFreeClassConfirmEmail({
     event,
@@ -47,29 +53,46 @@ async function sendConfirmFor(
 }
 
 export async function POST(request: Request) {
-  if (rateLimited(request, { name: 'class-register', limit: 8, windowMs: 10 * 60_000 })) {
-    return NextResponse.json({ error: 'Too many registration attempts. Please try again shortly.' }, { status: 429 });
+  if (await rateLimited(request, { name: 'class-register', limit: 8, windowMs: 10 * 60_000 })) {
+    return NextResponse.json(
+      { error: 'Too many registration attempts. Please try again shortly.' },
+      { status: 429 }
+    );
   }
 
   try {
     const parsed = requestSchema.safeParse(await readJsonBody(request));
     if (!parsed.success) {
-      return NextResponse.json({ error: 'Please check your name, email and seat count.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Please check your name, email and seat count.' },
+        { status: 400 }
+      );
     }
     const input = parsed.data;
-    if (input.website) return NextResponse.json({ ok: true, emailSent: true });
+    if (honeypotTripped(input)) {
+      return NextResponse.json({ ok: true, emailSent: true });
+    }
 
     const event = await db.classEvent.findFirst({
       where: { id: input.classId, active: true }
     });
     if (!event || event.startsAt <= new Date()) {
-      return NextResponse.json({ error: 'This class is no longer open for registration.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'This class is no longer open for registration.' },
+        { status: 400 }
+      );
     }
     if (event.registrationDeadline && event.registrationDeadline <= new Date()) {
-      return NextResponse.json({ error: 'Registration for this class has closed.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Registration for this class has closed.' },
+        { status: 400 }
+      );
     }
     if (event.priceCents > 0) {
-      return NextResponse.json({ error: 'This class must be reserved through secure checkout.' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'This class must be reserved through secure checkout.' },
+        { status: 400 }
+      );
     }
 
     const email = input.email.toLowerCase();
@@ -102,14 +125,14 @@ export async function POST(request: Request) {
       }
       if (claim.reason === 'duplicate') {
         return NextResponse.json(
-          { error: 'This email is already registered for the class. Contact us if you need to change the reservation.' },
+          {
+            error:
+              'This email is already registered for the class. Contact us if you need to change the reservation.'
+          },
           { status: 409 }
         );
       }
-      return NextResponse.json(
-        { error: seatsShortLabel(claim.seatsLeft) },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: seatsShortLabel(claim.seatsLeft) }, { status: 400 });
     }
 
     /**
@@ -123,7 +146,10 @@ export async function POST(request: Request) {
     try {
       emailSent = (await sendConfirmFor(event, registration)).sent;
     } catch (error) {
-      console.error(`Class registration ${registration.id} saved, but its confirm email failed`, error);
+      console.error(
+        `Class registration ${registration.id} saved, but its confirm email failed`,
+        error
+      );
     }
 
     return NextResponse.json({

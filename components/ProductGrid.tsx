@@ -1,5 +1,10 @@
-'use client';
-
+/**
+ * No `'use client'`. This component holds no state and no handlers — it lays out
+ * cards — so the server can render it and only the cards themselves need to
+ * hydrate. It is imported by the home page, the search page, the gift guides and
+ * the care guides, all of which are server components, and the directive was
+ * pulling this whole subtree into the browser bundle for nothing.
+ */
 import ProductCard, { type ProductCardProduct } from '@/components/ProductCard';
 
 /**

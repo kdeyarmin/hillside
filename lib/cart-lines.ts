@@ -9,6 +9,7 @@
  */
 
 import { cartLineKey } from './product-sizes.ts';
+import { LINE_QUANTITY_MAX } from './store.ts';
 
 export type LineKind = 'product' | 'bundle';
 
@@ -34,4 +35,24 @@ export function basketLineKey(kind: LineKind, slug: string, size?: string | null
 /** Where a basket line's title should link. Sets live off /bundles, not /shop. */
 export function lineHref(line: { kind?: LineKind | null; slug: string }) {
   return line.kind === 'bundle' ? `/bundles/${line.slug}` : `/shop/${line.slug}`;
+}
+
+/**
+ * The most of this line a shopper may put in the basket — whichever of the shelf
+ * and the per-order ceiling runs out first.
+ */
+export function lineCeiling(line: { inventory: number }) {
+  return Math.min(Math.max(1, line.inventory), LINE_QUANTITY_MAX);
+}
+
+/**
+ * Why the plus button stopped. A cap with no reason beside it reads as a broken
+ * control — the product page already says "only N left", and the basket owes the
+ * shopper the same sentence.
+ */
+export function lineCapNote(line: { inventory: number }) {
+  if (line.inventory <= LINE_QUANTITY_MAX) {
+    return `Only ${lineCeiling(line)} available.`;
+  }
+  return `${LINE_QUANTITY_MAX} is the most we sell in one order.`;
 }
