@@ -1,12 +1,24 @@
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
-import {
-  clientKey,
-  rateLimited,
-  rateLimitBucketCount,
-  rateLimitedByKey,
-  resetRateLimits
-} from '../lib/rate-limit.ts';
+
+/**
+ * These tests exercise the in-process fallback, so the database is pointed
+ * somewhere nothing is listening — deliberately, and before the import below,
+ * because `lib/db` builds its client the moment it is loaded.
+ *
+ * Left to a real `DATABASE_URL`, this file counts in Postgres instead, and the
+ * counters it writes outlive the run: a second `npm test` on the same database
+ * starts with every key already at its limit, and half of these fail for a
+ * reason that has nothing to do with the code. Unit tests should not need a
+ * database, and should certainly not leave rows in one.
+ *
+ * The behaviour under test is identical either way — allow up to the limit, then
+ * refuse — and the Postgres path is covered separately against a real database.
+ */
+process.env.DATABASE_URL = 'postgresql://unused:unused@127.0.0.1:1/none';
+
+const { clientKey, rateLimited, rateLimitBucketCount, rateLimitedByKey, resetRateLimits } =
+  await import('../lib/rate-limit.ts');
 
 function request(headers: Record<string, string> = {}) {
   return new Request('https://thehillsidegardens.com/api/contact', { headers });
