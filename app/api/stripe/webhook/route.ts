@@ -147,6 +147,8 @@ async function completeReservedOrder(
     paymentIntentId: objectId(session.payment_intent),
     stripeInvoiceId: objectId(session.invoice),
     status: 'PAID' as const,
+    // The durable "this was paid for" marker. See `wasEverPaid`.
+    paidAt: new Date(),
     ...customer,
     taxCents,
     discountCents,
@@ -263,17 +265,23 @@ async function notifyOversell(invoiceNumber: string, items: string) {
  * catches that when the confirmation actually recorded as sent, so it fails open
  * on exactly the shops where email is misconfigured.
  *
- * All three markers below are written when payment settles and never by the hold
- * path, so any one of them means money was taken for this order once already.
- * `paymentIntentId` alone is not enough: a basket paid entirely with a gift card
- * has no payment intent.
+ * `paidAt` is the marker that actually answers this: it is written in the same
+ * claim that moves an order to PAID, whatever the order contained and however it
+ * was paid for, and it is never cleared. The three after it are kept as a
+ * fallback for orders paid before that column existed, none of which can be
+ * relied on alone — `paymentIntentId` is null on a session a Stripe-side
+ * promotion brought to zero, and `discountsSettledAt` is only written for an
+ * order carrying one of the shop's own codes.
  */
 function wasEverPaid(order: {
+  paidAt?: Date | null;
   paymentIntentId?: string | null;
   discountsSettledAt?: Date | null;
   fulfilledAt?: Date | null;
 }) {
-  return Boolean(order.paymentIntentId || order.discountsSettledAt || order.fulfilledAt);
+  return Boolean(
+    order.paidAt || order.paymentIntentId || order.discountsSettledAt || order.fulfilledAt
+  );
 }
 
 async function fulfillProductOrder(session: Stripe.Checkout.Session) {

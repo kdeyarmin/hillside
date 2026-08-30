@@ -550,6 +550,21 @@ model Order {
   // Set once when a full refund returns stock, so repeated deliveries of the same
   // Stripe event cannot inflate inventory.
   inventoryRestoredAt     DateTime?
+  /**
+   * When Stripe's money actually landed. Set once, in the same claim that moves
+   * the order to PAID, and never cleared — including when the order is later
+   * cancelled or refunded, because "was this ever paid for" is a different
+   * question from "what is it now" and only this column answers it durably.
+   *
+   * The webhook needs it to tell a released inventory hold, which may legitimately
+   * be completed late, from an admin's cancel of an order that was already paid,
+   * which may not. Both land in `CANCELLED`. The markers used before —
+   * `paymentIntentId`, `discountsSettledAt`, `fulfilledAt` — cover the ordinary
+   * order but not all of them: a session brought to zero by a Stripe-side
+   * promotion has no payment intent, and `discountsSettledAt` is only written for
+   * an order carrying one of the shop's *own* codes.
+   */
+  paidAt                  DateTime?
   shippingMethod          String?
   fulfillmentMethod       FulfillmentMethod @default(SHIP)
   giftMessage             String?

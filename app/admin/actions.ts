@@ -141,17 +141,32 @@ export async function loginAdmin(formData: FormData) {
    * before the throttle applied, and the failure path is careful not to say.
    */
   const account = email.trim().toLowerCase();
-  const [addressBlocked, accountBlocked, shopBlocked] = await Promise.all([
-    rateLimitedByKey(identity, { name: 'admin-login', limit: 8, windowMs: 15 * 60_000 }),
-    rateLimitedByKey(account || 'blank', {
+
+  /**
+   * In order, and stopping at the first refusal — never all three at once.
+   *
+   * Counted together, a caller whose address was already blocked went on
+   * charging the shop-wide budget with every further attempt. One address could
+   * therefore spend the whole hourly allowance by itself and lock every
+   * legitimate admin out for the rest of the window: a lockout weaker than the
+   * attack it was meant to stop. An attempt that this address is not allowed to
+   * make should cost the wider counters nothing.
+   */
+  if (await rateLimitedByKey(identity, { name: 'admin-login', limit: 8, windowMs: 15 * 60_000 })) {
+    redirect('/admin?error=throttled');
+  }
+  if (
+    await rateLimitedByKey(account || 'blank', {
       name: 'admin-login-account',
       limit: 12,
       windowMs: 60 * 60_000
-    }),
-    rateLimitedByKey('all', { name: 'admin-login-global', limit: 60, windowMs: 60 * 60_000 })
-  ]);
-
-  if (addressBlocked || accountBlocked || shopBlocked) {
+    })
+  ) {
+    redirect('/admin?error=throttled');
+  }
+  if (
+    await rateLimitedByKey('all', { name: 'admin-login-global', limit: 60, windowMs: 60 * 60_000 })
+  ) {
     redirect('/admin?error=throttled');
   }
 

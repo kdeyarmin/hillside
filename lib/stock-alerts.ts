@@ -1,5 +1,6 @@
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
+import { reportError } from '@/lib/report-error';
 import { absoluteUrl } from '@/lib/store';
 
 /**
@@ -30,18 +31,32 @@ export async function notifyStockAlerts(productId: string, name: string, slug: s
     // Somebody else is already telling this customer.
     if (claimed.count === 0) continue;
 
-    const delivery = await sendEmail({
-      to: alert.email,
-      kind: 'STOCK_ALERT',
-      subject: `${name} is back at The Hillside Gardens`,
-      idempotencyKey: `stock-alert/${alert.id}`,
-      html: emailShell(
-        `${name} is back`,
-        `<p>You asked us to let you know when <strong>${escapeHtml(name)}</strong> returned. It is back on the shelf now.</p><p><a href="${absoluteUrl(`/shop/${slug}`)}">View ${escapeHtml(name)}</a></p><p>Stock is limited, so it may not last long.</p>`
-      )
-    });
+    /**
+     * The release has to cover a *throw*, not only a reported failure.
+     * `sendEmail` records every send in the database, so a failure there — or
+     * anywhere else inside it — comes back as an exception rather than as
+     * `{ sent: false }`, and an exception here would leave the row claimed
+     * forever: every later restock would treat this customer as already told,
+     * about an email that was never sent.
+     */
+    let sent = false;
+    try {
+      const delivery = await sendEmail({
+        to: alert.email,
+        kind: 'STOCK_ALERT',
+        subject: `${name} is back at The Hillside Gardens`,
+        idempotencyKey: `stock-alert/${alert.id}`,
+        html: emailShell(
+          `${name} is back`,
+          `<p>You asked us to let you know when <strong>${escapeHtml(name)}</strong> returned. It is back on the shelf now.</p><p><a href="${absoluteUrl(`/shop/${slug}`)}">View ${escapeHtml(name)}</a></p><p>Stock is limited, so it may not last long.</p>`
+        )
+      });
+      sent = delivery.sent;
+    } catch (error) {
+      reportError('Stock alert could not be sent', error, { productId, alertId: alert.id });
+    }
 
-    if (!delivery.sent) {
+    if (!sent) {
       await db.stockAlert.updateMany({
         where: { id: alert.id, notifiedAt: { not: null } },
         data: { notifiedAt: null }

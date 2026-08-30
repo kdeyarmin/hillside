@@ -238,6 +238,13 @@ export async function rateLimitedByKey(
     void sweepDurableCounters();
     const answer = await durableLimited(key, { limit, windowMs });
     durableUnavailableUntil = 0;
+    /**
+     * Re-armed on recovery, not only cleared on the way in. Left latched, the
+     * flag below would suppress the warning for every *later* outage in the same
+     * process — so a second failure, hours after the first, would drop every
+     * limit on the site back to memory with nothing in the log to say so.
+     */
+    warnedAboutDurableCounters = false;
     return answer;
   } catch (error) {
     durableUnavailableUntil = Date.now() + DURABLE_RETRY_DELAY_MS;

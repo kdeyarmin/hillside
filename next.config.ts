@@ -35,7 +35,24 @@ const contentSecurityPolicy = [
   `script-src 'self' 'unsafe-inline' https://www.googletagmanager.com ${TELNYX_SDK_ORIGIN}`,
   // next/font inlines the face declarations, and React inlines style attributes.
   "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://m.media-amazon.com https://www.google-analytics.com",
+  /**
+   * Any HTTPS host, deliberately, and this is the one directive that is not an
+   * allowlist.
+   *
+   * A product, variant, set, category or care-guide photograph is stored as a URL
+   * the owner types into the dashboard, and nothing validates its host — the
+   * Amazon lookup fills in `m.media-amazon.com`, but every other photo address is
+   * whatever she pasted. An allowlist here would have blanked exactly those
+   * images the moment this shipped, with no error a shopper or the owner could
+   * act on, and the catalog is the shop.
+   *
+   * The trade is small: an image is a passive resource, and `https:` still
+   * refuses `http:`, so a pasted insecure URL cannot quietly downgrade a page.
+   * Constraining which hosts may be *stored* is the better long-term fix, and
+   * belongs with the dashboard's validation rather than here, where it can only
+   * break data that already exists.
+   */
+  "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   // Telnyx video negotiates over HTTPS and then holds a websocket open.
   "connect-src 'self' https://www.google-analytics.com https://www.googletagmanager.com https://*.telnyx.com wss://*.telnyx.com",
