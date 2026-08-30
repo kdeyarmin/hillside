@@ -1,4 +1,8 @@
 import crypto from 'crypto';
+// Relative and extensioned rather than the usual `@/lib/db`: `npm test` runs
+// these modules through node directly, which resolves neither tsconfig path
+// aliases nor extensionless files.
+import { db } from './db.ts';
 
 type Bucket = number[];
 
@@ -91,37 +95,19 @@ function sweep(now: number) {
 }
 
 /**
- * A small in-process limiter. Enough to stop scripted probing of the public
- * endpoints on a single-container deployment.
+ * The in-process counter, kept as the fallback rather than the mechanism.
  *
- * Deliberately in-process, and that has consequences worth knowing before
- * relying on it: the counters live in this process's memory, so they reset on
- * every deploy and restart, and a deployment running N replicas allows roughly
- * N times each limit because each replica counts only what it sees. That is an
- * accepted trade for the single Railway container this runs on today. Moving to
- * more than one replica means moving this state to Redis — the call sites will
- * not need to change, only this file.
+ * Its limits are real but weak: they reset on every deploy, a second replica
+ * counts only what it sees, and a caller minting fresh keys can push older
+ * buckets out of the map. That is why the durable counter below exists — this
+ * one is what answers when the database cannot be reached, because a shop whose
+ * database is briefly unavailable should still refuse a flood rather than open
+ * every form to it.
  */
-export function rateLimited(
-  request: Request,
-  options: { name: string; limit: number; windowMs: number }
-) {
-  return rateLimitedByKey(clientKey(request), options);
-}
-
-/**
- * The same limiter addressed by a caller-supplied identity, for contexts with no
- * `Request` to read — server actions, which reach their headers through
- * `next/headers` instead.
- */
-export function rateLimitedByKey(
-  identity: string,
-  { name, limit, windowMs }: { name: string; limit: number; windowMs: number }
-) {
+function inProcessLimited(key: string, { limit, windowMs }: { limit: number; windowMs: number }) {
   const now = Date.now();
   sweep(now);
 
-  const key = `${name}:${identity}`;
   const recent = (buckets.get(key) || []).filter((time) => now - time < windowMs);
 
   if (recent.length >= limit) {
@@ -135,10 +121,185 @@ export function rateLimitedByKey(
   return false;
 }
 
-/** Test seam: drops all state. */
+/**
+ * Bumps a shared counter and says whether this caller has now gone over.
+ *
+ * A fixed window rather than the sliding one the in-process limiter used: it is
+ * one statement, and it cannot be raced, which a read-then-write pair very much
+ * can. `resetAt` in the past means the previous window has ended, so the same
+ * row is reused with the count restarted — no separate expiry pass is needed for
+ * correctness, only the housekeeping sweep further down.
+ *
+ * The comparison is `>` rather than `>=` because the insert has already counted
+ * this request: a limit of 8 must allow the eighth attempt and refuse the ninth.
+ */
+async function durableLimited(
+  key: string,
+  { limit, windowMs }: { limit: number; windowMs: number }
+) {
+  const now = new Date();
+  const resetAt = new Date(now.getTime() + windowMs);
+
+  const rows = await db.$queryRaw<Array<{ count: number }>>`
+    INSERT INTO "RateLimitCounter" ("key", "count", "resetAt")
+    VALUES (${key}, 1, ${resetAt})
+    ON CONFLICT ("key") DO UPDATE SET
+      "count"   = CASE WHEN "RateLimitCounter"."resetAt" <= ${now}
+                       THEN 1 ELSE "RateLimitCounter"."count" + 1 END,
+      "resetAt" = CASE WHEN "RateLimitCounter"."resetAt" <= ${now}
+                       THEN ${resetAt} ELSE "RateLimitCounter"."resetAt" END
+    RETURNING "count"
+  `;
+
+  if ((rows[0]?.count ?? 1) <= limit) return false;
+
+  /**
+   * Refused — and its own increment is taken back, so the column counts
+   * requests that were *allowed* rather than requests that were made.
+   *
+   * The distinction matters wherever a limit stands for something outstanding
+   * rather than something spent. `checkout-hold` allows three open inventory
+   * holds; if refused attempts kept climbing, giving an attempt back when a hold
+   * is released would not get the customer under the ceiling again, because the
+   * counter would be sitting above it. It also means a caller who keeps knocking
+   * cannot push their own window further out.
+   *
+   * The increment still had to happen first: doing the check and the increment
+   * as one statement is what makes concurrent requests count correctly, and a
+   * decrement afterwards leaves exactly the same total as never having counted.
+   */
+  await db.$executeRaw`
+    UPDATE "RateLimitCounter"
+       SET "count" = GREATEST(0, "count" - 1)
+     WHERE "key" = ${key} AND "resetAt" > ${now}
+  `;
+  return true;
+}
+
+/**
+ * Counters older than this are deleted opportunistically. Nothing depends on it
+ * — an expired row is reused in place — it only keeps the table from growing a
+ * permanent entry per caller the shop has ever had.
+ */
+const COUNTER_SWEEP_INTERVAL_MS = 10 * 60_000;
+let lastCounterSweep = 0;
+
+async function sweepDurableCounters() {
+  const now = Date.now();
+  if (now - lastCounterSweep < COUNTER_SWEEP_INTERVAL_MS) return;
+  lastCounterSweep = now;
+  try {
+    await db.rateLimitCounter.deleteMany({
+      where: { resetAt: { lt: new Date(now - MAX_RETENTION_MS) } }
+    });
+  } catch {
+    // Housekeeping only. A failure here costs nothing that matters this request.
+  }
+}
+
+/**
+ * Whether this request has exhausted the named limit.
+ *
+ * Counted in Postgres, so the limit holds across deploys, restarts and replicas
+ * — which is what makes it worth anything on the admin login, where the previous
+ * in-process counter reset every time the shop was deployed.
+ *
+ * If the database cannot be reached the in-process counter answers instead. That
+ * is deliberately fail-*closed-ish* rather than fail-open: a weak limit is worth
+ * more than none, and the alternative — refusing every request outright — would
+ * turn a database blip into an outage of the contact form.
+ */
+export async function rateLimited(
+  request: Request,
+  options: { name: string; limit: number; windowMs: number }
+) {
+  return rateLimitedByKey(clientKey(request), options);
+}
+
+/**
+ * The same limiter addressed by a caller-supplied identity, for contexts with no
+ * `Request` to read — server actions, which reach their headers through
+ * `next/headers` instead, and per-account limits keyed on an email address.
+ */
+export async function rateLimitedByKey(
+  identity: string,
+  { name, limit, windowMs }: { name: string; limit: number; windowMs: number }
+) {
+  const key = `${name}:${identity}`;
+
+  // The database was unreachable a moment ago. Adding a failing round trip to
+  // every limited request would turn one outage into a slow site, so the
+  // in-process counter answers until it is worth trying again.
+  if (Date.now() < durableUnavailableUntil) {
+    return inProcessLimited(key, { limit, windowMs });
+  }
+
+  try {
+    void sweepDurableCounters();
+    const answer = await durableLimited(key, { limit, windowMs });
+    durableUnavailableUntil = 0;
+    return answer;
+  } catch (error) {
+    durableUnavailableUntil = Date.now() + DURABLE_RETRY_DELAY_MS;
+    /**
+     * Once per outage, not once per request. A database that has gone away
+     * takes every limit on the site down this path at once, and a log line per
+     * request would bury the outage that caused it.
+     */
+    if (!warnedAboutDurableCounters) {
+      warnedAboutDurableCounters = true;
+      console.error('Rate limits are being counted in memory: the database is unreachable', error);
+    }
+    return inProcessLimited(key, { limit, windowMs });
+  }
+}
+
+/** How long to stay on the in-process counter after the database refused. */
+const DURABLE_RETRY_DELAY_MS = 30_000;
+let durableUnavailableUntil = 0;
+let warnedAboutDurableCounters = false;
+
+/**
+ * Gives one attempt back, for a limit that counts *open* things rather than
+ * requests.
+ *
+ * The checkout-hold limit is the case this exists for. It allows three
+ * reservations per 35 minutes, which is the length of an inventory hold — but it
+ * counted every reservation ever started in that window, including the ones the
+ * customer had already cancelled and whose stock was back on the shelf. Somebody
+ * genuinely undecided, opening checkout and coming back to change something
+ * three times, was then refused a fourth with nothing of theirs held at all.
+ *
+ * Called when the thing being counted is given up, so the budget tracks what is
+ * actually outstanding. Never drops below zero, and never extends the window: it
+ * is a refund, not a reset.
+ */
+export async function refundRateLimit(request: Request, { name }: { name: string }) {
+  const key = `${name}:${clientKey(request)}`;
+
+  const hits = buckets.get(key);
+  if (hits?.length) hits.pop();
+
+  if (Date.now() < durableUnavailableUntil) return;
+  try {
+    await db.$executeRaw`
+      UPDATE "RateLimitCounter"
+         SET "count" = GREATEST(0, "count" - 1)
+       WHERE "key" = ${key} AND "resetAt" > ${new Date()}
+    `;
+  } catch {
+    // The in-process refund above already happened; a limit that stays one
+    // attempt stricter than it should be is not worth failing a request over.
+  }
+}
+
+/** Test seam: drops the in-process state. */
 export function resetRateLimits() {
   buckets.clear();
   lastSweep = 0;
+  lastCounterSweep = 0;
+  durableUnavailableUntil = 0;
+  warnedAboutDurableCounters = false;
 }
 
 export function rateLimitBucketCount() {

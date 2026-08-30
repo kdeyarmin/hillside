@@ -1029,6 +1029,30 @@ model AdminUser {
 }
 
 /**
+ * One fixed window of one rate limit, shared by every instance of the app.
+ *
+ * The limiter used to count in process memory, which meant its counters reset on
+ * every deploy, a second replica would have allowed twice every limit, and an
+ * attacker with a pool of addresses could evict the admin-login counters mid
+ * attempt simply by minting enough fresh keys to overflow the map. For the
+ * public forms that was a reasonable trade; for the login to a dashboard holding
+ * every order, every address and the newsletter list, it was not.
+ *
+ * A row per window rather than a row per request: the counter is bumped by one
+ * conditional upsert, so a limit costs a single round trip and the table stays
+ * roughly as large as the number of distinct callers inside the longest window.
+ */
+model RateLimitCounter {
+  /** "<limit name>:<caller>", e.g. `admin-login:203.0.113.4`. */
+  key     String   @id
+  count   Int      @default(0)
+  /** When this window ends. The row is reusable — and sweepable — after it. */
+  resetAt DateTime
+
+  @@index([resetAt])
+}
+
+/**
  * How a promotion code takes money off a basket.
  *
  * `FREE_SHIPPING` is its own kind rather than a hundred-percent coupon on the

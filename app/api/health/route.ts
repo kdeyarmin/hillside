@@ -50,14 +50,17 @@ export async function GET(request: Request) {
     try {
       activeAccounts = await db.adminUser.count({ where: { active: true } });
     } catch (error) {
-      console.error('Health check reached the database but could not read the admin accounts', error);
+      console.error(
+        'Health check reached the database but could not read the admin accounts',
+        error
+      );
     }
   }
 
   checks.adminAuth = Boolean(
     process.env.ADMIN_SESSION_SECRET &&
-      activeAccounts !== null &&
-      (activeAccounts > 0 || process.env.ADMIN_PASSWORD)
+    activeAccounts !== null &&
+    (activeAccounts > 0 || process.env.ADMIN_PASSWORD)
   );
 
   const expected: Array<keyof typeof checks> = ['stripe', 'stripeWebhook', 'email', 'adminAuth'];

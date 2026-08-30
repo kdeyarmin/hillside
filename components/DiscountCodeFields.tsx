@@ -33,11 +33,19 @@ export default function DiscountCodeFields() {
 
   if (!items.length) return null;
 
+  /**
+   * The box is cleared only when the shop actually took the code.
+   *
+   * It used to be emptied either way, so one mistyped character in a nineteen
+   * character gift-card number meant typing the whole thing again — on a phone,
+   * at the payment step, with the error message sitting above an empty field.
+   * A refused code stays put so it can be corrected.
+   */
   const submit = async (field: DiscountField) => {
     const typed = drafts[field].trim();
     if (!typed) return;
-    await applyDiscountCode(field, typed);
-    setDrafts((current) => ({ ...current, [field]: '' }));
+    const accepted = await applyDiscountCode(field, typed);
+    if (accepted) setDrafts((current) => ({ ...current, [field]: '' }));
   };
 
   const field = (

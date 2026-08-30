@@ -442,7 +442,12 @@ export default function CartPageClient({
               onChange={(event) => setSaveEmail(event.target.value)}
               placeholder="you@example.com"
             />
-            <button className="btn outline small" type="submit" disabled={saving} aria-busy={saving}>
+            <button
+              className="btn outline small"
+              type="submit"
+              disabled={saving}
+              aria-busy={saving}
+            >
               {saving ? 'Saving…' : 'Save cart'}
             </button>
           </div>

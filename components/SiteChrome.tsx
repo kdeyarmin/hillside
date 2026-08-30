@@ -197,7 +197,16 @@ function CartDrawerSuggestions() {
                 Choose size
               </Link>
             ) : (
-              <button className="btn small" type="button" onClick={() => addItem(product)}>
+              // Named, because a screen reader listing this panel's controls
+              // otherwise reads "Add, Add, Add" with nothing to tell them apart —
+              // while the "Choose size" link beside it has always said what it
+              // was for.
+              <button
+                className="btn small"
+                type="button"
+                onClick={() => addItem(product)}
+                aria-label={`Add ${product.name} to your basket`}
+              >
                 Add
               </button>
             )}
@@ -575,8 +584,21 @@ export function SiteHeader({
   useEffect(() => {
     if (!mobileOpen) return;
 
+    /**
+     * The first *link*, not simply the first focusable thing.
+     *
+     * The first focusable element in this panel is the search box, and focusing
+     * a text input is what raises the on-screen keyboard on a phone — so every
+     * tap of the menu button, by somebody who wanted to look at the navigation,
+     * covered half the navigation with a keyboard they had not asked for. The
+     * panel still traps focus and still restores it on close; only the landing
+     * spot changed. Falling back to the first focusable element keeps the trap
+     * honest if the panel ever holds no links.
+     */
     const focusTimer = window.requestAnimationFrame(() => {
-      focusableElements(mobileMenuRef.current)[0]?.focus();
+      const focusable = focusableElements(mobileMenuRef.current);
+      const firstLink = focusable.find((element) => element instanceof HTMLAnchorElement);
+      (firstLink || focusable[0])?.focus();
     });
 
     const handleKeyDown = (event: KeyboardEvent) => {

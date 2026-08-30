@@ -7,11 +7,7 @@ import AdminDeepLink from '@/components/AdminDeepLink';
 import ConfirmSubmit from '@/components/ConfirmSubmit';
 import PendingSubmit from '@/components/PendingSubmit';
 import { isAdmin } from '@/lib/admin';
-import {
-  ADMIN_ERRORS,
-  ADMIN_NOTICES,
-  firstSearchParam
-} from '@/lib/admin-dashboard';
+import { ADMIN_ERRORS, ADMIN_NOTICES, firstSearchParam } from '@/lib/admin-dashboard';
 import { careGuideTypeLabel } from '@/lib/care-seed-data';
 import { faqLines } from '@/lib/category-content';
 import { SPEC_KIND_LABELS } from '@/lib/product-categories';
@@ -53,66 +49,194 @@ function CategoryFields({
     <>
       {category && <input type="hidden" name="id" value={category.id} />}
       <div className="admin-form-grid">
-        <label className="admin-label">Category name<input className="admin-input" name="title" defaultValue={category?.title} required /></label>
-        <label className="admin-label">URL slug<input className="admin-input" name="slug" defaultValue={category?.slug || ''} placeholder="created-from-name" /></label>
-        <label className="admin-label">Short tagline<input className="admin-input" name="tagline" defaultValue={category?.tagline || ''} placeholder="Living beauty for every room" /></label>
-        <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={category?.sortOrder ?? 0} /></label>
+        <label className="admin-label">
+          Category name
+          <input className="admin-input" name="title" defaultValue={category?.title} required />
+        </label>
+        <label className="admin-label">
+          URL slug
+          <input
+            className="admin-input"
+            name="slug"
+            defaultValue={category?.slug || ''}
+            placeholder="created-from-name"
+          />
+        </label>
+        <label className="admin-label">
+          Short tagline
+          <input
+            className="admin-input"
+            name="tagline"
+            defaultValue={category?.tagline || ''}
+            placeholder="Living beauty for every room"
+          />
+        </label>
+        <label className="admin-label">
+          Display order
+          <input
+            className="admin-input"
+            name="sortOrder"
+            type="number"
+            defaultValue={category?.sortOrder ?? 0}
+          />
+        </label>
         <label className="admin-label">
           Which details its products are asked for
-          <select className="admin-input" name="specKind" defaultValue={category?.specKind || ProductSpecKind.GENERAL}>
-            {Object.values(ProductSpecKind).map((kind) => (<option value={kind} key={kind}>{SPEC_KIND_LABELS[kind]}</option>))}
+          <select
+            className="admin-input"
+            name="specKind"
+            defaultValue={category?.specKind || ProductSpecKind.GENERAL}
+          >
+            {Object.values(ProductSpecKind).map((kind) => (
+              <option value={kind} key={kind}>
+                {SPEC_KIND_LABELS[kind]}
+              </option>
+            ))}
           </select>
-          <span className="admin-hint">Chooses the fields on the product form — a tea is asked for its steep time and allergens, a carnivorous plant for its dormancy and water type.</span>
+          <span className="admin-hint">
+            Chooses the fields on the product form — a tea is asked for its steep time and
+            allergens, a carnivorous plant for its dormancy and water type.
+          </span>
         </label>
         <label className="admin-label">
           Counts as
-          <select className="admin-input" name="legacyType" defaultValue={category?.legacyType || ProductType.OTHER}>
-            {Object.values(ProductType).map((type) => (<option value={type} key={type}>{productTypeLabel(type)}</option>))}
+          <select
+            className="admin-input"
+            name="legacyType"
+            defaultValue={category?.legacyType || ProductType.OTHER}
+          >
+            {Object.values(ProductType).map((type) => (
+              <option value={type} key={type}>
+                {productTypeLabel(type)}
+              </option>
+            ))}
           </select>
-          <span className="admin-hint">The broad shelf used by the returns policy shown in search results. Live plants and teas are final sale; everything else may be returned unopened.</span>
+          <span className="admin-hint">
+            The broad shelf used by the returns policy shown in search results. Live plants and teas
+            are final sale; everything else may be returned unopened.
+          </span>
         </label>
-        <label className="admin-label full">Description<textarea className="admin-input" name="description" rows={3} defaultValue={category?.description || ''} /></label>
-        <label className="admin-label full">Cover photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={category?.imageUrl || ''} /></label>
+        <label className="admin-label full">
+          Description
+          <textarea
+            className="admin-input"
+            name="description"
+            rows={3}
+            defaultValue={category?.description || ''}
+          />
+        </label>
+        <label className="admin-label full">
+          Cover photo URL
+          <input
+            className="admin-input"
+            name="imageUrl"
+            type="text"
+            defaultValue={category?.imageUrl || ''}
+          />
+        </label>
         {/* The category's own page at /categories/<slug>. Without these it is a
             filter on the shop, which is a grid rather than a page. */}
         <label className="admin-label full">
           Introduction (shown above the products)
-          <textarea className="admin-input" name="intro" rows={4} defaultValue={category?.intro || ''} placeholder="One or two short paragraphs about what is in this category and who it suits." />
+          <textarea
+            className="admin-input"
+            name="intro"
+            rows={4}
+            defaultValue={category?.intro || ''}
+            placeholder="One or two short paragraphs about what is in this category and who it suits."
+          />
           <span className="admin-hint">Leave a blank line between paragraphs.</span>
         </label>
         <label className="admin-label full">
           Longer writing (shown under the products)
-          <textarea className="admin-input" name="body" rows={8} defaultValue={category?.body || ''} placeholder={'Choosing one:\n\nWhat to look for...\n\nLiving with it:\n\nWhat to expect...'} />
-          <span className="admin-hint">Blank line between paragraphs. A short line ending in a colon becomes a heading.</span>
+          <textarea
+            className="admin-input"
+            name="body"
+            rows={8}
+            defaultValue={category?.body || ''}
+            placeholder={
+              'Choosing one:\n\nWhat to look for...\n\nLiving with it:\n\nWhat to expect...'
+            }
+          />
+          <span className="admin-hint">
+            Blank line between paragraphs. A short line ending in a colon becomes a heading.
+          </span>
         </label>
         <label className="admin-label full">
           Questions and answers
-          <textarea className="admin-input" name="faq" rows={5} defaultValue={faqLines(category?.faq)} placeholder={'How often should I water this? | Check the soil rather than the calendar.'} />
-          <span className="admin-hint">One per line: <b>question | answer</b>. These show on the page and are the only thing that makes the category eligible for question-and-answer results in Google, so write what people actually ask.</span>
+          <textarea
+            className="admin-input"
+            name="faq"
+            rows={5}
+            defaultValue={faqLines(category?.faq)}
+            placeholder={
+              'How often should I water this? | Check the soil rather than the calendar.'
+            }
+          />
+          <span className="admin-hint">
+            One per line: <b>question | answer</b>. These show on the page and are the only thing
+            that makes the category eligible for question-and-answer results in Google, so write
+            what people actually ask.
+          </span>
         </label>
-        <label className="admin-label">Page title for search results<input className="admin-input" name="metaTitle" defaultValue={category?.metaTitle || ''} placeholder="Leave empty to use the category name" /></label>
+        <label className="admin-label">
+          Page title for search results
+          <input
+            className="admin-input"
+            name="metaTitle"
+            defaultValue={category?.metaTitle || ''}
+            placeholder="Leave empty to use the category name"
+          />
+        </label>
         <label className="admin-label">
           Words people search for
-          <input className="admin-input" name="keywords" defaultValue={(category?.keywords || []).join(', ')} placeholder="carnivorous plants, venus flytrap, pitcher plant" />
+          <input
+            className="admin-input"
+            name="keywords"
+            defaultValue={(category?.keywords || []).join(', ')}
+            placeholder="carnivorous plants, venus flytrap, pitcher plant"
+          />
           <span className="admin-hint">Comma separated. Used by the site search, never shown.</span>
         </label>
-        <label className="admin-label full">Description for search results<textarea className="admin-input" name="metaDescription" rows={2} defaultValue={category?.metaDescription || ''} placeholder="Leave empty to use the introduction above." /></label>
+        <label className="admin-label full">
+          Description for search results
+          <textarea
+            className="admin-input"
+            name="metaDescription"
+            rows={2}
+            defaultValue={category?.metaDescription || ''}
+            placeholder="Leave empty to use the introduction above."
+          />
+        </label>
       </div>
       {careSheets.length > 0 && (
         <fieldset className="admin-collection-picker">
           <legend>Care guides to show on this category page</legend>
-          <span className="admin-hint">These appear under the products and link into the care library.</span>
+          <span className="admin-hint">
+            These appear under the products and link into the care library.
+          </span>
           {careSheets.map((sheet) => (
             <label className="admin-checkbox" key={sheet.id}>
-              <input type="checkbox" name="careSheetIds" value={sheet.id} defaultChecked={linkedGuides.has(sheet.id)} />{' '}
+              <input
+                type="checkbox"
+                name="careSheetIds"
+                value={sheet.id}
+                defaultChecked={linkedGuides.has(sheet.id)}
+              />{' '}
               {sheet.plantName}
             </label>
           ))}
         </fieldset>
       )}
       <div className="admin-actions">
-        <label className="admin-checkbox"><input name="active" type="checkbox" defaultChecked={category?.active ?? true} /> Shown in the shop</label>
-        <label className="admin-checkbox"><input name="featured" type="checkbox" defaultChecked={category?.featured ?? true} /> Offer as a shop-by tile and a filter chip</label>
+        <label className="admin-checkbox">
+          <input name="active" type="checkbox" defaultChecked={category?.active ?? true} /> Shown in
+          the shop
+        </label>
+        <label className="admin-checkbox">
+          <input name="featured" type="checkbox" defaultChecked={category?.featured ?? true} />{' '}
+          Offer as a shop-by tile and a filter chip
+        </label>
       </div>
     </>
   );
@@ -130,57 +254,159 @@ function CollectionFields({
     <>
       {collection && <input type="hidden" name="id" value={collection.id} />}
       <div className="admin-form-grid">
-        <label className="admin-label">Collection name<input className="admin-input" name="title" defaultValue={collection?.title} required /></label>
-        <label className="admin-label">URL slug<input className="admin-input" name="slug" defaultValue={collection?.slug || ''} placeholder="created-from-name" /></label>
-        <label className="admin-label">Short tagline<input className="admin-input" name="tagline" defaultValue={collection?.tagline || ''} placeholder="Living beauty for every room" /></label>
-        <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={collection?.sortOrder ?? 0} /></label>
-        <label className="admin-label full">Description<textarea className="admin-input" name="description" rows={3} defaultValue={collection?.description || ''} /></label>
-        <label className="admin-label full">Cover photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={collection?.imageUrl || ''} /></label>
+        <label className="admin-label">
+          Collection name
+          <input className="admin-input" name="title" defaultValue={collection?.title} required />
+        </label>
+        <label className="admin-label">
+          URL slug
+          <input
+            className="admin-input"
+            name="slug"
+            defaultValue={collection?.slug || ''}
+            placeholder="created-from-name"
+          />
+        </label>
+        <label className="admin-label">
+          Short tagline
+          <input
+            className="admin-input"
+            name="tagline"
+            defaultValue={collection?.tagline || ''}
+            placeholder="Living beauty for every room"
+          />
+        </label>
+        <label className="admin-label">
+          Display order
+          <input
+            className="admin-input"
+            name="sortOrder"
+            type="number"
+            defaultValue={collection?.sortOrder ?? 0}
+          />
+        </label>
+        <label className="admin-label full">
+          Description
+          <textarea
+            className="admin-input"
+            name="description"
+            rows={3}
+            defaultValue={collection?.description || ''}
+          />
+        </label>
+        <label className="admin-label full">
+          Cover photo URL
+          <input
+            className="admin-input"
+            name="imageUrl"
+            type="text"
+            defaultValue={collection?.imageUrl || ''}
+          />
+        </label>
         {/* Everything below turns this collection from a filtered grid into a
             page worth landing on. A shopper deciding between a pitcher plant and
             a sundew needs sentences, not a heading over a product grid. */}
         <label className="admin-label full">
           Introduction (shown above the products)
-          <textarea className="admin-input" name="intro" rows={4} defaultValue={collection?.intro || ''} placeholder="One or two short paragraphs about what is in this collection and who it suits." />
+          <textarea
+            className="admin-input"
+            name="intro"
+            rows={4}
+            defaultValue={collection?.intro || ''}
+            placeholder="One or two short paragraphs about what is in this collection and who it suits."
+          />
           <span className="admin-hint">Leave a blank line between paragraphs.</span>
         </label>
         <label className="admin-label full">
           Longer writing (shown under the products)
-          <textarea className="admin-input" name="body" rows={8} defaultValue={collection?.body || ''} placeholder={'Choosing one:\n\nWhat to look for...\n\nLiving with it:\n\nWhat to expect...'} />
-          <span className="admin-hint">Blank line between paragraphs. A short line ending in a colon becomes a heading.</span>
+          <textarea
+            className="admin-input"
+            name="body"
+            rows={8}
+            defaultValue={collection?.body || ''}
+            placeholder={
+              'Choosing one:\n\nWhat to look for...\n\nLiving with it:\n\nWhat to expect...'
+            }
+          />
+          <span className="admin-hint">
+            Blank line between paragraphs. A short line ending in a colon becomes a heading.
+          </span>
         </label>
         <label className="admin-label full">
           Questions and answers
-          <textarea className="admin-input" name="faq" rows={5} defaultValue={faqLines(collection?.faq)} placeholder={'How often should I water this? | Check the soil rather than the calendar.'} />
+          <textarea
+            className="admin-input"
+            name="faq"
+            rows={5}
+            defaultValue={faqLines(collection?.faq)}
+            placeholder={
+              'How often should I water this? | Check the soil rather than the calendar.'
+            }
+          />
           <span className="admin-hint">
             One per line: <b>question | answer</b>. These show on the page and are the only thing
             that makes the collection eligible for question-and-answer results in Google, so write
             what people actually ask.
           </span>
         </label>
-        <label className="admin-label">Page title for search results<input className="admin-input" name="metaTitle" defaultValue={collection?.metaTitle || ''} placeholder="Leave empty to use the collection name" /></label>
+        <label className="admin-label">
+          Page title for search results
+          <input
+            className="admin-input"
+            name="metaTitle"
+            defaultValue={collection?.metaTitle || ''}
+            placeholder="Leave empty to use the collection name"
+          />
+        </label>
         <label className="admin-label">
           Words people search for
-          <input className="admin-input" name="keywords" defaultValue={(collection?.keywords || []).join(', ')} placeholder="carnivorous plants, venus flytrap, pitcher plant" />
+          <input
+            className="admin-input"
+            name="keywords"
+            defaultValue={(collection?.keywords || []).join(', ')}
+            placeholder="carnivorous plants, venus flytrap, pitcher plant"
+          />
           <span className="admin-hint">Comma separated. Used by the site search, never shown.</span>
         </label>
-        <label className="admin-label full">Description for search results<textarea className="admin-input" name="metaDescription" rows={2} defaultValue={collection?.metaDescription || ''} placeholder="Leave empty to use the introduction above." /></label>
+        <label className="admin-label full">
+          Description for search results
+          <textarea
+            className="admin-input"
+            name="metaDescription"
+            rows={2}
+            defaultValue={collection?.metaDescription || ''}
+            placeholder="Leave empty to use the introduction above."
+          />
+        </label>
       </div>
       {careSheets.length > 0 && (
         <fieldset className="admin-collection-picker">
           <legend>Care guides to show on this collection page</legend>
-          <span className="admin-hint">These appear under the products and link into the care library.</span>
+          <span className="admin-hint">
+            These appear under the products and link into the care library.
+          </span>
           {careSheets.map((sheet) => (
             <label className="admin-checkbox" key={sheet.id}>
-              <input type="checkbox" name="careSheetIds" value={sheet.id} defaultChecked={linkedGuides.has(sheet.id)} />{' '}
+              <input
+                type="checkbox"
+                name="careSheetIds"
+                value={sheet.id}
+                defaultChecked={linkedGuides.has(sheet.id)}
+              />{' '}
               {sheet.plantName}
             </label>
           ))}
         </fieldset>
       )}
       <div className="admin-actions">
-        <label className="admin-checkbox"><input name="active" type="checkbox" defaultChecked={collection?.active ?? true} /> Visible on the website</label>
-        <label className="admin-checkbox"><input name="featured" type="checkbox" defaultChecked={collection?.featured ?? true} /> Show as a tile on the homepage</label>
+        <label className="admin-checkbox">
+          <input name="active" type="checkbox" defaultChecked={collection?.active ?? true} />{' '}
+          Visible on the website
+        </label>
+        <label className="admin-checkbox">
+          <input name="featured" type="checkbox" defaultChecked={collection?.featured ?? true} />{' '}
+          Show as a tile on the homepage
+        </label>
       </div>
     </>
   );
@@ -200,33 +426,168 @@ function ClassFields({ event }: { event?: ClassEvent }) {
     <>
       {event && <input type="hidden" name="id" value={event.id} />}
       <div className="admin-form-grid">
-        <label className="admin-label">Class title<input className="admin-input" name="title" defaultValue={event?.title} required /></label>
-        <label className="admin-label">URL slug<input className="admin-input" name="slug" defaultValue={event?.slug || ''} placeholder="created-from-title" /></label>
-        <label className="admin-label">Class format
-          <select className="admin-input" name="format" defaultValue={event?.format || ClassFormat.IN_PERSON}>
+        <label className="admin-label">
+          Class title
+          <input className="admin-input" name="title" defaultValue={event?.title} required />
+        </label>
+        <label className="admin-label">
+          URL slug
+          <input
+            className="admin-input"
+            name="slug"
+            defaultValue={event?.slug || ''}
+            placeholder="created-from-title"
+          />
+        </label>
+        <label className="admin-label">
+          Class format
+          <select
+            className="admin-input"
+            name="format"
+            defaultValue={event?.format || ClassFormat.IN_PERSON}
+          >
             <option value={ClassFormat.IN_PERSON}>In person</option>
             <option value={ClassFormat.ONLINE}>Online through Telnyx Video</option>
             <option value={ClassFormat.HYBRID}>Hybrid: in person + online</option>
           </select>
         </label>
-        <label className="admin-label">Location
-          <input className="admin-input" name="location" defaultValue={event?.location || ''} placeholder="Leave blank for an online-only class" />
+        <label className="admin-label">
+          Location
+          <input
+            className="admin-input"
+            name="location"
+            defaultValue={event?.location || ''}
+            placeholder="Leave blank for an online-only class"
+          />
         </label>
-        <label className="admin-label full">Description<textarea className="admin-input" name="description" rows={4} defaultValue={event?.description} required /></label>
-        <label className="admin-label">Date and time<input className="admin-input" name="startsAt" type="datetime-local" defaultValue={localDateTime(event?.startsAt)} required /></label>
-        <label className="admin-label">Registration deadline<input className="admin-input" name="registrationDeadline" type="datetime-local" defaultValue={localDateTime(event?.registrationDeadline)} /></label>
-        <label className="admin-label">Price per person<input className="admin-input" name="price" type="number" min="0" step="0.01" defaultValue={event ? (event.priceCents / 100).toFixed(2) : ''} required /></label>
-        <label className="admin-label">Total seats<input className="admin-input" name="capacity" type="number" min="1" max="49" defaultValue={event?.capacity ?? 12} required /></label>
-        <label className="admin-label">Duration in minutes<input className="admin-input" name="durationMinutes" type="number" min="15" step="15" defaultValue={event?.durationMinutes ?? 90} /></label>
-        <label className="admin-label">Online room opens minutes before class<input className="admin-input" name="joinOpensMinutesBefore" type="number" min="0" max="240" defaultValue={event?.joinOpensMinutesBefore ?? 30} /></label>
-        <label className="admin-label">Online room closes minutes after class<input className="admin-input" name="joinClosesMinutesAfter" type="number" min="0" max="1440" defaultValue={event?.joinClosesMinutesAfter ?? 60} /></label>
-        <label className="admin-label full">Online class instructions<textarea className="admin-input" name="onlineInstructions" rows={3} defaultValue={event?.onlineInstructions || ''} placeholder="Supplies, camera setup, what customers should have ready, or other online-class notes" /></label>
-        <label className="admin-label full">What to bring / what is included<textarea className="admin-input" name="whatToBring" rows={2} defaultValue={event?.whatToBring || ''} /></label>
-        <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={event?.imageUrl || ''} /></label>
+        <label className="admin-label full">
+          Description
+          <textarea
+            className="admin-input"
+            name="description"
+            rows={4}
+            defaultValue={event?.description}
+            required
+          />
+        </label>
+        <label className="admin-label">
+          Date and time
+          <input
+            className="admin-input"
+            name="startsAt"
+            type="datetime-local"
+            defaultValue={localDateTime(event?.startsAt)}
+            required
+          />
+        </label>
+        <label className="admin-label">
+          Registration deadline
+          <input
+            className="admin-input"
+            name="registrationDeadline"
+            type="datetime-local"
+            defaultValue={localDateTime(event?.registrationDeadline)}
+          />
+        </label>
+        <label className="admin-label">
+          Price per person
+          <input
+            className="admin-input"
+            name="price"
+            type="number"
+            min="0"
+            step="0.01"
+            defaultValue={event ? (event.priceCents / 100).toFixed(2) : ''}
+            required
+          />
+        </label>
+        <label className="admin-label">
+          Total seats
+          <input
+            className="admin-input"
+            name="capacity"
+            type="number"
+            min="1"
+            max="49"
+            defaultValue={event?.capacity ?? 12}
+            required
+          />
+        </label>
+        <label className="admin-label">
+          Duration in minutes
+          <input
+            className="admin-input"
+            name="durationMinutes"
+            type="number"
+            min="15"
+            step="15"
+            defaultValue={event?.durationMinutes ?? 90}
+          />
+        </label>
+        <label className="admin-label">
+          Online room opens minutes before class
+          <input
+            className="admin-input"
+            name="joinOpensMinutesBefore"
+            type="number"
+            min="0"
+            max="240"
+            defaultValue={event?.joinOpensMinutesBefore ?? 30}
+          />
+        </label>
+        <label className="admin-label">
+          Online room closes minutes after class
+          <input
+            className="admin-input"
+            name="joinClosesMinutesAfter"
+            type="number"
+            min="0"
+            max="1440"
+            defaultValue={event?.joinClosesMinutesAfter ?? 60}
+          />
+        </label>
+        <label className="admin-label full">
+          Online class instructions
+          <textarea
+            className="admin-input"
+            name="onlineInstructions"
+            rows={3}
+            defaultValue={event?.onlineInstructions || ''}
+            placeholder="Supplies, camera setup, what customers should have ready, or other online-class notes"
+          />
+        </label>
+        <label className="admin-label full">
+          What to bring / what is included
+          <textarea
+            className="admin-input"
+            name="whatToBring"
+            rows={2}
+            defaultValue={event?.whatToBring || ''}
+          />
+        </label>
+        <label className="admin-label full">
+          Photo URL
+          <input
+            className="admin-input"
+            name="imageUrl"
+            type="text"
+            defaultValue={event?.imageUrl || ''}
+          />
+        </label>
       </div>
       <div className="admin-actions">
-        <label className="admin-checkbox"><input name="active" type="checkbox" defaultChecked={event?.active ?? true} /> Published and open for registration</label>
-        <label className="admin-checkbox"><input name="telnyxRecordingEnabled" type="checkbox" defaultChecked={event?.telnyxRecordingEnabled ?? false} /> Enable Telnyx room recording and show participant notice</label>
+        <label className="admin-checkbox">
+          <input name="active" type="checkbox" defaultChecked={event?.active ?? true} /> Published
+          and open for registration
+        </label>
+        <label className="admin-checkbox">
+          <input
+            name="telnyxRecordingEnabled"
+            type="checkbox"
+            defaultChecked={event?.telnyxRecordingEnabled ?? false}
+          />{' '}
+          Enable Telnyx room recording and show participant notice
+        </label>
       </div>
     </>
   );
@@ -237,17 +598,56 @@ function GalleryFields({ item }: { item?: GalleryItem }) {
     <>
       {item && <input type="hidden" name="id" value={item.id} />}
       <div className="admin-form-grid">
-        <label className="admin-label">Arrangement title<input className="admin-input" name="title" defaultValue={item?.title} required /></label>
-        <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={item?.sortOrder ?? 0} /></label>
-        <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={item?.imageUrl} required /></label>
-        <label className="admin-label full">Caption<textarea className="admin-input" name="caption" rows={3} defaultValue={item?.caption || ''} /></label>
+        <label className="admin-label">
+          Arrangement title
+          <input className="admin-input" name="title" defaultValue={item?.title} required />
+        </label>
+        <label className="admin-label">
+          Display order
+          <input
+            className="admin-input"
+            name="sortOrder"
+            type="number"
+            defaultValue={item?.sortOrder ?? 0}
+          />
+        </label>
+        <label className="admin-label full">
+          Photo URL
+          <input
+            className="admin-input"
+            name="imageUrl"
+            type="text"
+            defaultValue={item?.imageUrl}
+            required
+          />
+        </label>
+        <label className="admin-label full">
+          Caption
+          <textarea
+            className="admin-input"
+            name="caption"
+            rows={3}
+            defaultValue={item?.caption || ''}
+          />
+        </label>
         <label className="admin-label">
           Link to a product, collection or class
-          <input className="admin-input" name="linkUrl" type="text" defaultValue={item?.linkUrl || ''} placeholder="/shop/monstera-deliciosa" />
+          <input
+            className="admin-input"
+            name="linkUrl"
+            type="text"
+            defaultValue={item?.linkUrl || ''}
+            placeholder="/shop/monstera-deliciosa"
+          />
         </label>
         <label className="admin-label">
           Link wording
-          <input className="admin-input" name="linkLabel" defaultValue={item?.linkLabel || ''} placeholder="Shop this look" />
+          <input
+            className="admin-input"
+            name="linkLabel"
+            defaultValue={item?.linkLabel || ''}
+            placeholder="Shop this look"
+          />
         </label>
       </div>
     </>
@@ -259,14 +659,62 @@ function AmazonFields({ item }: { item?: AmazonPick }) {
     <>
       {item && <input type="hidden" name="id" value={item.id} />}
       <div className="admin-form-grid">
-        <label className="admin-label">Product title<input className="admin-input" name="title" defaultValue={item?.title} required /></label>
-        <label className="admin-label">Category<input className="admin-input" name="category" defaultValue={item?.category || ''} placeholder="Plant tools" /></label>
-        <label className="admin-label full">Amazon link<input className="admin-input" name="amazonUrl" type="text" inputMode="url" defaultValue={item?.amazonUrl} required /></label>
-        <label className="admin-label full">Photo URL<input className="admin-input" name="imageUrl" type="text" defaultValue={item?.imageUrl || ''} /></label>
-        <label className="admin-label full">Why we recommend it<textarea className="admin-input" name="description" rows={3} defaultValue={item?.description || ''} /></label>
-        <label className="admin-label">Display order<input className="admin-input" name="sortOrder" type="number" defaultValue={item?.sortOrder ?? 0} /></label>
+        <label className="admin-label">
+          Product title
+          <input className="admin-input" name="title" defaultValue={item?.title} required />
+        </label>
+        <label className="admin-label">
+          Category
+          <input
+            className="admin-input"
+            name="category"
+            defaultValue={item?.category || ''}
+            placeholder="Plant tools"
+          />
+        </label>
+        <label className="admin-label full">
+          Amazon link
+          <input
+            className="admin-input"
+            name="amazonUrl"
+            type="text"
+            inputMode="url"
+            defaultValue={item?.amazonUrl}
+            required
+          />
+        </label>
+        <label className="admin-label full">
+          Photo URL
+          <input
+            className="admin-input"
+            name="imageUrl"
+            type="text"
+            defaultValue={item?.imageUrl || ''}
+          />
+        </label>
+        <label className="admin-label full">
+          Why we recommend it
+          <textarea
+            className="admin-input"
+            name="description"
+            rows={3}
+            defaultValue={item?.description || ''}
+          />
+        </label>
+        <label className="admin-label">
+          Display order
+          <input
+            className="admin-input"
+            name="sortOrder"
+            type="number"
+            defaultValue={item?.sortOrder ?? 0}
+          />
+        </label>
       </div>
-      <label className="admin-checkbox" style={{ marginTop: 12 }}><input name="active" type="checkbox" defaultChecked={item?.active ?? true} /> Show on public page</label>
+      <label className="admin-checkbox" style={{ marginTop: 12 }}>
+        <input name="active" type="checkbox" defaultChecked={item?.active ?? true} /> Show on public
+        page
+      </label>
     </>
   );
 }
@@ -296,7 +744,9 @@ export default async function ContentManager({
   const [classes, gallery, picks, sheets, collections, categories] = await Promise.all([
     db.classEvent.findMany({ orderBy: { startsAt: 'desc' } }),
     db.galleryItem.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }] }),
-    db.amazonPick.findMany({ orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { title: 'asc' }] }),
+    db.amazonPick.findMany({
+      orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { title: 'asc' }]
+    }),
     db.careSheet.findMany({ orderBy: [{ published: 'desc' }, { plantName: 'asc' }] }),
     db.collection.findMany({
       orderBy: [{ sortOrder: 'asc' }, { title: 'asc' }],
@@ -339,7 +789,9 @@ export default async function ContentManager({
       <div className="adminmain">
         <div className="eyebrow">Easy website editor</div>
         <h1>Website content</h1>
-        <p className="muted">Use the forms below to publish and update content without changing code.</p>
+        <p className="muted">
+          Use the forms below to publish and update content without changing code.
+        </p>
         {notice && (
           <div className="admin-card admin-notice" role="status">
             <b>{notice}</b>
@@ -351,27 +803,57 @@ export default async function ContentManager({
           </div>
         )}
         <div className="statgrid">
-          <div className="stat"><span>Classes</span><strong>{classes.filter((item) => item.active).length}</strong></div>
-          <div className="stat"><span>Online classes</span><strong>{classes.filter((item) => item.active && isOnlineClass(item.format)).length}</strong></div>
-          <div className="stat"><span>Gallery photos</span><strong>{gallery.length}</strong></div>
-          <div className="stat"><span>Amazon picks</span><strong>{picks.filter((item) => item.active).length}</strong></div>
-          <div className="stat"><span>Care sheets</span><strong>{sheets.filter((item) => item.published).length}</strong></div>
-          <div className="stat"><span>Categories</span><strong>{categories.filter((item) => item.active).length}</strong></div>
-          <div className="stat"><span>Collections</span><strong>{collections.filter((item) => item.active).length}</strong></div>
-          <div className="stat"><span>Telnyx Video</span><strong>{telnyxReady ? 'Ready' : 'Setup'}</strong></div>
+          <div className="stat">
+            <span>Classes</span>
+            <strong>{classes.filter((item) => item.active).length}</strong>
+          </div>
+          <div className="stat">
+            <span>Online classes</span>
+            <strong>
+              {classes.filter((item) => item.active && isOnlineClass(item.format)).length}
+            </strong>
+          </div>
+          <div className="stat">
+            <span>Gallery photos</span>
+            <strong>{gallery.length}</strong>
+          </div>
+          <div className="stat">
+            <span>Amazon picks</span>
+            <strong>{picks.filter((item) => item.active).length}</strong>
+          </div>
+          <div className="stat">
+            <span>Care sheets</span>
+            <strong>{sheets.filter((item) => item.published).length}</strong>
+          </div>
+          <div className="stat">
+            <span>Categories</span>
+            <strong>{categories.filter((item) => item.active).length}</strong>
+          </div>
+          <div className="stat">
+            <span>Collections</span>
+            <strong>{collections.filter((item) => item.active).length}</strong>
+          </div>
+          <div className="stat">
+            <span>Telnyx Video</span>
+            <strong>{telnyxReady ? 'Ready' : 'Setup'}</strong>
+          </div>
         </div>
 
         <section className="admin-section" id="categories">
           <h2>Categories</h2>
           <p className="muted">
-            A category says <b>what a thing is</b> — Houseplants, Carnivorous Plants, Tea Accessories.
-            Every product sits in exactly one, and it is what the shop&rsquo;s filters and the site
-            header navigate by. It also decides which details a product is asked for on its own page,
-            so a tea is asked about caffeine and a flytrap about dormancy.
+            A category says <b>what a thing is</b> — Houseplants, Carnivorous Plants, Tea
+            Accessories. Every product sits in exactly one, and it is what the shop&rsquo;s filters
+            and the site header navigate by. It also decides which details a product is asked for on
+            its own page, so a tea is asked about caffeine and a flytrap about dormancy.
           </p>
           <div className="admin-list">
             {categories.map((category) => (
-              <details key={category.id} id={`category-${category.id}`} open={focusItem === category.id}>
+              <details
+                key={category.id}
+                id={`category-${category.id}`}
+                open={focusItem === category.id}
+              >
                 <summary>
                   <span>
                     {category.title} • {category._count.products}{' '}
@@ -388,7 +870,9 @@ export default async function ContentManager({
                     <div className="admin-actions">
                       <button className="btn small">Save category</button>
                       {category.active ? (
-                        <Link className="btn outline small" href={`/categories/${category.slug}`}>View the page</Link>
+                        <Link className="btn outline small" href={`/categories/${category.slug}`}>
+                          View the page
+                        </Link>
                       ) : (
                         <span className="muted">Hidden — its page is not published</span>
                       )}
@@ -397,7 +881,11 @@ export default async function ContentManager({
                   <div className="admin-actions">
                     <form action={setCategoryActive}>
                       <input type="hidden" name="id" value={category.id} />
-                      <input type="hidden" name="active" value={category.active ? 'false' : 'true'} />
+                      <input
+                        type="hidden"
+                        name="active"
+                        value={category.active ? 'false' : 'true'}
+                      />
                       <button className={`text-button${category.active ? ' danger' : ''}`}>
                         {category.active ? 'Hide from the shop' : 'Show in the shop'}
                       </button>
@@ -408,7 +896,10 @@ export default async function ContentManager({
                     {category._count.products === 0 && (
                       <form action={deleteCategory}>
                         <input type="hidden" name="id" value={category.id} />
-                        <ConfirmSubmit className="text-button danger" message={`Delete “${category.title}”? It holds no products, so nothing will lose its category.`}>
+                        <ConfirmSubmit
+                          className="text-button danger"
+                          message={`Delete “${category.title}”? It holds no products, so nothing will lose its category.`}
+                        >
                           Delete category
                         </ConfirmSubmit>
                       </form>
@@ -420,10 +911,14 @@ export default async function ContentManager({
           </div>
           <div className="admin-card" id="add-category" style={{ marginTop: 20 }}>
             <h2 style={{ marginTop: 0 }}>Add a category</h2>
-            <p className="muted">Add one whenever the bench starts carrying something the list does not describe.</p>
+            <p className="muted">
+              Add one whenever the bench starts carrying something the list does not describe.
+            </p>
             <form action={saveCategory}>
               <CategoryFields careSheets={sheets} />
-              <button className="btn" style={{ marginTop: 14 }}>Create category</button>
+              <button className="btn" style={{ marginTop: 14 }}>
+                Create category
+              </button>
             </form>
           </div>
         </section>
@@ -435,7 +930,11 @@ export default async function ContentManager({
             Friendly, Gifts Under $30 — and a product joins as many as apply, on top of the one
             category it belongs to. A collection only appears on the website once it holds at least
             one active product; assign products from the
-            <Link className="text-link" href="/admin#inventory"> inventory section</Link> of the business dashboard.
+            <Link className="text-link" href="/admin#inventory">
+              {' '}
+              inventory section
+            </Link>{' '}
+            of the business dashboard.
           </p>
           <div className="admin-list">
             {collections.map((collection) => (
@@ -449,7 +948,10 @@ export default async function ContentManager({
                     {collection.title} • {collection._count.products}{' '}
                     {collection._count.products === 1 ? 'product' : 'products'}
                     {collection.featured && collection._count.products === 0 && (
-                      <> • <b className="needs-photo">empty, hidden from homepage</b></>
+                      <>
+                        {' '}
+                        • <b className="needs-photo">empty, hidden from homepage</b>
+                      </>
                     )}
                   </span>
                   <span className={`status-badge ${collection.active ? 'PAID' : 'CANCELLED'}`}>
@@ -461,7 +963,9 @@ export default async function ContentManager({
                     <CollectionFields collection={collection} careSheets={sheets} />
                     <div className="admin-actions">
                       <button className="btn small">Save collection</button>
-                      <Link className="btn outline small" href={`/collections/${collection.slug}`}>View collection</Link>
+                      <Link className="btn outline small" href={`/collections/${collection.slug}`}>
+                        View collection
+                      </Link>
                     </div>
                   </form>
                   {/* Every collection is the owner's to delete: the header navigates by
@@ -483,7 +987,9 @@ export default async function ContentManager({
             <h2 style={{ marginTop: 0 }}>Add a collection</h2>
             <form action={saveCollection}>
               <CollectionFields careSheets={sheets} />
-              <button className="btn" style={{ marginTop: 16 }}>Create collection</button>
+              <button className="btn" style={{ marginTop: 16 }}>
+                Create collection
+              </button>
             </form>
           </div>
         </section>
@@ -492,45 +998,67 @@ export default async function ContentManager({
           <div className="toolbar">
             <div>
               <h2>In-person and online classes</h2>
-              <p className="muted">Paid classes use Stripe. Free classes use the website signup form. Online customers receive a private Telnyx classroom link by email.</p>
+              <p className="muted">
+                Paid classes use Stripe. Free classes use the website signup form. Online customers
+                receive a private Telnyx classroom link by email.
+              </p>
             </div>
             {CLASSES_PUBLICLY_VISIBLE ? (
-              <Link className="btn outline small" href="/classes">View public classes</Link>
+              <Link className="btn outline small" href="/classes">
+                View public classes
+              </Link>
             ) : (
-              <p className="muted">The public classes page is hidden from customers. Classes stay editable here.</p>
+              <p className="muted">
+                The public classes page is hidden from customers. Classes stay editable here.
+              </p>
             )}
           </div>
           {!telnyxReady && (
             <div className="admin-card telnyx-setup-warning">
               <b>Telnyx Video needs one Railway variable.</b>
-              <p>Add <code>TELNYX_API_KEY</code> to the Hillside web service before publishing an online class. Class content can still be saved now.</p>
+              <p>
+                Add <code>TELNYX_API_KEY</code> to the Hillside web service before publishing an
+                online class. Class content can still be saved now.
+              </p>
             </div>
           )}
           <div className="admin-list">
             {classes.map((event) => {
               const online = isOnlineClass(event.format);
               return (
-                <details
-                  key={event.id}
-                  id={`class-${event.id}`}
-                  open={focusItem === event.id}
-                >
+                <details key={event.id} id={`class-${event.id}`} open={focusItem === event.id}>
                   <summary>
-                    <span>{event.title} • {classFormatLabel(event.format)} • {event.startsAt.toLocaleString()}</span>
-                    <span className={`status-badge ${event.active ? 'PAID' : 'CANCELLED'}`}>{event.active ? 'Published' : 'Archived'}</span>
+                    <span>
+                      {event.title} • {classFormatLabel(event.format)} •{' '}
+                      {event.startsAt.toLocaleString()}
+                    </span>
+                    <span className={`status-badge ${event.active ? 'PAID' : 'CANCELLED'}`}>
+                      {event.active ? 'Published' : 'Archived'}
+                    </span>
                   </summary>
                   <div>
                     {online && (
                       <div className="telnyx-room-status">
-                        <span><b>Telnyx room:</b> {event.telnyxRoomId ? 'Prepared' : 'Not prepared yet'}</span>
-                        <span><b>Recording:</b> {event.telnyxRecordingEnabled ? 'Enabled' : 'Off'}</span>
+                        <span>
+                          <b>Telnyx room:</b> {event.telnyxRoomId ? 'Prepared' : 'Not prepared yet'}
+                        </span>
+                        <span>
+                          <b>Recording:</b> {event.telnyxRecordingEnabled ? 'Enabled' : 'Off'}
+                        </span>
                       </div>
                     )}
                     <form action={saveClassEvent}>
                       <ClassFields event={event} />
                       <div className="admin-actions">
                         <button className="btn small">Save class</button>
-                        {online && <Link className="btn outline small" href={`/admin/classes/${event.id}/studio`}>Open host studio</Link>}
+                        {online && (
+                          <Link
+                            className="btn outline small"
+                            href={`/admin/classes/${event.id}/studio`}
+                          >
+                            Open host studio
+                          </Link>
+                        )}
                       </div>
                     </form>
                     {online && (
@@ -558,23 +1086,80 @@ export default async function ContentManager({
           </div>
           <div className="admin-card" id="add-class" style={{ marginTop: 20 }}>
             <h2 style={{ marginTop: 0 }}>Add a class</h2>
-            <p className="muted">Choose Online or Hybrid to automatically prepare a private Telnyx Video room.</p>
-            <form action={saveClassEvent}><ClassFields /><button className="btn" style={{ marginTop: 16 }}>Publish class</button></form>
+            <p className="muted">
+              Choose Online or Hybrid to automatically prepare a private Telnyx Video room.
+            </p>
+            <form action={saveClassEvent}>
+              <ClassFields />
+              <button className="btn" style={{ marginTop: 16 }}>
+                Publish class
+              </button>
+            </form>
           </div>
         </section>
 
         <section className="admin-section" id="gallery">
-          <div className="toolbar"><div><h2>Planter gallery</h2><p className="muted">Use our real arrangement photos and a short helpful caption.</p></div><Link className="btn outline small" href="/gallery">View gallery</Link></div>
+          <div className="toolbar">
+            <div>
+              <h2>Planter gallery</h2>
+              <p className="muted">Use our real arrangement photos and a short helpful caption.</p>
+            </div>
+            <Link className="btn outline small" href="/gallery">
+              View gallery
+            </Link>
+          </div>
           <div className="admin-list">
             {gallery.map((item) => (
-              <details key={item.id} id={`gallery-${item.id}`} open={focusItem === item.id}><summary><span>{item.title}</span><span className="status-badge PAID">Published</span></summary><div><form action={saveGalleryItem}><GalleryFields item={item} /><div className="admin-actions"><button className="btn small">Save gallery item</button></div></form><form action={archiveContent} style={{ marginTop: 10 }}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="kind" value="gallery" /><ConfirmSubmit className="text-button danger" message={`Delete “${item.title}” from the gallery? This cannot be undone.`}>Delete gallery photo</ConfirmSubmit></form></div></details>
+              <details key={item.id} id={`gallery-${item.id}`} open={focusItem === item.id}>
+                <summary>
+                  <span>{item.title}</span>
+                  <span className="status-badge PAID">Published</span>
+                </summary>
+                <div>
+                  <form action={saveGalleryItem}>
+                    <GalleryFields item={item} />
+                    <div className="admin-actions">
+                      <button className="btn small">Save gallery item</button>
+                    </div>
+                  </form>
+                  <form action={archiveContent} style={{ marginTop: 10 }}>
+                    <input type="hidden" name="id" value={item.id} />
+                    <input type="hidden" name="kind" value="gallery" />
+                    <ConfirmSubmit
+                      className="text-button danger"
+                      message={`Delete “${item.title}” from the gallery? This cannot be undone.`}
+                    >
+                      Delete gallery photo
+                    </ConfirmSubmit>
+                  </form>
+                </div>
+              </details>
             ))}
           </div>
-          <div className="admin-card" id="add-gallery" style={{ marginTop: 20 }}><h2 style={{ marginTop: 0 }}>Add a gallery arrangement</h2><form action={saveGalleryItem}><GalleryFields /><button className="btn" style={{ marginTop: 16 }}>Add to gallery</button></form></div>
+          <div className="admin-card" id="add-gallery" style={{ marginTop: 20 }}>
+            <h2 style={{ marginTop: 0 }}>Add a gallery arrangement</h2>
+            <form action={saveGalleryItem}>
+              <GalleryFields />
+              <button className="btn" style={{ marginTop: 16 }}>
+                Add to gallery
+              </button>
+            </form>
+          </div>
         </section>
 
         <section className="admin-section" id="amazon">
-          <div className="toolbar"><div><h2>Amazon influencer picks</h2><p className="muted">Paste the link, and the item is on the page. The affiliate disclosure stays visible to customers.</p></div><Link className="btn outline small" href="/amazon">View our Picks</Link></div>
+          <div className="toolbar">
+            <div>
+              <h2>Amazon influencer picks</h2>
+              <p className="muted">
+                Paste the link, and the item is on the page. The affiliate disclosure stays visible
+                to customers.
+              </p>
+            </div>
+            <Link className="btn outline small" href="/amazon">
+              View our Picks
+            </Link>
+          </div>
           <div className="admin-card" id="add-amazon">
             <h2 style={{ marginTop: 0 }}>Add a pick</h2>
             <p className="muted">
@@ -596,14 +1181,28 @@ export default async function ContentManager({
                   required
                 />
               </label>
-              <PendingSubmit className="btn" pendingLabel="Reading the item…">Add to the picks page</PendingSubmit>
+              <PendingSubmit className="btn" pendingLabel="Reading the item…">
+                Add to the picks page
+              </PendingSubmit>
             </form>
           </div>
           <div className="admin-list" style={{ marginTop: 20 }}>
-            {picks.length === 0 && <p className="muted">Nothing here yet. Paste a link above and it appears on the page.</p>}
+            {picks.length === 0 && (
+              <p className="muted">
+                Nothing here yet. Paste a link above and it appears on the page.
+              </p>
+            )}
             {picks.map((item) => (
               <details key={item.id} id={`amazon-${item.id}`} open={focusItem === item.id}>
-                <summary><span>{item.title}</span><span className="admin-badges">{!item.imageUrl && <span className="status-badge">No photo</span>}<span className={`status-badge ${item.active ? 'PAID' : 'CANCELLED'}`}>{item.active ? 'Published' : 'Archived'}</span></span></summary>
+                <summary>
+                  <span>{item.title}</span>
+                  <span className="admin-badges">
+                    {!item.imageUrl && <span className="status-badge">No photo</span>}
+                    <span className={`status-badge ${item.active ? 'PAID' : 'CANCELLED'}`}>
+                      {item.active ? 'Published' : 'Archived'}
+                    </span>
+                  </span>
+                </summary>
                 <div>
                   {/* A lookup can come back empty — Amazon does refuse servers it does
                       not recognise — so this is the second try, without making Tammy
@@ -611,12 +1210,32 @@ export default async function ContentManager({
                   <form action={fillAmazonPickFromLink}>
                     <input type="hidden" name="id" value={item.id} />
                     <div className="admin-actions" style={{ marginTop: 0 }}>
-                      <PendingSubmit className="btn outline small" pendingLabel="Asking Amazon…">Get details from Amazon</PendingSubmit>
-                      <span className="muted">Fills in whatever is still blank. Anything you wrote yourself is kept.</span>
+                      <PendingSubmit className="btn outline small" pendingLabel="Asking Amazon…">
+                        Get details from Amazon
+                      </PendingSubmit>
+                      <span className="muted">
+                        Fills in whatever is still blank. Anything you wrote yourself is kept.
+                      </span>
                     </div>
                   </form>
-                  <form action={saveAmazonPick}><AmazonFields item={item} /><div className="admin-actions"><button className="btn small">Save Amazon pick</button></div></form>
-                  {item.active && <form action={archiveContent} style={{ marginTop: 10 }}><input type="hidden" name="id" value={item.id} /><input type="hidden" name="kind" value="amazon" /><ConfirmSubmit className="text-button danger" message={`Archive “${item.title}”? It will leave the public picks page.`}>Archive pick</ConfirmSubmit></form>}
+                  <form action={saveAmazonPick}>
+                    <AmazonFields item={item} />
+                    <div className="admin-actions">
+                      <button className="btn small">Save Amazon pick</button>
+                    </div>
+                  </form>
+                  {item.active && (
+                    <form action={archiveContent} style={{ marginTop: 10 }}>
+                      <input type="hidden" name="id" value={item.id} />
+                      <input type="hidden" name="kind" value="amazon" />
+                      <ConfirmSubmit
+                        className="text-button danger"
+                        message={`Archive “${item.title}”? It will leave the public picks page.`}
+                      >
+                        Archive pick
+                      </ConfirmSubmit>
+                    </form>
+                  )}
                 </div>
               </details>
             ))}
@@ -634,8 +1253,12 @@ export default async function ContentManager({
               </p>
             </div>
             <div className="admin-actions">
-              <Link className="btn" href="/admin/care">Open care library</Link>
-              <Link className="btn outline small" href="/admin/care#new-guide">Add a guide</Link>
+              <Link className="btn" href="/admin/care">
+                Open care library
+              </Link>
+              <Link className="btn outline small" href="/admin/care#new-guide">
+                Add a guide
+              </Link>
             </div>
           </div>
           <div className="admin-list">
@@ -644,7 +1267,8 @@ export default async function ContentManager({
                 <summary>
                   <span>
                     {sheet.plantName}
-                    {sheet.botanical ? ` • ${sheet.botanical}` : ''} • {careGuideTypeLabel(sheet.guideType)}
+                    {sheet.botanical ? ` • ${sheet.botanical}` : ''} •{' '}
+                    {careGuideTypeLabel(sheet.guideType)}
                   </span>
                   <span className={`status-badge ${sheet.published ? 'PAID' : 'CANCELLED'}`}>
                     {sheet.published ? 'Published' : 'Draft'}
@@ -656,7 +1280,10 @@ export default async function ContentManager({
                     {sheet.summary}
                   </p>
                   <div className="admin-actions">
-                    <Link className="btn small" href={`/admin/care?edit=${encodeURIComponent(sheet.slug)}`}>
+                    <Link
+                      className="btn small"
+                      href={`/admin/care?edit=${encodeURIComponent(sheet.slug)}`}
+                    >
                       Edit guide
                     </Link>
                     <Link className="btn outline small" href={`/care/${sheet.slug}`}>

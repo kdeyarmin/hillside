@@ -31,15 +31,24 @@ function variantForType(type: string): BrandMockupVariant {
  * anything we cannot place confidently uses the generic artwork for its type.
  */
 const artworkKeywords: Array<[HillsideCatalogImage, string[]]> = [
-  ['carnivorous-plants', ['carnivor', 'flytrap', 'venus', 'pitcher plant', 'sarracenia', 'nepenthes']],
+  [
+    'carnivorous-plants',
+    ['carnivor', 'flytrap', 'venus', 'pitcher plant', 'sarracenia', 'nepenthes']
+  ],
   ['air-plants', ['air plant', 'airplant', 'tillandsia']],
   ['succulents', ['succulent', 'echeveria', 'sedum', 'jade plant', 'aloe', 'cactus']],
   ['live-plant-planters', ['planter', 'arrangement', 'centerpiece', 'centrepiece', 'dish garden']],
-  ['terrarium-supplies', ['terrarium', 'substrate', 'gravel', 'charcoal', 'potting mix', 'soil', 'gift set']],
+  [
+    'terrarium-supplies',
+    ['terrarium', 'substrate', 'gravel', 'charcoal', 'potting mix', 'soil', 'gift set']
+  ],
   ['moss', ['moss']],
   ['driftwood', ['driftwood']],
   ['homemade-soaps', ['soap']],
-  ['apothecary', ['tea', 'tisane', 'herbal', 'blend', 'lotion', 'salve', 'balm', 'tincture', 'essential oil']]
+  [
+    'apothecary',
+    ['tea', 'tisane', 'herbal', 'blend', 'lotion', 'salve', 'balm', 'tincture', 'essential oil']
+  ]
 ];
 
 /**

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Star, ThumbsUp } from 'lucide-react';
 import FormStatus from '@/components/FormStatus';
 import { HONEYPOT_FIELD } from '@/lib/honeypot';
@@ -34,7 +34,9 @@ const HELPFUL_STORAGE_KEY = 'hillside-helpful-reviews-v1';
 function readVoted(): string[] {
   try {
     const saved = JSON.parse(localStorage.getItem(HELPFUL_STORAGE_KEY) || '[]') as unknown;
-    return Array.isArray(saved) ? saved.filter((entry): entry is string => typeof entry === 'string') : [];
+    return Array.isArray(saved)
+      ? saved.filter((entry): entry is string => typeof entry === 'string')
+      : [];
   } catch {
     return [];
   }
@@ -161,6 +163,21 @@ function ReviewForm({ productSlug }: { productSlug: string }) {
   const [status, setStatus] = useState<{ type: 'idle' | 'ok' | 'error'; message?: string }>({
     type: 'idle'
   });
+  const openButtonRef = useRef<HTMLButtonElement>(null);
+  const formHeadingRef = useRef<HTMLHeadingElement>(null);
+  /**
+   * Set by the control that just unmounted itself. Focus cannot be moved from
+   * the click handler — the element it should move to has not rendered yet — so
+   * the request is recorded and honoured after the swap, then cleared so it does
+   * not steal focus on any later render.
+   */
+  const [returnFocus, setReturnFocus] = useState(false);
+
+  useEffect(() => {
+    if (!returnFocus) return;
+    (open ? formHeadingRef.current : openButtonRef.current)?.focus();
+    setReturnFocus(false);
+  }, [open, returnFocus]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -185,7 +202,10 @@ function ReviewForm({ productSlug }: { productSlug: string }) {
       });
       const result = (await response.json()) as { message?: string; error?: string };
       if (!response.ok) throw new Error(result.error || 'We could not save that review.');
-      setStatus({ type: 'ok', message: result.message || 'Thank you — your review is awaiting approval.' });
+      setStatus({
+        type: 'ok',
+        message: result.message || 'Thank you — your review is awaiting approval.'
+      });
       form.reset();
       setRating(5);
     } catch (error) {
@@ -198,9 +218,24 @@ function ReviewForm({ productSlug }: { productSlug: string }) {
     }
   }
 
+  /**
+   * Opening and cancelling both swap the pressed control out of the document,
+   * which drops focus to `<body>` and sends a keyboard user back to the top of
+   * a long product page. Each side therefore takes focus deliberately: opening
+   * moves to the form's heading, cancelling returns to the button that opened
+   * it — which is where that person was standing before.
+   */
   if (!open) {
     return (
-      <button className="btn outline" type="button" onClick={() => setOpen(true)}>
+      <button
+        className="btn outline"
+        type="button"
+        ref={openButtonRef}
+        onClick={() => {
+          setOpen(true);
+          setReturnFocus(true);
+        }}
+      >
         Write a review
       </button>
     );
@@ -208,7 +243,9 @@ function ReviewForm({ productSlug }: { productSlug: string }) {
 
   return (
     <form className="review-form form-card" onSubmit={submit}>
-      <h3>Write a review</h3>
+      <h3 tabIndex={-1} ref={formHeadingRef}>
+        Write a review
+      </h3>
       {/*
         Radios, not toggle buttons. As `aria-pressed` buttons only the exact value
         reported pressed while every star up to it rendered filled, so what a
@@ -262,7 +299,14 @@ function ReviewForm({ productSlug }: { productSlug: string }) {
         </div>
         <div className="form-group full">
           <label htmlFor="review-body">Your review</label>
-          <textarea className="form-input" id="review-body" name="body" rows={4} required minLength={15} />
+          <textarea
+            className="form-input"
+            id="review-body"
+            name="body"
+            rows={4}
+            required
+            minLength={15}
+          />
         </div>
       </div>
       {/* Spam honeypot: off-screen, out of the tab order and hidden from
@@ -281,7 +325,16 @@ function ReviewForm({ productSlug }: { productSlug: string }) {
         <button className="btn" type="submit" disabled={pending} aria-busy={pending}>
           {pending ? 'Sending…' : 'Submit review'}
         </button>
-        <button className="text-button" type="button" onClick={() => setOpen(false)}>Cancel</button>
+        <button
+          className="text-button"
+          type="button"
+          onClick={() => {
+            setOpen(false);
+            setReturnFocus(true);
+          }}
+        >
+          Cancel
+        </button>
       </div>
       <FormStatus message={status.message} tone={status.type === 'ok' ? 'success' : 'error'} />
     </form>
@@ -317,7 +370,11 @@ export default function ProductReviews({
           <h2>What people say about {productName}.</h2>
           {count > 0 ? (
             <p className="reviews-summary">
-              <StarRow rating={average} size={18} label={`Average rating ${average.toFixed(1)} out of 5`} />
+              <StarRow
+                rating={average}
+                size={18}
+                label={`Average rating ${average.toFixed(1)} out of 5`}
+              />
               <b>{average.toFixed(1)}</b> out of 5 · {count} {count === 1 ? 'review' : 'reviews'}
             </p>
           ) : (
@@ -357,7 +414,9 @@ export default function ProductReviews({
               <div className="review-head">
                 <StarRow rating={review.rating} label={`Rated ${review.rating} out of 5`} />
                 <b>{review.authorName}</b>
-                {review.verifiedPurchase && <span className="pill verified">Verified purchase</span>}
+                {review.verifiedPurchase && (
+                  <span className="pill verified">Verified purchase</span>
+                )}
                 <time dateTime={review.createdAt}>
                   {new Date(review.createdAt).toLocaleDateString('en-US', {
                     month: 'long',

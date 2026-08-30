@@ -36,7 +36,7 @@ export async function POST(request: Request) {
   // Sends a welcome email to whatever address is posted, so the same open-relay
   // reasoning as /api/contact applies. Varying the address defeated the partial
   // self-limiting the "already subscribed" check happened to provide.
-  if (rateLimited(request, { name: 'newsletter', limit: 5, windowMs: 15 * 60_000 })) {
+  if (await rateLimited(request, { name: 'newsletter', limit: 5, windowMs: 15 * 60_000 })) {
     return NextResponse.json(
       { error: 'Too many signups from this connection. Please try again shortly.' },
       { status: 429 }

@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { CheckCircle2, Mail, UserRound } from 'lucide-react';
+import FormStatus from '@/components/FormStatus';
 import { HONEYPOT_FIELD } from '@/lib/honeypot';
 
 export default function FreeClassRegistrationForm({
@@ -74,7 +75,11 @@ export default function FreeClassRegistrationForm({
         <UserRound size={20} />
         <div>
           <b>Reserve your place</b>
-          <span>{online ? 'We will email a confirmation link, then your private classroom link.' : 'We will email a confirmation link to finish reserving your seat.'}</span>
+          <span>
+            {online
+              ? 'We will email a confirmation link, then your private classroom link.'
+              : 'We will email a confirmation link to finish reserving your seat.'}
+          </span>
         </div>
       </div>
       <div className="free-class-registration-grid">
@@ -84,7 +89,14 @@ export default function FreeClassRegistrationForm({
         </label>
         <label>
           <span>Email</span>
-          <input className="form-input" name="email" type="email" autoComplete="email" required maxLength={254} />
+          <input
+            className="form-input"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            maxLength={254}
+          />
         </label>
         <label>
           <span>Phone, optional</span>
@@ -117,7 +129,9 @@ export default function FreeClassRegistrationForm({
         autoComplete="off"
         aria-hidden="true"
       />
-      {error && <p className="form-status error" role="alert">{error}</p>}
+      {/* Always mounted — see FormStatus for why a live region that appears
+          already carrying its message often goes unannounced. */}
+      <FormStatus message={error} tone="error" />
       <button className="btn" type="submit" disabled={submitting}>
         <Mail size={17} /> {submitting ? 'Sending confirmation…' : 'Email me a confirmation link'}
       </button>

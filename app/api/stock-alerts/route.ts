@@ -19,7 +19,7 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  if (rateLimited(request, { name: 'stock-alerts', limit: 10, windowMs: 15 * 60_000 })) {
+  if (await rateLimited(request, { name: 'stock-alerts', limit: 10, windowMs: 15 * 60_000 })) {
     return NextResponse.json(
       { error: 'Too many requests. Please try again shortly.' },
       { status: 429 }

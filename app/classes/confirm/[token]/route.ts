@@ -16,10 +16,7 @@ function confirmFailure(reason: 'invalid' | 'expired', request: Request) {
   return response;
 }
 
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ token: string }> }
-) {
+export async function GET(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   if (!token || token.length < 24 || token.length > 800) {
     return confirmFailure('invalid', request);
@@ -72,8 +69,8 @@ export async function GET(
     const winner = await db.classRegistration.findUnique({ where: { id: registration.id } });
     if (winner?.status === 'PAID') {
       return NextResponse.redirect(new URL('/classes/confirmed', request.url), {
-      headers: { 'Referrer-Policy': 'no-referrer' }
-    });
+        headers: { 'Referrer-Policy': 'no-referrer' }
+      });
     }
     return confirmFailure('expired', request);
   }

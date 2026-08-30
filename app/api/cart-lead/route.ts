@@ -13,6 +13,7 @@ import { readJsonBody } from '@/lib/request-body';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { honeypotFields, honeypotTripped } from '@/lib/honeypot';
 import { rateLimited } from '@/lib/rate-limit';
+import { reportError } from '@/lib/report-error';
 import { findSize, productSizes, sizeAvailable, sizeChoiceRejected } from '@/lib/product-sizes';
 import { absoluteUrl, clampQuantity, LINE_QUANTITY_MAX } from '@/lib/store';
 
@@ -78,7 +79,7 @@ async function emailSavedCart(
  * possible and lets a customer pick the cart up on another device.
  */
 export async function POST(request: Request) {
-  if (rateLimited(request, { name: 'cart-lead', limit: 10, windowMs: 15 * 60_000 })) {
+  if (await rateLimited(request, { name: 'cart-lead', limit: 10, windowMs: 15 * 60_000 })) {
     return NextResponse.json(
       { error: 'Too many requests. Please try again shortly.' },
       { status: 429 }
@@ -137,13 +138,15 @@ export async function POST(request: Request) {
       message: 'Saved — check your email for a link to restore this cart on any device.'
     });
   } catch (error) {
-    console.error('Unable to save cart lead', error);
+    // A customer who asked to be emailed their basket and was not: an abandoned
+    // cart the shop can no longer follow up, and an address it never captured.
+    reportError('Unable to save cart lead', error);
     return NextResponse.json({ error: 'We could not save your cart right now.' }, { status: 500 });
   }
 }
 
 export async function GET(request: Request) {
-  if (rateLimited(request, { name: 'cart-restore', limit: 20, windowMs: 15 * 60_000 })) {
+  if (await rateLimited(request, { name: 'cart-restore', limit: 20, windowMs: 15 * 60_000 })) {
     return NextResponse.json(
       { error: 'Too many requests. Please try again shortly.' },
       { status: 429 }

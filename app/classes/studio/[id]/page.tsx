@@ -22,11 +22,7 @@ export const metadata = {
   referrer: 'no-referrer'
 };
 
-export default async function OnlineClassStudio({
-  params
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default async function OnlineClassStudio({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const event = await db.classEvent.findUnique({ where: { id } });
   if (!event || !event.active || !isOnlineClass(event.format)) {
@@ -36,17 +32,16 @@ export default async function OnlineClassStudio({
           <Video size={36} />
           <h1>Online classroom not found.</h1>
           <p>This class may have ended or been unpublished.</p>
-          <Link className="btn" href={CLASSES_EXIT_LINK.href}>{CLASSES_EXIT_LINK.label}</Link>
+          <Link className="btn" href={CLASSES_EXIT_LINK.href}>
+            {CLASSES_EXIT_LINK.label}
+          </Link>
         </div>
       </section>
     );
   }
 
   const jar = await cookies();
-  const access = verifyClassAccessCookie(
-    jar.get(classAccessCookieName(event.id))?.value,
-    event.id
-  );
+  const access = verifyClassAccessCookie(jar.get(classAccessCookieName(event.id))?.value, event.id);
   const registration = access
     ? await db.classRegistration.findFirst({
         where: {
@@ -68,7 +63,9 @@ export default async function OnlineClassStudio({
             For privacy, this classroom opens only through the secure link in your most recent
             registration confirmation email.
           </p>
-          <Link className="btn" href={CLASSES_EXIT_LINK.href}>{CLASSES_EXIT_LINK.label}</Link>
+          <Link className="btn" href={CLASSES_EXIT_LINK.href}>
+            {CLASSES_EXIT_LINK.label}
+          </Link>
         </div>
       </section>
     );
@@ -84,11 +81,22 @@ export default async function OnlineClassStudio({
           <span className="pill">Live online class</span>
           <h2>{event.title}</h2>
           <div>
-            <span><CalendarDays size={16} /> {classDateLabel(event.startsAt)} at {classTimeLabel(event.startsAt)}</span>
-            <span><Clock3 size={16} /> About {event.durationMinutes} minutes</span>
-            <span><Video size={16} /> {classLocationLabel(event)}</span>
+            <span>
+              <CalendarDays size={16} /> {classDateLabel(event.startsAt)} at{' '}
+              {classTimeLabel(event.startsAt)}
+            </span>
+            <span>
+              <Clock3 size={16} /> About {event.durationMinutes} minutes
+            </span>
+            <span>
+              <Video size={16} /> {classLocationLabel(event)}
+            </span>
           </div>
-          {event.onlineInstructions && <p><b>From us:</b> {event.onlineInstructions}</p>}
+          {event.onlineInstructions && (
+            <p>
+              <b>From us:</b> {event.onlineInstructions}
+            </p>
+          )}
           {event.telnyxRecordingEnabled && (
             <p className="classroom-recording-disclosure">
               This class may be recorded. Joining the room acknowledges the recording notice.
@@ -102,7 +110,10 @@ export default async function OnlineClassStudio({
             <h1>Your classroom is ready, but not open yet.</h1>
             <p>
               The room opens {event.joinOpensMinutesBefore} minutes before class at{' '}
-              <strong>{classDateLabel(opensAt)} at {classTimeLabel(opensAt)}</strong>.
+              <strong>
+                {classDateLabel(opensAt)} at {classTimeLabel(opensAt)}
+              </strong>
+              .
             </p>
             <p>You can leave this page open and refresh when the room opens.</p>
           </div>
@@ -111,7 +122,9 @@ export default async function OnlineClassStudio({
             <Video size={36} />
             <h1>This online classroom has closed.</h1>
             <p>Contact us if you need follow-up information from the class.</p>
-            <Link className="btn" href={CLASSES_EXIT_LINK.href}>{CLASSES_EXIT_LINK.label}</Link>
+            <Link className="btn" href={CLASSES_EXIT_LINK.href}>
+              {CLASSES_EXIT_LINK.label}
+            </Link>
           </div>
         ) : (
           <TelnyxClassroom

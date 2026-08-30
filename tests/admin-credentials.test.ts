@@ -48,7 +48,12 @@ describe('verifyPassword', () => {
    * turn a corrupt record into an open door.
    */
   it('fails closed on a stored value it cannot read', () => {
-    for (const bad of ['', 'not-a-hash', 'scrypt$16384$8$1$onlyfourparts', 'bcrypt$16384$8$1$c2FsdA==$aGFzaA==']) {
+    for (const bad of [
+      '',
+      'not-a-hash',
+      'scrypt$16384$8$1$onlyfourparts',
+      'bcrypt$16384$8$1$c2FsdA==$aGFzaA=='
+    ]) {
       assert.ok(!verifyPassword('Tammys-real-password-1!', bad), `expected ${bad} to be rejected`);
     }
   });

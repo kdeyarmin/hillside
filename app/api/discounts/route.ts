@@ -38,7 +38,7 @@ export const runtime = 'nodejs';
  * their own code would be the worse failure.
  */
 export async function POST(request: Request) {
-  if (rateLimited(request, { name: 'discount-quote', limit: 40, windowMs: 10 * 60_000 })) {
+  if (await rateLimited(request, { name: 'discount-quote', limit: 40, windowMs: 10 * 60_000 })) {
     return NextResponse.json(
       { error: 'Too many code attempts. Please wait a few minutes and try again.' },
       { status: 429 }

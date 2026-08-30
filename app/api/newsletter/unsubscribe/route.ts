@@ -28,7 +28,7 @@ function formReply(request: Request, status: 'done' | 'invalid') {
 }
 
 export async function POST(request: Request) {
-  if (rateLimited(request, { name: 'newsletter-unsub', limit: 20, windowMs: 15 * 60_000 })) {
+  if (await rateLimited(request, { name: 'newsletter-unsub', limit: 20, windowMs: 15 * 60_000 })) {
     return NextResponse.json(
       { error: 'Too many unsubscribe attempts. Please try again shortly.' },
       { status: 429 }

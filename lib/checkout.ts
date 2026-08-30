@@ -193,6 +193,25 @@ export async function reserveProductOrder({
   const takenByLine = new Map<CheckoutLine, BundleStockLine[]>();
 
   const reserved = await db.$transaction(async (transaction) => {
+    /**
+     * Every product row this basket will lock, flattened out of the basket
+     * lines and then sorted.
+     *
+     * The sort is the whole point. Each `updateMany` below holds a row lock
+     * until the transaction commits, so two checkouts that share two products
+     * and reach them in opposite orders can each end up holding the row the
+     * other is waiting for. Postgres notices and kills one of them, and the
+     * customer whose transaction lost gets a bare "Unable to start checkout"
+     * — not the graceful 409 that corrects the basket and explains itself,
+     * because a deadlock is not a stock shortage.
+     *
+     * Taking the rows in one globally consistent order removes the cycle
+     * entirely: two baskets holding the same products now queue behind each
+     * other instead of blocking each other. Sorting by id groups repeats of one
+     * product together too, so a plant bought loose and again inside a set locks
+     * its row once and keeps it.
+     */
+    const work: Array<{ item: CheckoutLine; line: BundleStockLine; slug: string }> = [];
     for (const item of items) {
       /**
        * A set reserves the products it is built from, never itself: a bundle has
@@ -210,58 +229,64 @@ export async function reserveProductOrder({
                 quantity: item.quantity
               }
             ];
-      const taken: BundleStockLine[] = [];
+      const slug = item.kind === 'bundle' ? item.bundle.slug : item.product.slug;
+      for (const line of lines) work.push({ item, line, slug });
+      takenByLine.set(item, []);
+    }
 
-      for (const line of lines) {
-        const slug = item.kind === 'bundle' ? item.bundle.slug : item.product.slug;
-        const result = await transaction.product.updateMany({
-          where: { id: line.productId, active: true, inventory: { gte: line.quantity } },
-          data: { inventory: { decrement: line.quantity } }
-        });
-        if (result.count === 0) {
-          // An extra is exactly the thing a set is allowed to go without.
-          if (line.optional) continue;
-          throw new InsufficientStockError(slug, line.size, line.name);
-        }
-        /**
-         * An extra is checked *before* the take, never after it.
-         *
-         * `takeSizeStock` rewrites the product's total from its size list
-         * whether or not it succeeds, so a failed take has already thrown the
-         * decrement above away — and putting the units "back" on top of that
-         * recomputed total leaves the column reading higher than its sizes add
-         * up to. That difference is stock with no size behind it, which every
-         * "is this sellable" query in the shop would go on offering. Reverting
-         * here, before the take, is the only clean point.
-         *
-         * The read is sound at this line and nowhere earlier: the decrement
-         * above holds a lock on the row until the transaction commits.
-         */
-        if (line.optional) {
-          const onHand = await countedSizeOnHand(transaction, line.productId, line.size);
-          if (onHand !== null && onHand < line.quantity) {
-            await transaction.product.update({
-              where: { id: line.productId },
-              data: { inventory: { increment: line.quantity } }
-            });
-            continue;
-          }
-        }
-        /**
-         * The product having enough altogether is not the same question as this
-         * size having enough: a plant with nine on the bench can still be out of
-         * 6" pots. Throwing rolls back the decrement above along with the rest of
-         * the hold, so a size that comes up short reserves nothing — and for a
-         * set, one required component coming up short reserves none of the
-         * others either.
-         */
-        if (!(await takeSizeStock(transaction, line.productId, line.size, line.quantity))) {
-          throw new InsufficientStockError(slug, line.size, line.name);
-        }
-        taken.push(line);
+    work.sort((a, b) =>
+      a.line.productId === b.line.productId
+        ? (a.line.size || '').localeCompare(b.line.size || '')
+        : a.line.productId.localeCompare(b.line.productId)
+    );
+
+    for (const { item, line, slug } of work) {
+      const taken = takenByLine.get(item) as BundleStockLine[];
+      const result = await transaction.product.updateMany({
+        where: { id: line.productId, active: true, inventory: { gte: line.quantity } },
+        data: { inventory: { decrement: line.quantity } }
+      });
+      if (result.count === 0) {
+        // An extra is exactly the thing a set is allowed to go without.
+        if (line.optional) continue;
+        throw new InsufficientStockError(slug, line.size, line.name);
       }
-
-      takenByLine.set(item, taken);
+      /**
+       * An extra is checked *before* the take, never after it.
+       *
+       * `takeSizeStock` rewrites the product's total from its size list
+       * whether or not it succeeds, so a failed take has already thrown the
+       * decrement above away — and putting the units "back" on top of that
+       * recomputed total leaves the column reading higher than its sizes add
+       * up to. That difference is stock with no size behind it, which every
+       * "is this sellable" query in the shop would go on offering. Reverting
+       * here, before the take, is the only clean point.
+       *
+       * The read is sound at this line and nowhere earlier: the decrement
+       * above holds a lock on the row until the transaction commits.
+       */
+      if (line.optional) {
+        const onHand = await countedSizeOnHand(transaction, line.productId, line.size);
+        if (onHand !== null && onHand < line.quantity) {
+          await transaction.product.update({
+            where: { id: line.productId },
+            data: { inventory: { increment: line.quantity } }
+          });
+          continue;
+        }
+      }
+      /**
+       * The product having enough altogether is not the same question as this
+       * size having enough: a plant with nine on the bench can still be out of
+       * 6" pots. Throwing rolls back the decrement above along with the rest of
+       * the hold, so a size that comes up short reserves nothing — and for a
+       * set, one required component coming up short reserves none of the
+       * others either.
+       */
+      if (!(await takeSizeStock(transaction, line.productId, line.size, line.quantity))) {
+        throw new InsufficientStockError(slug, line.size, line.name);
+      }
+      taken.push(line);
     }
 
     const order = await transaction.order.create({

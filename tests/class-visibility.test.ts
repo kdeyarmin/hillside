@@ -4,9 +4,8 @@ import { describe, it } from 'node:test';
 
 process.env.NEXT_PUBLIC_SITE_URL ||= 'https://thehillsidegardens.com';
 
-const { CLASSES_EXIT_LINK, CLASSES_PUBLICLY_VISIBLE, pointsAtHiddenClasses } = await import(
-  '../lib/class-visibility.ts'
-);
+const { CLASSES_EXIT_LINK, CLASSES_PUBLICLY_VISIBLE, pointsAtHiddenClasses } =
+  await import('../lib/class-visibility.ts');
 
 describe('class visibility', () => {
   it('never exits a private classroom onto a page that is hidden', async () => {

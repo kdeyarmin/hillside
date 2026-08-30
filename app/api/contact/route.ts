@@ -5,6 +5,7 @@ import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { allowedContactSubjects, type ContactSubject } from '@/lib/contact';
 import { honeypotFields, honeypotTripped } from '@/lib/honeypot';
 import { rateLimited } from '@/lib/rate-limit';
+import { reportError } from '@/lib/report-error';
 import { ownerNotificationEmails } from '@/lib/store';
 
 export const runtime = 'nodejs';
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
    * unbounded number of rows. The lasting damage is to sender reputation, which
    * would silently take down the order and class-access email the business runs on.
    */
-  if (rateLimited(request, { name: 'contact', limit: 5, windowMs: 15 * 60_000 })) {
+  if (await rateLimited(request, { name: 'contact', limit: 5, windowMs: 15 * 60_000 })) {
     return NextResponse.json(
       { error: 'Too many messages sent. Please wait a few minutes and try again.' },
       { status: 429 }
@@ -97,7 +98,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: 'Thanks — we received your message.' });
   } catch (error) {
-    console.error('Contact form failed', error);
+    // The form is the shop's only inbox for someone who is not yet a customer.
+    // A failure here is a message that was never received and never will be:
+    // the sender is told to try again, and most of them simply will not.
+    reportError('Contact form failed', error);
     return NextResponse.json(
       { error: 'The message could not be sent. Please try again.' },
       { status: 500 }

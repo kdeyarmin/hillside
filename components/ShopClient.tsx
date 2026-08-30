@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import ProductCard, { type ProductCardProduct } from '@/components/ProductCard';
@@ -76,6 +76,8 @@ export default function ShopClient({
 }) {
   const [state, setState] = useState<ShopFilterState>(initial);
   const [railOpen, setRailOpen] = useState(false);
+  /** Where focus lands when a chip removes the button that had it. */
+  const chipRowRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const term = initial.search.trim();
@@ -275,13 +277,28 @@ export default function ShopClient({
         </div>
 
         {chips.length > 0 && (
-          <div className="active-filters" aria-label="Filters you have applied">
+          /**
+           * `tabIndex={-1}` and a ref, because removing a chip unmounts the very
+           * button that was pressed. Focus then falls to `<body>`, which puts a
+           * keyboard user back at the top of the document — so clearing three
+           * filters meant tabbing back down through the whole page three times.
+           * Focus moves to this row instead, right where the remaining chips are.
+           */
+          <div
+            className="active-filters"
+            aria-label="Filters you have applied"
+            ref={chipRowRef}
+            tabIndex={-1}
+          >
             {chips.map((chip) => (
               <button
                 className="filter-chip active"
                 type="button"
                 key={`${chip.key}-${chip.value}`}
-                onClick={() => removeChip(chip.key, chip.value)}
+                onClick={() => {
+                  removeChip(chip.key, chip.value);
+                  chipRowRef.current?.focus();
+                }}
               >
                 {chip.label}
                 <X size={13} aria-hidden="true" />
@@ -356,7 +373,12 @@ export default function ShopClient({
       </div>
 
       <div className="toolbar">
-        <b>
+        {/* Announced, because this number is the only feedback a filter or a
+            search gives. Typing in the box or toggling a chip rewrote the grid
+            silently — including the case where it emptied entirely and the grid
+            was replaced by "Nothing matched those filters". `CareLibrary` marks
+            its own result count up the same way. */}
+        <b aria-live="polite">
           {visibleProducts.length} {visibleProducts.length === 1 ? 'product' : 'products'}
         </b>
         <span className="muted">Stock counts update as each piece is potted and sold</span>

@@ -28,9 +28,7 @@ describe('clientKey', () => {
   });
 
   it('ignores any number of forged entries ahead of the real one', () => {
-    const key = clientKey(
-      request({ 'x-forwarded-for': '9.9.9.9, 8.8.8.8, 7.7.7.7, 203.0.113.7' })
-    );
+    const key = clientKey(request({ 'x-forwarded-for': '9.9.9.9, 8.8.8.8, 7.7.7.7, 203.0.113.7' }));
     assert.equal(key, '203.0.113.7');
   });
 
@@ -58,62 +56,65 @@ describe('clientKey', () => {
 });
 
 describe('rateLimited', () => {
-  it('allows up to the limit, then refuses', () => {
+  it('allows up to the limit, then refuses', async () => {
     const headers = { 'x-forwarded-for': '203.0.113.7' };
     const options = { name: 'contact', limit: 3, windowMs: 60_000 };
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      assert.equal(rateLimited(request(headers), options), false, `attempt ${attempt + 1}`);
+      assert.equal(await rateLimited(request(headers), options), false, `attempt ${attempt + 1}`);
     }
-    assert.equal(rateLimited(request(headers), options), true);
+    assert.equal(await rateLimited(request(headers), options), true);
   });
 
-  it('is not defeated by rotating the forgeable part of the header', () => {
+  it('is not defeated by rotating the forgeable part of the header', async () => {
     const options = { name: 'contact', limit: 3, windowMs: 60_000 };
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      rateLimited(request({ 'x-forwarded-for': `10.0.0.${attempt}, 203.0.113.7` }), options);
+      await rateLimited(request({ 'x-forwarded-for': `10.0.0.${attempt}, 203.0.113.7` }), options);
     }
     assert.equal(
-      rateLimited(request({ 'x-forwarded-for': '10.0.0.99, 203.0.113.7' }), options),
+      await rateLimited(request({ 'x-forwarded-for': '10.0.0.99, 203.0.113.7' }), options),
       true
     );
   });
 
-  it('keeps separate budgets per client and per route', () => {
+  it('keeps separate budgets per client and per route', async () => {
     const options = { name: 'contact', limit: 1, windowMs: 60_000 };
-    assert.equal(rateLimited(request({ 'x-forwarded-for': '203.0.113.7' }), options), false);
-    assert.equal(rateLimited(request({ 'x-forwarded-for': '203.0.113.7' }), options), true);
+    assert.equal(await rateLimited(request({ 'x-forwarded-for': '203.0.113.7' }), options), false);
+    assert.equal(await rateLimited(request({ 'x-forwarded-for': '203.0.113.7' }), options), true);
     // A different caller is unaffected...
-    assert.equal(rateLimited(request({ 'x-forwarded-for': '198.51.100.4' }), options), false);
+    assert.equal(await rateLimited(request({ 'x-forwarded-for': '198.51.100.4' }), options), false);
     // ...and so is a different route for the same caller.
     assert.equal(
-      rateLimited(request({ 'x-forwarded-for': '203.0.113.7' }), { ...options, name: 'newsletter' }),
+      await rateLimited(request({ 'x-forwarded-for': '203.0.113.7' }), {
+        ...options,
+        name: 'newsletter'
+      }),
       false
     );
   });
 });
 
 describe('rateLimitedByKey', () => {
-  it('lets a server action supply its own identity', () => {
+  it('lets a server action supply its own identity', async () => {
     const options = { name: 'admin-login', limit: 2, windowMs: 60_000 };
-    assert.equal(rateLimitedByKey('203.0.113.7', options), false);
-    assert.equal(rateLimitedByKey('203.0.113.7', options), false);
-    assert.equal(rateLimitedByKey('203.0.113.7', options), true);
-    assert.equal(rateLimitedByKey('198.51.100.4', options), false);
+    assert.equal(await rateLimitedByKey('203.0.113.7', options), false);
+    assert.equal(await rateLimitedByKey('203.0.113.7', options), false);
+    assert.equal(await rateLimitedByKey('203.0.113.7', options), true);
+    assert.equal(await rateLimitedByKey('198.51.100.4', options), false);
   });
 });
 
 describe('bucket housekeeping', () => {
-  it('resetRateLimits clears every bucket', () => {
-    rateLimitedByKey('a', { name: 'x', limit: 1, windowMs: 60_000 });
+  it('resetRateLimits clears every bucket', async () => {
+    await rateLimitedByKey('a', { name: 'x', limit: 1, windowMs: 60_000 });
     assert.ok(rateLimitBucketCount() > 0);
     resetRateLimits();
     assert.equal(rateLimitBucketCount(), 0);
   });
 
-  it('does not grow without bound under a flood of distinct keys', () => {
+  it('does not grow without bound under a flood of distinct keys', async () => {
     // A scanner minting a fresh key per request used to be a slow memory leak.
     for (let index = 0; index < 12_000; index += 1) {
-      rateLimitedByKey(`flood-${index}`, { name: 'x', limit: 5, windowMs: 60_000 });
+      await rateLimitedByKey(`flood-${index}`, { name: 'x', limit: 5, windowMs: 60_000 });
     }
     assert.ok(
       rateLimitBucketCount() <= 12_000,

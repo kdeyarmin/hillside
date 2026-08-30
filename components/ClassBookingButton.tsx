@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { CreditCard, MailCheck } from 'lucide-react';
+import FormStatus from '@/components/FormStatus';
 
 export default function ClassBookingButton({
   classId,
@@ -47,7 +48,9 @@ export default function ClassBookingButton({
   return (
     <div className="class-booking-wrap">
       <div className="class-booking">
-        <label className="sr-only" htmlFor={`class-seats-${classId}`}>Number of seats</label>
+        <label className="sr-only" htmlFor={`class-seats-${classId}`}>
+          Number of seats
+        </label>
         <select
           className="form-input"
           id={`class-seats-${classId}`}
@@ -55,7 +58,9 @@ export default function ClassBookingButton({
           onChange={(event) => setSeats(Number(event.target.value))}
         >
           {Array.from({ length: maxSeats }, (_, index) => index + 1).map((value) => (
-            <option value={value} key={value}>{value} {value === 1 ? 'seat' : 'seats'}</option>
+            <option value={value} key={value}>
+              {value} {value === 1 ? 'seat' : 'seats'}
+            </option>
           ))}
         </select>
         <button
@@ -68,7 +73,9 @@ export default function ClassBookingButton({
           <CreditCard size={17} /> {loading ? 'Opening checkout…' : 'Reserve your seat'}
         </button>
       </div>
-      {error && <p className="form-status error" role="alert">{error}</p>}
+      {/* Always mounted — see FormStatus for why a live region that appears
+          already carrying its message often goes unannounced. */}
+      <FormStatus message={error} tone="error" />
       <p className="class-checkout-email-note">
         <CreditCard size={15} /> Payment is handled securely by Stripe.
       </p>

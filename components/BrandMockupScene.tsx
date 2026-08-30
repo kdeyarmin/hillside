@@ -215,7 +215,14 @@ export default function BrandMockupScene({
       <span className="brand-mockup-wash" aria-hidden="true" />
       {badge && (
         <span className="brand-photo-badge" aria-hidden="true">
-          <img src="/logo-badge.webp" alt="" width={480} height={388} loading="lazy" decoding="async" />
+          <img
+            src="/logo-badge.webp"
+            alt=""
+            width={480}
+            height={388}
+            loading="lazy"
+            decoding="async"
+          />
         </span>
       )}
     </div>

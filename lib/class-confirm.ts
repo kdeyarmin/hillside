@@ -58,7 +58,9 @@ export function readFreeClassConfirmToken(token: string): ConfirmPayload | null 
   const [encoded, signature] = token.split('.');
   if (!encoded || !signature || !safeEqual(sign(encoded, key), signature)) return null;
   try {
-    const payload = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8')) as ConfirmPayload;
+    const payload = JSON.parse(
+      Buffer.from(encoded, 'base64url').toString('utf8')
+    ) as ConfirmPayload;
     if (
       !payload.registrationId ||
       !payload.email ||

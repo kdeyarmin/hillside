@@ -23,8 +23,11 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
-  if (rateLimited(request, { name: 'reviews', limit: 5, windowMs: 30 * 60_000 })) {
-    return NextResponse.json({ error: 'Too many reviews submitted. Please try again later.' }, { status: 429 });
+  if (await rateLimited(request, { name: 'reviews', limit: 5, windowMs: 30 * 60_000 })) {
+    return NextResponse.json(
+      { error: 'Too many reviews submitted. Please try again later.' },
+      { status: 429 }
+    );
   }
 
   try {
@@ -41,7 +44,8 @@ export async function POST(request: Request) {
     }
 
     const product = await db.product.findFirst({ where: { slug: input.slug, active: true } });
-    if (!product) return NextResponse.json({ error: 'That product was not found.' }, { status: 404 });
+    if (!product)
+      return NextResponse.json({ error: 'That product was not found.' }, { status: 404 });
 
     const email = input.email.toLowerCase();
 
@@ -81,6 +85,9 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     console.error('Unable to save review', error);
-    return NextResponse.json({ error: 'We could not save that review right now.' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'We could not save that review right now.' },
+      { status: 500 }
+    );
   }
 }

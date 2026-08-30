@@ -66,18 +66,42 @@ export default async function ClassSuccess({
     <section className="content">
       <div className="container" style={{ maxWidth: 760, textAlign: 'center', paddingTop: 45 }}>
         <div className="eyebrow">Registration confirmed</div>
-        <h1 className="display-title" style={{ fontSize: 58, color: 'var(--forest)', margin: '10px 0' }}>
+        <h1
+          className="display-title"
+          style={{ fontSize: 58, color: 'var(--forest)', margin: '10px 0' }}
+        >
           We saved your seat.
         </h1>
         {event ? (
           <div className="admin-card" style={{ textAlign: 'left', margin: '28px 0' }}>
             <h2 style={{ marginTop: 0 }}>{event.title}</h2>
-            <div className="summary-row"><span>Format</span><strong>{classFormatLabel(event.format)}</strong></div>
-            <div className="summary-row"><span>Date</span><strong>{classDateLabel(event.startsAt)} at {classTimeLabel(event.startsAt)}</strong></div>
-            <div className="summary-row"><span>Location</span><strong>{classLocationLabel(event)}</strong></div>
-            <div className="summary-row"><span>Seats</span><strong>{seats}</strong></div>
-            <div className="summary-row"><span>Paid</span><strong>{formatMoney(session?.amount_total || event.priceCents * seats)}</strong></div>
-            {event.whatToBring && <p><b>What to bring / what is included:</b> {event.whatToBring}</p>}
+            <div className="summary-row">
+              <span>Format</span>
+              <strong>{classFormatLabel(event.format)}</strong>
+            </div>
+            <div className="summary-row">
+              <span>Date</span>
+              <strong>
+                {classDateLabel(event.startsAt)} at {classTimeLabel(event.startsAt)}
+              </strong>
+            </div>
+            <div className="summary-row">
+              <span>Location</span>
+              <strong>{classLocationLabel(event)}</strong>
+            </div>
+            <div className="summary-row">
+              <span>Seats</span>
+              <strong>{seats}</strong>
+            </div>
+            <div className="summary-row">
+              <span>Paid</span>
+              <strong>{formatMoney(session?.amount_total || event.priceCents * seats)}</strong>
+            </div>
+            {event.whatToBring && (
+              <p>
+                <b>What to bring / what is included:</b> {event.whatToBring}
+              </p>
+            )}
           </div>
         ) : (
           <p>Your payment was successful and your class registration is being recorded.</p>
@@ -92,16 +116,24 @@ export default async function ClassSuccess({
                 The confirmation email contains a secure Hillside link that opens your classroom
                 right in your browser. Keep that email and do not forward the link.
               </p>
-              <p><Video size={16} /> The classroom opens shortly before the scheduled class time.</p>
+              <p>
+                <Video size={16} /> The classroom opens shortly before the scheduled class time.
+              </p>
             </div>
           </div>
         ) : (
-          <p>A confirmation and Stripe receipt will be sent to the email entered during checkout.</p>
+          <p>
+            A confirmation and Stripe receipt will be sent to the email entered during checkout.
+          </p>
         )}
 
         <div className="actions" style={{ justifyContent: 'center' }}>
-          <Link className="btn" href={CLASSES_EXIT_LINK.href}>{CLASSES_EXIT_LINK.label}</Link>
-          <Link className="btn gold" href="/care">Explore plant care</Link>
+          <Link className="btn" href={CLASSES_EXIT_LINK.href}>
+            {CLASSES_EXIT_LINK.label}
+          </Link>
+          <Link className="btn gold" href="/care">
+            Explore plant care
+          </Link>
         </div>
       </div>
     </section>

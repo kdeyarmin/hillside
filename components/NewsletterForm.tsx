@@ -92,7 +92,9 @@ export default function NewsletterForm({
     >
       {!compact && (
         <>
-          <label className="sr-only" htmlFor={nameId}>First name</label>
+          <label className="sr-only" htmlFor={nameId}>
+            First name
+          </label>
           <input
             id={nameId}
             name="name"
@@ -103,7 +105,9 @@ export default function NewsletterForm({
           />
         </>
       )}
-      <label className="sr-only" htmlFor={emailId}>Email address</label>
+      <label className="sr-only" htmlFor={emailId}>
+        Email address
+      </label>
       <input
         id={emailId}
         name="email"
