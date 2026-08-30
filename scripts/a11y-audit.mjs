@@ -106,7 +106,9 @@ for (const route of routes) {
     failures.push({ route, violations });
     console.log(`\n${route}`);
     for (const violation of violations) {
-      console.log(`  [${violation.impact}] ${violation.id} — ${violation.help} (${violation.nodes.length})`);
+      console.log(
+        `  [${violation.impact}] ${violation.id} — ${violation.help} (${violation.nodes.length})`
+      );
       for (const node of violation.nodes.slice(0, 3)) {
         console.log(`      ${node.html.slice(0, 130).replace(/\s+/g, ' ')}`);
       }
@@ -124,7 +126,9 @@ const audited = routes.length - unreachable.length;
 console.log(`\n${total} violation type(s) across ${failures.length} of ${audited} audited routes.`);
 
 if (unreachable.length) {
-  console.log(`\n${unreachable.length} of ${routes.length} route(s) did not load and were NOT audited:`);
+  console.log(
+    `\n${unreachable.length} of ${routes.length} route(s) did not load and were NOT audited:`
+  );
   for (const item of unreachable) {
     console.log(`  HTTP ${item.status || 'no response'} — ${item.url}`);
   }

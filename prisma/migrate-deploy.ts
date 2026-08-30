@@ -55,8 +55,9 @@ async function tableExists(db: PrismaClient, qualifiedName: string) {
 }
 
 async function appliedMigrationCount(db: PrismaClient) {
-  const rows =
-    await db.$queryRaw<Array<{ count: bigint }>>`SELECT COUNT(*)::bigint AS count FROM "_prisma_migrations"`;
+  const rows = await db.$queryRaw<
+    Array<{ count: bigint }>
+  >`SELECT COUNT(*)::bigint AS count FROM "_prisma_migrations"`;
   return Number(rows[0]?.count ?? 0);
 }
 

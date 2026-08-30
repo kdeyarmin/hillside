@@ -52,9 +52,10 @@ const contentSecurityPolicy = [
 
 const securityHeaders = [
   {
-    key: process.env.CSP_REPORT_ONLY === 'true'
-      ? 'Content-Security-Policy-Report-Only'
-      : 'Content-Security-Policy',
+    key:
+      process.env.CSP_REPORT_ONLY === 'true'
+        ? 'Content-Security-Policy-Report-Only'
+        : 'Content-Security-Policy',
     value: contentSecurityPolicy
   },
   /**
@@ -121,7 +122,8 @@ const nextConfig: NextConfig = {
         ]
       },
       {
-        source: '/:file(icon-192.png|icon-512.png|icon-maskable-512.png|icon.png|apple-icon.png|logo.png|logo-badge.png|og-image.jpg)',
+        source:
+          '/:file(icon-192.png|icon-512.png|icon-maskable-512.png|icon.png|apple-icon.png|logo.png|logo-badge.png|og-image.jpg)',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }
         ]
