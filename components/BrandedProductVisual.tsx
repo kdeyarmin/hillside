@@ -1,5 +1,9 @@
-'use client';
-
+/**
+ * No `'use client'`. It chooses between a photograph and a branded stand-in and
+ * renders one of them; the choosing is pure. Its callers are client components
+ * today, so this changes nothing about where it runs — it stops the file
+ * claiming to need the browser when it does not.
+ */
 import BrandMockupScene, {
   type BrandMockupVariant,
   type HillsideCatalogImage

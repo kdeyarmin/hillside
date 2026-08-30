@@ -1,5 +1,11 @@
-'use client';
-
+/**
+ * No `'use client'`. Nothing here reacts to anything: it picks an image and
+ * renders it. The pages that use it — home, about, visit, care, gifts — are
+ * content pages a shopper reads rather than operates, and the directive made
+ * every one of them ship and hydrate this instead of rendering it once.
+ * `ResilientImage` inside it stays a client component, which is the only part
+ * that actually needs to be.
+ */
 import ResilientImage from '@/components/ResilientImage';
 import type { ImageSizeRole } from '@/lib/image-srcset';
 import { pickForKey } from '@/lib/store';
