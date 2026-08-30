@@ -10,6 +10,7 @@ import ProductGrid from '@/components/ProductGrid';
 import ProductViewTracker from '@/components/ProductViewTracker';
 import ProductReviews from '@/components/ProductReviews';
 import StockAlertForm from '@/components/StockAlertForm';
+import { cache } from 'react';
 import { bundleCardData, sellableBundlesContaining } from '@/lib/bundle-queries';
 import { careGuideTypeLabel } from '@/lib/care-guides';
 import { catalogHasActiveProducts } from '@/lib/catalog';
@@ -47,6 +48,37 @@ import { fulfillmentBlurb } from '@/lib/fulfillment';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * The product this page is about.
+ *
+ * `cache()` so `generateMetadata` and the page itself, which both run on every
+ * request for this route, read it once instead of fetching the same row twice.
+ * Metadata only needs the scalar columns, but the page's read is a superset of
+ * them and happens on the same request regardless — so answering both from it
+ * costs the request nothing and saves it a whole query.
+ */
+const loadProduct = cache(async (slug: string) => {
+  return db.product.findFirst({
+    where: { slug },
+    include: {
+      category: true,
+      collections: { where: { active: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
+      /**
+       * Both the guide this product is the subject of and any guide that
+       * features it, so a venus flytrap reaches its own profile *and* the
+       * watering guide that keeps it alive.
+       */
+      careSheets: { where: { published: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
+      careGuides: {
+        where: { careSheet: { published: true } },
+        orderBy: { sortOrder: 'asc' },
+        include: { careSheet: true },
+        take: 4
+      }
+    }
+  });
+});
+
 /** Card fields for the hand-picked products shown beside this one. */
 
 export async function generateMetadata({
@@ -55,7 +87,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const product = await db.product.findFirst({ where: { slug } });
+  const product = await loadProduct(slug);
   if (!product) return { title: 'Product not found' };
   if (!product.active) {
     return pageMetadata({
@@ -78,25 +110,7 @@ export async function generateMetadata({
 
 export default async function ProductPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const product = await db.product.findFirst({
-    where: { slug },
-    include: {
-      category: true,
-      collections: { where: { active: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
-      /**
-       * Both the guide this product is the subject of and any guide that
-       * features it, so a venus flytrap reaches its own profile *and* the
-       * watering guide that keeps it alive.
-       */
-      careSheets: { where: { published: true }, orderBy: { sortOrder: 'asc' }, take: 3 },
-      careGuides: {
-        where: { careSheet: { published: true } },
-        orderBy: { sortOrder: 'asc' },
-        include: { careSheet: true },
-        take: 4
-      }
-    }
-  });
+  const product = await loadProduct(slug);
   if (!product) notFound();
   if (!product.active) {
     const catalogEmpty = !(await catalogHasActiveProducts());

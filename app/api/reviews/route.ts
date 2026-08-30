@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { readJsonBody } from '@/lib/request-body';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
+import { honeypotFields, honeypotTripped } from '@/lib/honeypot';
 import { rateLimited } from '@/lib/rate-limit';
 import { ownerNotificationEmails } from '@/lib/store';
 
@@ -15,13 +16,10 @@ const schema = z.object({
   email: z.string().trim().email().max(254),
   title: z.string().trim().max(120).optional().default(''),
   body: z.string().trim().min(15).max(4000),
-  /**
-   * Honeypot. Bounded rather than required-empty: `max(0)` made a filled
-   * honeypot fail schema validation and return 400, which meant the quiet-success
-   * branch below could never run and a bot was told plainly that the field was
-   * the problem. The cap keeps it from being used to post a payload.
-   */
-  website: z.string().max(200).optional().default('')
+  /* Spam honeypot, under a name browsers do not autofill — see lib/honeypot.ts
+     for why it must never be called `website` again. The old name is still
+     accepted there so a cached page or an old bot still trips it. */
+  ...honeypotFields
 });
 
 export async function POST(request: Request) {
@@ -38,7 +36,9 @@ export async function POST(request: Request) {
       );
     }
     const input = parsed.data;
-    if (input.website) return NextResponse.json({ message: 'Thank you for your review.' });
+    if (honeypotTripped(input)) {
+      return NextResponse.json({ message: 'Thank you for your review.' });
+    }
 
     const product = await db.product.findFirst({ where: { slug: input.slug, active: true } });
     if (!product) return NextResponse.json({ error: 'That product was not found.' }, { status: 404 });

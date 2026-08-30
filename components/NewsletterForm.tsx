@@ -4,6 +4,7 @@ import { FormEvent, useId, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import FormStatus from '@/components/FormStatus';
+import { HONEYPOT_FIELD } from '@/lib/honeypot';
 import type { NewsletterSourceKey } from '@/lib/newsletter-source';
 
 export default function NewsletterForm({
@@ -58,7 +59,7 @@ export default function NewsletterForm({
           email: data.get('email'),
           /* Same reason as `name` above: the honeypot is absent from some
              placements, and a null is not an undefined to the route's schema. */
-          website: data.get('website') ?? '',
+          [HONEYPOT_FIELD]: data.get(HONEYPOT_FIELD) ?? '',
           source,
           sourceDetail: sourceDetail ?? pathname
         }),
@@ -115,9 +116,13 @@ export default function NewsletterForm({
         required
         aria-describedby={message ? statusId : undefined}
       />
+      {/* Spam honeypot: off-screen, out of the tab order and hidden from
+          assistive tech, so only a bot ever fills it. The name is deliberately
+          not `website` — browsers autofill that one and every autofilled
+          honeypot silently discarded a real signup. See lib/honeypot.ts. */}
       <input
         className="honeypot"
-        name="website"
+        name={HONEYPOT_FIELD}
         type="text"
         tabIndex={-1}
         autoComplete="off"

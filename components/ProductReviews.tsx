@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Star, ThumbsUp } from 'lucide-react';
 import FormStatus from '@/components/FormStatus';
+import { HONEYPOT_FIELD } from '@/lib/honeypot';
 import {
   averageRating,
   helpfulLabel,
@@ -179,7 +180,7 @@ function ReviewForm({ productSlug }: { productSlug: string }) {
           email: data.get('email'),
           title: data.get('title'),
           body: data.get('body'),
-          website: data.get('website')
+          [HONEYPOT_FIELD]: data.get(HONEYPOT_FIELD)
         })
       });
       const result = (await response.json()) as { message?: string; error?: string };
@@ -264,7 +265,18 @@ function ReviewForm({ productSlug }: { productSlug: string }) {
           <textarea className="form-input" id="review-body" name="body" rows={4} required minLength={15} />
         </div>
       </div>
-      <input className="honeypot" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" />
+      {/* Spam honeypot: off-screen, out of the tab order and hidden from
+          assistive tech, so only a bot ever fills it. The name is deliberately
+          not `website` — browsers autofill that one and every autofilled
+          honeypot silently discarded a real review. See lib/honeypot.ts. */}
+      <input
+        className="honeypot"
+        name={HONEYPOT_FIELD}
+        type="text"
+        tabIndex={-1}
+        autoComplete="off"
+        aria-hidden="true"
+      />
       <div className="admin-actions">
         <button className="btn" type="submit" disabled={pending} aria-busy={pending}>
           {pending ? 'Sending…' : 'Submit review'}

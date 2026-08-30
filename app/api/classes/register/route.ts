@@ -10,6 +10,7 @@ import {
 import { sendFreeClassConfirmEmail } from '@/lib/class-registration-email';
 import { seatsShortLabel } from '@/lib/class-access';
 import { claimFreeSeat } from '@/lib/class-seats';
+import { honeypotFields, honeypotTripped } from '@/lib/honeypot';
 import { rateLimited } from '@/lib/rate-limit';
 import { absoluteUrl } from '@/lib/store';
 
@@ -21,13 +22,10 @@ const requestSchema = z.object({
   email: z.string().trim().email().max(254),
   phone: z.string().trim().max(40).optional().default(''),
   seats: z.coerce.number().int().min(1).max(6).default(1),
-  /**
-   * Honeypot. Bounded rather than required-empty: `max(0)` made a filled
-   * honeypot fail schema validation and return 400, which meant the quiet-success
-   * branch below could never run and a bot was told plainly that the field was
-   * the problem. The cap keeps it from being used to post a payload.
-   */
-  website: z.string().max(200).optional().default('')
+  /* Spam honeypot, under a name browsers do not autofill — see lib/honeypot.ts
+     for why it must never be called `website` again. The old name is still
+     accepted there so a cached page or an old bot still trips it. */
+  ...honeypotFields
 });
 
 async function sendConfirmFor(
@@ -57,7 +55,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Please check your name, email and seat count.' }, { status: 400 });
     }
     const input = parsed.data;
-    if (input.website) return NextResponse.json({ ok: true, emailSent: true });
+    if (honeypotTripped(input)) {
+      return NextResponse.json({ ok: true, emailSent: true });
+    }
 
     const event = await db.classEvent.findFirst({
       where: { id: input.classId, active: true }

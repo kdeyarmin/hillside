@@ -9,7 +9,9 @@
  */
 
 import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 import { Prisma } from '@prisma/client';
+import { SALES_STATS_TTL_SECONDS } from './cache';
 import { db } from './db';
 import { REVENUE_STATUSES } from './orders';
 import {
@@ -27,95 +29,118 @@ import { CATEGORY_GROUPS, discountPercent } from './store';
 import { comparableAtCents, productSizes } from './product-sizes';
 import { tagsForProduct } from './product-tags';
 
-/**
- * A ceiling on how many order lines are read to work out best sellers. The shop
- * sells a few hundred items a season, so this is a runaway guard rather than a
- * page size — but it is here because the alternative is a query whose cost grows
- * forever while the answer it produces stops changing.
- */
-const ORDER_LINE_LIMIT = 20_000;
-
 export type SalesStats = Map<string, BestSellerStat>;
 
 function windowStart(days: number, now = new Date()) {
   return new Date(now.getTime() - days * 86_400_000);
 }
 
+/** One product's sales, as Postgres counts them. Plain JSON so it can be cached. */
+type SalesRow = {
+  productId: string;
+  units: number;
+  orders: number;
+  lastSoldAt: string | null;
+};
+
 /**
- * Units and distinct orders per product inside the best-seller window.
+ * Units, distinct orders and the last sale per product inside a window.
+ *
+ * This used to read up to twenty thousand order lines into memory and total them
+ * in JavaScript, on essentially every commerce page — the home page ran it twice,
+ * because its two best-seller rows ask about different windows. The counting is
+ * an aggregate, so Postgres does it, over the `Order(status, createdAt)` index
+ * added for exactly this query.
+ *
+ * The old row ceiling is gone with it. It was a `take` with no `orderBy`, so once
+ * the shop passed twenty thousand lines it would have silently totalled an
+ * arbitrary subset and reported the result as fact. An aggregate has no such
+ * cliff: the count is complete however long the shop trades.
  *
  * Cancelled and fully refunded orders are excluded by `REVENUE_STATUSES`: money
  * that came back is not a sale, and counting it would let a returned order carry
  * a product onto the best-seller shelf.
  *
- * `cache()` dedupes this within one request, so a page rendering a best-seller
- * row, best-seller badges on the cards and a best-selling category heading pays
- * for it once.
+ * The two halves of the union are the two ways a product leaves the shelf. A
+ * set's own line carries no `productId` — it is the set that was bought — so what
+ * actually went out is recorded underneath it in `OrderItemComponent`. Counting
+ * those is what keeps a tea that sells briskly inside the Tea Starter Set from
+ * looking like a tea nobody buys, which is exactly the claim the best-seller
+ * badge would then be making about it. `oi."productId" IS NULL` on the second
+ * half is what stops an ordinary line being counted twice.
+ */
+export async function readSalesRows(days: number): Promise<SalesRow[]> {
+  const since = windowStart(days);
+  const statuses = [...REVENUE_STATUSES];
+
+  /**
+   * `::int` on both aggregates is load-bearing: Postgres returns `bigint` for
+   * `SUM` and `COUNT`, Prisma maps that to a JavaScript `BigInt`, and `BigInt` is
+   * not serializable — it would throw the moment the cache tried to store it.
+   */
+  return db.$queryRaw<SalesRow[]>`
+    WITH sold AS (
+      SELECT oi."productId" AS product_id,
+             oi."orderId"   AS order_id,
+             oi."quantity"  AS quantity,
+             o."createdAt"  AS created_at
+        FROM "OrderItem" oi
+        JOIN "Order" o ON o."id" = oi."orderId"
+       WHERE o."status"::text = ANY(${statuses}::text[])
+         AND o."createdAt" >= ${since}
+         AND oi."productId" IS NOT NULL
+      UNION ALL
+      SELECT oic."productId",
+             oi."orderId",
+             oic."quantity",
+             o."createdAt"
+        FROM "OrderItemComponent" oic
+        JOIN "OrderItem" oi ON oi."id" = oic."orderItemId"
+        JOIN "Order" o ON o."id" = oi."orderId"
+       WHERE o."status"::text = ANY(${statuses}::text[])
+         AND o."createdAt" >= ${since}
+         AND oi."productId" IS NULL
+    )
+    SELECT product_id                              AS "productId",
+           SUM(GREATEST(quantity, 0))::int         AS "units",
+           COUNT(DISTINCT order_id)::int           AS "orders",
+           MAX(created_at)                         AS "lastSoldAt"
+      FROM sold
+     GROUP BY product_id
+  `;
+}
+
+/**
+ * Shared across requests for `SALES_STATS_TTL_SECONDS`. Deliberately *not*
+ * wrapped in a try/catch: a throw is not cached, so a database blip costs one
+ * request rather than fifteen minutes of a shop that thinks it has sold nothing.
+ */
+const cachedSalesRows = unstable_cache(readSalesRows, ['merchandising', 'sales-stats'], {
+  revalidate: SALES_STATS_TTL_SECONDS
+});
+
+/**
+ * `cache()` still wraps the cross-request cache: it dedupes within one request,
+ * so a page rendering a best-seller row, best-seller badges on the cards and a
+ * best-selling category heading does not go three times even to the cache.
  */
 export const salesStats = cache(async (days = BEST_SELLER_WINDOW_DAYS): Promise<SalesStats> => {
-  const stats: SalesStats = new Map();
-  let lines: Array<{
-    productId: string | null;
-    orderId: string;
-    quantity: number;
-    order: { createdAt: Date };
-    components: Array<{ productId: string; quantity: number }>;
-  }>;
-
+  let rows: SalesRow[];
   try {
-    lines = await db.orderItem.findMany({
-      where: {
-        order: { status: { in: [...REVENUE_STATUSES] }, createdAt: { gte: windowStart(days) } }
-      },
-      select: {
-        productId: true,
-        orderId: true,
-        quantity: true,
-        order: { select: { createdAt: true } },
-        /**
-         * A set's own line carries no `productId` — it is the set that was
-         * bought — so what actually left the shelf is recorded underneath it.
-         * Counting those is what keeps a tea that sells briskly inside the Tea
-         * Starter Set from looking like a tea nobody buys, which is exactly the
-         * claim the best-seller badge would then be making about it.
-         */
-        components: { select: { productId: true, quantity: true } }
-      },
-      take: ORDER_LINE_LIMIT
-    });
-  } catch {
+    rows = await cachedSalesRows(days);
+  } catch (error) {
     // A shop that cannot read its order history should merchandise as if nothing
     // has sold rather than fail the page a shopper asked for.
-    return stats;
+    console.error('Best-seller counts could not be read; merchandising without them', error);
+    return new Map();
   }
 
-  const ordersSeen = new Map<string, Set<string>>();
-  const record = (productId: string, quantity: number, line: (typeof lines)[number]) => {
-    const existing = stats.get(productId) || { units: 0, orders: 0, lastSoldAt: null };
-    existing.units += Math.max(0, quantity);
-    const seen = ordersSeen.get(productId) || new Set<string>();
-    seen.add(line.orderId);
-    ordersSeen.set(productId, seen);
-    existing.orders = seen.size;
-    const last = existing.lastSoldAt ? new Date(existing.lastSoldAt) : null;
-    if (!last || line.order.createdAt > last) existing.lastSoldAt = line.order.createdAt;
-    stats.set(productId, existing);
-  };
-
-  for (const line of lines) {
-    if (line.productId) {
-      record(line.productId, line.quantity, line);
-      continue;
-    }
-    // A set line: credit each piece with what actually left the shelf. The
-    // snapshot already carries the quantity for the whole line, so it is not
-    // multiplied by the line's own quantity a second time.
-    for (const component of line.components) {
-      record(component.productId, component.quantity, line);
-    }
-  }
-
-  return stats;
+  return new Map(
+    rows.map((row) => [
+      row.productId,
+      { units: row.units, orders: row.orders, lastSoldAt: row.lastSoldAt }
+    ])
+  );
 });
 
 export type MerchandisingFlags = {

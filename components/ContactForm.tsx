@@ -5,6 +5,7 @@ import { Send } from 'lucide-react';
 import FormStatus from '@/components/FormStatus';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { allowedContactSubjects, type ContactSubject } from '@/lib/contact';
+import { HONEYPOT_FIELD } from '@/lib/honeypot';
 
 const SUBJECTS = allowedContactSubjects(CLASSES_PUBLICLY_VISIBLE);
 
@@ -38,7 +39,7 @@ export default function ContactForm({
           phone: data.get('phone'),
           subject: data.get('subject'),
           message: data.get('message'),
-          website: data.get('website')
+          [HONEYPOT_FIELD]: data.get(HONEYPOT_FIELD)
         })
       });
       const result = (await response.json()) as { message?: string; error?: string };
@@ -124,9 +125,13 @@ export default function ContactForm({
           />
         </div>
       </div>
+      {/* Spam honeypot: off-screen, out of the tab order and hidden from
+          assistive tech, so only a bot ever fills it. The name is deliberately
+          not `website` — browsers autofill that one and every autofilled
+          honeypot silently discarded a real message. See lib/honeypot.ts. */}
       <input
         className="honeypot"
-        name="website"
+        name={HONEYPOT_FIELD}
         type="text"
         tabIndex={-1}
         autoComplete="off"

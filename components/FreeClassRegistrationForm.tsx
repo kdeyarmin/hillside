@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { CheckCircle2, Mail, UserRound } from 'lucide-react';
+import { HONEYPOT_FIELD } from '@/lib/honeypot';
 
 export default function FreeClassRegistrationForm({
   classId,
@@ -39,7 +40,7 @@ export default function FreeClassRegistrationForm({
           email: form.get('email'),
           phone: form.get('phone'),
           seats: form.get('seats'),
-          website: form.get('website')
+          [HONEYPOT_FIELD]: form.get(HONEYPOT_FIELD)
         })
       });
       const result = (await response.json()) as { error?: string; message?: string };
@@ -100,12 +101,17 @@ export default function FreeClassRegistrationForm({
           </select>
         </label>
       </div>
-      {/* The offscreen class belongs on the input itself. On the wrapping label
+      {/* Spam honeypot: off-screen, out of the tab order and hidden from
+          assistive tech, so only a bot ever fills it. The name is deliberately
+          not `website` — browsers autofill that one and every autofilled
+          honeypot silently discarded a real registration. See lib/honeypot.ts.
+
+          The offscreen class belongs on the input itself. On the wrapping label
           it left a real 8×33 field in the layout, which is what the responsive
           audit flags as an undersized control on every phone and tablet. */}
       <input
         className="honeypot"
-        name="website"
+        name={HONEYPOT_FIELD}
         type="text"
         tabIndex={-1}
         autoComplete="off"

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '@/lib/db';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { allowedContactSubjects, type ContactSubject } from '@/lib/contact';
+import { honeypotFields, honeypotTripped } from '@/lib/honeypot';
 import { rateLimited } from '@/lib/rate-limit';
 import { ownerNotificationEmails } from '@/lib/store';
 
@@ -21,13 +22,10 @@ const requestSchema = z.object({
       allowedContactSubjects().includes(value as ContactSubject)
     ),
   message: z.string().trim().min(10).max(5000),
-  /**
-   * Honeypot. Bounded rather than required-empty: `max(0)` made a filled
-   * honeypot fail schema validation and return 400, which meant the quiet-success
-   * branch below could never run and a bot was told plainly that the field was
-   * the problem. The cap keeps it from being used to post a payload.
-   */
-  website: z.string().max(200).optional().default('')
+  /* Spam honeypot, under a name browsers do not autofill — see lib/honeypot.ts
+     for why it must never be called `website` again. The old name is still
+     accepted there so a cached page or an old bot still trips it. */
+  ...honeypotFields
 });
 
 export async function POST(request: Request) {
@@ -63,9 +61,11 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const { name, email, subject, message, website } = parsed.data;
+    const { name, email, subject, message } = parsed.data;
     const phone = parsed.data.phone || null;
-    if (website) return NextResponse.json({ message: 'Thanks for your message.' });
+    if (honeypotTripped(parsed.data)) {
+      return NextResponse.json({ message: 'Thanks for your message.' });
+    }
 
     const saved = await db.contactMessage.create({
       data: { name, email, phone, subject, message }
