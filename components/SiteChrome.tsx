@@ -242,6 +242,20 @@ function CartDrawer({
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
+  /**
+   * One answer for both the hint and the button's `aria-describedby`.
+   *
+   * They were written as two conditions and drifted: the hint also required
+   * that the cart not be in conflict, while the description did not, so a
+   * conflicted pickup basket left the button pointing `aria-describedby` at an
+   * id nothing had rendered — a dangling reference a screen reader resolves to
+   * nothing. A conflicted cart has its own explanation from `CheckoutOptions`
+   * and is the one state the button really does refuse, so neither belongs
+   * there. Deriving both from one value is what stops them separating again.
+   */
+  const conflicted = cartFulfillment(items).conflict;
+  const pickupNeedsArranging = fulfillment === 'PICKUP' && !pickupArranged && !conflicted;
+
   useEffect(() => {
     if (!drawerOpen) return;
 
@@ -476,7 +490,7 @@ function CartDrawer({
                   checkbox that clears this lives up in the scrolling body, so on
                   a full basket it is off-screen from here — which is how an
                   unexplained dead button used to be the whole experience. */}
-              {fulfillment === 'PICKUP' && !pickupArranged && !cartFulfillment(items).conflict && (
+              {pickupNeedsArranging && (
                 <p className="drawer-notice" id="drawer-pickup-hint">
                   Tick “I have already arranged this pickup” above to continue.
                 </p>
@@ -492,10 +506,8 @@ function CartDrawer({
                  * unreachable — and disabled buttons are skipped by Tab, so a
                  * keyboard shopper could not even land on it to hear why.
                  */
-                disabled={checkoutLoading || cartFulfillment(items).conflict}
-                aria-describedby={
-                  fulfillment === 'PICKUP' && !pickupArranged ? 'drawer-pickup-hint' : undefined
-                }
+                disabled={checkoutLoading || conflicted}
+                aria-describedby={pickupNeedsArranging ? 'drawer-pickup-hint' : undefined}
                 aria-busy={checkoutLoading}
               >
                 {checkoutLoading ? 'Opening secure checkout…' : 'Secure checkout'}

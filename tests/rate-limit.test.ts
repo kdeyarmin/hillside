@@ -14,6 +14,14 @@ import { beforeEach, describe, it } from 'node:test';
  *
  * The behaviour under test is identical either way — allow up to the limit, then
  * refuse — and the Postgres path is covered separately against a real database.
+ *
+ * This assignment cannot reach any other test file: `node --test` runs each one
+ * in its own child process, so nothing here is visible to a file that runs
+ * afterwards. Verified rather than assumed — with a real `DATABASE_URL` in the
+ * environment, a probe file scheduled after this one still read the real value.
+ * Restoring it in an `after()` hook would not help even if that were untrue: by
+ * then `lib/db` has been imported and its client already built from whatever
+ * this said at import time.
  */
 process.env.DATABASE_URL = 'postgresql://unused:unused@127.0.0.1:1/none';
 
