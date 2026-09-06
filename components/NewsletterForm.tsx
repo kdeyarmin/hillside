@@ -36,12 +36,14 @@ export default function NewsletterForm({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (status === 'loading') return;
     setStatus('loading');
     setMessage('');
     const form = event.currentTarget;
     const data = new FormData(form);
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 12000);
+    let failureMessage = 'We could not join the list right now. Please try again.';
 
     try {
       const response = await fetch('/api/newsletter', {
@@ -65,8 +67,18 @@ export default function NewsletterForm({
         }),
         signal: controller.signal
       });
-      const result = (await response.json()) as { message?: string; error?: string };
-      if (!response.ok) throw new Error(result.error || 'Please try again.');
+      const contentType = response.headers.get('content-type') || '';
+      const result = contentType.includes('application/json')
+        ? ((await response.json().catch(() => ({}))) as { message?: string; error?: string })
+        : {};
+      if (!response.ok) {
+        failureMessage = result.error || failureMessage;
+        throw new Error(failureMessage);
+      }
+      // A proxy error page can answer 200. Only the route's JSON is proof that
+      // the database accepted this address, so never turn arbitrary HTML into a
+      // success message.
+      if (!contentType.includes('application/json')) throw new Error(failureMessage);
       setStatus('success');
       setMessage(result.message || 'You’re on the list.');
       form.reset();
@@ -75,9 +87,7 @@ export default function NewsletterForm({
       setMessage(
         error instanceof DOMException && error.name === 'AbortError'
           ? 'The request took too long. Please check your connection and try again.'
-          : error instanceof Error
-            ? error.message
-            : 'Please try again.'
+          : failureMessage
       );
     } finally {
       window.clearTimeout(timeout);
@@ -89,6 +99,8 @@ export default function NewsletterForm({
       className={`newsletter-form${compact ? ' compact' : ''}`}
       onSubmit={submit}
       aria-busy={status === 'loading'}
+      action="/api/newsletter"
+      method="post"
     >
       {!compact && (
         <>
@@ -132,6 +144,11 @@ export default function NewsletterForm({
         autoComplete="off"
         aria-hidden="true"
       />
+      {/* These make the native POST carry the same attribution as the richer
+          JavaScript request. They contain only fixed placement data and the
+          current public site path. */}
+      <input type="hidden" name="source" value={source} />
+      <input type="hidden" name="sourceDetail" value={sourceDetail ?? pathname} />
       <button className="btn gold" type="submit" disabled={status === 'loading'}>
         {status === 'loading' ? 'Joining…' : 'Join the list'} <ArrowRight size={16} />
       </button>
