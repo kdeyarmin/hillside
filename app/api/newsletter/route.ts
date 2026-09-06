@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { db } from '@/lib/db';
-import { readJsonBody } from '@/lib/request-body';
+import { hasFormBody, readJsonOrFormBody } from '@/lib/request-body';
 import { emailShell, escapeHtml, sendEmail } from '@/lib/email';
 import { honeypotFields, honeypotTripped } from '@/lib/honeypot';
 import { unsubscribeUrl } from '@/lib/newsletter';
@@ -32,25 +32,48 @@ const requestSchema = z.object({
   sourceDetail: z.string().max(200).optional().default('')
 });
 
+const SIGNUP_WINDOW_MS = 15 * 60_000;
+const SIGNUP_LIMIT = 30;
+
+type FormResult = 'done' | 'email-delayed' | 'invalid' | 'limited' | 'unavailable';
+
+/** A fixed same-site destination for the native, no-JavaScript form fallback. */
+function formReply(request: Request, result: FormResult) {
+  const next = new URL(`/newsletter/subscribed?status=${result}`, request.url);
+  return NextResponse.redirect(next, 303);
+}
+
 export async function POST(request: Request) {
+  const nativeForm = hasFormBody(request);
   // Sends a welcome email to whatever address is posted, so the same open-relay
   // reasoning as /api/contact applies. Varying the address defeated the partial
-  // self-limiting the "already subscribed" check happened to provide.
-  if (await rateLimited(request, { name: 'newsletter', limit: 5, windowMs: 15 * 60_000 })) {
+  // self-limiting the "already subscribed" check happened to provide. Thirty
+  // still caps that relay, while allowing a table full of people behind the
+  // same festival or shop Wi-Fi to join without the sixth person being refused.
+  if (
+    await rateLimited(request, {
+      name: 'newsletter',
+      limit: SIGNUP_LIMIT,
+      windowMs: SIGNUP_WINDOW_MS
+    })
+  ) {
+    if (nativeForm) return formReply(request, 'limited');
     return NextResponse.json(
       { error: 'Too many signups from this connection. Please try again shortly.' },
-      { status: 429 }
+      { status: 429, headers: { 'Retry-After': String(SIGNUP_WINDOW_MS / 1000) } }
     );
   }
 
   try {
-    const parsed = requestSchema.safeParse(await readJsonBody(request));
+    const parsed = requestSchema.safeParse(await readJsonOrFormBody(request));
     if (!parsed.success) {
+      if (nativeForm) return formReply(request, 'invalid');
       return NextResponse.json({ error: 'Please enter a valid email address.' }, { status: 400 });
     }
     const { email } = parsed.data;
     const name = parsed.data.name || null;
     if (honeypotTripped(parsed.data)) {
+      if (nativeForm) return formReply(request, 'done');
       return NextResponse.json({ message: 'You’re on the list.' });
     }
 
@@ -70,9 +93,10 @@ export async function POST(request: Request) {
       create: { email, name, source, sourceDetail }
     });
 
+    let welcomeDelayed = false;
     if (!existing || !existing.active) {
       const optOut = unsubscribeUrl(email);
-      await sendEmail({
+      const delivery = await sendEmail({
         to: email,
         kind: 'NEWSLETTER',
         subject: 'Welcome to The Hillside Notes',
@@ -83,11 +107,18 @@ export async function POST(request: Request) {
           optOut ? { unsubscribeUrl: optOut } : undefined
         )
       });
+      welcomeDelayed = !delivery.sent;
     }
 
-    return NextResponse.json({ message: 'You’re on the list. Welcome to The Hillside Notes.' });
+    if (nativeForm) return formReply(request, welcomeDelayed ? 'email-delayed' : 'done');
+    return NextResponse.json({
+      message: welcomeDelayed
+        ? 'You’re on the list. Your signup is saved; the welcome email may take a little longer.'
+        : 'You’re on the list. Welcome to The Hillside Notes.'
+    });
   } catch (error) {
     console.error('Newsletter signup failed', error);
+    if (nativeForm) return formReply(request, 'unavailable');
     return NextResponse.json({ error: 'Unable to join the list right now.' }, { status: 500 });
   }
 }
