@@ -26,12 +26,12 @@ import { REVIEW_PAGE_SIZE } from '@/lib/review-display';
 import { ratingCountsForProduct, ratingForProduct } from '@/lib/reviews';
 import { jsonLd } from '@/lib/json-ld';
 import {
+  cheapestShippableCents,
   comparableAtCents,
   formatSizePriceRange,
   fulfillmentAcrossVariants,
   productSizes,
   sizeFieldLabel,
-  sizePriceRange,
   variantsDifferOnFulfillment
 } from '@/lib/product-sizes';
 import { breadcrumbJsonLd, pageMetadata, productJsonLd, productOffers } from '@/lib/seo';
@@ -224,7 +224,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
    * A product sold in several sizes advertises the span, not one figure. The
    * exact price arrives with the choice, in the dropdown and beneath it.
    */
-  const priceSpan = sizePriceRange(sizes, product.priceCents);
+  /**
+   * What this costs posted, or null when no variant ships. The shipping line
+   * below is quoted against it rather than against the cheapest variant of any
+   * kind: on a product whose cheapest size is pickup only, that figure is a
+   * price the post office will never see.
+   */
+  const shippableFromCents = cheapestShippableCents(sizes, product);
   /**
    * The gift guides this product is actually in. Rendered as links so the
    * product page joins the gift experience rather than sitting outside it —
@@ -376,13 +382,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                   : `${product.inventory} available`}
             </p>
 
-            {threshold > 0 && fulfillment.ships && (
-              /* Quoted against the cheapest size, so the promise holds
-                 whichever one the shopper picks. */
+            {threshold > 0 && shippableFromCents !== null && (
+              /* Quoted against the cheapest size that ships, so the promise
+                 holds for every size it is actually made about. */
               <ShippingNudge
                 thresholdCents={threshold}
                 flatCents={flatShippingCents()}
-                minPriceCents={priceSpan.minCents}
+                minPriceCents={shippableFromCents}
               />
             )}
             {!fulfillment.ships && fulfillment.pickup && (

@@ -424,7 +424,10 @@ export default function CartPageClient({
               : discount?.freeShipping
                 ? 'Free — promo code'
                 : shippingCents === 0
-                  ? freeShippingThreshold > 0
+                  ? /* The threshold is only why it is free when there is a
+                       charge for it to waive: a shop configured with no
+                       standard rate at all posts free at any size. */
+                    freeShippingThreshold > 0 && flatShippingCents > 0
                     ? `Free — over ${formatMoneyCompact(freeShippingThreshold)}`
                     : 'Free'
                   : `${formatMoney(shippingCents)} standard`}

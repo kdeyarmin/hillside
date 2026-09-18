@@ -72,6 +72,19 @@ export default function ProductGallery({
   const index = Math.min(active, photos.length - 1);
   const current = photos[index];
 
+  /**
+   * Only real photographs reach the lightbox.
+   *
+   * A product can carry shared category artwork in its main slot and a real
+   * photograph in another — `productPhotos` returns both, because the page has
+   * to render something in the main slot either way. Zooming 2.5× into stock
+   * artwork shows the shopper nothing about what they are buying, so those
+   * slides are left out of the lightbox and the Zoom badge steps aside while
+   * one of them is on the stage. The page's own strip still shows them all.
+   */
+  const zoomable = photos.filter((photo) => !needsRealPhoto(photo.src));
+  const zoomIndex = zoomable.findIndex((photo) => photo.src === current.src);
+
   return (
     <div className="product-gallery">
       <div className="product-gallery-stage">
@@ -104,18 +117,20 @@ export default function ProductGallery({
         )}
         {/* Laid over the photograph rather than wrapped around it, so the
             image keeps the exact layout the pinned column depends on. */}
-        <button
-          className="product-gallery-zoom"
-          type="button"
-          onClick={(event) => openLightbox(event.currentTarget)}
-          aria-label={
-            single ? 'Enlarge the photograph' : `Enlarge the photograph: ${current.caption}`
-          }
-        >
-          <span aria-hidden="true">
-            <ZoomIn size={14} /> Zoom
-          </span>
-        </button>
+        {zoomIndex >= 0 && (
+          <button
+            className="product-gallery-zoom"
+            type="button"
+            onClick={(event) => openLightbox(event.currentTarget)}
+            aria-label={
+              single ? 'Enlarge the photograph' : `Enlarge the photograph: ${current.caption}`
+            }
+          >
+            <span aria-hidden="true">
+              <ZoomIn size={14} /> Zoom
+            </span>
+          </button>
+        )}
       </div>
       {!single && (
         /* A plain pressed-state group rather than ARIA tabs: tab semantics
@@ -147,12 +162,18 @@ export default function ProductGallery({
           ))}
         </div>
       )}
-      {open && (
+      {open && zoomIndex >= 0 && (
         <PhotoLightbox
-          photos={photos}
+          photos={zoomable}
           name={name}
-          index={index}
-          onChange={setActive}
+          index={zoomIndex}
+          /* The lightbox counts in its own, filtered list, so its answer is
+             mapped back to the position the page's strip is showing. */
+          onChange={(next) => {
+            const chosen = zoomable[next];
+            const onPage = chosen ? photos.findIndex((photo) => photo.src === chosen.src) : -1;
+            if (onPage >= 0) setActive(onPage);
+          }}
           onClose={closeLightbox}
         />
       )}

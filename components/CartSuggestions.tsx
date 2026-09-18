@@ -5,13 +5,8 @@ import { Truck } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
 import { useCart } from '@/components/CartProvider';
 import { useBasketSuggestions } from '@/components/useBasketSuggestions';
-import { unlocksFreeShipping, type FreeShippingProgress } from '@/lib/free-shipping';
-import {
-  formatSizePriceRange,
-  productSizes,
-  sizeFieldLabel,
-  sizePriceRange
-} from '@/lib/product-sizes';
+import { unlocksFreeShippingFor, type FreeShippingProgress } from '@/lib/free-shipping';
+import { formatSizePriceRange, productSizes, sizeFieldLabel } from '@/lib/product-sizes';
 import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
 
 /** How many the cart page has room for; the drawer shows two. */
@@ -34,12 +29,16 @@ export default function CartSuggestions({ progress }: { progress: FreeShippingPr
   if (!suggestions.length) return null;
 
   const priced = suggestions.map((product) => {
-    const sizes = productSizes(product.sizes, product.priceCents);
-    return {
-      product,
-      sizes,
-      unlocks: unlocksFreeShipping(progress, sizePriceRange(sizes, product.priceCents).minCents)
-    };
+    /**
+     * The product's own answers are the defaults, so a variant that says
+     * nothing about how it gets home inherits them rather than being read as
+     * shippable — which is what decides the tag below.
+     */
+    const sizes = productSizes(product.sizes, product.priceCents, {
+      ships: product.ships,
+      pickup: product.pickup
+    });
+    return { product, sizes, unlocks: unlocksFreeShippingFor(progress, sizes, product) };
   });
   const anyUnlocks = priced.some((entry) => entry.unlocks);
   const short = Boolean(progress) && !progress?.unlocked;

@@ -34,17 +34,11 @@ import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { cartFulfillment } from '@/lib/fulfillment';
 import {
   freeShippingProgress,
-  unlocksFreeShipping,
+  unlocksFreeShippingFor,
   type FreeShippingProgress
 } from '@/lib/free-shipping';
 import { focusableElements, trapTabKey } from '@/lib/focus-trap';
-import {
-  formatSizePriceRange,
-  productSizes,
-  sizedName,
-  sizeFieldLabel,
-  sizePriceRange
-} from '@/lib/product-sizes';
+import { formatSizePriceRange, productSizes, sizedName, sizeFieldLabel } from '@/lib/product-sizes';
 import {
   DEFAULT_BUSINESS_EMAIL,
   FALLBACK_PRODUCT_IMAGE,
@@ -106,7 +100,12 @@ function CartDrawerSuggestions({ progress }: { progress: FreeShippingProgress | 
     <div className="drawer-suggestions">
       <span className="eyebrow">Goes well with</span>
       {suggestions.map((product) => {
-        const sizes = productSizes(product.sizes, product.priceCents);
+        // Defaults passed, so a variant silent about shipping inherits the
+        // product's answer instead of being taken for shippable.
+        const sizes = productSizes(product.sizes, product.priceCents, {
+          ships: product.ships,
+          pickup: product.pickup
+        });
         return (
           <div className="drawer-suggestion" key={product.slug}>
             <ResilientImage
@@ -125,12 +124,9 @@ function CartDrawerSuggestions({ progress }: { progress: FreeShippingProgress | 
               {/* The reason is the whole point: without it this strip is just
                   another shelf, which is what it used to be. */}
               {product.reason && <span>{product.reason}</span>}
-              {/* Priced against the cheapest size, so the promise holds
-                  whichever one is chosen on the product page. */}
-              {unlocksFreeShipping(
-                progress,
-                sizePriceRange(sizes, product.priceCents).minCents
-              ) && (
+              {/* Priced against the cheapest size that ships — the same rule
+                  the cart page's suggestions use, from the same place. */}
+              {unlocksFreeShippingFor(progress, sizes, product) && (
                 <span className="suggestion-unlock">
                   <Truck size={12} aria-hidden="true" /> Unlocks free shipping
                 </span>

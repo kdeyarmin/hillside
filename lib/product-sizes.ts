@@ -454,6 +454,24 @@ export function sizePriceRange(sizes: SizeOption[], basePriceCents: number) {
   return { minCents: Math.min(...prices), maxCents: Math.max(...prices) };
 }
 
+/**
+ * The least this product costs *posted*, or null when nothing here ships.
+ *
+ * Not `sizePriceRange().minCents`, which is the cheapest variant of any kind.
+ * A plant sold as an $18 pickup-only 4" pot and a $48 shippable 8" specimen has
+ * a cheapest variant that cannot be posted at all, so quoting $18 in a sentence
+ * about shipping promises something checkout would refuse. Everything that says
+ * what adding this product does to a shipped basket asks here instead.
+ */
+export function cheapestShippableCents(
+  sizes: SizeOption[],
+  product: { priceCents: number; ships?: boolean | null }
+): number | null {
+  if (!sizes.length) return product.ships === false ? null : Math.max(0, product.priceCents);
+  const shippable = sizes.filter((size) => size.ships).map((size) => size.priceCents);
+  return shippable.length ? Math.min(...shippable) : null;
+}
+
 /** "$18.00" when every variant costs the same, "$18.00 – $24.00" when they differ. */
 export function formatSizePriceRange(sizes: SizeOption[], basePriceCents: number) {
   const { minCents, maxCents } = sizePriceRange(sizes, basePriceCents);

@@ -4,8 +4,10 @@ import {
   freeShippingCopy,
   freeShippingProgress,
   freeShippingSentence,
-  unlocksFreeShipping
+  unlocksFreeShipping,
+  unlocksFreeShippingFor
 } from '../lib/free-shipping.ts';
+import { productSizes } from '../lib/product-sizes.ts';
 
 const shop = { thresholdCents: 7500, flatCents: 895 };
 
@@ -118,5 +120,49 @@ describe('the meter’s sentence', () => {
       flatCents: 0
     })!;
     assert.equal(freeShippingSentence(unlocked), 'Free standard shipping unlocked on this order.');
+  });
+});
+
+/**
+ * The tag on a suggestion is a promise that adding this one thing makes the
+ * order ship free. Price alone does not make that true: a pickup-only plant
+ * clears any threshold and still cannot be posted, and putting it in a shipped
+ * basket leaves a cart checkout refuses to sell.
+ */
+describe('unlocksFreeShippingFor', () => {
+  const progress = freeShippingProgress({ subtotalCents: 6000, ...shop });
+
+  it('tags a shippable product priced over the gap', () => {
+    assert.equal(unlocksFreeShippingFor(progress, [], { priceCents: 1500 }), true);
+    assert.equal(unlocksFreeShippingFor(progress, [], { priceCents: 1499 }), false);
+  });
+
+  it('never tags a product that does not ship, whatever it costs', () => {
+    assert.equal(unlocksFreeShippingFor(progress, [], { priceCents: 9900, ships: false }), false);
+  });
+
+  it('measures a sized product by its cheapest shippable size', () => {
+    const mixed = productSizes(
+      [
+        { label: '4" pot', priceCents: 1000, ships: false, pickup: true },
+        { label: '8" specimen', priceCents: 1500, ships: true, pickup: true }
+      ],
+      1000
+    );
+    // The $10 pickup-only pot does not qualify and must not disqualify the
+    // $15 one that does.
+    assert.equal(unlocksFreeShippingFor(progress, mixed, { priceCents: 1000 }), true);
+
+    const pickupOnly = productSizes(
+      [{ label: '10" specimen', priceCents: 9500, ships: false, pickup: true }],
+      9500
+    );
+    assert.equal(unlocksFreeShippingFor(progress, pickupOnly, { priceCents: 9500 }), false);
+  });
+
+  it('is false once shipping is already free, and with no threshold', () => {
+    const unlocked = freeShippingProgress({ subtotalCents: 9000, ...shop });
+    assert.equal(unlocksFreeShippingFor(unlocked, [], { priceCents: 5000 }), false);
+    assert.equal(unlocksFreeShippingFor(null, [], { priceCents: 100000 }), false);
   });
 });

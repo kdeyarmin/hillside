@@ -10,6 +10,7 @@
  * nobody, "add $6 more and save $8.95 in postage" persuades most people.
  */
 
+import { cheapestShippableCents, type SizeOption } from './product-sizes.ts';
 import { formatMoney } from './store.ts';
 
 export type FreeShippingProgress = {
@@ -58,6 +59,24 @@ export function freeShippingProgress({
 export function unlocksFreeShipping(progress: FreeShippingProgress | null, priceCents: number) {
   if (!progress || progress.unlocked) return false;
   return priceCents >= progress.remainingCents;
+}
+
+/**
+ * Whether *offering* this product would carry the basket over the line.
+ *
+ * `unlocksFreeShipping` is arithmetic and will happily clear the threshold with
+ * a pickup-only plant, which cannot ship at any price and would leave the
+ * basket mixing pieces checkout refuses to sell together. So the two suggestion
+ * strips — the drawer's and the cart page's — ask this one instead, and a
+ * product with nothing shippable in it is never tagged.
+ */
+export function unlocksFreeShippingFor(
+  progress: FreeShippingProgress | null,
+  sizes: SizeOption[],
+  product: { priceCents: number; ships?: boolean | null }
+) {
+  const from = cheapestShippableCents(sizes, product);
+  return from !== null && unlocksFreeShipping(progress, from);
 }
 
 /**

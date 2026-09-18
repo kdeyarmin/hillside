@@ -3,7 +3,6 @@ import CustomOrderCta from '@/components/CustomOrderCta';
 import GalleryGrid from '@/components/GalleryGrid';
 import ProductGrid from '@/components/ProductGrid';
 import { pointsAtHiddenClasses } from '@/lib/class-visibility';
-import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { withCardFacts } from '@/lib/product-cards';
 import { pageMetadata } from '@/lib/seo';
@@ -77,12 +76,6 @@ export default async function Gallery() {
                     Browse plant care
                   </Link>
                 )}
-                <Link
-                  className="btn outline"
-                  href={contactHref({ subject: 'Custom planter arrangement' })}
-                >
-                  Ask about a custom arrangement
-                </Link>
               </div>
             </div>
           )}

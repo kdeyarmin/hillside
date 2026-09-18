@@ -2,6 +2,7 @@
 
 import { Truck } from 'lucide-react';
 import { useCart } from '@/components/CartProvider';
+import { cartFulfillment } from '@/lib/fulfillment';
 import { freeShippingProgress, unlocksFreeShipping } from '@/lib/free-shipping';
 import { formatMoney, formatMoneyCompact } from '@/lib/store';
 
@@ -22,14 +23,25 @@ export default function ShippingNudge({
 }: {
   thresholdCents: number;
   flatCents: number;
-  /** The cheapest size, so the promise holds whichever one is picked. */
+  /** The cheapest size that ships, so the promise holds where it is made. */
   minPriceCents: number;
 }) {
   const { items, subtotalCents, fulfillment } = useCart();
   const progress = freeShippingProgress({ subtotalCents, thresholdCents, flatCents });
   if (!progress) return null;
 
-  const basketCounts = items.length > 0 && fulfillment !== 'PICKUP';
+  /**
+   * The basket only counts when it is genuinely heading for the post.
+   *
+   * `forced` rather than the stored choice, which a basket of pickup-only
+   * pieces corrects a render later — and a *conflicted* basket never corrects
+   * at all, because it has no answer to correct to. Checkout refuses that
+   * basket outright, so telling its owner what their order ships for is a
+   * promise about an order the shop will not sell.
+   */
+  const options = cartFulfillment(items);
+  const basketCounts =
+    items.length > 0 && !options.conflict && (options.forced ?? fulfillment) !== 'PICKUP';
   let text: string;
   if (!basketCounts) {
     text =
