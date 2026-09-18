@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { lineCapNote, lineCeiling } from '../lib/cart-lines.ts';
+import { bulkOrderPrefill, lineCapNote, lineCeiling, lineScarcityNote } from '../lib/cart-lines.ts';
 import { clampQuantity, LINE_QUANTITY_MAX } from '../lib/store.ts';
 
 /**
@@ -56,6 +56,40 @@ describe('why the plus button stopped', () => {
     assert.equal(
       lineCapNote({ inventory: LINE_QUANTITY_MAX }),
       `Only ${LINE_QUANTITY_MAX} available.`
+    );
+  });
+});
+
+describe('the basket’s own "only N left"', () => {
+  it('speaks up only when the shelf is nearly bare', () => {
+    assert.equal(lineScarcityNote({ inventory: 2, quantity: 1 }), 'Only 2 left in stock.');
+    assert.equal(lineScarcityNote({ inventory: 12, quantity: 1 }), null);
+  });
+
+  it('stays quiet once the line already holds everything there is', () => {
+    // The cap note beside the plus button says it; saying it twice is nagging.
+    assert.equal(lineScarcityNote({ inventory: 2, quantity: 2 }), null);
+    assert.equal(lineScarcityNote({ inventory: 0, quantity: 1 }), null);
+  });
+
+  it('counts a set in sets', () => {
+    assert.equal(lineScarcityNote({ inventory: 1, quantity: 1, kind: 'bundle' }), null);
+    assert.equal(
+      lineScarcityNote({ inventory: 3, quantity: 1, kind: 'bundle' }),
+      'Only 3 sets left to make up.'
+    );
+  });
+});
+
+describe('the bulk-order note a capped line starts', () => {
+  it('names the line, and its size when it has one', () => {
+    assert.equal(
+      bulkOrderPrefill({ name: 'Golden Pothos' }),
+      'I would like more Golden Pothos than the shop lets me add to the basket. '
+    );
+    assert.equal(
+      bulkOrderPrefill({ name: 'Golden Pothos', size: '6" pot' }),
+      'I would like more Golden Pothos (6" pot) than the shop lets me add to the basket. '
     );
   });
 });

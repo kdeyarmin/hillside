@@ -49,7 +49,13 @@ export async function GET(request: Request) {
     const sets = slugList(params.get('sets'));
     if (!inBasket.length && !sets.length) return NextResponse.json({ products: [] });
 
-    return NextResponse.json({ products: await recommendationsForBasket(inBasket, sets) });
+    /**
+     * The drawer has room for two; the cart page has room for a row. Bounded
+     * so nobody can turn a suggestion strip into a catalog dump.
+     */
+    const limit = Math.min(4, Math.max(1, Math.floor(Number(params.get('limit')) || 2)));
+
+    return NextResponse.json({ products: await recommendationsForBasket(inBasket, sets, limit) });
   } catch (error) {
     console.error('Unable to build cart recommendations', error);
     return NextResponse.json({ products: [] });

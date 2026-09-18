@@ -2,16 +2,26 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
+import { BookOpen, Minus, Package, Plus, ShoppingBag, Sparkles, Trash2 } from 'lucide-react';
 import ResilientImage from '@/components/ResilientImage';
 import { lineKey, useCart, type CartLine } from '@/components/CartProvider';
 import CheckoutOptions from '@/components/CheckoutOptions';
+import CartSuggestions from '@/components/CartSuggestions';
 import DiscountCodeFields from '@/components/DiscountCodeFields';
-import { lineCapNote, lineCeiling, lineHref } from '@/lib/cart-lines';
+import FreeShippingMeter from '@/components/FreeShippingMeter';
+import {
+  bulkOrderPrefill,
+  lineCapNote,
+  lineCeiling,
+  lineHref,
+  lineScarcityNote
+} from '@/lib/cart-lines';
+import { customOrderHref } from '@/lib/contact';
 import { giftCardTail } from '@/lib/discount-request';
+import { freeShippingProgress } from '@/lib/free-shipping';
 import { cartFulfillment } from '@/lib/fulfillment';
 import { sizedName } from '@/lib/product-sizes';
-import { FALLBACK_PRODUCT_IMAGE, formatMoney } from '@/lib/store';
+import { FALLBACK_PRODUCT_IMAGE, formatMoney, formatMoneyCompact } from '@/lib/store';
 import FormStatus from '@/components/FormStatus';
 
 /** See `SiteChrome`: sized lines need names that tell them apart. */
@@ -20,11 +30,14 @@ const lineName = (line: { name: string; size?: string | null }) => sizedName(lin
 export default function CartPageClient({
   catalogEmpty,
   freeShippingThreshold,
+  flatShippingCents,
   restoreToken,
   canceledSessionId
 }: {
   catalogEmpty?: boolean;
   freeShippingThreshold: number;
+  /** The standard rate, so the summary can state it and say what waiving it saves. */
+  flatShippingCents: number;
   restoreToken?: string | null;
   canceledSessionId?: string | null;
 }) {
@@ -231,13 +244,42 @@ export default function CartPageClient({
     );
   }
 
-  const remaining = Math.max(0, freeShippingThreshold - subtotalCents);
-  const progress =
-    freeShippingThreshold > 0
-      ? Math.min(100, Math.round((subtotalCents / freeShippingThreshold) * 100))
-      : 100;
   const pickup = fulfillment === 'PICKUP';
   const options = cartFulfillment(items);
+  /**
+   * Null on a pickup basket or under a free-shipping code — there is nothing
+   * left to work toward — so the meter and the suggestion tags step aside
+   * together. The drawer does the same.
+   */
+  const shippingProgress =
+    !pickup && !discount?.freeShipping
+      ? freeShippingProgress({
+          subtotalCents,
+          thresholdCents: freeShippingThreshold,
+          flatCents: flatShippingCents
+        })
+      : null;
+  /**
+   * What posting this basket costs: the server's figure once a code has been
+   * priced, otherwise the same rule it applies — the flat rate, waived over the
+   * threshold. Stripe charges exactly this, so the summary can print the number
+   * instead of "calculated at checkout", which read as a surprise waiting on the
+   * payment page. Surprise postage is the classic reason a basket is abandoned
+   * there.
+   */
+  const shippingCents = discount
+    ? discount.shippingCents
+    : pickup || (freeShippingThreshold > 0 && subtotalCents >= freeShippingThreshold)
+      ? 0
+      : flatShippingCents;
+  /**
+   * What the shopper is not paying: the promotion, plus the postage that was
+   * waived. A gift card is their own money and is not a saving.
+   */
+  const savingsCents =
+    (discount?.promoDiscountCents ?? 0) +
+    (!pickup && shippingCents === 0 && flatShippingCents > 0 ? flatShippingCents : 0);
+  const currentTotalCents = discount ? discount.totalCents : subtotalCents + shippingCents;
   /**
    * A conflicted cart is the only state the button itself refuses, and
    * `CheckoutOptions` prints the reason for that one directly above. An
@@ -276,6 +318,9 @@ export default function CartPageClient({
               {/* A set costs one price, so the line has to say what is in the
                   box or the figure looks arbitrary. */}
               {item.contents && <p className="cart-line-size">{item.contents}</p>}
+              {lineScarcityNote(item) && (
+                <p className="cart-line-size cart-line-scarce">{lineScarcityNote(item)}</p>
+              )}
               <p className="muted" style={{ marginTop: 0 }}>
                 {formatMoney(item.priceCents)} each
               </p>
@@ -315,7 +360,15 @@ export default function CartPageClient({
                   </button>
                 </div>
                 {item.quantity >= lineCeiling(item) && (
-                  <p className="muted cart-line-cap">{lineCapNote(item)}</p>
+                  <p className="muted cart-line-cap">
+                    {lineCapNote(item)}{' '}
+                    {/* The cap is the shelf or the per-order limit, and neither
+                        is the shop's last word: it makes things. */}
+                    <Link className="text-link" href={customOrderHref(bulkOrderPrefill(item))}>
+                      Need more? Ask about a bulk order
+                    </Link>
+                    .
+                  </p>
                 )}
                 <button
                   className="text-button danger"
@@ -329,6 +382,7 @@ export default function CartPageClient({
             <strong>{formatMoney(item.priceCents * item.quantity)}</strong>
           </article>
         ))}
+        <CartSuggestions progress={shippingProgress} />
         {catalogEmpty ? (
           <Link className="text-link" href="/care">
             ← Browse the care library
@@ -342,6 +396,8 @@ export default function CartPageClient({
 
       <aside className="order-summary" aria-label="Order summary">
         <div className="eyebrow">Order summary</div>
+        {/* First, not last: this was a muted line under the checkout button. */}
+        {shippingProgress && <FreeShippingMeter progress={shippingProgress} />}
         <div className="summary-row">
           <span>Subtotal</span>
           <strong>{formatMoney(subtotalCents)}</strong>
@@ -367,39 +423,29 @@ export default function CartPageClient({
               ? 'Free — local pickup'
               : discount?.freeShipping
                 ? 'Free — promo code'
-                : 'Calculated at checkout'}
+                : shippingCents === 0
+                  ? freeShippingThreshold > 0
+                    ? `Free — over ${formatMoneyCompact(freeShippingThreshold)}`
+                    : 'Free'
+                  : `${formatMoney(shippingCents)} standard`}
           </span>
         </div>
+        {savingsCents > 0 && (
+          <div className="summary-row savings">
+            <span>You&rsquo;re saving</span>
+            <strong>{formatMoney(savingsCents)}</strong>
+          </div>
+        )}
         <div className="summary-row total">
           <span>Current total</span>
-          {/* The quote covers merchandise and shipping. Tax is Stripe's to add,
-              which is why this stays "current" rather than "total". */}
-          <span>{formatMoney(discount ? discount.totalCents : subtotalCents)}</span>
+          {/* Merchandise and shipping. Tax is Stripe's to add, which is why this
+              stays "current" rather than "total". */}
+          <span>{formatMoney(currentTotalCents)}</span>
         </div>
 
         <DiscountCodeFields />
 
         <CheckoutOptions />
-
-        {!pickup && !discount?.freeShipping && freeShippingThreshold > 0 && (
-          <div style={{ margin: '18px 0' }}>
-            <div
-              className="progress-track"
-              role="progressbar"
-              aria-label="Progress toward free shipping"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={progress}
-            >
-              <span style={{ width: `${progress}%` }} />
-            </div>
-            <p className="muted" style={{ fontSize: 12 }}>
-              {remaining > 0
-                ? `Add ${formatMoney(remaining)} more to qualify for free standard shipping.`
-                : 'Your order qualifies for free standard shipping.'}
-            </p>
-          </div>
-        )}
 
         <FormStatus message={checkoutError} tone="error" />
         <FormStatus message={checkoutNotice} tone="notice" />
@@ -424,6 +470,18 @@ export default function CartPageClient({
             ? 'Arrange pickup with us first. Stripe then collects payment and a contact address.'
             : 'Stripe securely collects payment, billing and shipping information.'}
         </p>
+        {/* Three promises a shopper can check, at the moment of deciding. */}
+        <ul className="checkout-trust" aria-label="What to expect">
+          <li>
+            <Package size={15} aria-hidden="true" /> Packed by hand, held back in unsafe weather
+          </li>
+          <li>
+            <BookOpen size={15} aria-hidden="true" /> Free plant care guides, written for real homes
+          </li>
+          <li>
+            <Sparkles size={15} aria-hidden="true" /> Small batches, potted and made by hand
+          </li>
+        </ul>
 
         <form className="save-cart" onSubmit={saveCart}>
           <b>Not ready yet?</b>

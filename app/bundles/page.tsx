@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import BundleGrid from '@/components/BundleGrid';
+import CustomOrderCta from '@/components/CustomOrderCta';
 import { bundleCardData, sellableBundles } from '@/lib/bundle-queries';
 import { catalogHasActiveProducts } from '@/lib/catalog';
-import { contactHref } from '@/lib/contact';
 import { jsonLd } from '@/lib/json-ld';
 import { breadcrumbJsonLd, pageMetadata } from '@/lib/seo';
 
@@ -87,25 +87,11 @@ export default async function BundlesPage() {
             </>
           )}
 
-          <div className="newsletter care-class-cta" style={{ marginTop: 44 }}>
-            <div>
-              <div className="eyebrow">Building your own</div>
-              <h3>Want a set we have not made up?</h3>
-              <p>
-                Tell us what it is for and we will put one together — a housewarming box, a
-                classroom terrarium, a first plant for someone who has killed a few.
-              </p>
-            </div>
-            <Link
-              className="btn gold"
-              href={contactHref({
-                subject: 'Custom gift set',
-                message: 'I am after a set that is not on the sets page — '
-              })}
-            >
-              Ask for a custom set
-            </Link>
-          </div>
+          <CustomOrderCta
+            heading="Want a set we have not made up?"
+            blurb="Tell us what it is for — a housewarming box, a classroom terrarium, thirty favours for a wedding — and how many you need, and we will put it together and price it for you."
+            prefill="I am after a set that is not on the sets page — "
+          />
         </div>
       </section>
     </>

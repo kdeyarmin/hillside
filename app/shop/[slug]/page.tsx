@@ -8,13 +8,14 @@ import InlineNewsletter from '@/components/InlineNewsletter';
 import ProductGallery from '@/components/ProductGallery';
 import ProductGrid from '@/components/ProductGrid';
 import ProductViewTracker from '@/components/ProductViewTracker';
+import ShippingNudge from '@/components/ShippingNudge';
 import ProductReviews from '@/components/ProductReviews';
 import StockAlertForm from '@/components/StockAlertForm';
 import { cache } from 'react';
 import { bundleCardData, sellableBundlesContaining } from '@/lib/bundle-queries';
 import { careGuideTypeLabel } from '@/lib/care-guides';
 import { catalogHasActiveProducts } from '@/lib/catalog';
-import { contactHref } from '@/lib/contact';
+import { contactHref, customOrderHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { recommendationsForProduct } from '@/lib/recommendation-queries';
 import { specKindFor } from '@/lib/product-categories';
@@ -39,6 +40,7 @@ import { merchandisingFlagsFor } from '@/lib/merchandising-data';
 import { normalizeTags, tagLabel } from '@/lib/product-tags';
 import {
   discountPercent,
+  flatShippingCents,
   formatMoney,
   freeShippingThresholdCents,
   productTypeLabel,
@@ -375,14 +377,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             </p>
 
             {threshold > 0 && fulfillment.ships && (
-              <p className="shipping-nudge">
-                <Truck size={17} aria-hidden="true" />
-                {/* Quoted against the cheapest size, so the promise holds
-                    whichever one the shopper picks. */}
-                {priceSpan.minCents >= threshold
-                  ? 'This item alone qualifies for free standard shipping on a shipped order.'
-                  : `Free standard shipping on orders over ${formatMoney(threshold)}.`}
-              </p>
+              /* Quoted against the cheapest size, so the promise holds
+                 whichever one the shopper picks. */
+              <ShippingNudge
+                thresholdCents={threshold}
+                flatCents={flatShippingCents()}
+                minPriceCents={priceSpan.minCents}
+              />
             )}
             {!fulfillment.ships && fulfillment.pickup && (
               <p className="shipping-nudge">
@@ -390,6 +391,21 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
                 Local pickup only — this piece does not ship.
               </p>
             )}
+            {/* The stock line above is a ceiling, and for somebody buying
+                favours for a wedding it reads as a refusal. It is not one: the
+                shop makes things, and more of this one is a conversation away. */}
+            <p className="custom-order-note">
+              Need more than is listed, or one made to order?{' '}
+              <Link
+                className="text-link"
+                href={customOrderHref(
+                  `I am interested in a custom or bulk order of ${product.name}. `
+                )}
+              >
+                Contact the shop about a custom or bulk order
+              </Link>
+              .
+            </p>
 
             <div className="product-detail-notes">
               {product.careNotes && (

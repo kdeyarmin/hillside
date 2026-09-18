@@ -237,7 +237,8 @@ export function orderMatchesAdminFilter(
 }
 
 /**
- * A message that reads like someone asking for a planter to be made for them.
+ * A message that reads like someone asking for something to be made for them —
+ * a planter for a particular room, or thirty of something for a wedding.
  *
  * These arrive through the ordinary contact form, and the contact page's own
  * subject list is where most of them are labelled — but people also type it in
@@ -250,6 +251,9 @@ const PLANTER_PHRASES = [
   'custom arrangement',
   'planter arrangement',
   'custom pot',
+  'custom order',
+  'custom or bulk',
+  'bulk order',
   'made to order',
   'centerpiece',
   'centrepiece',

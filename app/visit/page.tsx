@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { CalendarDays, Leaf, MapPin, Phone, ShoppingBag, Truck } from 'lucide-react';
 import BrandMockupScene from '@/components/BrandMockupScene';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
-import { contactHref } from '@/lib/contact';
+import { contactHref, customOrderHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { jsonLd } from '@/lib/json-ld';
 import { breadcrumbJsonLd, faqJsonLd, pageMetadata } from '@/lib/seo';
@@ -261,9 +261,7 @@ export default async function VisitPage() {
                 <Link href="/shipping-returns">Shipping &amp; returns</Link>
               </li>
               <li>
-                <Link href={contactHref({ subject: 'Custom planter arrangement' })}>
-                  Ask about a custom arrangement
-                </Link>
+                <Link href={customOrderHref()}>Ask about a custom or bulk order</Link>
               </li>
             </ul>
           </div>

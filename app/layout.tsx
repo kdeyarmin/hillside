@@ -23,7 +23,12 @@ import { CartProvider } from '@/components/CartProvider';
 import { SiteFooter, SiteHeader } from '@/components/SiteChrome';
 import { hasSellableBundles } from '@/lib/bundle-queries';
 import { catalogHasActiveProducts, catalogHasSellableProducts } from '@/lib/catalog';
-import { businessEmail, freeShippingThresholdCents, siteBaseUrl } from '@/lib/store';
+import {
+  businessEmail,
+  flatShippingCents,
+  freeShippingThresholdCents,
+  siteBaseUrl
+} from '@/lib/store';
 import { jsonLd } from '@/lib/json-ld';
 import { businessJsonLd, websiteJsonLd } from '@/lib/seo';
 
@@ -122,6 +127,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             bundlesAvailable={bundlesAvailable}
             giftsEmpty={giftsEmpty}
             freeShippingThreshold={freeShippingThresholdCents()}
+            flatShippingCents={flatShippingCents()}
           />
           {/* tabIndex={-1} so the skip link actually moves focus. Without it Safari
             scrolls to the target and leaves focus where it was. */}

@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { allowedContactSubjects, contactHref, parseContactPrefill } from '../lib/contact.ts';
+import {
+  allowedContactSubjects,
+  contactHref,
+  CUSTOM_ORDER_SUBJECT,
+  customOrderHref,
+  parseContactPrefill
+} from '../lib/contact.ts';
 
 describe('contact prefills', () => {
   it('accepts only subjects the form actually offers', () => {
@@ -26,6 +32,17 @@ describe('contact prefills', () => {
       'General question'
     );
     assert.equal(parseContactPrefill({ subject: 'Planter class' }, true).subject, 'Planter class');
+  });
+
+  it('sends every custom or bulk order button to the same subject', () => {
+    assert.equal(customOrderHref(), '/contact?subject=Custom+or+bulk+order');
+    const parsed = parseContactPrefill({
+      subject: CUSTOM_ORDER_SUBJECT,
+      message: 'Thirty favours for a wedding in June.'
+    });
+    assert.equal(parsed.subject, 'Custom or bulk order');
+    assert.equal(parsed.message, 'Thirty favours for a wedding in June.');
+    assert.ok(allowedContactSubjects(false).includes(CUSTOM_ORDER_SUBJECT));
   });
 
   it('builds a deep link that the form can read back', () => {
