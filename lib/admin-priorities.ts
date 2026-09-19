@@ -109,7 +109,7 @@ const DEFINITIONS: Array<{
   },
   {
     key: 'customPlanterRequests',
-    label: 'Custom planter requests',
+    label: 'Custom & bulk requests',
     unit: 'requests',
     tone: 'urgent',
     detail: () => 'Someone is asking you to make something. Reply before they ask elsewhere.',

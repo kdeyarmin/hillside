@@ -26,12 +26,12 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Sets and starter kits at `/bundles`, built from real stock and priced below their parts
 - A gift hub at `/gifts` — the sets, price bands and picks for plant lovers, tea drinkers, teachers, new homes and the holidays
 - Contextual recommendations on every product page — "Pairs well with", "Complete the setup", "Frequently bought together" and "You may also like"
-- Individual SEO-ready product pages with live inventory, a named photograph gallery and customer reviews
+- Individual SEO-ready product pages with live inventory, a named photograph gallery that opens full-size and zooms on a tap, and customer reviews
 - Structured product detail that changes with the category — a plant's light, water, pot size and pet safety; a tea's steep time, caffeine and allergens; a soap's full ingredient list
 - Product cards that carry a price or price range, sale, new, best-seller and low-stock signals, and which sizes are still available
 - A variant dropdown on products sold in more than one form, each variant carrying its own price, stock, SKU, photograph, weight, dimensions and shipping answer
 - Back-in-stock email alerts on sold-out products
-- Persistent shopping cart and secure Stripe Checkout
+- Persistent shopping cart and secure Stripe Checkout, with a free-shipping meter that says what crossing the line saves, the shipping figure stated rather than “calculated at checkout”, “goes well with” suggestions on the cart page tagged when one of them unlocks free shipping, and “only N left” on a basket line whose shelf is nearly bare
 - A gift guide at `/gifts` — ready-made bundles first, then price bands and picks for plant lovers, tea drinkers, teachers, new homes and the holidays
 - Gift bundles: an ordinary product sold as a set, badged wherever it appears and listing what is inside on its own page
 - Optional gift message at checkout, printed on the packing slip
@@ -40,7 +40,7 @@ A standalone ecommerce, class-registration and owner-operations website for **Th
 - Customer order-confirmation page and Stripe invoice link
 - Self-service order-status lookup
 - Printable houseplant care sheets and detailed care pages, in five kinds: plant profiles, beginner guides, general education, troubleshooting and seasonal
-- Gallery of Tammy’s past planter arrangements
+- Gallery of Tammy’s past planter arrangements, ending in the one invitation to contact the shop about a custom or bulk order — the same block the sets page ends with, and the same “Custom or bulk order” subject the product page, the capped basket line and the FAQ all lead to
 - Tammy’s Amazon influencer picks with affiliate disclosure, published by pasting the item’s link
 - Newsletter signup, cart saving and customer contact form
 - Care guides that link through to the plant they describe, and can feature the products used for the job with Tammy's own reason for each
@@ -57,7 +57,7 @@ actually waiting, most costly to ignore first, each one linking straight at the
 list that clears it. Anything at zero is left off rather than rendered as a
 reassuring nought, and when nothing is waiting the board says so in one line.
 The board covers orders to pack, pickups to prepare, confirmations that never
-sent, custom planter requests, unread messages, listings that are sold out or
+sent, custom and bulk order requests, unread messages, listings that are sold out or
 running low, people waiting on a restock, reviews to approve and to ask for,
 products missing a photograph and products missing their information.
 
@@ -495,6 +495,14 @@ view is labelled for customers in the product gallery, because "Size" and
 makes them hunt. `lib/product-photos.ts` is the one place that decides what
 counts as shared category artwork rather than a real photograph, and both the
 storefront visual and the dashboard's chip ask it.
+
+Any real photograph opens full-size on a tap — the page shows each one cropped
+to its frame, and the lightbox (`components/PhotoLightbox.tsx`) shows the whole
+thing. A tap on the photograph there zooms into that spot, after which the frame
+scrolls: a finger pans it natively and a mouse pans it by dragging. Arrow keys
+and the on-screen arrows move between photographs, Escape closes, and focus
+stays inside while it is open, as it does in the cart drawer. Shared category
+artwork does not zoom, because there is nothing in it to look at more closely.
 
 ## Sets and kits
 
@@ -977,6 +985,13 @@ The page reads what the site itself collected and sent. It is not a mailbox clie
 - `FLAT_SHIPPING_CENTS=895` means $8.95 standard shipping.
 - `FREE_SHIPPING_THRESHOLD_CENTS=7500` means free standard shipping at $75.00.
 - Set the free-shipping threshold to `0` to disable the threshold.
+- Both figures reach the storefront: the cart page and the drawer state the
+  standard rate rather than "calculated at checkout", and every free-shipping
+  meter says what crossing the threshold saves — "add $6.00 more for free
+  standard shipping, less than the $8.95 it would cost to post". The arithmetic
+  is `lib/free-shipping.ts`, shared by the drawer, the cart page, the cart
+  page's suggestions and the product page's shipping line, so they cannot
+  disagree. With the threshold off, every meter steps aside together.
 - `BUSINESS_RETURN_ADDRESS` is printed in the return-address area of the simple 4 × 6 label. A postage platform can instead import `/api/admin/shipping.csv` to purchase carrier postage and create barcoded labels.
 
 ## First-launch checklist

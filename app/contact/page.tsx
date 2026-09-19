@@ -1,4 +1,4 @@
-import { Clock3, Mail, MapPin, Sprout } from 'lucide-react';
+import { Clock3, Mail, MapPin, Package, Sprout } from 'lucide-react';
 import ContactForm from '@/components/ContactForm';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { parseContactPrefill } from '@/lib/contact';
@@ -9,7 +9,7 @@ export const metadata = pageMetadata({
   path: '/contact',
   title: 'Contact Us',
   description:
-    'Contact The Hillside Gardens about plants, products, orders, local pickup or custom arrangements.'
+    'Contact The Hillside Gardens about plants, products, orders, local pickup, custom arrangements or bulk orders.'
 });
 
 export default async function ContactPage({
@@ -26,8 +26,8 @@ export default async function ContactPage({
           <div className="eyebrow">Let’s talk plants</div>
           <h1>Contact us.</h1>
           <p>
-            Questions about a plant, an order or a custom planter? Send a note directly to The
-            Hillside Gardens.
+            Questions about a plant or an order? Want something made to order, or a lot of something
+            for an event? Send a note directly to The Hillside Gardens.
           </p>
         </div>
       </section>
@@ -63,6 +63,14 @@ export default async function ContactPage({
                 <b>Plant questions</b>
                 <span>
                   Include the plant name, lighting conditions and a clear photo when possible.
+                </span>
+              </div>
+              <div className="info-item">
+                <Package size={20} />
+                <b>Custom &amp; bulk orders</b>
+                <span>
+                  Tell us what it is for, how many you need and when. We will price it and say
+                  whether it ships or is collected here.
                 </span>
               </div>
               <div className="info-item">

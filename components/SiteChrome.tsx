@@ -12,16 +12,31 @@ import {
   Search,
   ShoppingBag,
   Trash2,
+  Truck,
   X
 } from 'lucide-react';
 import NewsletterForm from '@/components/NewsletterForm';
 import ResilientImage from '@/components/ResilientImage';
 import CheckoutOptions from '@/components/CheckoutOptions';
+import FreeShippingMeter from '@/components/FreeShippingMeter';
+import { useBasketSuggestions } from '@/components/useBasketSuggestions';
 import { giftCardTail } from '@/lib/discount-request';
 import { lineKey, useCart } from '@/components/CartProvider';
-import { lineCapNote, lineCeiling, lineHref } from '@/lib/cart-lines';
+import {
+  bulkOrderPrefill,
+  lineCapNote,
+  lineCeiling,
+  lineHref,
+  lineScarcityNote
+} from '@/lib/cart-lines';
+import { customOrderHref } from '@/lib/contact';
 import { CLASSES_PUBLICLY_VISIBLE } from '@/lib/class-visibility';
 import { cartFulfillment } from '@/lib/fulfillment';
+import {
+  freeShippingProgress,
+  unlocksFreeShippingFor,
+  type FreeShippingProgress
+} from '@/lib/free-shipping';
 import { focusableElements, trapTabKey } from '@/lib/focus-trap';
 import { formatSizePriceRange, productSizes, sizedName, sizeFieldLabel } from '@/lib/product-sizes';
 import {
@@ -75,82 +90,9 @@ const SOCIAL_LINKS = [
   Boolean(link.href)
 );
 
-function FreeShippingMeter({
-  subtotalCents,
-  threshold
-}: {
-  subtotalCents: number;
-  threshold: number;
-}) {
-  if (threshold <= 0 || subtotalCents <= 0) return null;
-
-  const remaining = threshold - subtotalCents;
-  const progress = Math.min(100, Math.round((subtotalCents / threshold) * 100));
-
-  return (
-    <div className="drawer-shipping">
-      <p>
-        {remaining > 0 ? (
-          <>
-            Add <b>{formatMoney(remaining)}</b> more for free standard shipping.
-          </>
-        ) : (
-          <>
-            You&rsquo;ve earned <b>free standard shipping</b>.
-          </>
-        )}
-      </p>
-      <div className="progress-track" role="presentation">
-        <span style={{ width: `${progress}%` }} />
-      </div>
-    </div>
-  );
-}
-
-type Suggestion = {
-  slug: string;
-  name: string;
-  priceCents: number;
-  imageUrl: string | null;
-  inventory: number;
-  type: string;
-  ships?: boolean;
-  pickup?: boolean;
-  sizes?: unknown;
-  sizeLabel?: string | null;
-  /** Why this is being offered, from the same rules the product page uses. */
-  reason?: string | null;
-};
-
-function CartDrawerSuggestions() {
-  const { items, addItem, closeCart } = useCart();
-  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
-  // Sets are sent separately: their slugs live in their own namespace, and the
-  // server anchors on what is inside the box rather than on the box.
-  const slugs = items
-    .filter((item) => item.kind !== 'bundle')
-    .map((item) => item.slug)
-    .join(',');
-  const sets = items
-    .filter((item) => item.kind === 'bundle')
-    .map((item) => item.slug)
-    .join(',');
-
-  useEffect(() => {
-    if (!slugs && !sets) {
-      setSuggestions([]);
-      return;
-    }
-    const controller = new AbortController();
-    const query = new URLSearchParams();
-    if (slugs) query.set('exclude', slugs);
-    if (sets) query.set('sets', sets);
-    fetch(`/api/recommendations?${query.toString()}`, { signal: controller.signal })
-      .then((response) => (response.ok ? response.json() : { products: [] }))
-      .then((data: { products?: Suggestion[] }) => setSuggestions(data.products?.slice(0, 2) || []))
-      .catch(() => setSuggestions([]));
-    return () => controller.abort();
-  }, [sets, slugs]);
+function CartDrawerSuggestions({ progress }: { progress: FreeShippingProgress | null }) {
+  const { addItem, closeCart } = useCart();
+  const suggestions = useBasketSuggestions(2);
 
   if (!suggestions.length) return null;
 
@@ -158,7 +100,12 @@ function CartDrawerSuggestions() {
     <div className="drawer-suggestions">
       <span className="eyebrow">Goes well with</span>
       {suggestions.map((product) => {
-        const sizes = productSizes(product.sizes, product.priceCents);
+        // Defaults passed, so a variant silent about shipping inherits the
+        // product's answer instead of being taken for shippable.
+        const sizes = productSizes(product.sizes, product.priceCents, {
+          ships: product.ships,
+          pickup: product.pickup
+        });
         return (
           <div className="drawer-suggestion" key={product.slug}>
             <ResilientImage
@@ -177,6 +124,13 @@ function CartDrawerSuggestions() {
               {/* The reason is the whole point: without it this strip is just
                   another shelf, which is what it used to be. */}
               {product.reason && <span>{product.reason}</span>}
+              {/* Priced against the cheapest size that ships — the same rule
+                  the cart page's suggestions use, from the same place. */}
+              {unlocksFreeShippingFor(progress, sizes, product) && (
+                <span className="suggestion-unlock">
+                  <Truck size={12} aria-hidden="true" /> Unlocks free shipping
+                </span>
+              )}
             </div>
             {/* A suggestion cannot take a size choice either, so a sized product
                 is offered as a link to the page where the choice lives, and says
@@ -219,10 +173,12 @@ function CartDrawerSuggestions() {
 
 function CartDrawer({
   catalogEmpty,
-  freeShippingThreshold
+  freeShippingThreshold,
+  flatShippingCents
 }: {
   catalogEmpty: boolean;
   freeShippingThreshold: number;
+  flatShippingCents: number;
 }) {
   const {
     items,
@@ -255,6 +211,19 @@ function CartDrawer({
    */
   const conflicted = cartFulfillment(items).conflict;
   const pickupNeedsArranging = fulfillment === 'PICKUP' && !pickupArranged && !conflicted;
+  /**
+   * Null on a pickup basket or under a free-shipping code — there is nothing
+   * left to work toward — so the meter, the suggestion tags and the footer line
+   * all step aside together rather than each deciding for itself.
+   */
+  const shippingProgress =
+    fulfillment !== 'PICKUP' && !discount?.freeShipping
+      ? freeShippingProgress({
+          subtotalCents,
+          thresholdCents: freeShippingThreshold,
+          flatCents: flatShippingCents
+        })
+      : null;
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -426,15 +395,30 @@ function CartDrawer({
                           <Trash2 size={14} /> Remove
                         </button>
                       </div>
+                      {lineScarcityNote(item) && (
+                        <span className="cart-line-cap cart-line-scarce">
+                          {lineScarcityNote(item)}
+                        </span>
+                      )}
                       {item.quantity >= lineCeiling(item) && (
-                        <span className="cart-line-cap">{lineCapNote(item)}</span>
+                        <span className="cart-line-cap">
+                          {lineCapNote(item)}{' '}
+                          <Link
+                            className="text-link"
+                            href={customOrderHref(bulkOrderPrefill(item))}
+                            onClick={closeCart}
+                          >
+                            Need more? Ask about a bulk order
+                          </Link>
+                          .
+                        </span>
                       )}
                     </div>
                     <b>{formatMoney(item.priceCents * item.quantity)}</b>
                   </div>
                 ))}
               </div>
-              <CartDrawerSuggestions />
+              <CartDrawerSuggestions progress={shippingProgress} />
               {/* Scrolls with the basket. Pinned beside the subtotal, the
                   fulfillment picker and gift note were half the drawer's height
                   and left nothing for the items themselves. */}
@@ -443,12 +427,7 @@ function CartDrawer({
               </div>
             </div>
             <div className="drawer-total">
-              {fulfillment !== 'PICKUP' && !discount?.freeShipping && (
-                <FreeShippingMeter
-                  subtotalCents={subtotalCents}
-                  threshold={freeShippingThreshold}
-                />
-              )}
+              {shippingProgress && <FreeShippingMeter progress={shippingProgress} compact />}
               <div>
                 <span>Subtotal</span>
                 <strong>{formatMoney(subtotalCents)}</strong>
@@ -469,12 +448,18 @@ function CartDrawer({
                   <strong>−{formatMoney(discount.giftCardCents)}</strong>
                 </div>
               )}
+              {/* The standard rate is a fixed figure the shop already knows, so
+                  it is stated. "Calculated at checkout" reads as a surprise
+                  waiting to happen, and surprise postage is the classic reason
+                  a basket is abandoned on the payment page. */}
               <p>
                 {fulfillment === 'PICKUP'
                   ? 'No shipping charge. Tax is calculated securely in Stripe Checkout.'
                   : discount?.freeShipping
                     ? 'Free shipping with your promo code. Tax is calculated securely in Stripe Checkout.'
-                    : 'Shipping and any applicable tax are calculated securely in Stripe Checkout.'}
+                    : shippingProgress?.unlocked || flatShippingCents <= 0
+                      ? 'Standard shipping is free on this order. Tax is calculated securely in Stripe Checkout.'
+                      : `Standard shipping is ${formatMoney(flatShippingCents)}. Tax is calculated securely in Stripe Checkout.`}
               </p>
               {checkoutError && (
                 <p className="drawer-error" role="alert">
@@ -527,7 +512,8 @@ export function SiteHeader({
   catalogEmpty = false,
   bundlesAvailable = false,
   giftsEmpty = false,
-  freeShippingThreshold
+  freeShippingThreshold,
+  flatShippingCents
 }: {
   catalogEmpty?: boolean;
   /**
@@ -539,6 +525,8 @@ export function SiteHeader({
   /** Nothing is in stock, so the gift guide has nothing to show. */
   giftsEmpty?: boolean;
   freeShippingThreshold: number;
+  /** The standard rate, so the drawer can say what free shipping is worth. */
+  flatShippingCents: number;
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -843,7 +831,11 @@ export function SiteHeader({
         />
       )}
 
-      <CartDrawer catalogEmpty={catalogEmpty} freeShippingThreshold={freeShippingThreshold} />
+      <CartDrawer
+        catalogEmpty={catalogEmpty}
+        freeShippingThreshold={freeShippingThreshold}
+        flatShippingCents={flatShippingCents}
+      />
     </>
   );
 }

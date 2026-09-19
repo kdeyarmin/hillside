@@ -7,6 +7,7 @@ process.env.DATABASE_URL ||= 'postgresql://postgres:postgres@127.0.0.1:5432/hill
 const {
   availableForSize,
   cartLineKey,
+  cheapestShippableCents,
   findSize,
   formatSizePriceRange,
   productInventoryForSizes,
@@ -634,5 +635,59 @@ describe('withoutRedundantPrices against the whole product', () => {
         }
       ]
     );
+  });
+});
+
+describe('cheapestShippableCents', () => {
+  const sizes = (rows: Array<{ label: string; priceCents: number; ships?: boolean }>) =>
+    productSizes(
+      rows.map((row) => ({ ...row, ships: row.ships, pickup: true })),
+      1800
+    );
+
+  it('is the product\u2019s own price when it is sold one way and ships', () => {
+    assert.equal(cheapestShippableCents([], { priceCents: 2400 }), 2400);
+    assert.equal(cheapestShippableCents([], { priceCents: 2400, ships: true }), 2400);
+  });
+
+  it('is null for a product that does not ship at all', () => {
+    assert.equal(cheapestShippableCents([], { priceCents: 2400, ships: false }), null);
+  });
+
+  it('skips a cheaper variant that cannot be posted', () => {
+    // The whole point: quoting $18 in a sentence about shipping would promise
+    // a price the post office never sees.
+    const mixed = sizes([
+      { label: '4" pot', priceCents: 1800, ships: false },
+      { label: '8" specimen', priceCents: 4800, ships: true }
+    ]);
+    assert.equal(cheapestShippableCents(mixed, { priceCents: 1800 }), 4800);
+  });
+
+  it('takes the cheapest of the ones that do ship', () => {
+    const all = sizes([
+      { label: '6" pot', priceCents: 3200, ships: true },
+      { label: '4" pot', priceCents: 1800, ships: true }
+    ]);
+    assert.equal(cheapestShippableCents(all, { priceCents: 1800 }), 1800);
+  });
+
+  it('is null when every variant is pickup only', () => {
+    const none = sizes([
+      { label: '10" specimen', priceCents: 9500, ships: false },
+      { label: '12" specimen', priceCents: 12000, ships: false }
+    ]);
+    assert.equal(cheapestShippableCents(none, { priceCents: 9500 }), null);
+  });
+
+  /**
+   * A variant that says nothing inherits the product's answer, so a
+   * pickup-only product cannot be made shippable by a silent variant.
+   */
+  it('inherits the product\u2019s own answer where a variant is silent', () => {
+    const silent = productSizes([{ label: '4" pot', priceCents: 1800 }], 1800, { ships: false });
+    assert.equal(cheapestShippableCents(silent, { priceCents: 1800, ships: false }), null);
+    const shipping = productSizes([{ label: '4" pot', priceCents: 1800 }], 1800, { ships: true });
+    assert.equal(cheapestShippableCents(shipping, { priceCents: 1800, ships: true }), 1800);
   });
 });

@@ -24,6 +24,10 @@ const questions = [
     'Weather matters. The Hillside Gardens may temporarily hold a plant order during dangerous heat or freezing temperatures and will contact the customer if a safe-weather delay is needed. Some large or especially delicate arrangements may be limited to local pickup.'
   ],
   [
+    'Do you take custom or bulk orders?',
+    'Yes. Custom planters, terrariums and arrangements are made by hand for the room and the light you describe, and we can put together larger quantities for weddings, events, offices and classrooms. Use the contact form, choose “Custom or bulk order”, and tell us what it is for, how many you need and when. We will send a quote and say whether it ships or is collected in Ebensburg.'
+  ],
+  [
     'Do you offer local pickup?',
     'Contact us first to arrange a time. After we confirm, choose local pickup at checkout. Some pieces are pickup only. A pickup is still not ready to collect until we email you — exact instructions are sent privately rather than posted here.'
   ],

@@ -1,8 +1,8 @@
 import Link from 'next/link';
+import CustomOrderCta from '@/components/CustomOrderCta';
 import GalleryGrid from '@/components/GalleryGrid';
 import ProductGrid from '@/components/ProductGrid';
 import { pointsAtHiddenClasses } from '@/lib/class-visibility';
-import { contactHref } from '@/lib/contact';
 import { db } from '@/lib/db';
 import { withCardFacts } from '@/lib/product-cards';
 import { pageMetadata } from '@/lib/seo';
@@ -76,12 +76,6 @@ export default async function Gallery() {
                     Browse plant care
                   </Link>
                 )}
-                <Link
-                  className="btn outline"
-                  href={contactHref({ subject: 'Custom planter arrangement' })}
-                >
-                  Ask about a custom arrangement
-                </Link>
               </div>
             </div>
           )}
@@ -97,18 +91,14 @@ export default async function Gallery() {
             </div>
           )}
 
-          <div className="newsletter" style={{ marginTop: 55 }}>
-            <div>
-              <div className="eyebrow">Have something in mind?</div>
-              <h3>Ask us about a custom arrangement.</h3>
-            </div>
-            <Link
-              className="btn gold"
-              href={contactHref({ subject: 'Custom planter arrangement' })}
-            >
-              Start a conversation
-            </Link>
-          </div>
+          {/* Every piece above was made for somebody, so this is where a visitor
+              who wants one made for them — or forty of them for a wedding —
+              finds out that is a conversation the shop wants to have. */}
+          <CustomOrderCta
+            heading="Like something you see here?"
+            blurb="Every piece in this gallery was made to order. Tell us the room, the light and the budget — or how many you need for a wedding, an event or an office — and we will make one for you."
+            prefill="I saw the planter gallery and would like to ask about — "
+          />
         </div>
       </section>
     </>

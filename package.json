@@ -38,7 +38,7 @@
   "dependencies": {
     "@prisma/client": "^6.14.0",
     "lucide-react": "^0.468.0",
-    "next": "^15.5.23",
+    "next": "^15.5.25",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "stripe": "^18.4.0",
@@ -50,7 +50,7 @@
     "@types/react": "^19.1.9",
     "@types/react-dom": "^19.1.7",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^15.5.23",
+    "eslint-config-next": "^15.5.25",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "prettier": "^3.9.6",
     "prisma": "^6.14.0",
@@ -59,7 +59,7 @@
   },
   "overrides": {
     "postcss": "8.5.23",
-    "sharp": "0.35.3",
+    "sharp": "0.35.4",
     "deepmerge-ts": "8.0.1"
   }
 }

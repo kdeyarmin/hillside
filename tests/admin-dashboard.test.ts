@@ -344,9 +344,20 @@ describe('order filters', () => {
 });
 
 describe('isCustomPlanterRequest', () => {
-  it('recognises the contact form’s own subject', () => {
+  it('recognises the contact form’s own subjects', () => {
     assert.equal(
       isCustomPlanterRequest({ subject: 'Custom planter arrangement', message: '' }),
+      true
+    );
+    assert.equal(isCustomPlanterRequest({ subject: 'Custom or bulk order', message: '' }), true);
+  });
+
+  it('counts a bulk order as something being asked for', () => {
+    assert.equal(
+      isCustomPlanterRequest({
+        subject: 'General question',
+        message: 'Could I place a bulk order of forty soaps for wedding favours?'
+      }),
       true
     );
   });

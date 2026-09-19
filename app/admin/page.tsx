@@ -1284,7 +1284,7 @@ export default async function Admin({
                 ['all', 'Every message', messages.length],
                 [
                   'planter',
-                  'Custom planter requests',
+                  'Custom & bulk requests',
                   messages.filter(isCustomPlanterRequest).length
                 ]
               ] as const
@@ -1315,7 +1315,7 @@ export default async function Admin({
                       {isCustomPlanterRequest(message) && (
                         <>
                           {' '}
-                          • <b className="needs-photo">custom planter</b>
+                          • <b className="needs-photo">custom or bulk</b>
                         </>
                       )}
                     </span>
@@ -1359,7 +1359,7 @@ export default async function Admin({
             <div className="admin-card">
               <p>
                 {messages.length
-                  ? 'Nothing here reads like a custom planter request.'
+                  ? 'Nothing here reads like a custom or bulk order request.'
                   : 'No website messages yet.'}
                 {messages.length > 0 && planterOnly && (
                   <>

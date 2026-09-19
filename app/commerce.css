@@ -628,6 +628,20 @@
   color: #dce6de;
   margin: 6px 0 0;
 }
+/* The custom & bulk order block. Its sentence is longer than a class blurb, and
+   left to run the banner's full width it became one line nobody read. */
+.custom-order-cta p {
+  max-width: 62ch;
+}
+
+/* The line under a product's stock count that says a bigger order is a
+   conversation, not a refusal. Quiet on purpose: it is there for the one
+   shopper in fifty who needs it. */
+.custom-order-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
 
 /* ---- search ---- */
 .search-page-form {
@@ -2363,3 +2377,334 @@ a.filter-chip {
 .discount-search-row .admin-input { flex: 1 1 240px; }
 .discount-pager { align-items: center; gap: 12px; margin-top: 14px; }
 .discount-pager .muted { font-size: 13px; }
+
+/* ---- checkout nudges: the free-shipping meter, savings, scarcity, suggestions ---- */
+
+/* The cart page's meter, a card at the top of the order summary. */
+.shipping-meter {
+  display: grid;
+  gap: 9px;
+  margin: 12px 0 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--cream-deep);
+  border-radius: 14px;
+  background: var(--white);
+}
+.shipping-meter p {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin: 0;
+  color: var(--forest);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.shipping-meter p svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+/* Once it is free the meter turns from a nudge into a reward. */
+.shipping-meter.unlocked {
+  border-color: rgba(45, 107, 68, 0.35);
+  background: #eef5ef;
+}
+.shipping-meter.unlocked p,
+.drawer-shipping.unlocked p {
+  color: var(--success);
+}
+.shipping-meter.unlocked .progress-track span,
+.drawer-shipping.unlocked .progress-track span {
+  background: var(--success);
+}
+
+.summary-row.savings span:first-child,
+.summary-row.savings strong {
+  color: var(--success);
+}
+
+/* "Only 2 left" on a basket line. Both selectors for the same reason the cap
+   note has two: the drawer nests this inside `.cart-line-copy`. */
+.cart-line-scarce,
+.cart-line-copy .cart-line-scarce {
+  color: var(--gold-strong);
+}
+
+/* Each line of a drawer suggestion on its own line. As inline spans the price
+   and the reason ran together — "$37.00Tammy pairs these" — and the tag
+   below joined the queue. */
+.drawer-suggestion > div > span {
+  display: block;
+}
+
+/* The tag on a suggestion priced at or above what the basket is short by. */
+.suggestion-unlock,
+.drawer-suggestion .suggestion-unlock {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--success);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.checkout-trust {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--line);
+  list-style: none;
+}
+.checkout-trust li {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.checkout-trust svg {
+  flex: 0 0 auto;
+  color: var(--sage-ink);
+}
+
+/* "Goes well with" on the cart page: a row of suggestions under the lines. */
+.cart-suggestions {
+  margin-top: 10px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--sage-light);
+}
+.cart-suggestions-head h2 {
+  margin: 4px 0 0;
+  color: var(--forest);
+  font-family: var(--hillside-display);
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.022em;
+}
+.cart-suggestions-head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.cart-suggestion-row {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+.cart-suggestion {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--white);
+}
+.cart-suggestion img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+.cart-suggestion-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.cart-suggestion-copy b {
+  color: var(--forest);
+  font-size: 15px;
+}
+.cart-suggestion-copy b a {
+  color: inherit;
+  text-decoration: none;
+}
+.cart-suggestion-copy > span {
+  color: var(--muted);
+  font-size: 13px;
+}
+@media (max-width: 620px) {
+  .cart-suggestion {
+    grid-template-columns: 60px 1fr;
+  }
+  .cart-suggestion img {
+    width: 60px;
+    height: 60px;
+  }
+  .cart-suggestion > .btn {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+/* ---- product photographs: the zoom button and the lightbox ---- */
+
+/* Laid over the whole photograph, so the image beneath keeps the layout the
+   pinned column depends on. The badge is the only visible part. */
+.product-gallery-zoom {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 28px;
+  padding: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+.product-gallery-zoom > span {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 7px 12px;
+  background: rgba(20, 41, 28, 0.82);
+  color: var(--white);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.product-gallery-zoom:hover > span {
+  background: var(--forest);
+}
+
+.photo-lightbox {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--forest-3);
+  color: var(--white);
+}
+.photo-lightbox-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+}
+.photo-lightbox-title {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.photo-lightbox-title small {
+  display: block;
+  color: #cfdad2;
+  font-size: 12px;
+  font-weight: 600;
+}
+.photo-lightbox-tools {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+.photo-lightbox .icon-button {
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--white);
+}
+.photo-lightbox .icon-button[aria-pressed='true'] {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+/* The frame. Fit-to-frame until a tap; then a scrolling window onto a
+   photograph two and a half times the size, which a finger pans natively and
+   a mouse pans by dragging. `margin: auto` on the image rather than centring
+   the frame, because a centred child that overflows loses its top-left corner
+   to the clip, and an auto margin does not. */
+.photo-lightbox-stage {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+  cursor: zoom-in;
+  touch-action: manipulation;
+  overscroll-behavior: contain;
+}
+.photo-lightbox-stage.zoomed {
+  overflow: auto;
+  cursor: grab;
+  touch-action: pan-x pan-y;
+  scrollbar-width: thin;
+}
+.photo-lightbox-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  margin: auto;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.photo-lightbox-stage.zoomed .photo-lightbox-image {
+  max-width: none;
+  max-height: none;
+}
+
+.photo-lightbox-arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%);
+}
+.photo-lightbox-arrow.prev {
+  left: 12px;
+}
+.photo-lightbox-arrow.next {
+  right: 12px;
+}
+
+.photo-lightbox-foot {
+  display: grid;
+  gap: 8px;
+  padding: 10px 16px 14px;
+}
+.photo-lightbox-thumbs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.photo-lightbox-thumbs button {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+.photo-lightbox-thumbs button.active {
+  border-color: var(--gold-light);
+}
+.photo-lightbox-thumbs img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photo-lightbox-hint {
+  margin: 0;
+  color: #cfdad2;
+  font-size: 12px;
+  text-align: center;
+}

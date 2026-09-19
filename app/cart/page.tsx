@@ -2,7 +2,7 @@ import CartIntro from '@/components/CartIntro';
 import CartPageClient from '@/components/CartPageClient';
 import InlineNewsletter from '@/components/InlineNewsletter';
 import { catalogHasActiveProducts } from '@/lib/catalog';
-import { freeShippingThresholdCents } from '@/lib/store';
+import { flatShippingCents, freeShippingThresholdCents } from '@/lib/store';
 import { pageMetadata } from '@/lib/seo';
 
 export const dynamic = 'force-dynamic';
@@ -38,6 +38,7 @@ export default async function CartPage({
           <CartPageClient
             catalogEmpty={catalogEmpty}
             freeShippingThreshold={freeShippingThreshold}
+            flatShippingCents={flatShippingCents()}
             restoreToken={restore || null}
             canceledSessionId={canceled || null}
           />

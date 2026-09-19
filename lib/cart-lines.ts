@@ -8,6 +8,7 @@
  * product, and Remove would have taken the wrong one.
  */
 
+import { LOW_STOCK_AT } from './inventory.ts';
 import { cartLineKey } from './product-sizes.ts';
 import { LINE_QUANTITY_MAX } from './store.ts';
 
@@ -55,4 +56,36 @@ export function lineCapNote(line: { inventory: number }) {
     return `Only ${lineCeiling(line)} available.`;
   }
   return `${LINE_QUANTITY_MAX} is the most we sell in one order.`;
+}
+
+/**
+ * "Only 2 left" on a basket line whose shelf is nearly bare.
+ *
+ * The product page says it at the moment of choosing; the basket says it at the
+ * moment of deciding, which is when it is most likely to matter. Nothing is
+ * said once the line already holds everything there is — the cap note beside
+ * the plus button covers that — and nothing is said about a well-stocked line,
+ * because a scarcity notice that is always there is just decoration.
+ */
+export function lineScarcityNote(line: {
+  inventory: number;
+  quantity: number;
+  kind?: LineKind | null;
+}) {
+  if (line.inventory <= 0 || line.inventory > LOW_STOCK_AT) return null;
+  if (line.quantity >= lineCeiling(line)) return null;
+  if (line.kind === 'bundle') {
+    return `Only ${line.inventory} ${line.inventory === 1 ? 'set' : 'sets'} left to make up.`;
+  }
+  return `Only ${line.inventory} left in stock.`;
+}
+
+/**
+ * The opening words of a bulk-order enquiry started from a capped line. The
+ * basket already knows what the shopper wanted more of, so the note should not
+ * make them type it again.
+ */
+export function bulkOrderPrefill(line: { name: string; size?: string | null }) {
+  const named = line.size ? `${line.name} (${line.size})` : line.name;
+  return `I would like more ${named} than the shop lets me add to the basket. `;
 }
