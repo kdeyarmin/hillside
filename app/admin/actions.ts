@@ -28,6 +28,7 @@ import { releaseProductHold, restoreUnshippedOrderInventory } from '@/lib/checko
 import { orderGiftCardReturnedCents, refundOrderGiftCard } from '@/lib/discount-store';
 import { adminContentPath, adminDashboardPath, uniqueConstraintField } from '@/lib/admin-dashboard';
 import {
+  cleanWeightOunces,
   productInventoryForSizes,
   readStoredSizes,
   readVariantRows,
@@ -239,7 +240,7 @@ export async function saveProduct(formData: FormData) {
   const productPickup = !ships && !pickup ? true : pickup;
   const productSku = text(formData, 'sku') || null;
   const productImageUrl = text(formData, 'imageUrl') || null;
-  const weightOunces = Math.max(0, integer(formData.get('weightOunces')));
+  const weightOunces = cleanWeightOunces(formData.get('weightOunces')) ?? null;
   const productDimensions = text(formData, 'dimensions').slice(0, 80) || null;
 
   /**
@@ -254,7 +255,7 @@ export async function saveProduct(formData: FormData) {
   const sizes = withoutRedundantPrices(readVariantRows(formData), priceCents, {
     sku: productSku,
     imageUrl: productImageUrl,
-    weightOunces: weightOunces || null,
+    weightOunces,
     dimensions: productDimensions,
     ships: productShips,
     pickup: productPickup
@@ -304,7 +305,7 @@ export async function saveProduct(formData: FormData) {
     // Only meaningful alongside a variant list, and only when the owner renamed it.
     sizeLabel: sizes.length && sizeLabelText ? sizeFieldLabel(sizeLabelText) : null,
     specs: Object.keys(specs).length ? (specs as Prisma.InputJsonValue) : Prisma.DbNull,
-    weightOunces: weightOunces > 0 ? weightOunces : null,
+    weightOunces,
     dimensions: productDimensions,
     active: checked(formData, 'active'),
     featured: checked(formData, 'featured'),

@@ -8,6 +8,7 @@ const {
   availableForSize,
   cartLineKey,
   cheapestShippableCents,
+  cleanWeightOunces,
   findSize,
   formatSizePriceRange,
   productInventoryForSizes,
@@ -65,6 +66,59 @@ function variantForm(rows: VariantRowInput[]) {
   }
   return form;
 }
+
+describe('fractional shipping weights', () => {
+  it('preserves a product’s posted ounces without rounding or clearing small weights', () => {
+    const form = new FormData();
+    for (const [typed, expected] of [
+      ['.63', 0.63],
+      ['0.25', 0.25],
+      ['1.5', 1.5],
+      ['18', 18]
+    ] as const) {
+      form.set('weightOunces', typed);
+      assert.equal(cleanWeightOunces(form.get('weightOunces')), expected);
+    }
+  });
+
+  it('leaves empty, zero, negative and invalid weights unset', () => {
+    for (const value of [
+      null,
+      undefined,
+      '',
+      ' ',
+      '0',
+      '-0.63',
+      '18 grams/.63 oz',
+      'NaN',
+      'Infinity'
+    ]) {
+      assert.equal(cleanWeightOunces(value), undefined);
+    }
+  });
+
+  it('preserves fractional variants through saving, JSON storage and reopening the editor', () => {
+    const saved = readVariantRows(
+      variantForm([
+        { label: '18 g tea', weight: '.63' },
+        { label: 'Sample', weight: '0.25' },
+        { label: 'Large', weight: '1.5' },
+        { label: 'Default', weight: '' }
+      ])
+    );
+    const stored = JSON.stringify(saved);
+    assert.deepEqual(variantEditorRows(stored, 0), [
+      { label: '18 g tea', weightOunces: 0.63 },
+      { label: 'Sample', weightOunces: 0.25 },
+      { label: 'Large', weightOunces: 1.5 },
+      { label: 'Default' }
+    ]);
+    assert.deepEqual(
+      productSizes(stored, 1200, { weightOunces: 0.75 }).map((size) => size.weightOunces),
+      [0.63, 0.25, 1.5, 0.75]
+    );
+  });
+});
 
 describe('readStoredSizes', () => {
   it('keeps labels and only the prices that were set', () => {

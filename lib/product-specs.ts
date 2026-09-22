@@ -208,7 +208,12 @@ const CARNIVOROUS_CARE: SpecGroup = {
 const TEA_CONTENTS: SpecGroup = {
   title: 'What is in the tin',
   fields: [
-    { key: 'netWeight', label: 'Net weight', placeholder: '2 oz (57 g)' },
+    {
+      key: 'netWeight',
+      label: 'Net weight',
+      placeholder: '18 g / 0.63 oz',
+      hint: 'The tea’s weight without packaging, including units as written on the label.'
+    },
     {
       key: 'ingredients',
       label: 'Ingredients',

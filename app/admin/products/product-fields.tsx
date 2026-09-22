@@ -267,9 +267,13 @@ function VariantRow({
               name={VARIANT_FIELD_NAMES.weightOunces}
               type="number"
               min="0"
-              step="1"
+              step="any"
+              inputMode="decimal"
               defaultValue={variant.weightOunces == null ? '' : variant.weightOunces}
             />
+            <span className="admin-hint">
+              Enter ounces as a number, e.g. 0.63. Leave blank to use the product’s weight.
+            </span>
           </label>
           <label className="admin-label">
             Dimensions
@@ -475,10 +479,13 @@ export default function ProductFields({
             name="weightOunces"
             type="number"
             min="0"
-            step="1"
+            step="any"
+            inputMode="decimal"
             defaultValue={product?.weightOunces ?? ''}
           />
-          <span className="admin-hint">Packed weight, for working out postage.</span>
+          <span className="admin-hint">
+            Packed weight, for working out postage. Enter ounces as a number, e.g. 0.63.
+          </span>
         </label>
         <label className="admin-label">
           Dimensions
