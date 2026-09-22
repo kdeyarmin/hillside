@@ -250,7 +250,7 @@ model Product {
    */
   specs            Json?
   /** Shipping weight of the product as sold one way, in ounces. */
-  weightOunces     Int?
+  weightOunces     Float?
   /** Packed or finished dimensions, as the owner writes them: `8 × 8 × 10 in`. */
   dimensions       String?
   active           Boolean      @default(true)

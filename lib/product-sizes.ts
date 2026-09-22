@@ -141,11 +141,12 @@ function cleanSizeInventory(value: unknown) {
   return Math.min(MAX_SIZE_INVENTORY, Math.floor(number));
 }
 
-function cleanWeightOunces(value: unknown) {
+/** Product and variant shipping weights may be less than one ounce. */
+export function cleanWeightOunces(value: unknown) {
   if (value == null || value === '') return undefined;
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0) return undefined;
-  return Math.min(MAX_VARIANT_WEIGHT_OUNCES, Math.round(number));
+  return Math.min(MAX_VARIANT_WEIGHT_OUNCES, number);
 }
 
 /** Only a real boolean counts as an override; anything else means "follow the product". */
@@ -658,7 +659,7 @@ export function readVariantRows(form: {
         label,
         ...(price == null ? {} : { priceCents: Math.round(price * 100) }),
         ...(inventory == null ? {} : { inventory: Math.floor(inventory) }),
-        ...(weight == null ? {} : { weightOunces: Math.round(weight) }),
+        ...(weight == null ? {} : { weightOunces: weight }),
         sku: skus[index] ?? '',
         imageUrl: images[index] ?? '',
         dimensions: dimensions[index] ?? '',
