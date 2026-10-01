@@ -282,7 +282,8 @@ function CollectionFields({
             className="admin-input"
             name="sortOrder"
             type="number"
-            defaultValue={collection?.sortOrder ?? 0}
+            defaultValue={collection?.sortOrder ?? ''}
+            placeholder={collection ? undefined : 'Leave empty to put it first'}
           />
         </label>
         <label className="admin-label full">

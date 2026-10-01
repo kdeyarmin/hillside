@@ -612,6 +612,14 @@ export async function receiveStock(formData: FormData) {
   );
 }
 
+async function sortOrderAheadOfEveryCollection() {
+  const first = await db.collection.findFirst({
+    orderBy: { sortOrder: 'asc' },
+    select: { sortOrder: true }
+  });
+  return first ? first.sortOrder - 10 : 0;
+}
+
 export async function saveCollection(formData: FormData) {
   await guard();
   const id = text(formData, 'id');
@@ -645,6 +653,19 @@ export async function saveCollection(formData: FormData) {
     .map((value) => String(value))
     .filter(Boolean);
 
+  /**
+   * A new collection is almost always the one Tammy wants seen — a season, a
+   * sale — so with no display order given it goes ahead of every existing one.
+   * Defaulting to zero filed it behind whatever the reorder had numbered, and
+   * the homepage, which only shows the first few tiles, left it off entirely.
+   */
+  const requestedOrder = text(formData, 'sortOrder');
+  const sortOrder = requestedOrder
+    ? integer(requestedOrder)
+    : id
+      ? 0
+      : await sortOrderAheadOfEveryCollection();
+
   const data = {
     title,
     slug: requestedSlug,
@@ -653,7 +674,7 @@ export async function saveCollection(formData: FormData) {
     imageUrl: text(formData, 'imageUrl') || null,
     featured: checked(formData, 'featured'),
     active: checked(formData, 'active'),
-    sortOrder: integer(formData.get('sortOrder')),
+    sortOrder,
     intro: text(formData, 'intro') || null,
     body: text(formData, 'body') || null,
     faq: faq.length ? (faq as Prisma.InputJsonValue) : Prisma.DbNull,
